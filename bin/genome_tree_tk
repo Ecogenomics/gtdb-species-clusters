@@ -1,0 +1,151 @@
+#!/usr/bin/env python
+###############################################################################
+#                                                                             #
+#    This program is free software: you can redistribute it and/or modify     #
+#    it under the terms of the GNU General Public License as published by     #
+#    the Free Software Foundation, either version 3 of the License, or        #
+#    (at your option) any later version.                                      #
+#                                                                             #
+#    This program is distributed in the hope that it will be useful,          #
+#    but WITHOUT ANY WARRANTY; without even the implied warranty of           #
+#    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the            #
+#    GNU General Public License for more details.                             #
+#                                                                             #
+#    You should have received a copy of the GNU General Public License        #
+#    along with this program. If not, see <http://www.gnu.org/licenses/>.     #
+#                                                                             #
+###############################################################################
+
+__author__ = "Donovan Parks"
+__copyright__ = "Copyright 2015"
+__credits__ = ["Donovan Parks"]
+__license__ = "GPL3"
+__maintainer__ = "Donovan Parks"
+__email__ = "donovan.parks@gmail.com"
+__status__ = "Development"
+
+import os
+import sys
+import argparse
+
+from genome_tree_tk.main import OptionsParser
+from biolib.misc.custom_help_formatter import CustomHelpFormatter
+
+
+def version():
+    """Read program version from file."""
+    bin_dir = os.path.dirname(os.path.realpath(__file__))
+    version_file = open(os.path.join(bin_dir, '..', 'genome_tree_tk', 'VERSION'))
+    return version_file.read().strip()
+
+
+def print_help():
+    """Help menu."""
+
+    print ''
+    print '                ...::: GenomeTreeTK v' + version() + ' :::...'''
+    print '''\
+
+    Assess tree stability:
+      bootstrap  -> Bootstrap multiple sequence alignment
+      jk_markers -> Jackknife marker genes
+      jk_taxa    -> Jackknife ingroup taxa
+      combine    -> Combine all support values into a single tree
+      
+    Reroot tree:
+      midpoint   -> Reroot tree at midpoint. 
+      outgroup   -> Reroot tree with outgroup.
+
+  Use: genome_tree_tk <command> -h for command specific help.
+
+  Feature requests or bug reports can be sent to Donovan Parks (donovan.parks@gmail.com)
+    or posted on GitHub (https://github.com/dparks1134/GenomeTreeTK).
+    '''
+
+if __name__ == '__main__':
+
+    # initialize the options parser
+    parser = argparse.ArgumentParser(add_help=False)
+    subparsers = parser.add_subparsers(help="--", dest='subparser_name')
+
+    # assess robustness of genome tree using classic bootstrapping
+    bootstrap_parser = subparsers.add_parser('bootstrap',
+                                        formatter_class=CustomHelpFormatter,
+                                        description='Bootstrap multiple sequence alignment.')
+    bootstrap_parser.add_argument('output_prefix', help="prefix of output files")
+    bootstrap_parser.add_argument('output_dir', help="output directory (same specific with 'marker')")
+    bootstrap_parser.add_argument('-r', '--num_rep', help="number of jackknife replicates to perform", type=int, default=100)
+    bootstrap_parser.add_argument('-t', '--threads', help='number of threads', type=int, default=16)
+
+    # assess robustness of genome tree by jackknifing marker genes
+    jk_markers_parser = subparsers.add_parser('jk_markers',
+                                        formatter_class=CustomHelpFormatter,
+                                        description='Jackknife marker genes.')
+    jk_markers_parser.add_argument('output_prefix', help="prefix of output files")
+    jk_markers_parser.add_argument('output_dir', help="output directory (same specific with 'marker')")
+    jk_markers_parser.add_argument('-p', '--perc_markers', help="percentage of markers to keep", type=float, default=0.5)
+    jk_markers_parser.add_argument('-r', '--num_rep', help="number of jackknife replicates to perform", type=int, default=100)
+    jk_markers_parser.add_argument('-t', '--threads', help='number of threads', type=int, default=16)
+
+    # assess robustness of genome tree by jackknifing ingroup taxa
+    jk_taxa_parser = subparsers.add_parser('jk_taxa',
+                                        formatter_class=CustomHelpFormatter,
+                                        description='Jackknife ingroup taxa.')
+    jk_taxa_parser.add_argument('output_prefix', help="prefix of output files")
+    jk_taxa_parser.add_argument('output_dir', help="output directory (same specific with 'marker')")
+    jk_taxa_parser.add_argument('-p', '--perc_taxa', help="percentage of taxa to keep", type=float, default=0.5)
+    jk_taxa_parser.add_argument('-r', '--num_rep', help="number of jackknife replicates to perform", type=int, default=100)
+    jk_taxa_parser.add_argument('-t', '--threads', help='number of threads', type=int, default=16)
+
+    # assess robustness of genome tree by jackknifing ingroup taxa
+    combine_parser = subparsers.add_parser('combine',
+                                        formatter_class=CustomHelpFormatter,
+                                        description='Combine all support values into a single tree.')
+    combine_parser.add_argument('output_prefix', help="prefix of output files")
+    combine_parser.add_argument('output_dir', help="output directory (same specific with 'marker')")
+    combine_parser.add_argument('--trees', help="trees to infer", choices=['external', 'all', 'both'], default='both')
+    combine_parser.add_argument('-s', '--support_type', choices=['average', 'minimum'], help="type of support values to compute", default='average')
+    
+    # reroot tree at midpoint
+    midpoint_parser = subparsers.add_parser('midpoint',
+                                        formatter_class=CustomHelpFormatter,
+                                        description='Reroot tree at midpoint.')
+    midpoint_parser.add_argument('input_tree', help="tree to reroot")
+    midpoint_parser.add_argument('output_tree', help="output tree")
+    
+    # reroot tree with outgroup
+    outgroup_parser = subparsers.add_parser('outgroup',
+                                        formatter_class=CustomHelpFormatter,
+                                        description='Reroot tree with outgroup.')
+    outgroup_parser.add_argument('input_tree', help="tree to reroot")
+    outgroup_parser.add_argument('outgroup_file', help="file containing taxa in outgroup")
+    outgroup_parser.add_argument('output_tree', help="output tree")
+
+    # get and check options
+    args = None
+    if(len(sys.argv) == 1 or sys.argv[1] == '-h' or sys.argv == '--help'):
+        print_help()
+        sys.exit(0)
+    else:
+        args = parser.parse_args()
+
+    # do what we came here to do
+    try:
+        parser = OptionsParser()
+        if(False):
+            # import pstats
+            # p = pstats.Stats('prof')
+            # p.sort_stats('cumulative').print_stats(10)
+            # p.sort_stats('time').print_stats(10)
+            import cProfile
+            cProfile.run('parser.parse_options(args)', 'prof')
+        elif False:
+            import pdb
+            pdb.run(parser.parse_options(args))
+        else:
+            parser.parse_options(args)
+    except SystemExit:
+        print "\n  Controlled exit resulting from an unrecoverable error or warning."
+    except:
+        print "\nUnexpected error:", sys.exc_info()[0]
+        raise
