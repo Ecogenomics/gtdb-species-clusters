@@ -8,7 +8,7 @@ def version():
     return versionFile.read().strip()
 
 setup(
-    name='GenomeTreeTK',
+    name='GenomeTreeTk',
     version=version(),
     author='Donovan Parks',
     author_email='donovan.parks@gmail.com',
