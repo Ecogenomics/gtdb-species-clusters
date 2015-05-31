@@ -35,7 +35,7 @@ class TreeSupport():
         Parameters
         ----------
         input_tree : str
-          Tree inferred from complete data. 
+          Tree inferred from complete data.
         replicate_trees : iterable
           Files containing replicate trees.
         output_tree: str
@@ -62,7 +62,7 @@ class TreeSupport():
         Parameters
         ----------
         input_tree : str
-          Tree inferred from complete data. 
+          Tree inferred from complete data.
         replicate_trees : iterable
           Files containing replicate trees.
         output_tree: str
@@ -82,11 +82,11 @@ class TreeSupport():
             rep_tree_taxa_set = set([x.taxon.label for x in rep_tree.leaf_nodes()])
 
             for node in tree.internal_nodes():
-                taxaLabels = set([x.taxon.label for x in node.leaf_nodes()]).intersection(rep_tree_taxa_set)
+                taxa_labels = set([x.taxon.label for x in node.leaf_nodes()]).intersection(rep_tree_taxa_set)
 
-                if len(taxaLabels) > 1:
+                if len(taxa_labels) > 1:
                     # tabulate results for non-trivial splits
-                    node.label += int(rep_tree_list.frequency_of_split(labels=taxaLabels))
+                    node.label += int(rep_tree_list.frequency_of_split(labels=taxa_labels))
                     node.nontrivial_splits += 1
 
         for node in tree.internal_nodes():

@@ -16,203 +16,135 @@
 ###############################################################################
 
 import os
-import sys
 import logging
 import random
-import multiprocessing as mp
-
 from math import floor
 
-from genome_tree.fasttree import FastTree
-from genome_tree_tk.tree_support import TreeSupport
-from genome_tree.common import readTreeModel, makeSurePathExists
+import biolib.seq_io as seq_io
+from biolib.external.fasttree import FastTree
+from biolib.parallel import Parallel
+from biolib.common import remove_extension, make_sure_path_exists
 
-from checkm.defaultValues import DefaultValues as DefaultValuesCheckM
-from checkm.util.seqUtils import readFasta
+from genome_tree_tk.tree_support import TreeSupport
 
 
 class JackknifeTaxa(object):
-    """Assess robustness of genome tree by jackknifing marker genes in multiple sequence alignment."""
+    """Assess robustness by jackknifing taxa in alignment."""
 
-    def __init__(self, outputPrefix, outputDir):
-        """Setup directories for jk_taxa command."""
-        self.logger = logging.getLogger()
-
-        self.reportOut = os.path.join(outputDir, DefaultValues.REPORT)
-        self.treeModel = readTreeModel(self.reportOut)
-        self.validOutgroup = os.path.join(outputDir, DefaultValues.INFER_DIR, DefaultValues.INFER_VALID_OUTGROUP)
-
-        self.msaExternal = os.path.join(outputDir, DefaultValues.INFER_DIR, DefaultValues.INFER_EXTERNAL_MSA)
-        self.treeExternal = os.path.join(outputDir, DefaultValues.INFER_EXTERNAL_REROOT_TREE)
-
-        self.msaAll = os.path.join(outputDir, DefaultValues.INFER_DIR, DefaultValues.INFER_ALL_MSA)
-        self.treeAll = os.path.join(outputDir, DefaultValues.INFER_ALL_REROOT_TREE)
-
-        self.jkTaxaDir = os.path.join(outputDir, DefaultValues.JK_TAXA_DIR)
-        makeSurePathExists(self.jkTaxaDir)
-
-        self.jkTaxaTreesExternalDir = os.path.join(self.jkTaxaDir, DefaultValues.JK_TAXA_TREES_EXTERNAL_DIR)
-        makeSurePathExists(self.jkTaxaTreesExternalDir)
-
-        self.jkTaxaTreesAllDir = os.path.join(self.jkTaxaDir, DefaultValues.JK_TAXA_TREES_ALL_DIR)
-        makeSurePathExists(self.jkTaxaTreesAllDir)
-
-        if not outputPrefix[-1] == '.' and not outputPrefix[-1] == '_':
-            outputPrefix += '.'
-        self.jkTaxaTreeExternal = os.path.join(self.jkTaxaDir, outputPrefix + DefaultValues.JK_TAXA_TREE_EXTERNAL)
-        self.jkTaxaTreeAll = os.path.join(self.jkTaxaDir, outputPrefix + DefaultValues.JK_TAXA_TREE_ALL)
-
-    def __processingThread(self, fullMSA, jkTaxaTreesDir, percentTaxaToKeep, outgroupIds, queueIn, queueOut):
-        """Infer tree from jackknifed alignments."""
-
-        while True:
-            repIndex = queueIn.get(block=True, timeout=None)
-            if repIndex == None:
-                break
-
-            outputMSA = os.path.join(jkTaxaTreesDir, 'jk_taxa.msa.' + str(repIndex) + '.fna')
-            self.__createAlignmentForTaxa(fullMSA, percentTaxaToKeep, outgroupIds, outputMSA)
-
-            fastTree = FastTree(bMultithreaded=False)
-            outputTree = os.path.join(jkTaxaTreesDir, 'jk_taxa.tree.' + str(repIndex) + '.tre')
-            fastTreeOutput = os.path.join(jkTaxaTreesDir, 'jk_taxa.fasttree.' + str(repIndex) + '.out')
-            fastTree.run(outputMSA, self.treeModel, outputTree, fastTreeOutput)
-
-            queueOut.put(repIndex)
-
-    def __reportingThread(self, numReplicates, queueIn):
-        """Report number of processed replicates."""
-
-        numProcessed = 0
-
-        statusStr = '    Finished processing %d of %d (%.2f%%) replicates.' % (numProcessed, numReplicates, float(numProcessed) * 100 / numReplicates)
-        sys.stderr.write('%s\r' % statusStr)
-        sys.stderr.flush()
-
-        while True:
-            repIndex = queueIn.get(block=True, timeout=None)
-            if repIndex == None:
-                break
-
-            numProcessed += 1
-            if self.logger.getEffectiveLevel() <= logging.INFO:
-                statusStr = '    Finished processing %d of %d (%.2f%%) replicates.' % (numProcessed, numReplicates, float(numProcessed) * 100 / numReplicates)
-                sys.stderr.write('%s\r' % statusStr)
-                sys.stderr.flush()
-
-        if self.logger.getEffectiveLevel() <= logging.INFO:
-            sys.stderr.write('\n')
-
-    def __createAlignmentForTaxa(self, fullMSA, percentTaxaToKeep, outgroupIds, outputFile):
-        """Create multiple sequence alignment for jackknifed taxa."""
-
-        # randomly select ingroup taxa
-        numIngroupTaxa = len(fullMSA) - len(outgroupIds)
-        ingroupTaxaToKeep = random.sample(fullMSA.keys(), int(floor(numIngroupTaxa * percentTaxaToKeep)))
-
-        taxaToKeep = set(ingroupTaxaToKeep).union(outgroupIds)
-
-        fout = open(outputFile, 'w')
-        for seqId, seq in fullMSA.iteritems():
-            if seqId in taxaToKeep:
-                fout.write('>' + seqId + '\n')
-                fout.write(seq + '\n')
-        fout.close()
-
-    def __jackknife(self, msaFile, jkTaxaTreesDir, inputTree, jkTaxaTree, percentTaxaToKeep, numReplicates, threads):
-        """Jackknife taxa to assess robustness of tree.
+    def __init__(self, cpus):
+        """Initialization.
 
         Parameters
         ----------
-        msaFile : str
-          File containing multiple sequence alignment for all taxa.
-        jkTaxaTreesDir : str
-          Output directory for jackknifed trees
-        inputTree : str
-          Tree inferred with all data.
-        jkTaxaTree : str
-          Output tree with jackknife taxa support values.
-        percentTaxaToKeep : flow
-          Percentage of taxa to keep in each jackknifed tree.
-        numReplicates : int
-          Number of jackknife replicates to perform.
-        threads : int
-          Number of processors to use.
+        cpus : int
+          Number of cpus to use.
         """
 
-        # read full MSA
-        fullMSA = readFasta(msaFile)
+        self.logger = logging.getLogger()
 
-        # read outgroup taxa
-        outgroupIds = set()
-        for line in open(self.validOutgroup):
-            outgroupIds.add(line.strip())
+        self.cpus = cpus
 
-        # infer genome trees with jackknifed taxa
-        workerQueue = mp.Queue()
-        writerQueue = mp.Queue()
+    def _producer(self, replicated_num):
+        """Infer tree from jackknifed alignments.
 
-        for repIndex in xrange(numReplicates):
-            workerQueue.put(repIndex)
+        Parameters
+        ----------
+        replicated_num : int
+          Unique replicate number.
+        """
 
-        for _ in range(threads):
-            workerQueue.put(None)
+        output_msa = os.path.join(self.replicate_dir, 'jk_taxa.msa.' + str(replicated_num) + '.fna')
+        self.jackknife_taxa(self.msa, self.perc_taxa_to_keep, self.outgroup_ids, output_msa)
 
-        try:
-            calcProc = [mp.Process(target=self.__processingThread, args=(fullMSA, jkTaxaTreesDir, percentTaxaToKeep, outgroupIds, workerQueue, writerQueue)) for _ in range(threads)]
-            writeProc = mp.Process(target=self.__reportingThread, args=(numReplicates, writerQueue))
+        fast_tree = FastTree(multithreaded=False)
+        output_tree = os.path.join(self.replicate_dir, 'jk_taxa.tree.' + str(replicated_num) + '.tre')
+        fast_tree_output = os.path.join(self.replicate_dir, 'jk_taxa.fasttree.' + str(replicated_num) + '.out')
+        fast_tree.run(output_msa, 'prot', self.model, output_tree, fast_tree_output)
 
-            writeProc.start()
+        return True
 
-            for p in calcProc:
-                p.start()
+    def _progress(self, processed_items, total_items):
+        """Report progress of replicates."""
 
-            for p in calcProc:
-                p.join()
+        return '    Processed %d of %d replicates.' % (processed_items, total_items)
 
-            writerQueue.put(None)
-            writeProc.join()
-        except:
-            # make sure all processes are terminated
-            for p in calcProc:
-                p.terminate()
+    def jackknife_taxa(self, msa, perc_taxa_to_keep, outgroup_ids, output_file):
+        """Jackknife alignment to a subset of taxa.
 
-            writeProc.terminate()
+        Parameters
+        ----------
+        msa : d[seq_id] -> seq
+          Full multiple sequence alignment.
+        perc_taxa_to_keep : float
+          Percentage of marker genes to keep in each replicate.
+        outgroup_ids : set
+          Labels of outgroup taxa.
+        output_file : str
+          File to write bootstrapped alignment.
+        """
 
-        # calculate support
-        self.logger.info('')
-        self.logger.info('  Calculating support.')
+        # randomly select ingroup taxa
+        ingroup_taxa = set(msa.keys()) - outgroup_ids
+        taxa_to_keep = random.sample(ingroup_taxa, int(floor(len(ingroup_taxa) * perc_taxa_to_keep)))
 
-        repTreeFiles = []
-        for repIndex in xrange(numReplicates):
-            repTreeFiles.append(os.path.join(jkTaxaTreesDir, 'jk_taxa.tree.' + str(repIndex) + '.tre'))
+        taxa_to_keep = set(taxa_to_keep).union(outgroup_ids)
 
-        treeSupport = TreeSupport()
-        treeSupport.supportOnSubsetTaxa(inputTree, repTreeFiles, jkTaxaTree)
-
-    def run(self, percentTaxaToKeep, numReplicates, treesToInfer, threads):
-        """Calculate jackknife for the external and 'all' tree."""
-
-        timeKeeper = TimeKeeper()
-
-        if treesToInfer == 'both' or treesToInfer == 'external':
-            self.logger.info('  Inferring jackknife taxa support for external genome trees.')
-            self.__jackknife(self.msaExternal, self.jkTaxaTreesExternalDir, self.treeExternal, self.jkTaxaTreeExternal, percentTaxaToKeep, numReplicates, threads)
-            timeKeeper.printTimeStamp()
-
-        if treesToInfer == 'both' or treesToInfer == 'all':
-            self.logger.info('')
-            self.logger.info('  Inferring jackknife taxa support for complete genome trees.')
-            self.__jackknife(self.msaAll, self.jkTaxaTreesAllDir, self.treeAll, self.jkTaxaTreeAll, percentTaxaToKeep, numReplicates, threads)
-            timeKeeper.printTimeStamp()
-
-        # generate summary report
-        fout = open(self.reportOut, 'a')
-        fout.write('\n\n')
-        fout.write('[jk_taxa]\n')
-        fout.write('Percentage of taxa to keep: %f\n' % percentTaxaToKeep)
-        fout.write('Number of replicates: %d\n' % numReplicates)
-        fout.write(timeKeeper.getTimeStamp())
+        fout = open(output_file, 'w')
+        for seq_id, seq in msa.iteritems():
+            if seq_id in taxa_to_keep:
+                fout.write('>' + seq_id + '\n')
+                fout.write(seq + '\n')
         fout.close()
 
-        timeKeeper.printTimeStamp()
+    def run(self, input_tree, msa_file, outgroup_file, perc_taxa_to_keep, num_replicates, model, output_dir):
+        """Jackknife taxa.
+
+        Parameters
+        ----------
+        input_tree : str
+          Tree inferred with all data.
+        msa_file : str
+          File containing multiple sequence alignment for all taxa.
+        outgroup_file : str
+          File indicating labels of outgroup taxa.
+        perc_taxa_to_keep : float
+          Percentage of taxa to keep in each replicate.
+        num_replicates : int
+          Number of replicates to perform.
+        model : str
+          Desired model of evolution.
+        output_dir : str
+          input_tree directory for bootstrap trees.
+        """
+
+        assert(model in ['wag', 'jtt'])
+
+        self.perc_taxa_to_keep = perc_taxa_to_keep
+        self.model = model
+        self.replicate_dir = os.path.join(output_dir, 'replicates')
+        make_sure_path_exists(self.replicate_dir)
+        # read outgroup taxa
+        self.outgroup_ids = set()
+        if outgroup_file:
+            for line in open(outgroup_file):
+                self.outgroup_ids.add(line.strip())
+
+        # read full multiple sequence alignment
+        self.msa = seq_io.read(msa_file)
+
+        # calculate replicates
+        self.logger.info('')
+        self.logger.info('  Calculating jackknife taxa replicates:')
+        parallel = Parallel(self.cpus)
+        parallel.run(self._producer, None, xrange(num_replicates), self._progress)
+
+        # calculate support
+        rep_tree_files = []
+        for rep_index in xrange(num_replicates):
+            rep_tree_files.append(os.path.join(self.replicate_dir, 'jk_taxa.tree.' + str(rep_index) + '.tre'))
+
+        tree_support = TreeSupport()
+        output_tree = os.path.join(output_dir, remove_extension(input_tree) + '.jk_taxa.tree')
+        tree_support.common_taxa(input_tree, rep_tree_files, output_tree)
+
+        return output_tree

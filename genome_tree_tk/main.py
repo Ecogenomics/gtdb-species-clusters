@@ -20,7 +20,7 @@ import logging
 
 from biolib.misc.time_keeper import TimeKeeper
 from biolib.external.execute import check_dependencies
-from biolib.common import check_file_exists
+from biolib.common import check_file_exists, make_sure_path_exists
 
 from genome_tree_tk.bootstrap import Bootstrap
 from genome_tree_tk.jackknife_markers import JackknifeMarkers
@@ -41,10 +41,20 @@ class OptionsParser():
         self.logger.info('*******************************************************************************')
         self.logger.info(' [GenomeTreeTK - bootstrap] Bootstrap multiple sequence alignment.')
         self.logger.info('*******************************************************************************')
-        self.logger.info('')
 
-        bootstrapWorkflow = Bootstrap(options.output_prefix, options.output_dir)
-        bootstrapWorkflow.run(options.num_rep, options.trees, options.threads)
+        check_file_exists(options.input_tree)
+        check_file_exists(options.msa_file)
+        make_sure_path_exists(options.output_dir)
+
+        bootstrap = Bootstrap(options.cpus)
+        output_tree = bootstrap.run(options.input_tree,
+                                    options.msa_file,
+                                    options.num_replicates,
+                                    options.model,
+                                    options.output_dir)
+
+        self.logger.info('')
+        self.logger.info('  Bootstrapped tree written to: %s' % output_tree)
 
         self.time_keeper.print_time_stamp()
 
@@ -53,10 +63,22 @@ class OptionsParser():
         self.logger.info('*******************************************************************************')
         self.logger.info(' [GenomeTreeTK - jk_markers] Jackknife marker genes.')
         self.logger.info('*******************************************************************************')
-        self.logger.info('')
 
-        jackknifeMarkersWorkflow = JackknifeMarkers(options.output_prefix, options.output_dir)
-        jackknifeMarkersWorkflow.run(options.perc_markers, options.num_rep, options.trees, options.threads)
+        check_file_exists(options.input_tree)
+        check_file_exists(options.msa_file)
+        make_sure_path_exists(options.output_dir)
+
+        jackknife_markers = JackknifeMarkers(options.cpus)
+        output_tree = jackknife_markers.run(options.input_tree,
+                                                options.msa_file,
+                                                options.gene_length_file,
+                                                options.perc_markers,
+                                                options.num_replicates,
+                                                options.model,
+                                                options.output_dir)
+
+        self.logger.info('')
+        self.logger.info('  Jackknifed marker tree written to: %s' % output_tree)
 
         self.time_keeper.print_time_stamp()
 
@@ -65,10 +87,22 @@ class OptionsParser():
         self.logger.info('*******************************************************************************')
         self.logger.info(' [GenomeTreeTK - jk_taxa] Jackknife ingroup taxa.')
         self.logger.info('*******************************************************************************')
-        self.logger.info('')
 
-        jackknifeTaxaWorkflow = JackknifeTaxa(options.output_prefix, options.output_dir)
-        jackknifeTaxaWorkflow.run(options.perc_taxa, options.num_rep, options.trees, options.threads)
+        check_file_exists(options.input_tree)
+        check_file_exists(options.msa_file)
+        make_sure_path_exists(options.output_dir)
+
+        jackknife_taxa = JackknifeTaxa(options.cpus)
+        output_tree = jackknife_taxa.run(options.input_tree,
+                                            options.msa_file,
+                                            options.outgroup_ids,
+                                            options.perc_taxa,
+                                            options.num_replicates,
+                                            options.model,
+                                            options.output_dir)
+
+        self.logger.info('')
+        self.logger.info('  Jackknifed taxa tree written to: %s' % output_tree)
 
         self.time_keeper.print_time_stamp()
 
@@ -77,10 +111,13 @@ class OptionsParser():
         self.logger.info('*******************************************************************************')
         self.logger.info(' [GenomeTreeTK - combine] Combine all support values into a single tree.')
         self.logger.info('*******************************************************************************')
-        self.logger.info('')
 
-        combineSupport = CombineSupport(options.output_prefix, options.output_dir, options.support_type)
-        combineSupport.run(options.trees, options.support_type)
+        combineSupport = CombineSupport()
+        combineSupport.run(options.support_type,
+                            options.bootstrap_tree,
+                            options.jk_marker_tree,
+                            options.jk_taxa_tree,
+                            options.output_tree)
 
         self.time_keeper.print_time_stamp()
 
@@ -91,28 +128,26 @@ class OptionsParser():
         self.jk_markers(options)
         self.jk_taxa(options)
         self.combine(options)
-        
+
     def midpoint(self, options):
         self.logger.info('')
         self.logger.info('*******************************************************************************')
         self.logger.info(' [GenomeTreeTK - midpoint] Rerooting tree at midpoint.')
         self.logger.info('*******************************************************************************')
-        self.logger.info('')
 
         reroot = RerootTree()
         reroot.midpoint(options.input_tree, options.output_tree)
 
         self.time_keeper.print_time_stamp()
-        
+
     def outgroup(self, options):
         self.logger.info('')
         self.logger.info('*******************************************************************************')
         self.logger.info(' [GenomeTreeTK - outgroup] Rerooting tree with outgroup.')
         self.logger.info('*******************************************************************************')
-        self.logger.info('')
 
         check_file_exists(options.outgroup_file)
-        
+
         outgroup = set()
         for outgroup_id in open(options.outgroup_file):
             outgroup.add(outgroup_id)
@@ -127,7 +162,7 @@ class OptionsParser():
 
         logging.basicConfig(format='', level=logging.INFO)
 
-        check_dependencies(('FastTree'))
+        # check_dependencies(('FastTree'))
 
         if(options.subparser_name == 'bootstrap'):
             self.bootstrap(options)

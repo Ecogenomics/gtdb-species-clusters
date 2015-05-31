@@ -15,13 +15,7 @@
 #                                                                             #
 ###############################################################################
 
-import os
 import logging
-
-from genome_tree.timeKeeper import TimeKeeper
-from genome_tree.defaultValues import DefaultValues
-from genome_tree.fasttree import FastTree
-from genome_tree.common import readTreeModel, makeSurePathExists, checkDirExists
 
 import dendropy
 
@@ -29,75 +23,66 @@ import dendropy
 class CombineSupport(object):
     """Combine all support values into a single tree."""
 
-    def __init__(self, outputPrefix, outputDir, supportType):
-        """Setup directories for combined command."""
+    def __init__(self):
+        """Initialization."""
         self.logger = logging.getLogger()
 
-        if not outputPrefix[-1] == '.' and not outputPrefix[-1] == '_':
-            outputPrefix += '.'
+    def _collect_support_values(self, tree):
+        """Get support value for each node in preorder traversal.
 
-        self.bootstrapDir = os.path.join(outputDir, DefaultValues.BOOTSTRAP_DIR)
-        checkDirExists(self.bootstrapDir)
-        self.bootstrapTreeExternal = os.path.join(self.bootstrapDir, outputPrefix + DefaultValues.BOOTSTRAP_TREE_EXTERNAL)
-        self.bootstrapTreeAll = os.path.join(self.bootstrapDir, outputPrefix + DefaultValues.BOOTSTRAP_TREE_ALL)
+        Parameters
+        ----------
+        tree : dendropy.Tree
+          Tree to obtain support values from.
+        """
 
-        self.jkMarkersDir = os.path.join(outputDir, DefaultValues.JK_MARKERS_DIR)
-        checkDirExists(self.jkMarkersDir)
-        self.jkMarkerTreeExternal = os.path.join(self.jkMarkersDir, outputPrefix + DefaultValues.JK_MARKERS_TREE_EXTERNAL)
-        self.jkMarkerTreeAll = os.path.join(self.jkMarkersDir, outputPrefix + DefaultValues.JK_MARKERS_TREE_ALL)
-        self.jkTaxaDir = os.path.join(outputDir, DefaultValues.JK_TAXA_DIR)
-        checkDirExists(self.jkTaxaDir)
-        self.jkTaxaTreeExternal = os.path.join(self.jkTaxaDir, outputPrefix + DefaultValues.JK_TAXA_TREE_EXTERNAL)
-        self.jkTaxaTreeAll = os.path.join(self.jkTaxaDir, outputPrefix + DefaultValues.JK_TAXA_TREE_ALL)
-
-        self.combinedTreeExternal = os.path.join(outputDir, outputPrefix + supportType + '.' + DefaultValues.COMBINED_TREE_EXTERNAL)
-        self.combinedTreeAll = os.path.join(outputDir, outputPrefix + supportType + '.' + DefaultValues.COMBINED_TREE_ALL)
-
-    def collectSupportValues(self, tree):
-        """Get support value for each node in pre-order traversal."""
-        preOrderSupport = []
+        preorder_support = []
         for node in tree.preorder_node_iter():
             if node.is_internal():
-                preOrderSupport.append(node.label)
+                preorder_support.append(node.label)
 
-        return preOrderSupport
+        return preorder_support
 
-    def __combine(self, bootstrapTree, jkMarkerTree, jkTaxaTree, combinedTree, supportType):
-        """Create new tree indicating average of support values."""
+    def run(self, support_type, bootstrap_tree, jk_marker_tree, jk_taxa_tree, output_tree):
+        """Create new tree indicating combined support values.
 
-        tree = dendropy.Tree.get_from_path(bootstrapTree, schema='newick', as_rooted=True, preserve_underscores=True)
-        bootstrapSupport = self.collectSupportValues(tree)
+        Tree can either be decorated with the average support value
+        or the minimum support value as determine by support_type.
 
-        tree = dendropy.Tree.get_from_path(jkMarkerTree, schema='newick', as_rooted=True, preserve_underscores=True)
-        jkMarkerSupport = self.collectSupportValues(tree)
+        Parameters
+        ----------
+        support_type : str => 'average' or 'minimum'
+            Type of support value to calculate.
+        bootstrap_tree : str
+          Tree with bootstrap support values.
+        jk_marker_tree : str
+          Tree with jackknife marker support values.
+        jk_taxa_tree : str
+          Tree with jackknife taxa support values.
+        output_file : str
+          File to write tree with combined support values.
+        """
 
-        tree = dendropy.Tree.get_from_path(jkTaxaTree, schema='newick', as_rooted=True, preserve_underscores=True)
-        jkTaxaSupport = self.collectSupportValues(tree)
+        assert(support_type in ['average', 'minimum'])
+
+        tree = dendropy.Tree.get_from_path(bootstrap_tree, schema='newick', as_rooted=True, preserve_underscores=True)
+        bootstrap_support = self._collect_support_values(tree)
+
+        tree = dendropy.Tree.get_from_path(jk_marker_tree, schema='newick', as_rooted=True, preserve_underscores=True)
+        jk_marker_support = self._collect_support_values(tree)
+
+        tree = dendropy.Tree.get_from_path(jk_taxa_tree, schema='newick', as_rooted=True, preserve_underscores=True)
+        jk_taxa_support = self._collect_support_values(tree)
 
         internalNodeNum = 0
         for node in tree.preorder_node_iter():
             if node.is_internal():
-                if supportType == 'average':
-                    support = (int(bootstrapSupport[internalNodeNum]) + int(jkMarkerSupport[internalNodeNum]) + int(jkTaxaSupport[internalNodeNum])) / 3.0
-                elif supportType == 'minimum':
-                    support = min(int(bootstrapSupport[internalNodeNum]), int(jkMarkerSupport[internalNodeNum]), int(jkTaxaSupport[internalNodeNum]))
+                if support_type == 'average':
+                    support = (int(bootstrap_support[internalNodeNum]) + int(jk_marker_support[internalNodeNum]) + int(jk_taxa_support[internalNodeNum])) / 3.0
+                elif support_type == 'minimum':
+                    support = min(int(bootstrap_support[internalNodeNum]), int(jk_marker_support[internalNodeNum]), int(jk_taxa_support[internalNodeNum]))
 
                 node.label = '%s' % str(int(support + 0.5))
                 internalNodeNum += 1
 
-        tree.write_to_path(combinedTree, schema='newick', suppress_rooting=True, unquoted_underscores=True)
-
-    def run(self, treesToInfer, supportType):
-        """Create new trees indicating average of support values.."""
-
-        timeKeeper = TimeKeeper()
-
-        if treesToInfer == 'both' or treesToInfer == 'external':
-            self.logger.info('  Calculating %s support for external tree.' % supportType)
-            self.__combine(self.bootstrapTreeExternal, self.jkMarkerTreeExternal, self.jkTaxaTreeExternal, self.combinedTreeExternal, supportType)
-
-        if treesToInfer == 'both' or treesToInfer == 'all':
-            self.logger.info('  Calculating %s support for all tree.' % supportType)
-            self.__combine(self.bootstrapTreeAll, self.jkMarkerTreeAll, self.jkTaxaTreeAll, self.combinedTreeAll, supportType)
-
-        timeKeeper.printTimeStamp()
+        tree.write_to_path(output_tree, schema='newick', suppress_rooting=True, unquoted_underscores=True)

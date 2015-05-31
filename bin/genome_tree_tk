@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/srv/sw/python/2.7.4/bin/python
 ###############################################################################
 #                                                                             #
 #    This program is free software: you can redistribute it and/or modify     #
@@ -43,7 +43,7 @@ def print_help():
     """Help menu."""
 
     print ''
-    print '                ...::: GenomeTreeTK v' + version() + ' :::...'''
+    print '                ...::: GenomeTreeTk v' + version() + ' :::...'''
     print '''\
 
     Assess tree stability:
@@ -51,9 +51,9 @@ def print_help():
       jk_markers -> Jackknife marker genes
       jk_taxa    -> Jackknife ingroup taxa
       combine    -> Combine all support values into a single tree
-      
+
     Reroot tree:
-      midpoint   -> Reroot tree at midpoint. 
+      midpoint   -> Reroot tree at midpoint.
       outgroup   -> Reroot tree with outgroup.
 
   Use: genome_tree_tk <command> -h for command specific help.
@@ -72,47 +72,56 @@ if __name__ == '__main__':
     bootstrap_parser = subparsers.add_parser('bootstrap',
                                         formatter_class=CustomHelpFormatter,
                                         description='Bootstrap multiple sequence alignment.')
-    bootstrap_parser.add_argument('output_prefix', help="prefix of output files")
-    bootstrap_parser.add_argument('output_dir', help="output directory (same specific with 'marker')")
-    bootstrap_parser.add_argument('-r', '--num_rep', help="number of jackknife replicates to perform", type=int, default=100)
-    bootstrap_parser.add_argument('-t', '--threads', help='number of threads', type=int, default=16)
+    bootstrap_parser.add_argument('input_tree', help="tree inferred from original data")
+    bootstrap_parser.add_argument('msa_file', help="file containing multiple sequence alignment")
+    bootstrap_parser.add_argument('output_dir', help="output directory")
+    bootstrap_parser.add_argument('-m', '--model', choices=['wag', 'jtt'], help="model of evolution to use", default='jtt')
+    bootstrap_parser.add_argument('-r', '--num_replicates', help="number of bootstrap replicates to perform", type=int, default=100)
+    bootstrap_parser.add_argument('-c', '--cpus', help='number of cpus', type=int, default=1)
 
     # assess robustness of genome tree by jackknifing marker genes
     jk_markers_parser = subparsers.add_parser('jk_markers',
                                         formatter_class=CustomHelpFormatter,
                                         description='Jackknife marker genes.')
-    jk_markers_parser.add_argument('output_prefix', help="prefix of output files")
-    jk_markers_parser.add_argument('output_dir', help="output directory (same specific with 'marker')")
+    jk_markers_parser.add_argument('input_tree', help="tree inferred from original data")
+    jk_markers_parser.add_argument('msa_file', help="file containing multiple sequence alignment")
+    jk_markers_parser.add_argument('gene_length_file', help="file indicating length of each gene in concatenated alignment")
+    jk_markers_parser.add_argument('output_dir', help="output directory)")
+    jk_markers_parser.add_argument('-m', '--model', choices=['wag', 'jtt'], help="model of evolution to use", default='jtt')
     jk_markers_parser.add_argument('-p', '--perc_markers', help="percentage of markers to keep", type=float, default=0.5)
-    jk_markers_parser.add_argument('-r', '--num_rep', help="number of jackknife replicates to perform", type=int, default=100)
-    jk_markers_parser.add_argument('-t', '--threads', help='number of threads', type=int, default=16)
+    jk_markers_parser.add_argument('-r', '--num_replicates', help="number of jackknife replicates to perform", type=int, default=100)
+    jk_markers_parser.add_argument('-c', '--cpus', help='number of cpus', type=int, default=1)
 
     # assess robustness of genome tree by jackknifing ingroup taxa
     jk_taxa_parser = subparsers.add_parser('jk_taxa',
                                         formatter_class=CustomHelpFormatter,
                                         description='Jackknife ingroup taxa.')
-    jk_taxa_parser.add_argument('output_prefix', help="prefix of output files")
-    jk_taxa_parser.add_argument('output_dir', help="output directory (same specific with 'marker')")
+    jk_taxa_parser.add_argument('input_tree', help="tree inferred from original data")
+    jk_taxa_parser.add_argument('msa_file', help="file containing multiple sequence alignment")
+    jk_taxa_parser.add_argument('output_dir', help="output directory")
+    jk_taxa_parser.add_argument('--outgroup_ids', help="file indicating outgroup taxa", default=None)
+    jk_taxa_parser.add_argument('-m', '--model', choices=['wag', 'jtt'], help="model of evolution to use", default='jtt')
     jk_taxa_parser.add_argument('-p', '--perc_taxa', help="percentage of taxa to keep", type=float, default=0.5)
-    jk_taxa_parser.add_argument('-r', '--num_rep', help="number of jackknife replicates to perform", type=int, default=100)
-    jk_taxa_parser.add_argument('-t', '--threads', help='number of threads', type=int, default=16)
+    jk_taxa_parser.add_argument('-r', '--num_replicates', help="number of jackknife replicates to perform", type=int, default=100)
+    jk_taxa_parser.add_argument('-c', '--cpus', help='number of cpus', type=int, default=1)
 
     # assess robustness of genome tree by jackknifing ingroup taxa
     combine_parser = subparsers.add_parser('combine',
                                         formatter_class=CustomHelpFormatter,
                                         description='Combine all support values into a single tree.')
-    combine_parser.add_argument('output_prefix', help="prefix of output files")
-    combine_parser.add_argument('output_dir', help="output directory (same specific with 'marker')")
-    combine_parser.add_argument('--trees', help="trees to infer", choices=['external', 'all', 'both'], default='both')
+    combine_parser.add_argument('bootstrap_tree', help="tree with bootstrap support values")
+    combine_parser.add_argument('jk_marker_tree', help="tree with jackknife marker support values")
+    combine_parser.add_argument('jk_taxa_tree', help="tree with jackknife taxa support values")
+    combine_parser.add_argument('output_tree', help="output tree")
     combine_parser.add_argument('-s', '--support_type', choices=['average', 'minimum'], help="type of support values to compute", default='average')
-    
+
     # reroot tree at midpoint
     midpoint_parser = subparsers.add_parser('midpoint',
                                         formatter_class=CustomHelpFormatter,
                                         description='Reroot tree at midpoint.')
     midpoint_parser.add_argument('input_tree', help="tree to reroot")
     midpoint_parser.add_argument('output_tree', help="output tree")
-    
+
     # reroot tree with outgroup
     outgroup_parser = subparsers.add_parser('outgroup',
                                         formatter_class=CustomHelpFormatter,

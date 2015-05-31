@@ -16,196 +16,146 @@
 ###############################################################################
 
 import os
-import sys
 import logging
 import random
-import multiprocessing as mp
-
 from math import floor
 
-from genome_tree.timeKeeper import TimeKeeper
-from genome_tree.defaultValues import DefaultValues
-from genome_tree.fasttree import FastTree
-from genome_tree.treeSupport import TreeSupport
-from genome_tree.common import readTreeModel, makeSurePathExists
+import biolib.seq_io as seq_io
+from biolib.external.fasttree import FastTree
+from biolib.parallel import Parallel
+from biolib.common import remove_extension, make_sure_path_exists
 
-from genome_tree.markers.rerootTree import RerootTree
-
-from checkm.defaultValues import DefaultValues as DefaultValuesCheckM
-from checkm.util.seqUtils import readFasta
+from genome_tree_tk.tree_support import TreeSupport
 
 
 class JackknifeMarkers(object):
-    """Assess robustness of genome tree by jackkifing marker genes in multiple sequence alignment."""
+    """Assess robustness by jackkifing genes in alignment."""
 
-    def __init__(self, outputPrefix, outputDir):
-        """Setup directories for jk_markers command."""
+    def __init__(self, cpus):
+        """Initialization.
+
+        Parameters
+        ----------
+        cpus : int
+          Number of cpus to use.
+        """
+
         self.logger = logging.getLogger()
 
-        self.reportOut = os.path.join(outputDir, DefaultValues.REPORT)
-        self.treeModel = readTreeModel(self.reportOut)
-        self.markerGeneStats = os.path.join(outputDir, DefaultValues.MARKER_GENE_STATS)
-        self.validOutgroup = os.path.join(outputDir, DefaultValues.INFER_DIR, DefaultValues.INFER_VALID_OUTGROUP)
+        self.cpus = cpus
 
-        self.msaExternal = os.path.join(outputDir, DefaultValues.INFER_DIR, DefaultValues.INFER_EXTERNAL_MSA)
-        self.treeExternal = os.path.join(outputDir, DefaultValues.INFER_EXTERNAL_REROOT_TREE)
+    def _producer(self, replicated_num):
+        """Infer tree from jackknifed alignments.
 
-        self.msaAll = os.path.join(outputDir, DefaultValues.INFER_DIR, DefaultValues.INFER_ALL_MSA)
-        self.treeAll = os.path.join(outputDir, DefaultValues.INFER_ALL_REROOT_TREE)
+        Parameters
+        ----------
+        replicated_num : int
+          Unique replicate number.
+        """
 
-        self.jkMarkersDir = os.path.join(outputDir, DefaultValues.JK_MARKERS_DIR)
-        makeSurePathExists(self.jkMarkersDir)
+        output_msa = os.path.join(self.replicate_dir, 'jk_markers.msa.' + str(replicated_num) + '.fna')
+        self.jackknife_alignment(self.msa, self.perc_markers_to_keep, self.marker_lengths, output_msa)
 
-        self.jkMarkersTreesExternalDir = os.path.join(self.jkMarkersDir, DefaultValues.JK_MARKERS_TREES_EXTERNAL_DIR)
-        makeSurePathExists(self.jkMarkersTreesExternalDir)
+        fast_tree = FastTree(multithreaded=False)
+        output_tree = os.path.join(self.replicate_dir, 'jk_markers.tree.' + str(replicated_num) + '.tre')
+        fast_tree_output = os.path.join(self.replicate_dir, 'jk_markers.fasttree.' + str(replicated_num) + '.out')
+        fast_tree.run(output_msa, 'prot', self.model, output_tree, fast_tree_output)
 
-        self.jkMarkersTreesAllDir = os.path.join(self.jkMarkersDir, DefaultValues.JK_MARKERS_TREES_ALL_DIR)
-        makeSurePathExists(self.jkMarkersTreesAllDir)
+        return True
 
-        if not outputPrefix[-1] == '.' and not outputPrefix[-1] == '_':
-            outputPrefix += '.'
-        self.jkMarkerTreeExternal = os.path.join(self.jkMarkersDir, outputPrefix + DefaultValues.JK_MARKERS_TREE_EXTERNAL)
-        self.jkMarkerTreeAll = os.path.join(self.jkMarkersDir, outputPrefix + DefaultValues.JK_MARKERS_TREE_ALL)
+    def _progress(self, processed_items, total_items):
+        """Report progress of replicates."""
 
-    def __processingThread(self, fullMSA, jkMarkersTreesDir, percentMarkersToKeep, markerLengths, queueIn, queueOut):
-        """Infer tree from jackknifed alignments."""
+        return '    Processed %d of %d replicates.' % (processed_items, total_items)
 
-        while True:
-            repIndex = queueIn.get(block=True, timeout=None)
-            if repIndex == None:
-                break
+    def jackknife_alignment(self, msa, perc_markers_to_keep, marker_lengths, output_file):
+        """Jackknife alignment to a subset of marker genes.
 
-            outputMSA = os.path.join(jkMarkersTreesDir, 'jk_markers.msa.' + str(repIndex) + '.fna')
-            self.__createJackknifedAlignment(fullMSA, percentMarkersToKeep, markerLengths, outputMSA)
+        The marker_lengths must be specified in the order
+        in which genes were concatenated.
 
-            fastTree = FastTree(bMultithreaded=False)
-            outputTree = os.path.join(jkMarkersTreesDir, 'jk_markers.tree.' + str(repIndex) + '.tre')
-            fastTreeOutput = os.path.join(jkMarkersTreesDir, 'jk_markers.fasttree.' + str(repIndex) + '.out')
-            fastTree.run(outputMSA, self.treeModel, outputTree, fastTreeOutput)
+        Parameters
+        ----------
+        msa : d[seq_id] -> seq
+          Full multiple sequence alignment.
+        perc_markers_to_keep : float
+          Percentage of marker genes to keep in each replicate.
+        marker_lengths : list
+          Length of each marker gene.
+        output_file : str
+          File to write bootstrapped alignment.
+        """
+        markers_to_keep = random.sample(xrange(0, len(marker_lengths)), int(floor(perc_markers_to_keep * len(marker_lengths))))
 
-            queueOut.put(repIndex)
+        start_pos = [0]
+        for index, ml in enumerate(marker_lengths):
+            start_pos.append(start_pos[index] + ml)
 
-    def __reportingThread(self, numReplicates, queueIn):
-        """Report number of processed replicates."""
-
-        numProcessed = 0
-
-        statusStr = '    Finished processing %d of %d (%.2f%%) replicates.' % (numProcessed, numReplicates, float(numProcessed) * 100 / numReplicates)
-        sys.stderr.write('%s\r' % statusStr)
-        sys.stderr.flush()
-
-        while True:
-            repIndex = queueIn.get(block=True, timeout=None)
-            if repIndex == None:
-                break
-
-            numProcessed += 1
-            if self.logger.getEffectiveLevel() <= logging.INFO:
-                statusStr = '    Finished processing %d of %d (%.2f%%) replicates.' % (numProcessed, numReplicates, float(numProcessed) * 100 / numReplicates)
-                sys.stderr.write('%s\r' % statusStr)
-                sys.stderr.flush()
-
-        if self.logger.getEffectiveLevel() <= logging.INFO:
-            sys.stderr.write('\n')
-
-    def __createJackknifedAlignment(self, fullMSA, percentMarkersToKeep, markerLengths, outputFile):
-        """Jackknife multiple sequence alignment to a subset of marker genes."""
-        markerToKeep = random.sample(xrange(0, len(markerLengths)), int(floor(percentMarkersToKeep * len(markerLengths))))
-
-        markerStartPos = [0]
-        for index, ml in enumerate(markerLengths):
-            markerStartPos.append(markerStartPos[index] + ml)
-
-        mask = [0] * sum(markerLengths)
-        for markerIndex in markerToKeep:
-            start = markerStartPos[markerIndex]
-            end = start + markerLengths[markerIndex]
+        mask = [0] * sum(marker_lengths)
+        for marker_index in markers_to_keep:
+            start = start_pos[marker_index]
+            end = start + marker_lengths[marker_index]
             mask[start:end] = [1] * (end - start)
 
-        fout = open(outputFile, 'w')
-        for seqId, seq in fullMSA.iteritems():
-            fout.write('>' + seqId + '\n')
-            subSeq = "".join(nt if m == 1 else '' for nt, m in zip(seq, mask))
-            fout.write(subSeq + '\n')
+        fout = open(output_file, 'w')
+        for seq_id, seq in msa.iteritems():
+            fout.write('>' + seq_id + '\n')
+            sub_seq = ''.join([base for base, m in zip(seq, mask) if m == 1])
+            fout.write(sub_seq + '\n')
         fout.close()
 
-    def __jackknife(self, msaFile, jkMarkersTreesDir, inputTree, jkMarkerTree, percentMarkersToKeep, numReplicates, threads):
-        """Jackknife marker genes to assess robustness of tree."""
+    def run(self, input_tree, msa_file, marker_file, perc_markers_to_keep, num_replicates, model, output_dir):
+        """Jackknife marker genes.
 
-        # determine length of each marker gene in complete multiple sequence alignment
-        markerLengths = []
-        for line in open(self.markerGeneStats):
-            lineSplit = line.split('\t')
-            markerLengths.append(int(lineSplit[1]))
+        Marker file should have the format:
+          <marker id>\t<marker name>\t<marker desc>\t<length>\n
 
-        # read full MSA
-        fullMSA = readFasta(msaFile)
+        Parameters
+        ----------
+        input_tree : str
+          Tree inferred with all data.
+        msa_file : str
+          File containing multiple sequence alignment for all taxa.
+        marker_file : str
+          File indicating length of each marker in the alignment.
+        perc_markers_to_keep : float
+          Percentage of marker genes to keep in each replicate.
+        num_replicates : int
+          Number of replicates to perform.
+        model : str
+          Desired model of evolution.
+        output_dir : str
+          input_tree directory for bootstrap trees.
+        """
 
-        # infer genome trees with jackknifed marker sets
-        workerQueue = mp.Queue()
-        writerQueue = mp.Queue()
+        assert(model in ['wag', 'jtt'])
 
-        for repIndex in xrange(numReplicates):
-            workerQueue.put(repIndex)
+        self.model = model
+        self.perc_markers_to_keep = perc_markers_to_keep
+        self.replicate_dir = os.path.join(output_dir, 'replicates')
+        make_sure_path_exists(self.replicate_dir)
+        # determine length of each marker gene in alignment
+        self.marker_lengths = []
+        for line in open(marker_file):
+            line_split = line.split('\t')
+            self.marker_lengths.append(int(line_split[3]))
 
-        for _ in range(threads):
-            workerQueue.put(None)
+        # read full multiple sequence alignment
+        self.msa = seq_io.read(msa_file)
 
-        try:
-            calcProc = [mp.Process(target=self.__processingThread, args=(fullMSA, jkMarkersTreesDir, percentMarkersToKeep, markerLengths, workerQueue, writerQueue)) for _ in range(threads)]
-            writeProc = mp.Process(target=self.__reportingThread, args=(numReplicates, writerQueue))
-
-            writeProc.start()
-
-            for p in calcProc:
-                p.start()
-
-            for p in calcProc:
-                p.join()
-
-            writerQueue.put(None)
-            writeProc.join()
-        except:
-            # make sure all processes are terminated
-            for p in calcProc:
-                p.terminate()
-
-            writeProc.terminate()
+        # calculate replicates
+        self.logger.info('')
+        self.logger.info('  Calculating jackknife marker replicates:')
+        parallel = Parallel(self.cpus)
+        parallel.run(self._producer, None, xrange(num_replicates), self._progress)
 
         # calculate support
-        self.logger.info('')
-        self.logger.info('  Calculating support.')
+        rep_tree_files = []
+        for rep_index in xrange(num_replicates):
+            rep_tree_files.append(os.path.join(self.replicate_dir, 'jk_markers.tree.' + str(rep_index) + '.tre'))
 
-        repTreeFiles = []
-        for repIndex in xrange(numReplicates):
-            repTreeFiles.append(os.path.join(jkMarkersTreesDir, 'jk_markers.tree.' + str(repIndex) + '.tre'))
+        tree_support = TreeSupport()
+        output_tree = os.path.join(output_dir, remove_extension(input_tree) + '.jk_markers.tree')
+        tree_support.common_taxa(input_tree, rep_tree_files, output_tree)
 
-        treeSupport = TreeSupport()
-        treeSupport.supportOnCommonTaxa(inputTree, repTreeFiles, jkMarkerTree)
-
-    def run(self, percentMarkersToKeep, numReplicates, treesToInfer, threads):
-        """Calculate jackknife for the external and 'all' tree."""
-
-        timeKeeper = TimeKeeper()
-
-        if treesToInfer == 'both' or treesToInfer == 'external':
-            self.logger.info('  Inferring jackknife marker support for external genome trees.')
-            self.__jackknife(self.msaExternal, self.jkMarkersTreesExternalDir, self.treeExternal, self.jkMarkerTreeExternal, percentMarkersToKeep, numReplicates, threads)
-            timeKeeper.printTimeStamp()
-
-        if treesToInfer == 'both' or treesToInfer == 'all':
-            self.logger.info('')
-            self.logger.info('  Inferring jackknife marker support for complete genome trees.')
-            self.__jackknife(self.msaAll, self.jkMarkersTreesAllDir, self.treeAll, self.jkMarkerTreeAll, percentMarkersToKeep, numReplicates, threads)
-            timeKeeper.printTimeStamp()
-
-        # generate summary report
-        fout = open(self.reportOut, 'a')
-        fout.write('\n\n')
-        fout.write('[jk_markers]\n')
-        fout.write('Percentage of markers kept: %f\n' % percentMarkersToKeep)
-        fout.write('Number of replicates: %d\n' % numReplicates)
-        fout.write(timeKeeper.getTimeStamp())
-        fout.close()
-
-        timeKeeper.printTimeStamp()
+        return output_tree
