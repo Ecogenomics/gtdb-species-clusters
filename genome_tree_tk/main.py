@@ -15,12 +15,16 @@
 #                                                                             #
 ###############################################################################
 
+import os
 import sys
 import logging
 
 from biolib.misc.time_keeper import TimeKeeper
-from biolib.external.execute import check_dependencies
 from biolib.common import check_file_exists, make_sure_path_exists
+from biolib.taxonomy import Taxonomy
+from biolib.external.execute import check_dependencies
+
+from genome_tree_tk.marker_workflow import MarkerWorkflow
 
 from genome_tree_tk.bootstrap import Bootstrap
 from genome_tree_tk.jackknife_markers import JackknifeMarkers
@@ -36,10 +40,59 @@ class OptionsParser():
         self.logger = logging.getLogger()
         self.time_keeper = TimeKeeper()
 
+    def _read_config_file(self):
+        """Read configuration info."""
+
+        cfg_file = os.path.join(os.path.dirname(os.path.realpath(__file__)), '..', 'genome_tree_tk.cfg')
+
+        d = {}
+        for line in open(cfg_file):
+            key, value = line.split('=')
+            d[key] = value.strip()
+
+        return d
+
+    def markers(self, options):
+        self.logger.info('')
+        self.logger.info('*******************************************************************************')
+        self.logger.info(' [GenomeTreeTk - markers] Determining marker genes.')
+        self.logger.info('*******************************************************************************')
+
+        make_sure_path_exists(options.output_dir)
+
+        config_data = self._read_config_file()
+        taxonomy = Taxonomy().read(config_data['img_taxonomy_file'])
+
+        marker_workflow = MarkerWorkflow(config_data['genome_quality_file'],
+                                        config_data['img_genome_dir'],
+                                        config_data['pfam_model_file'],
+                                        config_data['tigrfams_model_dir'],
+                                        options.cpus)
+
+        phylo_hmm_out = marker_workflow.run(options.ingroup_file,
+                                                options.trusted_comp,
+                                                options.trusted_cont,
+                                                options.ubiquity,
+                                                options.single_copy,
+                                                options.redundancy,
+                                                # options.non_conspecific,
+                                                options.min_support,
+                                                options.min_per_taxa,
+                                                options.min_per_splits,
+                                                options.perc_markers,
+                                                options.restict_marker_list,
+                                                taxonomy,
+                                                options.output_dir)
+
+        self.logger.info('')
+        self.logger.info('  Marker genes written to: %s' % phylo_hmm_out)
+
+        self.time_keeper.print_time_stamp()
+
     def bootstrap(self, options):
         self.logger.info('')
         self.logger.info('*******************************************************************************')
-        self.logger.info(' [GenomeTreeTK - bootstrap] Bootstrap multiple sequence alignment.')
+        self.logger.info(' [GenomeTreeTk - bootstrap] Bootstrap multiple sequence alignment.')
         self.logger.info('*******************************************************************************')
 
         check_file_exists(options.input_tree)
@@ -61,7 +114,7 @@ class OptionsParser():
     def jk_markers(self, options):
         self.logger.info('')
         self.logger.info('*******************************************************************************')
-        self.logger.info(' [GenomeTreeTK - jk_markers] Jackknife marker genes.')
+        self.logger.info(' [GenomeTreeTk - jk_markers] Jackknife marker genes.')
         self.logger.info('*******************************************************************************')
 
         check_file_exists(options.input_tree)
@@ -85,7 +138,7 @@ class OptionsParser():
     def jk_taxa(self, options):
         self.logger.info('')
         self.logger.info('*******************************************************************************')
-        self.logger.info(' [GenomeTreeTK - jk_taxa] Jackknife ingroup taxa.')
+        self.logger.info(' [GenomeTreeTk - jk_taxa] Jackknife ingroup taxa.')
         self.logger.info('*******************************************************************************')
 
         check_file_exists(options.input_tree)
@@ -109,7 +162,7 @@ class OptionsParser():
     def combine(self, options):
         self.logger.info('')
         self.logger.info('*******************************************************************************')
-        self.logger.info(' [GenomeTreeTK - combine] Combine all support values into a single tree.')
+        self.logger.info(' [GenomeTreeTk - combine] Combine all support values into a single tree.')
         self.logger.info('*******************************************************************************')
 
         combineSupport = CombineSupport()
@@ -132,7 +185,7 @@ class OptionsParser():
     def midpoint(self, options):
         self.logger.info('')
         self.logger.info('*******************************************************************************')
-        self.logger.info(' [GenomeTreeTK - midpoint] Rerooting tree at midpoint.')
+        self.logger.info(' [GenomeTreeTk - midpoint] Rerooting tree at midpoint.')
         self.logger.info('*******************************************************************************')
 
         reroot = RerootTree()
@@ -143,7 +196,7 @@ class OptionsParser():
     def outgroup(self, options):
         self.logger.info('')
         self.logger.info('*******************************************************************************')
-        self.logger.info(' [GenomeTreeTK - outgroup] Rerooting tree with outgroup.')
+        self.logger.info(' [GenomeTreeTk - outgroup] Rerooting tree with outgroup.')
         self.logger.info('*******************************************************************************')
 
         check_file_exists(options.outgroup_file)
@@ -162,19 +215,21 @@ class OptionsParser():
 
         logging.basicConfig(format='', level=logging.INFO)
 
-        # check_dependencies(('FastTree'))
+        check_dependencies(('FastTree', 'hmmsearch'))
 
-        if(options.subparser_name == 'bootstrap'):
+        if options.subparser_name == 'markers':
+            self.markers(options)
+        elif options.subparser_name == 'bootstrap':
             self.bootstrap(options)
-        elif(options.subparser_name == 'jk_markers'):
+        elif options.subparser_name == 'jk_markers':
             self.jk_markers(options)
-        elif(options.subparser_name == 'jk_taxa'):
+        elif options.subparser_name == 'jk_taxa':
             self.jk_taxa(options)
-        elif(options.subparser_name == 'combine'):
+        elif options.subparser_name == 'combine':
             self.combine(options)
-        elif(options.subparser_name == 'midpoint'):
+        elif options.subparser_name == 'midpoint':
             self.midpoint(options)
-        elif(options.subparser_name == 'outgroup'):
+        elif options.subparser_name == 'outgroup':
             self.outgroup(options)
         else:
             self.logger.error('  [Error] Unknown RefineM command: ' + options.subparser_name + '\n')

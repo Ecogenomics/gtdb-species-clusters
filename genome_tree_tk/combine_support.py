@@ -65,13 +65,13 @@ class CombineSupport(object):
 
         assert(support_type in ['average', 'minimum'])
 
-        tree = dendropy.Tree.get_from_path(bootstrap_tree, schema='newick', as_rooted=True, preserve_underscores=True)
+        tree = dendropy.Tree.get_from_path(bootstrap_tree, schema='newick', rooting='force-rooted', preserve_underscores=True)
         bootstrap_support = self._collect_support_values(tree)
 
-        tree = dendropy.Tree.get_from_path(jk_marker_tree, schema='newick', as_rooted=True, preserve_underscores=True)
+        tree = dendropy.Tree.get_from_path(jk_marker_tree, schema='newick', rooting='force-rooted', preserve_underscores=True)
         jk_marker_support = self._collect_support_values(tree)
 
-        tree = dendropy.Tree.get_from_path(jk_taxa_tree, schema='newick', as_rooted=True, preserve_underscores=True)
+        tree = dendropy.Tree.get_from_path(jk_taxa_tree, schema='newick', rooting='force-rooted', preserve_underscores=True)
         jk_taxa_support = self._collect_support_values(tree)
 
         internalNodeNum = 0

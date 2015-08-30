@@ -29,28 +29,28 @@ class RerootTree(object):
 
     def _is_monophyletic(self, tree, group):
         """Determine if taxa are monophyletic.
-        
+
         Parameters
         ----------
         tree : dendropy.Tree
           Tree representation.
         group : iterable
           Labels of taxa.
-          
+
         Returns
         -------
         boolean
           True if taxa re monophyletic, else False.
         """
 
-        tree.update_splits()
+        tree.update_bipartitions()
 
         groupSplit = tree.taxon_set.get_taxa_bitmask(labels=group)
         return groupSplit in tree.split_edges
 
     def root_with_outgroup(self, input_tree, output_tree, outgroup):
         """Reroot the tree using the given outgroup.
-        
+
         Parameters
         ----------
         input_tree : str
@@ -61,7 +61,7 @@ class RerootTree(object):
           Labels of taxa in outgroup.
         """
 
-        tree = dendropy.Tree.get_from_path(input_tree, schema='newick', as_rooted=False, preserve_underscores=True)
+        tree = dendropy.Tree.get_from_path(input_tree, schema='newick', rooting='force-unrooted', preserve_underscores=True)
 
         if not self._isMonophyletic(tree, outgroup):
             self.logger.info('  [Warning] Outgroup is not monophyletic.')
@@ -69,13 +69,13 @@ class RerootTree(object):
         else:
             self.logger.info('  Outgroup is monophyletic. Tree rerooted.')
             mrca = tree.mrca(taxon_labels=outgroup)
-            tree.reroot_at_edge(mrca.edge, length1=0.5 * mrca.edge_length, length2=0.5 * mrca.edge_length, update_splits=True)
+            tree.reroot_at_edge(mrca.edge, length1=0.5 * mrca.edge_length, length2=0.5 * mrca.edge_length, update_bipartitions=True)
 
         tree.write_to_path(output_tree, schema='newick', suppress_rooting=True, unquoted_underscores=True)
 
     def midpoint(self, input_tree, output_tree):
         """Reroot tree bat midpoint.
-        
+
         Parameters
         ----------
         input_tree : str
@@ -83,7 +83,7 @@ class RerootTree(object):
         output_tree : str
           Name of file for rerooted tree.
         """
-        
-        tree = dendropy.Tree.get_from_path(input_tree, schema='newick', as_rooted=False, preserve_underscores=True)
-        tree.reroot_at_midpoint(update_splits=True)
+
+        tree = dendropy.Tree.get_from_path(input_tree, schema='newick', rooting='force-unrooted', preserve_underscores=True)
+        tree.reroot_at_midpoint(update_bipartitions=True)
         tree.write_to_path(output_tree, schema='newick', suppress_rooting=True, unquoted_underscores=True)

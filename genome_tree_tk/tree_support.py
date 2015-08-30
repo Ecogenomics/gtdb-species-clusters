@@ -42,22 +42,26 @@ class TreeSupport():
           Name of output tree with support values.
         """
 
-        tree = dendropy.Tree.get_from_path(input_tree, schema='newick', as_rooted=False, preserve_underscores=True)
+        tree = dendropy.Tree.get_from_path(input_tree, schema='newick', rooting='force-unrooted', preserve_underscores=True)
+        tree.encode_bipartitions()
 
-        rep_trees = []
+        rep_trees = dendropy.TreeList(taxon_namespace=tree.taxon_namespace)
         for rep_tree_file in replicate_trees:
-            rep_trees.append(dendropy.Tree.get_from_path(rep_tree_file, schema='newick', as_rooted=False, preserve_underscores=True))
-
-        rep_tree_list = dendropy.TreeList(rep_trees)
+            rep_tree = dendropy.Tree.get_from_path(rep_tree_file,
+                                                         schema='newick',
+                                                         rooting='force-unrooted',
+                                                         preserve_underscores=True,
+                                                         taxon_namespace=tree.taxon_namespace)
+            rep_tree.encode_bipartitions()
+            rep_trees.append(rep_tree)
 
         for node in tree.internal_nodes():
-            taxa_labels = [x.taxon.label for x in node.leaf_nodes()]
-            node.label = str(int(rep_tree_list.frequency_of_split(labels=taxa_labels) * 100))
+            node.label = str(int(rep_trees.frequency_of_bipartition(bipartition=node.bipartition) * 100))
 
         tree.write_to_path(output_tree, schema='newick', suppress_rooting=True, unquoted_underscores=True)
 
     def subset_taxa(self, input_tree, replicate_trees, output_tree):
-        """ Calculate support for tree with replicates containing a subset of taxa.
+        """Calculate support for tree with replicates containing a subset of taxa.
 
         Parameters
         ----------
@@ -69,13 +73,13 @@ class TreeSupport():
           Name of output tree with support values.
         """
 
-        tree = dendropy.Tree.get_from_path(input_tree, schema='newick', as_rooted=False, preserve_underscores=True)
+        tree = dendropy.Tree.get_from_path(input_tree, schema='newick', rooting='force-unrooted', preserve_underscores=True)
         for node in tree.internal_nodes():
             node.label = 0
             node.nontrivial_splits = 0
 
         for rep_tree_file in replicate_trees:
-            rep_tree = dendropy.Tree.get_from_path(rep_tree_file, schema='newick', as_rooted=False, preserve_underscores=True)
+            rep_tree = dendropy.Tree.get_from_path(rep_tree_file, schema='newick', rooting='force-unrooted', preserve_underscores=True)
 
             rep_tree_list = dendropy.TreeList([rep_tree])
 
@@ -84,9 +88,15 @@ class TreeSupport():
             for node in tree.internal_nodes():
                 taxa_labels = set([x.taxon.label for x in node.leaf_nodes()]).intersection(rep_tree_taxa_set)
 
+                split = rep_tree.taxon_namespace.taxa_bitmask(labels=taxa_labels)
+                normalized_split = dendropy.Bipartition.normalize_bitmask(
+                                    bitmask=split,
+                                    fill_bitmask=rep_tree.taxon_namespace.all_taxa_bitmask(),
+                                    lowest_relevant_bit=1)
+
                 if len(taxa_labels) > 1:
                     # tabulate results for non-trivial splits
-                    node.label += int(rep_tree_list.frequency_of_split(labels=taxa_labels))
+                    node.label += int(rep_tree_list.frequency_of_bipartition(split_bitmask=normalized_split))
                     node.nontrivial_splits += 1
 
         for node in tree.internal_nodes():

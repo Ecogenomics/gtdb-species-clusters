@@ -53,7 +53,7 @@ class JackknifeMarkers(object):
           Unique replicate number.
         """
 
-        output_msa = os.path.join(self.replicate_dir, 'jk_markers.msa.' + str(replicated_num) + '.fna')
+        output_msa = os.path.join(self.replicate_dir, 'jk_markers.msa.' + str(replicated_num) + '.faa')
         self.jackknife_alignment(self.msa, self.perc_markers_to_keep, self.marker_lengths, output_msa)
 
         fast_tree = FastTree(multithreaded=False)
@@ -79,7 +79,7 @@ class JackknifeMarkers(object):
         msa : d[seq_id] -> seq
           Full multiple sequence alignment.
         perc_markers_to_keep : float
-          Percentage of marker genes to keep in each replicate.
+          Percentage of marker genes to keep in each replicate [0, 1].
         marker_lengths : list
           Length of each marker gene.
         output_file : str
@@ -117,15 +117,15 @@ class JackknifeMarkers(object):
         msa_file : str
           File containing multiple sequence alignment for all taxa.
         marker_file : str
-          File indicating length of each marker in the alignment.
-        perc_markers_to_keep : float
+          File indicating database id, HMM name, description and length of each marker in the alignment.
+        perc_markers_to_keep : float [0, 1]
           Percentage of marker genes to keep in each replicate.
         num_replicates : int
           Number of replicates to perform.
         model : str
           Desired model of evolution.
         output_dir : str
-          input_tree directory for bootstrap trees.
+          Output directory for jackkife trees.
         """
 
         assert(model in ['wag', 'jtt'])

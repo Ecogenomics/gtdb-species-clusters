@@ -46,7 +46,13 @@ def print_help():
     print '                ...::: GenomeTreeTk v' + version() + ' :::...'''
     print '''\
 
-    Assess tree stability:
+    infer_wf -> Infer lineage-specific genome tree.
+      markers    -> Determine phylogenetically informative marker genes
+      msa        -> Calculate multiple sequence alignment
+      qa         -> Quality check genomes
+      infer      -> Infer genome tree
+
+    support_wf -> Assess stability of tree.
       bootstrap  -> Bootstrap multiple sequence alignment
       jk_markers -> Jackknife marker genes
       jk_taxa    -> Jackknife ingroup taxa
@@ -67,6 +73,27 @@ if __name__ == '__main__':
     # initialize the options parser
     parser = argparse.ArgumentParser(add_help=False)
     subparsers = parser.add_subparsers(help="--", dest='subparser_name')
+
+    # determine marker genes
+    markers_parser = subparsers.add_parser('markers',
+                                        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+                                        description='Determine phylogenetically informative marker genes.')
+    markers_parser.add_argument('ingroup_file', help="unique ids of genomes within the ingroup")
+    markers_parser.add_argument('output_dir', help="output directory")
+    markers_parser.add_argument('--trusted_comp', help='minimum completeness to trust genome for marker set inference', type=float, default=0.95)
+    markers_parser.add_argument('--trusted_cont', help='maximum contamination to trust genome for marker set inference', type=float, default=0.05)
+    markers_parser.add_argument('--redundancy', help='threshold for declaring HMMs redundant', type=float, default=0.50)
+    markers_parser.add_argument('--ubiquity', help='ubiquity threshold for defining marker genes', type=float, default=0.9)
+    markers_parser.add_argument('--single_copy', help='single-copy threshold for defining marker genes', type=float, default=0.95)
+    # markers_parser.add_argument('--non_conspecific', help='non-conspecific threshold for retaining multi-copy gene trees', type=float, default=0.005)
+
+    markers_parser.add_argument('--min_support', help='minimum jackknife support of split during LGT filtering', type=float, default=0.9)
+    markers_parser.add_argument('--min_per_taxa', help='minimum percentage of taxa to consider a split during LGT filtering', type=float, default=0.02)
+    markers_parser.add_argument('--min_per_splits', help='minimum recovered well-supported splits required to retain marker during LGT filtering', type=float, default=0.5)
+    markers_parser.add_argument('--perc_markers', help='percentage of markers to keep during marker jackknifing', type=float, default=0.7)
+
+    markers_parser.add_argument('--restict_marker_list', help='restrict marker set to genes within this list', default=None)
+    markers_parser.add_argument('-c', '--cpus', help='number of cpus to use', type=int, default=16)
 
     # assess robustness of genome tree using classic bootstrapping
     bootstrap_parser = subparsers.add_parser('bootstrap',
