@@ -16,6 +16,7 @@
 ###############################################################################
 
 import os
+import shutil
 import logging
 import ntpath
 from collections import defaultdict
@@ -33,20 +34,18 @@ class InferMarkers(object):
     """Identify ubiquitous, single-copy marker gene within a set of genomes.
 
     Currently, this class is specifically designed to work with reference
-    genomes from IMG. In particular, it assumes each genome is contain in
+    genomes from NCBI. In particular, it assumes each genome is contain in
     a separate directory and that Pfam and TIGRFAMs annotations are
-    available.
+    available in a specific format.
     """
 
-    def __init__(self, genome_quality_file, img_genome_dir, pfam_model_file, tigrfams_model_dir, cpus):
+    def __init__(self, genome_dir_file, pfam_model_file, tigrfams_model_dir, cpus):
         """Initialization.
 
         Parameters
         ----------
-        genome_quality_file : str
-            File specifying completeness and contamination of genomes.
-        img_genome_dir : str
-            Directory with genomes in individual directories.
+        genome_dir_file : str
+            File specifying directory for each genome.
         pfam_model_file : str
             File containing Pfam HMMs.
         tigrfams_model_dir : str
@@ -57,74 +56,24 @@ class InferMarkers(object):
 
         self.logger = logging.getLogger()
 
-        self.genome_quality_file = genome_quality_file
-        self.img_genome_dir = img_genome_dir
+        self.genome_dir_file = genome_dir_file
         self.pfam_model_file = pfam_model_file
         self.tigrfams_model_dir = tigrfams_model_dir
 
         self.cpus = cpus
 
-        self.pfam_extension = '.pfam.tab.txt'
-        self.tigr_extension = '.tigrfam.tab.txt'
+        self.pfam_extension = '_pfam_tophit.tsv'
+        self.tigr_extension = '_tigrfam_tophit.tsv'
 
-        self.pfam_annotation_index = 8
-        self.pfam_bitscore_index = 7
-
-        self.tigr_annotation_index = 6
-        self.tigr_bitscore_index = 5
-
-    def _trusted_genomes(self, genome_ids, trusted_comp, trusted_cont, genome_quality_file):
-        """Identify trusted genomes.
-
-        Parameters
-        ----------
-        genome_ids : iterable
-            Genomes to inspect to see if should be treated as trusted.
-        trusted_comp : float
-            Minimum completeness to trust genome for marker set inference.
-        trusted_cont : float
-            Maximum contamination to trust genome for marker set inference
-        genome_quality_file : str
-            File specifying completeness and contamination of genomes.
-
-        Returns
-        -------
-        set
-            Unique id of trusted genomes.
-        """
-
-        # determine completeness and contamination of each genome
-        genome_quality = {}
-        with open(genome_quality_file) as f:
-            header = f.readline().split('\t')
-            comp_index = header.index('Completeness')
-            cont_index = header.index('Contamination')
-
-            for line in f:
-                line_split = line.split('\t')
-
-                genome_id = line_split[0]
-                comp = float(line_split[comp_index])
-                cont = float(line_split[cont_index])
-
-                genome_quality[genome_id] = [comp, cont]
-
-        trusted_genome_ids = set()
-        for genome_id in genome_ids:
-            comp, cont = genome_quality.get(genome_id, (0, 100))
-
-            if comp >= (trusted_comp * 100) and cont <= (trusted_cont * 100):
-                trusted_genome_ids.add(genome_id)
-
-        return trusted_genome_ids
-
-    def _genes_in_genomes(self, genome_ids):
+    def _genes_in_genomes(self, genome_ids, genome_dirs):
         """Get genes within genomes.
 
         Parameters
         ----------
         genome_ids : iterable
             Genomes of interest.
+        genome_dirs : d[assembly_accession] -> directory
+            Path to files for individual genomes.
 
         Returns
         -------
@@ -134,30 +83,41 @@ class InferMarkers(object):
 
         genes_in_genome = {}
         for genome_id in genome_ids:
+            genome_dir = genome_dirs[genome_id]
 
             marker_id_to_gene_id = defaultdict(list)
-            with open(os.path.join(self.img_genome_dir, genome_id, genome_id + self.pfam_extension)) as f:
-                f.readline()
-                for line in f:
-                    line_split = line.split('\t')
-                    pfam_id = line_split[self.pfam_annotation_index]
-                    pfam_id = pfam_id.replace('pfam', 'PF')
-                    bitscore = float(line_split[self.pfam_bitscore_index])
-                    marker_id_to_gene_id[pfam_id].append((line_split[0], bitscore))
 
-            with open(os.path.join(self.img_genome_dir, genome_id, genome_id + self.tigr_extension)) as f:
+            assembly = genome_dir[genome_dir.rfind('/') + 1:]
+            tophit_file = os.path.join(genome_dir, assembly + self.pfam_extension)
+            with open(tophit_file) as f:
                 f.readline()
                 for line in f:
                     line_split = line.split('\t')
-                    bitscore = float(line_split[self.tigr_bitscore_index])
-                    marker_id_to_gene_id[line_split[self.tigr_annotation_index]].append((line_split[0], bitscore))
+
+                    gene_id = line_split[0]
+                    hits = line_split[1].split(';')
+                    for hit in hits:
+                        pfam_id, _evalue, bitscore = hit.split(',')
+                        marker_id_to_gene_id[pfam_id].append((gene_id, float(bitscore)))
+
+            tophit_file = os.path.join(genome_dir, assembly + self.tigr_extension)
+            with open(tophit_file) as f:
+                f.readline()
+                for line in f:
+                    line_split = line.split('\t')
+
+                    gene_id = line_split[0]
+                    hits = line_split[1].split(';')
+                    for hit in hits:
+                        tigrfam_id, _evalue, bitscore = hit.split(',')
+                        marker_id_to_gene_id[tigrfam_id].append((gene_id, float(bitscore)))
 
             genes_in_genome[genome_id] = marker_id_to_gene_id
 
         return genes_in_genome
 
-    def _read_img_gene_table(self, table, genome_ids, extension, protein_family_index):
-        """Read IMG gene annotations from table.
+    def _read_gene_hits(self, table, genome_ids, genome_dirs, extension):
+        """Read gene annotations from top hit file.
 
         Parameters
         ----------
@@ -165,48 +125,49 @@ class InferMarkers(object):
             Table to populate with gene information.
         genome_ids : iterable
             Genomes of interest.
+        genome_dirs : d[assembly_accession] -> directory
+            Path to files for individual genomes.
         extension : str
-            Extension of file containing gene annotations.
-        protein_family_index : int
-            Index of protein family annotation in gene annotation table.
+            Extension of file containing top hits to each gene.
         """
 
         for genome_id in genome_ids:
-            gene_id_to_family_ids = defaultdict(set)
-            with open(os.path.join(self.img_genome_dir, genome_id, genome_id + extension)) as f:
+            genome_dir = genome_dirs[genome_id]
+
+            assembly = genome_dir[genome_dir.rfind('/') + 1:]
+            tophit_file = os.path.join(genome_dir, assembly + extension)
+
+            with open(tophit_file) as f:
                 f.readline()
 
                 for line in f:
                     line_split = line.split('\t')
 
                     gene_id = line_split[0]
-                    protein_family = line_split[protein_family_index]
-                    protein_family = protein_family.replace('pfam', 'PF')
-
-                    # IMG may annotate multiple parts of a gene as coming
-                    # from the same protein family (Pfam, TIGRFAMs), but this
-                    # should only count as 1 gene having this annotation
-                    if protein_family not in gene_id_to_family_ids[gene_id]:
-                        gene_id_to_family_ids[gene_id].add(protein_family)
+                    hits = line_split[1].split(';')
+                    for hit in hits:
+                        protein_family, _evalue, _bitscore = hit.split(',')
                         table[protein_family][genome_id].add(gene_id)
 
-    def _img_gene_count_table(self, genome_ids):
-        """Get IMG Pfam and TIGRFAMs annotations for genomes.
+    def _gene_count_table(self, genome_ids, genome_dirs):
+        """Get Pfam and TIGRFAMs annotations for genomes.
 
         Parameters
         ----------
         genome_ids : iterable
             Genomes of interest.
+        genome_dirs : d[assembly_accession] -> directory
+            Path to files for individual genomes.
 
         Returns
         -------
-        d[family_id][genome_id] -> set([gene_id_1, ..., gene_id_N])
+        d[assembly_accession][genome_id] -> set([gene_id_1, ..., gene_id_N])
             Gene location of protein families within each genome.
         """
 
         table = defaultdict(lambda: defaultdict(set))
-        self._read_img_gene_table(table, genome_ids, self.pfam_extension, self.pfam_annotation_index)
-        self._read_img_gene_table(table, genome_ids, self.tigr_extension, self.tigr_annotation_index)
+        self._read_gene_hits(table, genome_ids, genome_dirs, self.pfam_extension)
+        self._read_gene_hits(table, genome_ids, genome_dirs, self.tigr_extension)
 
         return table
 
@@ -339,14 +300,17 @@ class InferMarkers(object):
                     if 'PF' in marker_gene_i and not 'PF' in marker_gene_j:
                         hmms_to_remove.add(marker_gene_i)
                         fout.write('%s\t%s\n' % (marker_gene_j, marker_gene_i))
-                    elif not 'pfam' in marker_gene_i and 'PF' in marker_gene_j:
+                    elif not 'PF' in marker_gene_i and 'PF' in marker_gene_j:
                         hmms_to_remove.add(marker_gene_j)
                         fout.write('%s\t%s\n' % (marker_gene_i, marker_gene_j))
                     elif 'PF' in marker_gene_i and 'PF' in marker_gene_j:
                         # take Pfam model with lowest number as these tend
                         # to encode better known protein families
-                        pfam_num_i = int(marker_gene_i.replace('PF', ''))
-                        pfam_num_j = int(marker_gene_j.replace('PF', ''))
+                        pfam_num_i = marker_gene_i.replace('PF', '')
+                        pfam_num_i = int(pfam_num_i[0:pfam_num_i.find('.')])
+                        pfam_num_j = marker_gene_j.replace('PF', '')
+                        pfam_num_j = int(pfam_num_j[0:pfam_num_j.find('.')])
+
                         if pfam_num_i > pfam_num_j:
                             hmms_to_remove.add(marker_gene_i)
                             fout.write('%s\t%s\n' % (marker_gene_j, marker_gene_i))
@@ -387,8 +351,7 @@ class InferMarkers(object):
                 name = line.split()[1].rstrip()
             elif 'ACC' in line:
                 acc = line.split()[1].rstrip()
-                marker_id = acc[0:acc.rfind('.')]
-                marker_id_to_name[marker_id] = name
+                marker_id_to_name[acc] = name
 
         for marker_id in marker_genes:
             if 'PF' in marker_id:
@@ -398,7 +361,6 @@ class InferMarkers(object):
                 os.system('hmmfetch ' + model_file + ' ' + marker_id + ' > ' + os.path.join(output_model_dir, marker_id + '.hmm'))
 
     def identify_marker_genes(self, ingroup_file,
-                            trusted_completeness, trusted_contamination,
                             ubiquity_threshold, single_copy_threshold, redundancy,
                             valid_marker_genes,
                             output_msa_dir, output_model_dir):
@@ -408,10 +370,6 @@ class InferMarkers(object):
         ----------
         ingroup_file : str
             File specifying unique ids of ingroup genomes.
-        trusted_comp : float
-            Minimum completeness to trust genome for marker set inference.
-        trusted_cont : float
-            Maximum contamination to trust genome for marker set inference.
         ubiquity_threshold : float
             Threshold for defining ubiquity marker genes.
         single_copy_threshold : float
@@ -426,22 +384,25 @@ class InferMarkers(object):
             Directory to store HMMs of marker genes.
         """
 
-        # read genomes within the ingroup
-        ingroup_ids, img_genome_ids, user_genome_ids = read_genome_ids(ingroup_file)
-        self.logger.info('    Ingroup genomes: %d' % len(ingroup_ids))
-        self.logger.info('      IMG genomes: %d' % len(img_genome_ids))
-        self.logger.info('      User genomes: %d' % len(user_genome_ids))
+        # read directory for each genome
+        genome_dirs = {}
+        for line in open(self.genome_dir_file):
+            line_split = line.split('\t')
+            genome_dirs[line_split[0]] = line_split[1].strip()
 
-        # get trusted genomes within the ingroup
-        trusted_genome_ids = self._trusted_genomes(img_genome_ids, trusted_completeness, trusted_contamination, self.genome_quality_file)
-        self.logger.info('    Trusted ingroup genomes: %d' % len(trusted_genome_ids))
+        # read genomes within the ingroup
+        ncbi_genome_ids, user_genome_ids = read_genome_ids(ingroup_file)
+        genome_ids = ncbi_genome_ids.union(user_genome_ids)
+        self.logger.info('    Ingroup genomes: %d' % len(genome_ids))
+        self.logger.info('      NCBI genomes: %d' % len(ncbi_genome_ids))
+        self.logger.info('      User genomes: %d' % len(user_genome_ids))
 
         # identify marker genes
         self.logger.info('')
         self.logger.info('  Identifying marker genes.')
         gene_stats_file = os.path.join(output_model_dir, '..', 'gene_stats.all.tsv')
-        gene_count_table = self._img_gene_count_table(trusted_genome_ids)
-        marker_gene_stats = self._marker_genes(trusted_genome_ids, gene_count_table, ubiquity_threshold, single_copy_threshold, gene_stats_file)
+        gene_count_table = self._gene_count_table(genome_ids, genome_dirs)
+        marker_gene_stats = self._marker_genes(genome_ids, gene_count_table, ubiquity_threshold, single_copy_threshold, gene_stats_file)
         marker_genes = set(marker_gene_stats.keys())
 
         if valid_marker_genes:
@@ -450,7 +411,7 @@ class InferMarkers(object):
         self.logger.info('    Ubiquitous, single-copy marker genes: %d' % len(marker_genes))
 
         redundancy_out_file = os.path.join(output_model_dir, '..', 'redundant_markers.tsv')
-        redundancy = redundancy * len(trusted_genome_ids)
+        redundancy = redundancy * len(genome_ids)
         redundant_hmms = self._identify_redundant_hmms(marker_genes, gene_count_table, redundancy, redundancy_out_file)
         marker_genes = marker_genes - redundant_hmms
         self.logger.info('      Markers identified as redundant: %d' % len(redundant_hmms))
@@ -463,14 +424,14 @@ class InferMarkers(object):
 
         # get mapping of marker ids to gene ids for each genome
         self.logger.info('  Determining genes in genomes of interest.')
-        genes_in_genomes = self._genes_in_genomes(trusted_genome_ids)
+        genes_in_genomes = self._genes_in_genomes(genome_ids, genome_dirs)
 
         # align gene sequences and infer gene trees
         self.logger.info('  Aligning marker genes:')
-        align_markers = AlignMarkers(self.img_genome_dir, self.cpus)
-        align_markers.run(trusted_genome_ids, marker_genes, genes_in_genomes, output_msa_dir, output_model_dir)
+        align_markers = AlignMarkers(self.cpus)
+        align_markers.run(genome_ids, genome_dirs, marker_genes, genes_in_genomes, output_msa_dir, output_model_dir)
 
-        return len(ingroup_ids), len(img_genome_ids), len(user_genome_ids), trusted_genome_ids, marker_gene_stats, marker_genes
+        return len(genome_ids), len(ncbi_genome_ids), len(user_genome_ids), genome_ids, marker_gene_stats, marker_genes
 
     def infer_gene_trees(self, msa_dir, output_dir, extension):
         """Infer gene trees.
@@ -492,7 +453,6 @@ class InferMarkers(object):
                 msa_file = os.path.join(msa_dir, f)
                 msa_files.append(msa_file)
 
-                # replace any '*' amino acids with an 'X' as many downstream programs do not like asterisk
                 fin = open(msa_file)
                 data = fin.readlines()
                 fin.close()
@@ -500,7 +460,9 @@ class InferMarkers(object):
                 fout = open(msa_file, 'w')
                 for line in data:
                     if line[0] != '>':
-                        line = line.replace('*', 'X')
+                        # remove trailing star
+                        if line[-1] == '*':
+                            line = line[0:-1]
                     fout.write(line)
                 fout.close()
 
@@ -509,9 +471,15 @@ class InferMarkers(object):
 
         # create gene tree without gene ids for visualization in ARB
         for msa_file in msa_files:
-            tree_prefix = ntpath.basename(msa_file)
-            if '.' in tree_prefix:
-                tree_prefix = tree_prefix[0:tree_prefix.find('.')]
+            tree_filename = ntpath.basename(msa_file)
+            tree_prefix = tree_filename[0:tree_filename.find('.')]
+
+            if tree_prefix.startswith('PF'):
+                # patch up output file for Pfam trees
+                old_tree_prefix = tree_prefix
+                tree_prefix = '.'.join(tree_filename.split('.')[0:2])
+                shutil.move(os.path.join(output_dir, old_tree_prefix + '.tree'),
+                                os.path.join(output_dir, tree_prefix + '.tree'))
 
             gene_tree_file = os.path.join(output_dir, tree_prefix + '.tree')
             gene_tree = dendropy.Tree.get_from_path(gene_tree_file, schema='newick', rooting='force-unrooted', preserve_underscores=True)

@@ -31,19 +31,20 @@ def readTreeModel(reportFile):
 def read_genome_ids(genomeFile):
     """Read genome ids from file."""
 
-    genome_ids = set()
-    img_genome_ids = set()
+    ncbi_genome_ids = set()
     user_genome_ids = set()
     for line in open(genomeFile):
+        if line[0] == '#':
+            continue
+
         if '\t' in line:
             genome_id = line.split('\t')[0].strip()
         else:
             genome_id = line.split()[0].strip()
-        genome_ids.add(genome_id)
 
-        if genome_id.startswith('IMG_'):
-            img_genome_ids.add(genome_id.replace('IMG_', ''))
-        else:
+        if genome_id.startswith('U_'):
             user_genome_ids.add(genome_id)
+        else:
+            ncbi_genome_ids.add(genome_id)
 
-    return genome_ids, img_genome_ids, user_genome_ids
+    return ncbi_genome_ids, user_genome_ids

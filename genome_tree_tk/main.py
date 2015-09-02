@@ -24,8 +24,9 @@ from biolib.common import check_file_exists, make_sure_path_exists
 from biolib.taxonomy import Taxonomy
 from biolib.external.execute import check_dependencies
 
+from genome_tree_tk.trusted_genome_workflow import TrustedGenomeWorkflow
+from genome_tree_tk.dereplication_workflow import DereplicationWorkflow
 from genome_tree_tk.marker_workflow import MarkerWorkflow
-
 from genome_tree_tk.bootstrap import Bootstrap
 from genome_tree_tk.jackknife_markers import JackknifeMarkers
 from genome_tree_tk.jackknife_taxa import JackknifeTaxa
@@ -52,6 +53,53 @@ class OptionsParser():
 
         return d
 
+    def trusted(self, options):
+        self.logger.info('')
+        self.logger.info('*******************************************************************************')
+        self.logger.info(' [GenomeTreeTk - trusted] Determining trusted genomes.')
+        self.logger.info('*******************************************************************************')
+
+        config_data = self._read_config_file()
+
+        trusted_genome_workflow = TrustedGenomeWorkflow(config_data['assembly_metadata_file'],
+                                                        config_data['checkm_stats_file'],
+                                                        config_data['taxonomy_file'])
+
+        trusted_genome_workflow.run(options.trusted_comp,
+                                        options.trusted_cont,
+                                        options.max_contigs,
+                                        options.min_N50,
+                                        options.allow_partial_taxonomy,
+                                        options.trusted_genomes_file)
+
+        self.logger.info('')
+        self.logger.info('  Trusted genome list written to: %s' % options.trusted_genomes_file)
+
+        self.time_keeper.print_time_stamp()
+
+    def dereplicate(self, options):
+        self.logger.info('')
+        self.logger.info('*******************************************************************************')
+        self.logger.info(' [GenomeTreeTk - dereplicate] Dereplicate genomes based on taxonomy.')
+        self.logger.info('*******************************************************************************')
+
+        if options.trusted_genomes_file:
+            check_file_exists(options.trusted_genomes_file)
+
+        config_data = self._read_config_file()
+        dereplication_workflow = DereplicationWorkflow(config_data['assembly_metadata_file'],
+                                                        config_data['taxonomy_file'],
+                                                        config_data['type_strain_file'])
+
+        dereplication_workflow.run(options.max_species,
+                                   options.trusted_genomes_file,
+                                   options.derep_genome_file)
+
+        self.logger.info('')
+        self.logger.info('  Dereplicated genome list written to: %s' % options.derep_genome_file)
+
+        self.time_keeper.print_time_stamp()
+
     def markers(self, options):
         self.logger.info('')
         self.logger.info('*******************************************************************************')
@@ -61,24 +109,19 @@ class OptionsParser():
         make_sure_path_exists(options.output_dir)
 
         config_data = self._read_config_file()
-        taxonomy = Taxonomy().read(config_data['img_taxonomy_file'])
+        taxonomy = Taxonomy().read(config_data['taxonomy_file'])
 
-        marker_workflow = MarkerWorkflow(config_data['genome_quality_file'],
-                                        config_data['img_genome_dir'],
-                                        config_data['pfam_model_file'],
-                                        config_data['tigrfams_model_dir'],
-                                        options.cpus)
+        marker_workflow = MarkerWorkflow(config_data['genome_dir_file'],
+                                            config_data['pfam_model_file'],
+                                            config_data['tigrfams_model_dir'],
+                                            options.cpus)
 
         phylo_hmm_out = marker_workflow.run(options.ingroup_file,
-                                                options.trusted_comp,
-                                                options.trusted_cont,
                                                 options.ubiquity,
                                                 options.single_copy,
                                                 options.redundancy,
-                                                # options.non_conspecific,
                                                 options.min_support,
                                                 options.min_per_taxa,
-                                                options.min_per_splits,
                                                 options.perc_markers,
                                                 options.restict_marker_list,
                                                 taxonomy,
@@ -217,7 +260,11 @@ class OptionsParser():
 
         check_dependencies(('FastTree', 'hmmsearch'))
 
-        if options.subparser_name == 'markers':
+        if options.subparser_name == 'trusted':
+            self.trusted(options)
+        elif options.subparser_name == 'dereplicate':
+            self.dereplicate(options)
+        elif options.subparser_name == 'markers':
             self.markers(options)
         elif options.subparser_name == 'bootstrap':
             self.bootstrap(options)

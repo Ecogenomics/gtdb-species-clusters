@@ -47,20 +47,22 @@ def print_help():
     print '''\
 
     infer_wf -> Infer lineage-specific genome tree.
-      markers    -> Determine phylogenetically informative marker genes
-      msa        -> Calculate multiple sequence alignment
-      qa         -> Quality check genomes
-      infer      -> Infer genome tree
+      trusted     -> Determine trusted genomes to use for marker gene inference
+      dereplicate -> Dereplicate genomes based on taxonomy
+      markers     -> Determine phylogenetically informative marker genes
+      msa         -> Calculate multiple sequence alignment
+      qa          -> Quality check genomes
+      infer       -> Infer genome tree
 
     support_wf -> Assess stability of tree.
-      bootstrap  -> Bootstrap multiple sequence alignment
-      jk_markers -> Jackknife marker genes
-      jk_taxa    -> Jackknife ingroup taxa
-      combine    -> Combine all support values into a single tree
+      bootstrap   -> Bootstrap multiple sequence alignment
+      jk_markers  -> Jackknife marker genes
+      jk_taxa     -> Jackknife ingroup taxa
+      combine     -> Combine all support values into a single tree
 
     Reroot tree:
-      midpoint   -> Reroot tree at midpoint.
-      outgroup   -> Reroot tree with outgroup.
+      midpoint    -> Reroot tree at midpoint.
+      outgroup    -> Reroot tree with outgroup.
 
   Use: genome_tree_tk <command> -h for command specific help.
 
@@ -74,22 +76,37 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(add_help=False)
     subparsers = parser.add_subparsers(help="--", dest='subparser_name')
 
+    # determine trusted genomes
+    trusted_parser = subparsers.add_parser('trusted',
+                                        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+                                        description='Determine trusted genomes to use for marker gene inference.')
+    trusted_parser.add_argument('trusted_genomes_file', help="output file listing trusted genomes")
+    trusted_parser.add_argument('--trusted_comp', help='minimum completeness to trust genome for marker set inference [0, 1]', type=float, default=0.95)
+    trusted_parser.add_argument('--trusted_cont', help='maximum contamination to trust genome for marker set inference [0, 1]', type=float, default=0.05)
+    trusted_parser.add_argument('--max_contigs', help='maximum number of contigs to trust genome for marker set inference', type=int, default=300)
+    trusted_parser.add_argument('--min_N50', help='minimum N50 of contigs to trust genome for marker set inference', type=int, default=10000)
+    trusted_parser.add_argument('--allow_partial_taxonomy', help='retain genomes with incomplete taxonomic information', action='store_true')
+
+    # dereplicate genomes
+    dereplicate_parser = subparsers.add_parser('dereplicate',
+                                        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+                                        description='Dereplicate genomes based on taxonomy.')
+    dereplicate_parser.add_argument('derep_genome_file', help="output file listing dereplicated genomes")
+    dereplicate_parser.add_argument('--max_species', help='maximum number of genomes of the same species to retain', type=int, default=5)
+    dereplicate_parser.add_argument('--trusted_genomes_file', help='limit selected genomes to those marked as trusted', default=None)
+
     # determine marker genes
     markers_parser = subparsers.add_parser('markers',
                                         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
                                         description='Determine phylogenetically informative marker genes.')
     markers_parser.add_argument('ingroup_file', help="unique ids of genomes within the ingroup")
     markers_parser.add_argument('output_dir', help="output directory")
-    markers_parser.add_argument('--trusted_comp', help='minimum completeness to trust genome for marker set inference', type=float, default=0.95)
-    markers_parser.add_argument('--trusted_cont', help='maximum contamination to trust genome for marker set inference', type=float, default=0.05)
     markers_parser.add_argument('--redundancy', help='threshold for declaring HMMs redundant', type=float, default=0.50)
     markers_parser.add_argument('--ubiquity', help='ubiquity threshold for defining marker genes', type=float, default=0.9)
     markers_parser.add_argument('--single_copy', help='single-copy threshold for defining marker genes', type=float, default=0.95)
-    # markers_parser.add_argument('--non_conspecific', help='non-conspecific threshold for retaining multi-copy gene trees', type=float, default=0.005)
 
     markers_parser.add_argument('--min_support', help='minimum jackknife support of split during LGT filtering', type=float, default=0.9)
     markers_parser.add_argument('--min_per_taxa', help='minimum percentage of taxa to consider a split during LGT filtering', type=float, default=0.02)
-    markers_parser.add_argument('--min_per_splits', help='minimum recovered well-supported splits required to retain marker during LGT filtering', type=float, default=0.5)
     markers_parser.add_argument('--perc_markers', help='percentage of markers to keep during marker jackknifing', type=float, default=0.7)
 
     markers_parser.add_argument('--restict_marker_list', help='restrict marker set to genes within this list', default=None)

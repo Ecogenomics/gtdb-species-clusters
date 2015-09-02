@@ -2,6 +2,7 @@ from distutils.core import setup
 
 import os
 
+
 def version():
     setupDir = os.path.dirname(os.path.realpath(__file__))
     versionFile = open(os.path.join(setupDir, 'genome_tree_tk', 'VERSION'))
@@ -21,5 +22,5 @@ setup(
     long_description=open('README.md').read(),
     install_requires=[
         "numpy >= 1.8.0",
-        "biolib >= 0.0.8"],
+        "biolib >= 0.0.11"],
 )

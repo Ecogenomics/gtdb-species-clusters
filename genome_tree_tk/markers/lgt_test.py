@@ -119,7 +119,6 @@ class LgtTest(object):
                     hmm_model_file,
                     min_support,
                     min_per_taxa,
-                    min_per_splits,
                     perc_markers_to_jackknife,
                     gene_tree_dir,
                     alignment_dir,
@@ -138,8 +137,6 @@ class LgtTest(object):
             Minimum jackknife support of splits to use during LGT filtering [0, 1].
         min_per_taxa : float
             Minimum percentage of taxa required to consider a split during LGT filtering [0, 1].
-        min_per_splits : float
-            Minimum recovered well-supported splits required to retain marker during LGT filtering [0, 1].
         perc_markers_to_jackknife : float
             Percentage of taxa to keep during marker jackknifing [0, 1].
         gene_tree_dir : str
@@ -201,7 +198,6 @@ class LgtTest(object):
         self.logger.info('')
         self.logger.info('  Filtering gene trees.')
 
-        retained_markers = set()
         distances = {}
         for i, mg in enumerate(sorted(marker_genes)):
             sys.stdout.write('    Processed %d of %d (%.2f) gene trees.\r' % (i + 1, len(marker_genes), (i + 1) * 100.0 / len(marker_genes)))
@@ -257,9 +253,6 @@ class LgtTest(object):
                     compatible_splits += 1
                     compatible_edge_length += edge_length
 
-            if compatible_splits >= min_per_splits * len(splits):
-                retained_markers.add(mg)
-
             perc_recovered_splits = recovered_splits * 100.0 / len(splits)
             perc_comp_splits = compatible_splits * 100.0 / len(splits)
             norm_comp_edge_length = float(compatible_edge_length) / sum([s[1] for s in splits])
@@ -281,8 +274,4 @@ class LgtTest(object):
 
             distances[mg] = (perc_recovered_splits, perc_comp_splits, norm_comp_edge_length, manhattan, euclidean)
 
-        sys.stdout.write('\n')
-        self.logger.info('    Filtered gene trees: %d' % (len(marker_genes) - len(retained_markers)))
-        self.logger.info('    Retained gene trees: %d' % len(retained_markers))
-
-        return retained_markers, distances, num_internal_nodes, num_major_splits, well_supported_major_splits
+        return distances, num_internal_nodes, num_major_splits, well_supported_major_splits

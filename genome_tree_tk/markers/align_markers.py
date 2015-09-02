@@ -29,24 +29,22 @@ from genome_tree_tk.defaultValues import DefaultValues
 class AlignMarkers(object):
     """Align genes to HMM."""
 
-    def __init__(self, img_genome_dir, cpus):
+    def __init__(self, cpus):
         """Initialize.
 
         Parameters
         ----------
-        img_genome_dir : str
-            Directory with genomes in individual directories.
         cpus : int
             Number of cpus to use.
         """
 
         self.logger = logging.getLogger()
 
-        self.img_genome_dir = img_genome_dir
-
         self.cpus = cpus
 
-    def _run_hmm_align(self, genome_ids, genes_in_genomes, output_msa_dir, output_model_dir, queue_in, queue_out):
+        self.protein_file_ext = '_protein.faa'
+
+    def _run_hmm_align(self, genome_ids, genome_dirs, genes_in_genomes, output_msa_dir, output_model_dir, queue_in, queue_out):
         """Run each marker gene in a separate thread.
 
         Only the gene with the highest bitscore is used for genomes with
@@ -56,6 +54,8 @@ class AlignMarkers(object):
         ----------
         genome_ids : iterable
             Genomes of interest.
+        genome_dirs : d[assembly_accession] -> directory
+            Path to files for individual genomes.
         genes_in_genomes : d[genome_id][family_id] -> [(gene_id_1, bitscore), ..., (gene_id_N, bitscore)]
             Genes within each genome.
         output_msa_dir : str
@@ -73,14 +73,14 @@ class AlignMarkers(object):
             if marker_id == None:
                 break
 
-            model_name = marker_id
-            if model_name.startswith('pfam'):
-                model_name = model_name.replace('pfam', 'PF')
-
-            marker_seq_file = os.path.join(output_msa_dir, model_name + '.faa')
+            marker_seq_file = os.path.join(output_msa_dir, marker_id + '.faa')
             fout = open(marker_seq_file, 'w')
             for genome_id in genome_ids:
-                seqs = seq_io.read_fasta(os.path.join(self.img_genome_dir, genome_id, genome_id + '.genes.faa'))
+                genome_dir = genome_dirs[genome_id]
+
+                assembly = genome_dir[genome_dir.rfind('/') + 1:]
+                genes_file = os.path.join(genome_dir, assembly + self.protein_file_ext)
+                seqs = seq_io.read_fasta(genes_file)
 
                 hits = genes_in_genomes[genome_id].get(marker_id, None)
                 if hits:
@@ -88,20 +88,15 @@ class AlignMarkers(object):
                     hits.sort(key=lambda x: x[1], reverse=True)
                     gene_id, _bitscore = hits[0]
 
-                    if gene_id not in seqs:
-                        # this shouldn't be necessary, but the IMG metadata isn't always
-                        # perfectly in sync with the sequence data
-                        continue
-
                     fout.write('>' + genome_id + DefaultValues.SEQ_CONCAT_CHAR + gene_id + '\n')
                     fout.write(seqs[gene_id] + '\n')
             fout.close()
 
             hmmer = HMMER('align')
-            hmmer.align(os.path.join(output_model_dir, model_name + '.hmm'), marker_seq_file, os.path.join(output_msa_dir, model_name + '.aln.faa'), trim=False, outputFormat='Pfam')
-            self._mask_alignment(os.path.join(output_msa_dir, model_name + '.aln.faa'), os.path.join(output_msa_dir, model_name + '.aln.masked.faa'))
+            hmmer.align(os.path.join(output_model_dir, marker_id + '.hmm'), marker_seq_file, os.path.join(output_msa_dir, marker_id + '.aln.faa'), trim=False, outputFormat='Pfam')
+            self._mask_alignment(os.path.join(output_msa_dir, marker_id + '.aln.faa'), os.path.join(output_msa_dir, marker_id + '.aln.masked.faa'))
 
-            queue_out.put(model_name)
+            queue_out.put(marker_id)
 
     def _report_threads(self, num_genes, writer_queue):
         """Report progress of parallel processing.
@@ -159,13 +154,15 @@ class AlignMarkers(object):
             fout.write(masked_seq + '\n')
         fout.close()
 
-    def run(self, genome_ids, marker_genes, genes_in_genomes, output_msa_dir, output_model_dir):
+    def run(self, genome_ids, genome_dirs, marker_genes, genes_in_genomes, output_msa_dir, output_model_dir):
         """Perform multithreaded alignment of marker genes using HMM align.
 
         Parameters
         ----------
         genome_ids : iterable
             Genomes of interest.
+        genome_dirs : d[assembly_accession] -> directory
+            Path to files for individual genomes.
         marker_genes : iterable
             Unique ids of marker genes to align.
         genes_in_genomes : d[genome_id][family_id] -> [(gene_id_1, bitscore), ..., (gene_id_N, bitscore)]
@@ -186,7 +183,7 @@ class AlignMarkers(object):
             worker_queue.put(None)
 
         try:
-            calc_proc = [mp.Process(target=self._run_hmm_align, args=(genome_ids, genes_in_genomes, output_msa_dir, output_model_dir, worker_queue, writer_queue)) for _ in range(self.cpus)]
+            calc_proc = [mp.Process(target=self._run_hmm_align, args=(genome_ids, genome_dirs, genes_in_genomes, output_msa_dir, output_model_dir, worker_queue, writer_queue)) for _ in range(self.cpus)]
             write_proc = mp.Process(target=self._report_threads, args=(len(marker_genes), writer_queue))
 
             write_proc.start()
