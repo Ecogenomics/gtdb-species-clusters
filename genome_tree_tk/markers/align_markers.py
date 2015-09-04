@@ -19,6 +19,7 @@ import os
 import sys
 import multiprocessing as mp
 import logging
+from collections import defaultdict
 
 import biolib.seq_io as seq_io
 from biolib.external.hmmer import HMMER
@@ -42,9 +43,69 @@ class AlignMarkers(object):
 
         self.cpus = cpus
 
-        self.protein_file_ext = '_protein.faa'
+        self.protein_file_ext = DefaultValues.PROTEIN_FILE_EXTENSION
+        self.pfam_extension = DefaultValues.PFAM_EXTENSION
+        self.tigr_extension = DefaultValues.TIGR_EXTENSION
+        
+    def _genes_in_genomes(self, genome_ids, genome_dirs):
+        """Get genes within genomes.
 
-    def _run_hmm_align(self, genome_ids, genome_dirs, genes_in_genomes, output_msa_dir, output_model_dir, queue_in, queue_out):
+        Parameters
+        ----------
+        genome_ids : iterable
+            Genomes of interest.
+        genome_dirs : d[assembly_accession] -> directory
+            Path to files for individual genomes.
+
+        Returns
+        -------
+        d[genome_id][family_id] -> [(gene_id_1, bitscore), ..., (gene_id_N, bitscore)]
+            Genes within each genome.
+        """
+
+        genes_in_genome = {}
+        for genome_id in genome_ids:
+            genome_dir = genome_dirs[genome_id]
+
+            marker_id_to_gene_id = defaultdict(list)
+
+            assembly = genome_dir[genome_dir.rfind('/') + 1:]
+            tophit_file = os.path.join(genome_dir, assembly + self.pfam_extension)
+            with open(tophit_file) as f:
+                f.readline()
+                for line in f:
+                    line_split = line.split('\t')
+
+                    gene_id = line_split[0]
+                    hits = line_split[1].split(';')
+                    for hit in hits:
+                        pfam_id, _evalue, bitscore = hit.split(',')
+                        marker_id_to_gene_id[pfam_id].append((gene_id, float(bitscore)))
+
+            tophit_file = os.path.join(genome_dir, assembly + self.tigr_extension)
+            with open(tophit_file) as f:
+                f.readline()
+                for line in f:
+                    line_split = line.split('\t')
+
+                    gene_id = line_split[0]
+                    hits = line_split[1].split(';')
+                    for hit in hits:
+                        tigrfam_id, _evalue, bitscore = hit.split(',')
+                        marker_id_to_gene_id[tigrfam_id].append((gene_id, float(bitscore)))
+
+            genes_in_genome[genome_id] = marker_id_to_gene_id
+
+        return genes_in_genome
+
+    def _run_hmm_align(self, genome_ids, 
+                                genome_dirs, 
+                                genes_in_genomes, 
+                                ignore_multi_copy, 
+                                output_msa_dir, 
+                                output_model_dir, 
+                                queue_in, 
+                                queue_out):
         """Run each marker gene in a separate thread.
 
         Only the gene with the highest bitscore is used for genomes with
@@ -58,6 +119,8 @@ class AlignMarkers(object):
             Path to files for individual genomes.
         genes_in_genomes : d[genome_id][family_id] -> [(gene_id_1, bitscore), ..., (gene_id_N, bitscore)]
             Genes within each genome.
+        ignore_multi_copy : bool
+            Flag indicating if genes with multiple hits should be ignored (True) or the gene with the highest bitscore taken (False).
         output_msa_dir : str
             Output directory for multiple sequence alignment.
         output_model_dir : str
@@ -83,13 +146,15 @@ class AlignMarkers(object):
                 seqs = seq_io.read_fasta(genes_file)
 
                 hits = genes_in_genomes[genome_id].get(marker_id, None)
-                if hits:
-                    # get gene with highest bitscore
-                    hits.sort(key=lambda x: x[1], reverse=True)
-                    gene_id, _bitscore = hits[0]
+                if not hits or (ignore_multi_copy and len(hits) > 1):
+                    continue
+                
+                # get gene with highest bitscore
+                hits.sort(key=lambda x: x[1], reverse=True)
+                gene_id, _bitscore = hits[0]
 
-                    fout.write('>' + genome_id + DefaultValues.SEQ_CONCAT_CHAR + gene_id + '\n')
-                    fout.write(seqs[gene_id] + '\n')
+                fout.write('>' + genome_id + DefaultValues.SEQ_CONCAT_CHAR + gene_id + '\n')
+                fout.write(seqs[gene_id] + '\n')
             fout.close()
 
             hmmer = HMMER('align')
@@ -154,7 +219,7 @@ class AlignMarkers(object):
             fout.write(masked_seq + '\n')
         fout.close()
 
-    def run(self, genome_ids, genome_dirs, marker_genes, genes_in_genomes, output_msa_dir, output_model_dir):
+    def run(self, genome_ids, genome_dirs, marker_genes, ignore_multi_copy, output_msa_dir, output_model_dir):
         """Perform multithreaded alignment of marker genes using HMM align.
 
         Parameters
@@ -165,14 +230,21 @@ class AlignMarkers(object):
             Path to files for individual genomes.
         marker_genes : iterable
             Unique ids of marker genes to align.
-        genes_in_genomes : d[genome_id][family_id] -> [(gene_id_1, bitscore), ..., (gene_id_N, bitscore)]
-            Genes within each genome.
+        ignore_multi_copy : bool
+            Flag indicating if genes with multiple hits should be ignored (True) or the gene with the highest bitscore taken (False).
         output_msa_dir : str
             Output directory for multiple sequence alignments.
         output_model_dir : str
             Output directory for HMMs.
         """
+        
+        # get mapping of marker ids to gene ids for each genome
+        self.logger.info('')
+        self.logger.info('  Determining genes in genomes of interest.')
+        genes_in_genomes = self._genes_in_genomes(genome_ids, genome_dirs)
 
+        # align marker genes
+        self.logger.info('  Aligning marker genes:')
         worker_queue = mp.Queue()
         writer_queue = mp.Queue()
 
@@ -183,7 +255,14 @@ class AlignMarkers(object):
             worker_queue.put(None)
 
         try:
-            calc_proc = [mp.Process(target=self._run_hmm_align, args=(genome_ids, genome_dirs, genes_in_genomes, output_msa_dir, output_model_dir, worker_queue, writer_queue)) for _ in range(self.cpus)]
+            calc_proc = [mp.Process(target=self._run_hmm_align, args=(genome_ids, 
+                                                                      genome_dirs, 
+                                                                      genes_in_genomes, 
+                                                                      ignore_multi_copy, 
+                                                                      output_msa_dir, 
+                                                                      output_model_dir, 
+                                                                      worker_queue, 
+                                                                      writer_queue)) for _ in range(self.cpus)]
             write_proc = mp.Process(target=self._report_threads, args=(len(marker_genes), writer_queue))
 
             write_proc.start()

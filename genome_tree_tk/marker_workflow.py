@@ -25,8 +25,6 @@ from biolib.external.hmmer import HmmModelParser
 from genome_tree_tk.markers.infer_markers import InferMarkers
 from genome_tree_tk.markers.lgt_test import LgtTest
 
-import pickle
-
 
 class MarkerWorkflow(object):
     """Determine phylogenetically informative marker genes."""

@@ -18,12 +18,11 @@
 import os
 import sys
 import logging
-from collections import defaultdict
 
-import biolib.seq_io as seq_io
 from biolib.external.fasttree import FastTree
 
 from genome_tree_tk.defaultValues import DefaultValues
+from genome_tree_tk.common import create_concatenated_alignment
 from genome_tree_tk.jackknife_markers import JackknifeMarkers
 
 import dendropy
@@ -53,66 +52,6 @@ class LgtTest(object):
         self.logger = logging.getLogger()
 
         self.cpus = cpus
-
-    def _create_concatenated_alignment(self, genome_ids,
-                                       marker_genes,
-                                       alignment_dir,
-                                       concatenated_alignment_file,
-                                       marker_file):
-        """Create concatenated multiple sequence alignment for all genomes.
-
-        Parameters
-        ----------
-        genome_ids : iterable
-            Genomes of interest.
-        marker_genes : iterable
-            Unique ids of marker genes.
-        alignment_dir : str
-            Directory containing multiple sequence alignments.
-        concatenated_alignment_file : str
-            File to containing concatenated alignment.
-        marker_file : str
-            File indicating length of each marker in the alignment.
-        """
-
-        # Read alignment files. Some genomes may have multiple
-        # copies of a marker gene in which case the last one
-        # is arbitrarily taken. This is acceptable as all genes
-        # are already screen to be conspecific.
-        alignments = defaultdict(dict)
-        marker_length = {}
-        for mg in marker_genes:
-            f = mg + '.aln.masked.faa'
-            seqs = seq_io.read_fasta(os.path.join(alignment_dir, f))
-
-            for seq_id, seq in seqs.iteritems():
-                genome_id = seq_id[0:seq_id.find(DefaultValues.SEQ_CONCAT_CHAR)]
-
-                alignments[mg][genome_id] = seq
-
-                marker_length[mg] = len(seq)
-
-        # create marker file
-        fout = open(marker_file, 'w')
-        for mg in marker_genes:
-            fout.write('%s\t%s\t%s\t%d\n' % (mg, mg, mg, marker_length[mg]))
-        fout.close()
-
-        # create concatenated alignment
-        concatenated_seqs = {}
-        for mg in marker_genes:
-            seqs = alignments[mg]
-
-            for genome_id in genome_ids:
-                if genome_id in seqs:
-                    # append alignment
-                    concatenated_seqs[genome_id] = concatenated_seqs.get(genome_id, '') + seqs[genome_id]
-                else:
-                    # missing gene
-                    concatenated_seqs[genome_id] = concatenated_seqs.get(genome_id, '') + '-' * marker_length[mg]
-
-        # save concatenated alignment
-        seq_io.write_fasta(concatenated_seqs, concatenated_alignment_file)
 
     def run(self, genome_ids,
                     marker_genes,
@@ -152,14 +91,14 @@ class LgtTest(object):
         self.logger.info('  Concatenating alignments.')
         concatenated_alignment_file = os.path.join(output_dir, 'concatenated_alignment.faa')
         marker_file = os.path.join(output_dir, 'concatenated_markers.tsv')
-        self._create_concatenated_alignment(genome_ids, marker_genes, alignment_dir, concatenated_alignment_file, marker_file)
+        create_concatenated_alignment(genome_ids, marker_genes, alignment_dir, concatenated_alignment_file, marker_file)
 
         # create concatenated genome tree
         self.logger.info('  Inferring concatenated genome tree.')
         concatenated_tree = os.path.join(output_dir, 'concatenated.tree')
         concatenated_tree_log = os.path.join(output_dir, 'concatenated.tree.log')
         log_file = os.path.join(output_dir, 'fasttree.log')
-        fast_tree = FastTree(True)
+        fast_tree = FastTree(multithreaded=True)
         fast_tree.run(concatenated_alignment_file, 'prot', 'wag', concatenated_tree, concatenated_tree_log, log_file)
 
         # calculate jackknife support values

@@ -20,3 +20,7 @@ class DefaultValues():
     """Default values for filenames and common constants."""
 
     SEQ_CONCAT_CHAR = '|'
+
+    PROTEIN_FILE_EXTENSION = '_protein.faa'
+    PFAM_EXTENSION = '_pfam_tophit.tsv'
+    TIGR_EXTENSION = '_tigrfam_tophit.tsv'

@@ -23,7 +23,7 @@ from collections import defaultdict
 
 from genome_tree_tk.defaultValues import DefaultValues
 from genome_tree_tk.markers.align_markers import AlignMarkers
-from genome_tree_tk.common import read_genome_ids
+from genome_tree_tk.common import read_genome_id_file, read_genome_dir_file
 
 from biolib.external.fasttree import FastTree
 
@@ -62,59 +62,9 @@ class InferMarkers(object):
 
         self.cpus = cpus
 
-        self.pfam_extension = '_pfam_tophit.tsv'
-        self.tigr_extension = '_tigrfam_tophit.tsv'
-
-    def _genes_in_genomes(self, genome_ids, genome_dirs):
-        """Get genes within genomes.
-
-        Parameters
-        ----------
-        genome_ids : iterable
-            Genomes of interest.
-        genome_dirs : d[assembly_accession] -> directory
-            Path to files for individual genomes.
-
-        Returns
-        -------
-        d[genome_id][family_id] -> [(gene_id_1, bitscore), ..., (gene_id_N, bitscore)]
-            Genes within each genome.
-        """
-
-        genes_in_genome = {}
-        for genome_id in genome_ids:
-            genome_dir = genome_dirs[genome_id]
-
-            marker_id_to_gene_id = defaultdict(list)
-
-            assembly = genome_dir[genome_dir.rfind('/') + 1:]
-            tophit_file = os.path.join(genome_dir, assembly + self.pfam_extension)
-            with open(tophit_file) as f:
-                f.readline()
-                for line in f:
-                    line_split = line.split('\t')
-
-                    gene_id = line_split[0]
-                    hits = line_split[1].split(';')
-                    for hit in hits:
-                        pfam_id, _evalue, bitscore = hit.split(',')
-                        marker_id_to_gene_id[pfam_id].append((gene_id, float(bitscore)))
-
-            tophit_file = os.path.join(genome_dir, assembly + self.tigr_extension)
-            with open(tophit_file) as f:
-                f.readline()
-                for line in f:
-                    line_split = line.split('\t')
-
-                    gene_id = line_split[0]
-                    hits = line_split[1].split(';')
-                    for hit in hits:
-                        tigrfam_id, _evalue, bitscore = hit.split(',')
-                        marker_id_to_gene_id[tigrfam_id].append((gene_id, float(bitscore)))
-
-            genes_in_genome[genome_id] = marker_id_to_gene_id
-
-        return genes_in_genome
+        self.protein_file_ext = DefaultValues.PROTEIN_FILE_EXTENSION
+        self.pfam_extension = DefaultValues.PFAM_EXTENSION
+        self.tigr_extension = DefaultValues.TIGR_EXTENSION
 
     def _read_gene_hits(self, table, genome_ids, genome_dirs, extension):
         """Read gene annotations from top hit file.
@@ -385,13 +335,10 @@ class InferMarkers(object):
         """
 
         # read directory for each genome
-        genome_dirs = {}
-        for line in open(self.genome_dir_file):
-            line_split = line.split('\t')
-            genome_dirs[line_split[0]] = line_split[1].strip()
+        genome_dirs = read_genome_dir_file(self.genome_dir_file)
 
         # read genomes within the ingroup
-        ncbi_genome_ids, user_genome_ids = read_genome_ids(ingroup_file)
+        ncbi_genome_ids, user_genome_ids = read_genome_id_file(ingroup_file)
         genome_ids = ncbi_genome_ids.union(user_genome_ids)
         self.logger.info('    Ingroup genomes: %d' % len(genome_ids))
         self.logger.info('      NCBI genomes: %d' % len(ncbi_genome_ids))
@@ -422,14 +369,9 @@ class InferMarkers(object):
         self.logger.info('  Fetching HMM for each marker genes.')
         self._fetch_marker_models(marker_genes, output_model_dir)
 
-        # get mapping of marker ids to gene ids for each genome
-        self.logger.info('  Determining genes in genomes of interest.')
-        genes_in_genomes = self._genes_in_genomes(genome_ids, genome_dirs)
-
-        # align gene sequences and infer gene trees
-        self.logger.info('  Aligning marker genes:')
+        # align gene sequences
         align_markers = AlignMarkers(self.cpus)
-        align_markers.run(genome_ids, genome_dirs, marker_genes, genes_in_genomes, output_msa_dir, output_model_dir)
+        align_markers.run(genome_ids, genome_dirs, marker_genes, False, output_msa_dir, output_model_dir)
 
         return len(genome_ids), len(ncbi_genome_ids), len(user_genome_ids), genome_ids, marker_gene_stats, marker_genes
 
@@ -466,7 +408,7 @@ class InferMarkers(object):
                     fout.write(line)
                 fout.close()
 
-        fasttree = FastTree(1)
+        fasttree = FastTree(multithreaded=False)
         fasttree.parallel_run(msa_files, 'prot', 'wag', output_dir, self.cpus)
 
         # create gene tree without gene ids for visualization in ARB

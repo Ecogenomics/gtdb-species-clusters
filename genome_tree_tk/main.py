@@ -27,6 +27,7 @@ from biolib.external.execute import check_dependencies
 from genome_tree_tk.trusted_genome_workflow import TrustedGenomeWorkflow
 from genome_tree_tk.dereplication_workflow import DereplicationWorkflow
 from genome_tree_tk.marker_workflow import MarkerWorkflow
+from genome_tree_tk.infer_workflow import InferWorkflow
 from genome_tree_tk.bootstrap import Bootstrap
 from genome_tree_tk.jackknife_markers import JackknifeMarkers
 from genome_tree_tk.jackknife_taxa import JackknifeTaxa
@@ -101,7 +102,6 @@ class OptionsParser():
         self.time_keeper.print_time_stamp()
 
     def markers(self, options):
-        self.logger.info('')
         self.logger.info('*******************************************************************************')
         self.logger.info(' [GenomeTreeTk - markers] Determining marker genes.')
         self.logger.info('*******************************************************************************')
@@ -132,6 +132,31 @@ class OptionsParser():
 
         self.time_keeper.print_time_stamp()
 
+    def infer(self, options):
+        self.logger.info('*******************************************************************************')
+        self.logger.info(' [GenomeTreeTk - infer] Inferring genome tree.')
+        self.logger.info('*******************************************************************************')
+
+        check_file_exists(options.genome_id_file)
+        check_file_exists(options.marker_id_file)
+        make_sure_path_exists(options.output_dir)
+
+        config_data = self._read_config_file()
+        infer_workflow = InferWorkflow(config_data['genome_dir_file'],
+                                            config_data['pfam_model_file'],
+                                            config_data['tigrfams_model_dir'],
+                                            options.cpus)
+
+        infer_workflow.run(options.genome_id_file,
+                                options.marker_id_file,
+                                options.model,
+                                options.output_dir)
+
+        self.logger.info('')
+        self.logger.info('  Results written to: %s' % options.output_dir)
+
+        self.time_keeper.print_time_stamp()
+
     def bootstrap(self, options):
         self.logger.info('')
         self.logger.info('*******************************************************************************')
@@ -147,6 +172,7 @@ class OptionsParser():
                                     options.msa_file,
                                     options.num_replicates,
                                     options.model,
+                                    options.gamma,
                                     options.output_dir)
 
         self.logger.info('')
@@ -171,6 +197,7 @@ class OptionsParser():
                                                 options.perc_markers,
                                                 options.num_replicates,
                                                 options.model,
+                                                options.gamma,
                                                 options.output_dir)
 
         self.logger.info('')
@@ -195,6 +222,7 @@ class OptionsParser():
                                             options.perc_taxa,
                                             options.num_replicates,
                                             options.model,
+                                            options.gamma,
                                             options.output_dir)
 
         self.logger.info('')
@@ -246,10 +274,11 @@ class OptionsParser():
 
         outgroup = set()
         for outgroup_id in open(options.outgroup_file):
+            outgroup_id = outgroup_id.split('\t')[0].strip()
             outgroup.add(outgroup_id)
 
         reroot = RerootTree()
-        reroot.midpoint(options.input_tree, options.output_tree, outgroup)
+        reroot.root_with_outgroup(options.input_tree, options.output_tree, outgroup)
 
         self.time_keeper.print_time_stamp()
 
@@ -266,6 +295,8 @@ class OptionsParser():
             self.dereplicate(options)
         elif options.subparser_name == 'markers':
             self.markers(options)
+        elif options.subparser_name == 'infer':
+            self.infer(options)
         elif options.subparser_name == 'bootstrap':
             self.bootstrap(options)
         elif options.subparser_name == 'jk_markers':

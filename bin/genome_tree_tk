@@ -46,15 +46,13 @@ def print_help():
     print '                ...::: GenomeTreeTk v' + version() + ' :::...'''
     print '''\
 
-    infer_wf -> Infer lineage-specific genome tree.
+    Infer lineage-specific genome tree:
       trusted     -> Determine trusted genomes to use for marker gene inference
       dereplicate -> Dereplicate genomes based on taxonomy
       markers     -> Determine phylogenetically informative marker genes
-      msa         -> Calculate multiple sequence alignment
-      qa          -> Quality check genomes
       infer       -> Infer genome tree
 
-    support_wf -> Assess stability of tree.
+    Assess stability of tree:
       bootstrap   -> Bootstrap multiple sequence alignment
       jk_markers  -> Jackknife marker genes
       jk_taxa     -> Jackknife ingroup taxa
@@ -111,6 +109,16 @@ if __name__ == '__main__':
 
     markers_parser.add_argument('--restict_marker_list', help='restrict marker set to genes within this list', default=None)
     markers_parser.add_argument('-c', '--cpus', help='number of cpus to use', type=int, default=16)
+
+    # determine marker genes
+    infer_parser = subparsers.add_parser('infer',
+                                        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+                                        description='Infer genome tree.')
+    infer_parser.add_argument('genome_id_file', help="unique ids of genomes to include in tree")
+    infer_parser.add_argument('marker_id_file', help="unique ids of marker genes to use for inference")
+    infer_parser.add_argument('output_dir', help="output directory")
+    infer_parser.add_argument('-m', '--model', choices=['wag', 'jtt'], help="model of evolution to use", default='jtt')
+    infer_parser.add_argument('-c', '--cpus', help='number of cpus', type=int, default=1)
 
     # assess robustness of genome tree using classic bootstrapping
     bootstrap_parser = subparsers.add_parser('bootstrap',
