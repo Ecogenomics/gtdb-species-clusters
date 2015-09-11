@@ -109,6 +109,8 @@ class LgtTest(object):
         # jackknife_tree = os.path.join(output_dir, 'concatenated.jk_markers.tree')
 
         # identify well-support, internal splits
+        self.logger.info('')
+        self.logger.info('  Identifying well-support, internal splits.')
         tree = dendropy.Tree.get_from_path(jackknife_tree, schema='newick', rooting='force-unrooted', preserve_underscores=True)
         num_leaves = len(tree.leaf_nodes())
 
@@ -179,9 +181,9 @@ class LgtTest(object):
             for split, edge_length in splits:
                 common_taxa_labels = split.intersection(gene_tree_taxa_set)
 
-                split = gene_tree.taxon_namespace.taxa_bitmask(labels=common_taxa_labels)
+                common_split = gene_tree.taxon_namespace.taxa_bitmask(labels=common_taxa_labels)
                 normalized_split = dendropy.Bipartition.normalize_bitmask(
-                                    bitmask=split,
+                                    bitmask=common_split,
                                     fill_bitmask=gene_tree.taxon_namespace.all_taxa_bitmask(),
                                     lowest_relevant_bit=1)
 

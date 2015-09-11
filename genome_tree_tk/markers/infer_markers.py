@@ -29,6 +29,8 @@ from biolib.external.fasttree import FastTree
 
 import dendropy
 
+import pickle  # ***
+
 
 class InferMarkers(object):
     """Identify ubiquitous, single-copy marker gene within a set of genomes.
@@ -350,6 +352,13 @@ class InferMarkers(object):
         gene_stats_file = os.path.join(output_model_dir, '..', 'gene_stats.all.tsv')
         gene_count_table = self._gene_count_table(genome_ids, genome_dirs)
         marker_gene_stats = self._marker_genes(genome_ids, gene_count_table, ubiquity_threshold, single_copy_threshold, gene_stats_file)
+
+        # with open('tmp_marker_gene_list', 'wb') as f:
+        #    pickle.dump(marker_gene_stats, f)
+
+        # with open('tmp_marker_gene_list', 'rb') as f:
+        #    marker_gene_stats = pickle.load(f)
+
         marker_genes = set(marker_gene_stats.keys())
 
         if valid_marker_genes:
