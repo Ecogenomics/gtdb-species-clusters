@@ -14,13 +14,13 @@ The genome tree toolkit is a collection of methods for working with genome trees
 The simplest way to install this package is through pip:
 > sudo pip install genome_tree_tk
 
-GenomeTreeTK relies on several other software packages:
+GenomeTreeTk relies on several other software packages:
 
 TBD
 
 ## Cite
 
-If you find this package useful, please cite this git repository (https://github.com/dparks1134/GenomeTreeTK)
+If you find this package useful, please cite this git repository (https://github.com/dparks1134/GenomeTreeTk)
 
 ## Copyright
 
