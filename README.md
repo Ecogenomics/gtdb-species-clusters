@@ -1,4 +1,4 @@
-# GenomeTreeTK
+# GenomeTreeTk
 
 <b>[This project is in active development and not currently recommended for public use.]</b>
 
