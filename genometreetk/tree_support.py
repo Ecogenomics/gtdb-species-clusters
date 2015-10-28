@@ -29,46 +29,6 @@ class TreeSupport():
         """Initialize."""
         self.logger = logging.getLogger()
 
-    def common_taxa(self, input_tree, replicate_trees, output_tree):
-        """ Calculate support for tree with replicates covering the same taxon set.
-
-        Parameters
-        ----------
-        input_tree : str
-          Tree inferred from complete data.
-        replicate_trees : iterable
-          Files containing replicate trees.
-        output_tree: str
-          Name of output tree with support values.
-        """
-
-        tree = dendropy.Tree.get_from_path(input_tree, schema='newick', rooting='force-unrooted', preserve_underscores=True)
-        tree.encode_bipartitions()
-
-        print 'read input tree'
-
-        rep_trees = dendropy.TreeList(taxon_namespace=tree.taxon_namespace)
-        for i, rep_tree_file in enumerate(replicate_trees):
-            print 'tree', i  # ***
-            rep_tree = dendropy.Tree.get_from_path(rep_tree_file,
-                                                         schema='newick',
-                                                         rooting='force-unrooted',
-                                                         preserve_underscores=True,
-                                                         taxon_namespace=tree.taxon_namespace)
-            rep_tree.bipartitions = True  # this is a hack because the call to frequency_of_bipartition expects this variable to be defined
-            rep_tree.encode_bipartitions()
-            rep_trees.append(rep_tree)
-
-        for i, node in enumerate(tree.internal_nodes()):
-            bootstrap = int(rep_trees.frequency_of_bipartition(bipartition=node.bipartition, is_bipartitions_updated=True) * 100)
-
-            if node.label:
-                node.label = str(bootstrap) + ':' + node.label
-            else:
-                node.label = str(bootstrap)
-
-        tree.write_to_path(output_tree, schema='newick', suppress_rooting=True, unquoted_underscores=True)
-
     def subset_taxa(self, input_tree, replicate_trees, output_tree):
         """Calculate support for tree with replicates containing a subset of taxa.
 

@@ -24,7 +24,7 @@ from collections import defaultdict
 
 import biolib.seq_io as seq_io
 
-from genome_tree_tk.defaultValues import DefaultValues
+from genometreetk.default_values import DefaultValues
 
 
 def read_tree_model(reportFile):
@@ -115,6 +115,7 @@ def read_genome_id_file(genome_id_file):
             ncbi_genome_ids.add(genome_id)
 
     return ncbi_genome_ids, user_genome_ids
+
 
 def create_concatenated_alignment(genome_ids,
                                    marker_genes,

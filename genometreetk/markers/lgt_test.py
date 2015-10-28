@@ -20,10 +20,11 @@ import sys
 import logging
 
 from biolib.external.fasttree import FastTree
+from biolib.common import make_sure_path_exists
 
-from genome_tree_tk.defaultValues import DefaultValues
-from genome_tree_tk.common import create_concatenated_alignment
-from genome_tree_tk.jackknife_markers import JackknifeMarkers
+from genometreetk.default_values import DefaultValues
+from genometreetk.common import create_concatenated_alignment
+from genometreetk.jackknife_markers import JackknifeMarkers
 
 import dendropy
 
@@ -32,12 +33,11 @@ class LgtTest(object):
     """Identify gene trees that may have undergone one or more lateral transfer.
 
     Specifically, the following test is applied:
-      1) infer a jackknifed genome tree by randomly subsampling 50% of
-         the marker genes under 100 replicates
+      1) infer a jackknifed genome tree by randomly subsampling marker genes under 100 replicates
       2) identify all splits with at least a minimum jackknife support value, and
          where at least a certain percentage of the taxa fall on each side of the split
       3) determine how many of these "well-support, internal" splits are recovered in each gene tree
-      4) filter gene trees which do not recover at specific percentage of these splits
+      4) filter gene trees which do not recover a specific percentage of these splits
     """
 
     def __init__(self, cpus):
@@ -86,31 +86,31 @@ class LgtTest(object):
             Output directory.
         """
 
+        output_dir = os.path.join(output_dir, 'jackknife_markers')
+        make_sure_path_exists(output_dir)
+
         # create concatenated alignment file
-        self.logger.info('')
-        self.logger.info('  Concatenating alignments.')
+        self.logger.info('Concatenating alignments.')
         concatenated_alignment_file = os.path.join(output_dir, 'concatenated_alignment.faa')
         marker_file = os.path.join(output_dir, 'concatenated_markers.tsv')
         create_concatenated_alignment(genome_ids, marker_genes, alignment_dir, concatenated_alignment_file, marker_file)
 
         # create concatenated genome tree
-        self.logger.info('  Inferring concatenated genome tree.')
+        self.logger.info('Inferring concatenated genome tree.')
         concatenated_tree = os.path.join(output_dir, 'concatenated.tree')
         concatenated_tree_log = os.path.join(output_dir, 'concatenated.tree.log')
-        log_file = os.path.join(output_dir, 'fasttree.log')
+        log_file = os.path.join(output_dir, 'concatenated.fasttree.log')
         fast_tree = FastTree(multithreaded=True)
         fast_tree.run(concatenated_alignment_file, 'prot', 'wag', concatenated_tree, concatenated_tree_log, log_file)
 
         # calculate jackknife support values
-        self.logger.info('  Calculating jackknife marker support values.')
-        output_dir = os.path.join(output_dir, 'jackknife_markers')
+        self.logger.info('Calculating jackknife marker support values.')
         jackknife_markers = JackknifeMarkers(self.cpus)
         jackknife_tree = jackknife_markers.run(concatenated_tree, concatenated_alignment_file, marker_file, perc_markers_to_jackknife, 100, 'wag', output_dir)
         # jackknife_tree = os.path.join(output_dir, 'concatenated.jk_markers.tree')
 
         # identify well-support, internal splits
-        self.logger.info('')
-        self.logger.info('  Identifying well-support, internal splits.')
+        self.logger.info('Identifying well-support, internal splits.')
         tree = dendropy.Tree.get_from_path(jackknife_tree, schema='newick', rooting='force-unrooted', preserve_underscores=True)
         num_leaves = len(tree.leaf_nodes())
 
@@ -131,17 +131,16 @@ class LgtTest(object):
                     split = set([x.taxon.label for x in node.leaf_nodes()])
                     splits.append((split, node.edge_length))
 
-        self.logger.info('    # internal nodes: %d' % num_internal_nodes)
-        self.logger.info('    # major splits: %d' % num_major_splits)
-        self.logger.info('    # well-supported, major splits: %d' % well_supported_major_splits)
+        self.logger.info('# internal nodes: %d' % num_internal_nodes)
+        self.logger.info('# major splits: %d' % num_major_splits)
+        self.logger.info('# well-supported, major splits: %d' % well_supported_major_splits)
 
         # filter gene trees that do not recover well-support, internal splits
-        self.logger.info('')
-        self.logger.info('  Filtering gene trees.')
+        self.logger.info('Filtering gene trees.')
 
         distances = {}
         for i, mg in enumerate(sorted(marker_genes)):
-            sys.stdout.write('    Processed %d of %d (%.2f) gene trees.\r' % (i + 1, len(marker_genes), (i + 1) * 100.0 / len(marker_genes)))
+            sys.stdout.write('==> Processed %d of %d (%.2f) gene trees.\r' % (i + 1, len(marker_genes), (i + 1) * 100.0 / len(marker_genes)))
             sys.stdout.flush()
 
             # read gene tree

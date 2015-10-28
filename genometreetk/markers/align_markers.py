@@ -24,7 +24,7 @@ from collections import defaultdict
 import biolib.seq_io as seq_io
 from biolib.external.hmmer import HMMER
 
-from genome_tree_tk.defaultValues import DefaultValues
+from genometreetk.default_values import DefaultValues
 
 
 class AlignMarkers(object):
@@ -46,7 +46,7 @@ class AlignMarkers(object):
         self.protein_file_ext = DefaultValues.PROTEIN_FILE_EXTENSION
         self.pfam_extension = DefaultValues.PFAM_EXTENSION
         self.tigr_extension = DefaultValues.TIGR_EXTENSION
-        
+
     def _genes_in_genomes(self, genome_ids, genome_dirs):
         """Get genes within genomes.
 
@@ -98,13 +98,13 @@ class AlignMarkers(object):
 
         return genes_in_genome
 
-    def _run_hmm_align(self, genome_ids, 
-                                genome_dirs, 
-                                genes_in_genomes, 
-                                ignore_multi_copy, 
-                                output_msa_dir, 
-                                output_model_dir, 
-                                queue_in, 
+    def _run_hmm_align(self, genome_ids,
+                                genome_dirs,
+                                genes_in_genomes,
+                                ignore_multi_copy,
+                                output_msa_dir,
+                                output_model_dir,
+                                queue_in,
                                 queue_out):
         """Run each marker gene in a separate thread.
 
@@ -148,7 +148,7 @@ class AlignMarkers(object):
                 hits = genes_in_genomes[genome_id].get(marker_id, None)
                 if not hits or (ignore_multi_copy and len(hits) > 1):
                     continue
-                
+
                 # get gene with highest bitscore
                 hits.sort(key=lambda x: x[1], reverse=True)
                 gene_id, _bitscore = hits[0]
@@ -181,7 +181,7 @@ class AlignMarkers(object):
                 break
 
             num_processed_genes += 1
-            statusStr = '    Finished processing %d of %d (%.2f%%) marker genes.' % (num_processed_genes, num_genes, float(num_processed_genes) * 100 / num_genes)
+            statusStr = '==> Finished processing %d of %d (%.2f%%) marker genes.' % (num_processed_genes, num_genes, float(num_processed_genes) * 100 / num_genes)
             sys.stdout.write('%s\r' % statusStr)
             sys.stdout.flush()
 
@@ -237,14 +237,13 @@ class AlignMarkers(object):
         output_model_dir : str
             Output directory for HMMs.
         """
-        
+
         # get mapping of marker ids to gene ids for each genome
-        self.logger.info('')
-        self.logger.info('  Determining genes in genomes of interest.')
+        self.logger.info('Determining genes in genomes of interest.')
         genes_in_genomes = self._genes_in_genomes(genome_ids, genome_dirs)
 
         # align marker genes
-        self.logger.info('  Aligning marker genes:')
+        self.logger.info('Aligning marker genes:')
         worker_queue = mp.Queue()
         writer_queue = mp.Queue()
 
@@ -255,13 +254,13 @@ class AlignMarkers(object):
             worker_queue.put(None)
 
         try:
-            calc_proc = [mp.Process(target=self._run_hmm_align, args=(genome_ids, 
-                                                                      genome_dirs, 
-                                                                      genes_in_genomes, 
-                                                                      ignore_multi_copy, 
-                                                                      output_msa_dir, 
-                                                                      output_model_dir, 
-                                                                      worker_queue, 
+            calc_proc = [mp.Process(target=self._run_hmm_align, args=(genome_ids,
+                                                                      genome_dirs,
+                                                                      genes_in_genomes,
+                                                                      ignore_multi_copy,
+                                                                      output_msa_dir,
+                                                                      output_model_dir,
+                                                                      worker_queue,
                                                                       writer_queue)) for _ in range(self.cpus)]
             write_proc = mp.Process(target=self._report_threads, args=(len(marker_genes), writer_queue))
 

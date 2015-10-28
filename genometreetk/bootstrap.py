@@ -17,14 +17,12 @@
 
 import os
 import logging
-import random
 
 import biolib.seq_io as seq_io
 from biolib.external.fasttree import FastTree
 from biolib.parallel import Parallel
+from biolib.bootstrap import bootstrap_alignment, bootstrap_support
 from biolib.common import remove_extension, make_sure_path_exists
-
-from genome_tree_tk.tree_support import TreeSupport
 
 
 class Bootstrap(object):
@@ -52,13 +50,13 @@ class Bootstrap(object):
           Unique replicate number.
         """
 
-        output_msa = os.path.join(self.replicate_dir, 'bootstrap.msa.' + str(replicated_num) + '.fna')
-        self.bootstrap_alignment(self.msa, output_msa)
+        output_msa = os.path.join(self.replicate_dir, 'bootstrap_msa.r_' + str(replicated_num) + '.fna')
+        #***bootstrap_alignment(self.msa, output_msa)
 
         fast_tree = FastTree(multithreaded=False)
-        output_tree = os.path.join(self.replicate_dir, 'bootstrap.tree.' + str(replicated_num) + '.tre')
-        fast_tree_output = os.path.join(self.replicate_dir, 'bootstrap.fasttree.' + str(replicated_num) + '.out')
-        fast_tree.run(output_msa, 'prot', self.model, output_tree, fast_tree_output)
+        output_tree = os.path.join(self.replicate_dir, 'bootstrap_tree.r_' + str(replicated_num) + '.tree')
+        fast_tree_output = os.path.join(self.replicate_dir, 'bootstrap_fasttree.r_' + str(replicated_num) + '.out')
+        #***fast_tree.run(output_msa, self.base_type, self.model, output_tree, fast_tree_output)
 
         return True
 
@@ -67,28 +65,7 @@ class Bootstrap(object):
 
         return '    Processed %d of %d replicates.' % (processed_items, total_items)
 
-    def bootstrap_alignment(self, msa, output_file):
-        """Bootstrap multiple sequence alignment.
-
-        Parameters
-        ----------
-        msa : d[seq_id] -> seq
-          Full multiple sequence alignment.
-        output_file : str
-          File to write bootstrapped alignment.
-        """
-        alignment_len = len(msa[msa.keys()[0]])
-        cols = [random.randint(0, alignment_len - 1) for _ in xrange(alignment_len)]
-
-        fout = open(output_file, 'w')
-        for seq_id, seq in msa.iteritems():
-            fout.write('>' + seq_id + '\n')
-            for col in cols:
-                fout.write(seq[col])
-            fout.write('\n')
-        fout.close()
-
-    def run(self, input_tree, msa_file, num_replicates, model, output_dir):
+    def run(self, input_tree, msa_file, num_replicates, model, base_type, output_dir):
         """Bootstrap multiple sequence alignment.
 
         Parameters
@@ -101,13 +78,18 @@ class Bootstrap(object):
           Number of replicates to perform.
         model : str
           Desired model of evolution.
+        base_type : str
+          Indicates if bases are nucleotides or amino acids.
         output_dir : str
-          input_tree directory for bootstrap trees..
+          Directory for bootstrap trees.
         """
 
         assert(model in ['wag', 'jtt'])
+        assert(base_type in ['nt', 'prot'])
 
         self.model = model
+        self.base_type = base_type
+
         self.replicate_dir = os.path.join(output_dir, 'replicates')
         make_sure_path_exists(self.replicate_dir)
 
@@ -123,10 +105,9 @@ class Bootstrap(object):
         # calculate support values
         rep_tree_files = []
         for rep_index in xrange(num_replicates):
-            rep_tree_files.append(os.path.join(self.replicate_dir, 'bootstrap.tree.' + str(rep_index) + '.tre'))
+            rep_tree_files.append(os.path.join(self.replicate_dir, 'bootstrap_tree.r_' + str(rep_index) + '.tree'))
 
-        tree_support = TreeSupport()
         output_tree = os.path.join(output_dir, remove_extension(input_tree) + '.bootstrap.tree')
-        tree_support.common_taxa(input_tree, rep_tree_files, output_tree)
+        bootstrap_support(input_tree, rep_tree_files, output_tree)
 
         return output_tree

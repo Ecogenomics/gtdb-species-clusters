@@ -26,16 +26,19 @@ __status__ = "Development"
 
 import os
 import sys
+import ntpath
+import logging
 import argparse
 
-from genome_tree_tk.main import OptionsParser
+from genometreetk.main import OptionsParser
 from biolib.misc.custom_help_formatter import CustomHelpFormatter
+from biolib.common import make_sure_path_exists
 
 
 def version():
     """Read program version from file."""
     bin_dir = os.path.dirname(os.path.realpath(__file__))
-    version_file = open(os.path.join(bin_dir, '..', 'genome_tree_tk', 'VERSION'))
+    version_file = open(os.path.join(bin_dir, '..', 'genometreetk', 'VERSION'))
     return version_file.read().strip()
 
 
@@ -62,11 +65,45 @@ def print_help():
       midpoint    -> Reroot tree at midpoint.
       outgroup    -> Reroot tree with outgroup.
 
-  Use: genome_tree_tk <command> -h for command specific help.
+  Use: genometreetk <command> -h for command specific help.
 
   Feature requests or bug reports can be sent to Donovan Parks (donovan.parks@gmail.com)
-    or posted on GitHub (https://github.com/dparks1134/GenomeTreeTK).
+    or posted on GitHub (https://github.com/dparks1134/GenomeTreeTk).
     '''
+
+
+def logger_setup(output_dir, silent):
+    """Set logging for application.
+
+    Parameters
+    ----------
+    output_dir : str
+        Output directory for log file.
+    silent : boolean
+        Flag indicating if output to stdout should be suppressed.
+    """
+
+    # setup general properties of logger
+    logger = logging.getLogger('')
+    logger.setLevel(logging.DEBUG)
+    log_format = logging.Formatter(fmt="[%(asctime)s] %(levelname)s: %(message)s",
+                                   datefmt="%Y-%m-%d %H:%M:%S")
+
+    # setup logging to console
+    if not silent:
+        stream_logger = logging.StreamHandler(sys.stdout)
+        stream_logger.setFormatter(log_format)
+        stream_logger.setLevel(logging.DEBUG)
+        logger.addHandler(stream_logger)
+
+    if output_dir:
+        make_sure_path_exists(output_dir)
+        file_logger = logging.FileHandler(os.path.join(output_dir, 'genometreetk.log'), 'a')
+        file_logger.setFormatter(log_format)
+        logger.addHandler(file_logger)
+
+    logger.info('GenomeTreeTk v%s' % version())
+    logger.info(ntpath.basename(sys.argv[0]) + ' ' + ' '.join(sys.argv[1:]))
 
 if __name__ == '__main__':
 
@@ -81,17 +118,18 @@ if __name__ == '__main__':
     trusted_parser.add_argument('trusted_genomes_file', help="output file listing trusted genomes")
     trusted_parser.add_argument('--trusted_comp', help='minimum completeness to trust genome for marker set inference [0, 1]', type=float, default=0.95)
     trusted_parser.add_argument('--trusted_cont', help='maximum contamination to trust genome for marker set inference [0, 1]', type=float, default=0.05)
-    trusted_parser.add_argument('--max_contigs', help='maximum number of contigs to trust genome for marker set inference', type=int, default=300)
-    trusted_parser.add_argument('--min_N50', help='minimum N50 of contigs to trust genome for marker set inference', type=int, default=10000)
-    trusted_parser.add_argument('--allow_partial_taxonomy', help='retain genomes with incomplete taxonomic information', action='store_true')
+    trusted_parser.add_argument('--max_contigs', help='maximum number of contigs to trust genome for marker set inference', type=int, default=200)
+    trusted_parser.add_argument('--min_N50', help='minimum N50 of contigs to trust genome for marker set inference', type=int, default=20000)
+    trusted_parser.add_argument('--silent', help="suppress output", action='store_true')
 
     # dereplicate genomes
     dereplicate_parser = subparsers.add_parser('dereplicate',
                                         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
                                         description='Dereplicate genomes based on taxonomy.')
     dereplicate_parser.add_argument('derep_genome_file', help="output file listing dereplicated genomes")
-    dereplicate_parser.add_argument('--max_species', help='maximum number of genomes of the same species to retain', type=int, default=5)
+    dereplicate_parser.add_argument('--max_species', help='maximum number of genomes of the same species to retain', type=int, default=3)
     dereplicate_parser.add_argument('--trusted_genomes_file', help='limit selected genomes to those marked as trusted', default=None)
+    dereplicate_parser.add_argument('--silent', help="suppress output", action='store_true')
 
     # determine marker genes
     markers_parser = subparsers.add_parser('markers',
@@ -103,12 +141,13 @@ if __name__ == '__main__':
     markers_parser.add_argument('--ubiquity', help='ubiquity threshold for defining marker genes', type=float, default=0.9)
     markers_parser.add_argument('--single_copy', help='single-copy threshold for defining marker genes', type=float, default=0.95)
 
-    markers_parser.add_argument('--min_support', help='minimum jackknife support of split during LGT filtering', type=float, default=0.9)
+    markers_parser.add_argument('--min_support', help='minimum jackknife support of split during LGT filtering', type=float, default=0.8)
     markers_parser.add_argument('--min_per_taxa', help='minimum percentage of taxa to consider a split during LGT filtering', type=float, default=0.02)
     markers_parser.add_argument('--perc_markers', help='percentage of markers to keep during marker jackknifing', type=float, default=0.7)
 
     markers_parser.add_argument('--restict_marker_list', help='restrict marker set to genes within this list', default=None)
     markers_parser.add_argument('-c', '--cpus', help='number of cpus to use', type=int, default=16)
+    markers_parser.add_argument('--silent', help="suppress output", action='store_true')
 
     # determine marker genes
     infer_parser = subparsers.add_parser('infer',
@@ -119,6 +158,7 @@ if __name__ == '__main__':
     infer_parser.add_argument('output_dir', help="output directory")
     infer_parser.add_argument('-m', '--model', choices=['wag', 'jtt'], help="model of evolution to use", default='jtt')
     infer_parser.add_argument('-c', '--cpus', help='number of cpus', type=int, default=1)
+    infer_parser.add_argument('--silent', help="suppress output", action='store_true')
 
     # assess robustness of genome tree using classic bootstrapping
     bootstrap_parser = subparsers.add_parser('bootstrap',
@@ -127,9 +167,11 @@ if __name__ == '__main__':
     bootstrap_parser.add_argument('input_tree', help="tree inferred from original data")
     bootstrap_parser.add_argument('msa_file', help="file containing multiple sequence alignment")
     bootstrap_parser.add_argument('output_dir', help="output directory")
+    bootstrap_parser.add_argument('-b', '--base_type', choices=['nt', 'prot'], help="indicates if bases are nucleotides or amino acids", default='prot')
     bootstrap_parser.add_argument('-m', '--model', choices=['wag', 'jtt'], help="model of evolution to use", default='jtt')
     bootstrap_parser.add_argument('-r', '--num_replicates', help="number of bootstrap replicates to perform", type=int, default=100)
     bootstrap_parser.add_argument('-c', '--cpus', help='number of cpus', type=int, default=1)
+    bootstrap_parser.add_argument('--silent', help="suppress output", action='store_true')
 
     # assess robustness of genome tree by jackknifing marker genes
     jk_markers_parser = subparsers.add_parser('jk_markers',
@@ -143,6 +185,7 @@ if __name__ == '__main__':
     jk_markers_parser.add_argument('-p', '--perc_markers', help="percentage of markers to keep", type=float, default=0.5)
     jk_markers_parser.add_argument('-r', '--num_replicates', help="number of jackknife replicates to perform", type=int, default=100)
     jk_markers_parser.add_argument('-c', '--cpus', help='number of cpus', type=int, default=1)
+    jk_markers_parser.add_argument('--silent', help="suppress output", action='store_true')
 
     # assess robustness of genome tree by jackknifing ingroup taxa
     jk_taxa_parser = subparsers.add_parser('jk_taxa',
@@ -156,6 +199,7 @@ if __name__ == '__main__':
     jk_taxa_parser.add_argument('-p', '--perc_taxa', help="percentage of taxa to keep", type=float, default=0.5)
     jk_taxa_parser.add_argument('-r', '--num_replicates', help="number of jackknife replicates to perform", type=int, default=100)
     jk_taxa_parser.add_argument('-c', '--cpus', help='number of cpus', type=int, default=1)
+    jk_taxa_parser.add_argument('--silent', help="suppress output", action='store_true')
 
     # assess robustness of genome tree by jackknifing ingroup taxa
     combine_parser = subparsers.add_parser('combine',
@@ -166,6 +210,7 @@ if __name__ == '__main__':
     combine_parser.add_argument('jk_taxa_tree', help="tree with jackknife taxa support values")
     combine_parser.add_argument('output_tree', help="output tree")
     combine_parser.add_argument('-s', '--support_type', choices=['average', 'minimum'], help="type of support values to compute", default='average')
+    combine_parser.add_argument('--silent', help="suppress output", action='store_true')
 
     # reroot tree at midpoint
     midpoint_parser = subparsers.add_parser('midpoint',
@@ -173,6 +218,7 @@ if __name__ == '__main__':
                                         description='Reroot tree at midpoint.')
     midpoint_parser.add_argument('input_tree', help="tree to reroot")
     midpoint_parser.add_argument('output_tree', help="output tree")
+    midpoint_parser.add_argument('--silent', help="suppress output", action='store_true')
 
     # reroot tree with outgroup
     outgroup_parser = subparsers.add_parser('outgroup',
@@ -181,6 +227,7 @@ if __name__ == '__main__':
     outgroup_parser.add_argument('input_tree', help="tree to reroot")
     outgroup_parser.add_argument('outgroup_file', help="file containing taxa in outgroup")
     outgroup_parser.add_argument('output_tree', help="output tree")
+    outgroup_parser.add_argument('--silent', help="suppress output", action='store_true')
 
     # get and check options
     args = None
@@ -189,6 +236,11 @@ if __name__ == '__main__':
         sys.exit(0)
     else:
         args = parser.parse_args()
+
+    try:
+        logger_setup(args.output_dir, args.silent)
+    except:
+        logger_setup(None, args.silent)
 
     # do what we came here to do
     try:

@@ -42,6 +42,10 @@ class TrustedGenomeWorkflow(object):
         self.checkm_stats_file = checkm_stats_file
         self.taxonomy_file = taxonomy_file
 
+        self.logger.info('Assembly metadata: %s' % self.assembly_metadata_file)
+        self.logger.info('Genome quality estimates: %s' % self.checkm_stats_file)
+        self.logger.info('Taxonomy: %s' % self.taxonomy_file)
+
     def _read_metadata(self, assembly_metadata_file):
         """Parse assembly metadata file.
 
@@ -59,9 +63,9 @@ class TrustedGenomeWorkflow(object):
         assembly_stats = {}
         with open(assembly_metadata_file) as f:
             header = f.readline().split('\t')
-            num_contigs_index = header.index('contig-count')
-            contig_N50_index = header.index('contig-N50')
-            total_length_index = header.index('total-length')
+            num_contigs_index = header.index('ncbi_contig_count')
+            contig_N50_index = header.index('ncbi_contig_n50')
+            total_length_index = header.index('ncbi_total_length')
 
             for line in f:
                 line_split = line.split('\t')
@@ -87,9 +91,7 @@ class TrustedGenomeWorkflow(object):
                                 trusted_comp,
                                 trusted_cont,
                                 max_contigs,
-                                min_N50,
-                                taxonomy,
-                                allow_partial_taxonomy):
+                                min_N50):
         """Identify trusted genomes.
 
         Parameters
@@ -106,10 +108,6 @@ class TrustedGenomeWorkflow(object):
             Maximum number of contigs within trusted genomes.
         min_N50 : int
             Minimum N50 of trusted genomes.
-        taxonomy : d[assembly_accession] -> [d__<taxon>, ..., s__<taxon>]
-            Taxa indexed by unique ids.
-        allow_partial_taxonomy : bool
-            Flag indicating if genomes with incomplete taxonomic information should be retained.
 
         Returns
         -------
@@ -129,9 +127,6 @@ class TrustedGenomeWorkflow(object):
                 genome_id = line_split[0]
                 assembly_accession = genome_id[0:genome_id.find('_', 4)]
 
-                if not allow_partial_taxonomy and assembly_accession not in taxonomy:
-                    continue
-
                 comp = float(line_split[comp_index])
                 cont = float(line_split[cont_index])
                 num_contigs, N50 = assembly_metadata[assembly_accession]
@@ -148,7 +143,6 @@ class TrustedGenomeWorkflow(object):
                     trusted_cont,
                     max_contigs,
                     min_N50,
-                    allow_partial_taxonomy,
                     output_file):
         """Determine trusted genomes based on genome statistics.
 
@@ -162,8 +156,6 @@ class TrustedGenomeWorkflow(object):
             Maximum number of contigs within trusted genomes.
         min_N50 : int
             Minimum N50 of trusted genomes.
-        allow_partial_taxonomy : bool
-            Flag indicating if genomes with incomplete taxonomic information should be retained.
         output_file : str
             Output file to contain list of trusted genomes.
         """
@@ -175,11 +167,9 @@ class TrustedGenomeWorkflow(object):
         trusted_genomes_stats = self._trusted_genomes(self.checkm_stats_file,
                                                       assembly_metadata,
                                                       trusted_comp, trusted_cont,
-                                                      max_contigs, min_N50,
-                                                      taxonomy, allow_partial_taxonomy)
+                                                      max_contigs, min_N50)
 
-        self.logger.info('')
-        self.logger.info('  Identified %d trusted genomes.' % len(trusted_genomes_stats))
+        self.logger.info('Identified %d trusted genomes.' % len(trusted_genomes_stats))
 
         fout = open(output_file, 'w')
         fout.write('# Selection criteria:\n')
@@ -187,8 +177,11 @@ class TrustedGenomeWorkflow(object):
         fout.write('# Trusted contamination: %f\n' % trusted_cont)
         fout.write('# Maximum contigs: %d\n' % max_contigs)
         fout.write('# Minimum N50: %d\n' % min_N50)
+        fout.write('# Assembly metadata file: %s\n' % self.assembly_metadata_file)
+        fout.write('# Genome quality estimates file: %s\n' % self.checkm_stats_file)
+        fout.write('# Taxonomy file: %s\n' % self.taxonomy_file)
         fout.write('#\n')
-        fout.write('# Genome Id\tCompleteness,Contamination,# contigs,N50\tTaxonomy\n')
+        fout.write('# Genome Id\tCompleteness,Contamination,Contig count,N50\tTaxonomy\n')
 
         for assembly_accession, stats in trusted_genomes_stats.iteritems():
             fout.write('%s\t%s\t%s\n' % (assembly_accession, ','.join(map(str, stats)), ';'.join(taxonomy.get(assembly_accession, ['none']))))

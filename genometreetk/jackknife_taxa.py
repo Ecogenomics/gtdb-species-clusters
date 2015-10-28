@@ -16,7 +16,6 @@
 ###############################################################################
 
 import os
-import sys
 import logging
 import random
 from math import floor
@@ -26,11 +25,11 @@ from biolib.external.fasttree import FastTree
 from biolib.parallel import Parallel
 from biolib.common import remove_extension, make_sure_path_exists
 
-from genome_tree_tk.tree_support import TreeSupport
+from genometreetk.tree_support import TreeSupport
 
 
-class JackknifeMarkers(object):
-    """Assess robustness by jackkifing genes in alignment."""
+class JackknifeTaxa(object):
+    """Assess robustness by jackknifing taxa in alignment."""
 
     def __init__(self, cpus):
         """Initialization.
@@ -54,12 +53,12 @@ class JackknifeMarkers(object):
           Unique replicate number.
         """
 
-        output_msa = os.path.join(self.replicate_dir, 'jk_markers.msa.' + str(replicated_num) + '.faa')
-        self.jackknife_alignment(self.msa, self.perc_markers_to_keep, self.marker_lengths, output_msa)
+        output_msa = os.path.join(self.replicate_dir, 'jk_taxa.msa.' + str(replicated_num) + '.fna')
+        self.jackknife_taxa(self.msa, self.perc_taxa_to_keep, self.outgroup_ids, output_msa)
 
         fast_tree = FastTree(multithreaded=False)
-        output_tree = os.path.join(self.replicate_dir, 'jk_markers.tree.' + str(replicated_num) + '.tre')
-        fast_tree_output = os.path.join(self.replicate_dir, 'jk_markers.fasttree.' + str(replicated_num) + '.out')
+        output_tree = os.path.join(self.replicate_dir, 'jk_taxa.tree.' + str(replicated_num) + '.tre')
+        fast_tree_output = os.path.join(self.replicate_dir, 'jk_taxa.fasttree.' + str(replicated_num) + '.out')
         fast_tree.run(output_msa, 'prot', self.model, output_tree, fast_tree_output)
 
         return True
@@ -69,47 +68,36 @@ class JackknifeMarkers(object):
 
         return '    Processed %d of %d replicates.' % (processed_items, total_items)
 
-    def jackknife_alignment(self, msa, perc_markers_to_keep, marker_lengths, output_file):
-        """Jackknife alignment to a subset of marker genes.
-
-        The marker_lengths must be specified in the order
-        in which genes were concatenated.
+    def jackknife_taxa(self, msa, perc_taxa_to_keep, outgroup_ids, output_file):
+        """Jackknife alignment to a subset of taxa.
 
         Parameters
         ----------
         msa : d[seq_id] -> seq
           Full multiple sequence alignment.
-        perc_markers_to_keep : float
-          Percentage of marker genes to keep in each replicate [0, 1].
-        marker_lengths : list
-          Length of each marker gene.
+        perc_taxa_to_keep : float
+          Percentage of marker genes to keep in each replicate.
+        outgroup_ids : set
+          Labels of outgroup taxa.
         output_file : str
           File to write bootstrapped alignment.
         """
-        markers_to_keep = random.sample(xrange(0, len(marker_lengths)), int(floor(perc_markers_to_keep * len(marker_lengths))))
 
-        start_pos = [0]
-        for index, ml in enumerate(marker_lengths):
-            start_pos.append(start_pos[index] + ml)
+        # randomly select ingroup taxa
+        ingroup_taxa = set(msa.keys()) - outgroup_ids
+        taxa_to_keep = random.sample(ingroup_taxa, int(floor(len(ingroup_taxa) * perc_taxa_to_keep)))
 
-        mask = [0] * sum(marker_lengths)
-        for marker_index in markers_to_keep:
-            start = start_pos[marker_index]
-            end = start + marker_lengths[marker_index]
-            mask[start:end] = [1] * (end - start)
+        taxa_to_keep = set(taxa_to_keep).union(outgroup_ids)
 
         fout = open(output_file, 'w')
         for seq_id, seq in msa.iteritems():
-            fout.write('>' + seq_id + '\n')
-            sub_seq = ''.join([base for base, m in zip(seq, mask) if m == 1])
-            fout.write(sub_seq + '\n')
+            if seq_id in taxa_to_keep:
+                fout.write('>' + seq_id + '\n')
+                fout.write(seq + '\n')
         fout.close()
 
-    def run(self, input_tree, msa_file, marker_file, perc_markers_to_keep, num_replicates, model, output_dir):
-        """Jackknife marker genes.
-
-        Marker file should have the format:
-          <marker id>\t<marker name>\t<marker desc>\t<length>\n
+    def run(self, input_tree, msa_file, outgroup_file, perc_taxa_to_keep, num_replicates, model, output_dir):
+        """Jackknife taxa.
 
         Parameters
         ----------
@@ -117,46 +105,46 @@ class JackknifeMarkers(object):
           Tree inferred with all data.
         msa_file : str
           File containing multiple sequence alignment for all taxa.
-        marker_file : str
-          File indicating database id, HMM name, description and length of each marker in the alignment.
-        perc_markers_to_keep : float [0, 1]
-          Percentage of marker genes to keep in each replicate.
+        outgroup_file : str
+          File indicating labels of outgroup taxa.
+        perc_taxa_to_keep : float
+          Percentage of taxa to keep in each replicate.
         num_replicates : int
           Number of replicates to perform.
         model : str
           Desired model of evolution.
         output_dir : str
-          Output directory for jackkife trees.
+          input_tree directory for bootstrap trees.
         """
 
         assert(model in ['wag', 'jtt'])
 
+        self.perc_taxa_to_keep = perc_taxa_to_keep
         self.model = model
-        self.perc_markers_to_keep = perc_markers_to_keep
         self.replicate_dir = os.path.join(output_dir, 'replicates')
         make_sure_path_exists(self.replicate_dir)
-        # determine length of each marker gene in alignment
-        self.marker_lengths = []
-        for line in open(marker_file):
-            line_split = line.split('\t')
-            self.marker_lengths.append(int(line_split[3]))
+        # read outgroup taxa
+        self.outgroup_ids = set()
+        if outgroup_file:
+            for line in open(outgroup_file):
+                self.outgroup_ids.add(line.strip())
 
         # read full multiple sequence alignment
         self.msa = seq_io.read(msa_file)
 
         # calculate replicates
         self.logger.info('')
-        self.logger.info('  Calculating jackknife marker replicates:')
+        self.logger.info('  Calculating jackknife taxa replicates:')
         parallel = Parallel(self.cpus)
         parallel.run(self._producer, None, xrange(num_replicates), self._progress)
 
         # calculate support
         rep_tree_files = []
         for rep_index in xrange(num_replicates):
-            rep_tree_files.append(os.path.join(self.replicate_dir, 'jk_markers.tree.' + str(rep_index) + '.tre'))
+            rep_tree_files.append(os.path.join(self.replicate_dir, 'jk_taxa.tree.' + str(rep_index) + '.tre'))
 
         tree_support = TreeSupport()
-        output_tree = os.path.join(output_dir, remove_extension(input_tree) + '.jk_markers.tree')
+        output_tree = os.path.join(output_dir, remove_extension(input_tree) + '.jk_taxa.tree')
         tree_support.common_taxa(input_tree, rep_tree_files, output_tree)
 
         return output_tree

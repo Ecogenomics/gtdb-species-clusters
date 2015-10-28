@@ -15,6 +15,7 @@
 #                                                                             #
 ###############################################################################
 
+import sys
 import logging
 import random
 from collections import defaultdict
@@ -26,8 +27,9 @@ class DereplicationWorkflow(object):
     """Dereplicate genomes based on taxonomy.
 
     Each named species is dereplicated to a fixed number of
-    taxa, taking care to retain at least one genome representing
-    the type species and giving preference to 'Complete' genomes.
+    taxa, taking care to retain at least one type strains and giving
+    preference to genomes identified as 'Complete' at NCBI.
+    All taxa with a fully qualified species name are retained.
     """
 
     def __init__(self, assembly_metadata_file, taxonomy_file, type_strain_file):
@@ -49,6 +51,10 @@ class DereplicationWorkflow(object):
         self.taxonomy_file = taxonomy_file
         self.type_strain_file = type_strain_file
 
+        self.logger.info('Assembly metadata: %s' % self.assembly_metadata_file)
+        self.logger.info('Taxonomy: %s' % self.taxonomy_file)
+        self.logger.info('Type strains: %s' % self.type_strain_file)
+
     def _read_metadata(self, assembly_metadata_file):
         """Parse assembly metadata file.
 
@@ -69,8 +75,8 @@ class DereplicationWorkflow(object):
         complete_genomes = set()
         with open(assembly_metadata_file) as f:
             header = f.readline().split('\t')
-            taxid_index = header.index('Taxid')
-            assembly_level_index = header.index('Assembly level')
+            taxid_index = header.index('ncbi_taxid')
+            assembly_level_index = header.index('ncbi_assembly_level')
 
             for line in f:
                 line_split = line.split('\t')
@@ -188,14 +194,21 @@ class DereplicationWorkflow(object):
 
         # determine genomes belonging to each named species
         species = defaultdict(set)
+        genomes_to_retain = set()
         for genome_id, t in taxonomy.iteritems():
-            sp = t[Taxonomy.rank_index['s__']]
+            try:
+                sp = t[Taxonomy.rank_index['s__']]
+            except:
+                self.logger.error('Genome does not have a complete taxonomy string: %s' % genome_id)
+                sys.exit(0)
 
             if not trusted_accessions or genome_id in trusted_accessions:
-                species[sp].add(genome_id)
+                if sp == 's__' or sp.lower() == 's__unclassified':
+                    genomes_to_retain.add(genome_id)
+                else:
+                    species[sp].add(genome_id)
 
         # dereplicate species
-        genomes_to_retain = set()
         for sp, genome_ids in species.iteritems():
             if len(genome_ids) > max_species:
                 selected_genomes = set()
@@ -265,8 +278,9 @@ class DereplicationWorkflow(object):
                                          type_strain_taxids,
                                          trusted_accessions)
 
-        self.logger.info('')
-        self.logger.info('  Retained %d genomes after dereplication.' % len(dereplicated))
+        self.logger.info('Retained %d genomes after dereplication.' % len(dereplicated))
+
+        type_strains = self._get_type_strains(dereplicated, accession_to_taxid, type_strain_taxids)
 
         if not trusted_genomes_file:
             trusted_genomes_file = ''
@@ -275,11 +289,13 @@ class DereplicationWorkflow(object):
         fout.write('# Selection criteria:\n')
         fout.write('# Maximum species: %d\n' % max_species)
         fout.write('# Trusted genomes file: %s\n' % trusted_genomes_file)
+        fout.write('# Assembly metadata: %s\n' % self.assembly_metadata_file)
+        fout.write('# Taxonomy: %s\n' % self.taxonomy_file)
+        fout.write('# Type strains: %s\n' % self.type_strain_file)
         fout.write('#\n')
-        fout.write('# Genome Id\tComplete\tTaxonomy\n')
+        fout.write('# Genome Id\tTaxonomy\tType strain\tComplete\n')
         for assembly_accession in dereplicated:
-            complete = 'no'
-            if assembly_accession in complete_genomes:
-                complete = 'yes'
-            fout.write('%s\t%s\t%s\n' % (assembly_accession, complete, ';'.join(taxonomy[assembly_accession])))
+            complete = 'yes' if assembly_accession in complete_genomes else 'no'
+            ts = 'yes' if assembly_accession in type_strains else 'no'
+            fout.write('%s\t%s\t%s\t%s\n' % (assembly_accession, ';'.join(taxonomy[assembly_accession]), ts, complete))
         fout.close()

@@ -18,18 +18,21 @@
 import os
 import logging
 
-from biolib.misc.time_keeper import TimeKeeper
 from biolib.common import make_sure_path_exists
 from biolib.external.hmmer import HmmModelParser
+from biolib.taxonomy import Taxonomy
 
-from genome_tree_tk.markers.infer_markers import InferMarkers
-from genome_tree_tk.markers.lgt_test import LgtTest
+from genometreetk.markers.infer_markers import InferMarkers
+from genometreetk.markers.lgt_test import LgtTest
 
 
 class MarkerWorkflow(object):
     """Determine phylogenetically informative marker genes."""
 
-    def __init__(self, genome_dir_file, pfam_model_file, tigrfams_model_dir, cpus):
+    def __init__(self, genome_dir_file,
+                        pfam_model_file,
+                        tigrfams_model_dir,
+                        cpus):
         """Initialization.
 
         Parameters
@@ -50,6 +53,10 @@ class MarkerWorkflow(object):
         self.pfam_model_file = pfam_model_file
         self.tigrfams_model_dir = tigrfams_model_dir
 
+        self.logger.info('Genome dir: %s' % self.genome_dir_file)
+        self.logger.info('Pfam models: %s' % self.pfam_model_file)
+        self.logger.info('TIGRfam models: %s' % self.tigrfams_model_dir)
+
         self.cpus = cpus
 
     def _get_hmms(self, hmms_dir, marker_genes, hmm_model_out, hmm_info_out):
@@ -67,25 +74,22 @@ class MarkerWorkflow(object):
             File to contain information about HMMs.
         """
 
-        # place all phylogenetically informative marker genes into a single model file
+        # place all marker genes into a single model file
         fout = open(hmm_model_out, 'w')
         for marker_id in marker_genes:
             for line in open(os.path.join(hmms_dir, marker_id + '.hmm')):
                 fout.write(line)
         fout.close()
 
-        self.logger.info('    HMM models written to: ' + hmm_model_out)
-
         # read HMM model metadata
-        hmm_model_parse = HmmModelParser(hmm_model_out)
-        hmm_models = hmm_model_parse.models()
-        fout = open(hmm_info_out, 'w')
-        fout.write('Model Accession\tName\tDescription\tLength\n')
-        for model in hmm_models.values():
-            fout.write('%s\t%s\t%s\t%s\n' % (model.acc, model.name, model.desc, model.leng))
-        fout.close()
-
-        self.logger.info('    HMM information written to: ' + hmm_info_out)
+        if hmm_info_out:
+            hmm_model_parse = HmmModelParser(hmm_model_out)
+            hmm_models = hmm_model_parse.models()
+            fout = open(hmm_info_out, 'w')
+            fout.write('Model Accession\tName\tDescription\tLength\n')
+            for model in hmm_models.values():
+                fout.write('%s\t%s\t%s\t%s\n' % (model.acc, model.name, model.desc, model.leng))
+            fout.close()
 
     def run(self, ingroup_file,
             ubiquity,
@@ -95,7 +99,6 @@ class MarkerWorkflow(object):
             min_per_taxa,
             perc_markers_to_jackknife,
             restrict_marker_list,
-            taxonomy,
             output_dir):
         """Identify phylogenetic marker genes and save to HMM model file.
 
@@ -119,13 +122,9 @@ class MarkerWorkflow(object):
             Percentage of taxa to keep during marker jackknifing [0, 1].
         restrict_marker_list : str
             Restrict marker set to genes listed within file.
-        taxonomy : d[unique_id] -> [d__<taxon>; ...; s__<taxon>]
-            Taxonomy strings indexed by unique ids.
         output_dir : str
             Directory to store results.
         """
-
-        time_keeper = TimeKeeper()
 
         alignment_dir = os.path.join(output_dir, 'alignments')
         make_sure_path_exists(alignment_dir)
@@ -146,8 +145,7 @@ class MarkerWorkflow(object):
                 valid_marker_genes.add(marker)
 
         # identify genes suitable for phylogenetic inference
-        self.logger.info('')
-        self.logger.info('  Identifying genes suitable for phylogenetic inference.')
+        self.logger.info('Identifying genes suitable for phylogenetic inference.')
         infer_markers = InferMarkers(self.genome_dir_file,
                                     self.pfam_model_file,
                                     self.tigrfams_model_dir,
@@ -157,18 +155,15 @@ class MarkerWorkflow(object):
                                                         valid_marker_genes,
                                                         alignment_dir, model_dir)
         num_ingroup_genomes, num_ncbi_genome, num_user_genomes, trusted_genome_ids, marker_gene_stats, marker_genes = results
-        self.logger.info('    Identifying %s single-copy, ubiquitous marker genes.' % len(marker_genes))
+        self.logger.info('Identified %s ubiquitous, single-copy marker genes.' % len(marker_genes))
 
-        # gather all single-copy HMMs into a single model file
-        hmm_model_out = os.path.join(output_dir, 'single_copy_ubiquitous.hmm')
-        hmm_info_out = os.path.join(output_dir, 'single_copy_ubiquitous.tsv')
-        self.logger.info('')
-        self.logger.info('  Gathering single-copy, ubiquitous HMMs.')
-        self._get_hmms(model_dir, marker_genes, hmm_model_out, hmm_info_out)
+        # gather all ubiquitous, single-copy HMMs into a single model file
+        hmm_model_out = os.path.join(output_dir, 'marker_putative.hmm')
+        self.logger.info('Gathering HMMs for putative phylogenetic marker genes HMMs.')
+        self._get_hmms(model_dir, marker_genes, hmm_model_out, None)
 
         # infer gene trees
-        self.logger.info('')
-        self.logger.info('  Inferring gene trees.')
+        self.logger.info('Inferring gene trees.')
         infer_markers.infer_gene_trees(alignment_dir, gene_tree_dir, '.aln.masked.faa')
 
         # identify gene trees which fail to reproduce the majority
@@ -185,15 +180,8 @@ class MarkerWorkflow(object):
                                output_dir)
         distances, num_internal_nodes, well_supported_nodes, well_supported_internal_nodes = results
 
-        # gather putative phylogenetically informative HMMs into a single model file
-        phylo_hmm_model_out = os.path.join(output_dir, 'phylo_putative.hmm')
-        phylo_hmm_info_out = os.path.join(output_dir, 'phylo_putative.tsv')
-        self.logger.info('')
-        self.logger.info('  Gathering phylogenetically informative HMMs.')
-        self._get_hmms(model_dir, marker_genes, phylo_hmm_model_out, phylo_hmm_info_out)
-
         # write out metadata regarding putative marker genes
-        marker_info_out = os.path.join(output_dir, 'marker_info_putative.tsv')
+        marker_info_out = os.path.join(output_dir, 'marker_putative.tsv')
         fout = open(marker_info_out, 'w')
         fout.write('Model accession\tName\tDescription\tLength\tUbiquity\tSingle copy\tRecovered splits (%)\tCompatible splits (%)\tNormalized compatible split length\tManhattan\tEuclidean\n')
 
@@ -213,13 +201,16 @@ class MarkerWorkflow(object):
                                                                                distances[model_acc][4]))
         fout.close()
 
-        self.logger.info('')
-        self.logger.info('  Information about marker genes written to: %s.' % marker_info_out)
+        self.logger.info('Information about marker genes written to: %s.' % marker_info_out)
 
         # generate summary report
         report_out = os.path.join(output_dir, 'marker_workflow.log')
         fout = open(report_out, 'w')
         fout.write('[markers]\n')
+        fout.write('Genome dir: %s\n' % self.genome_dir_file)
+        fout.write('Pfam models: %s\n' % self.pfam_model_file)
+        fout.write('TIGRfam models: %s\n' % self.tigrfams_model_dir)
+        fout.write('')
         fout.write('Number of ingroup genomes: %d\n' % num_ingroup_genomes)
         fout.write('  Number of NCBI genomes: %d\n' % num_ncbi_genome)
         fout.write('  Number of user genomes: %d\n' % num_user_genomes)
@@ -237,7 +228,6 @@ class MarkerWorkflow(object):
         fout.write('Number of well-supported, internal nodes: %d\n' % well_supported_internal_nodes)
         fout.write('')
         fout.write('Putative marker genes: %d\n' % len(marker_genes))
-        fout.write(time_keeper.get_time_stamp())
         fout.close()
 
-        return phylo_hmm_model_out
+        return hmm_model_out

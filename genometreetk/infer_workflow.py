@@ -23,11 +23,11 @@ from biolib.misc.time_keeper import TimeKeeper
 from biolib.external.hmmer import HmmModelParser
 from biolib.external.fasttree import FastTree
 
-from genome_tree_tk.common import (read_genome_id_file,
+from genometreetk.common import (read_genome_id_file,
                                     read_genome_dir_file,
                                     read_marker_id_file,
                                     create_concatenated_alignment)
-from genome_tree_tk.markers.align_markers import AlignMarkers
+from genometreetk.markers.align_markers import AlignMarkers
 
 
 class InferWorkflow(object):
@@ -140,22 +140,19 @@ class InferWorkflow(object):
         # read genomes within the ingroup
         ncbi_genome_ids, user_genome_ids = read_genome_id_file(genome_id_file)
         genome_ids = ncbi_genome_ids.union(user_genome_ids)
-        self.logger.info('')
-        self.logger.info('  Inferring tree for %d genomes.' % len(genome_ids))
-        self.logger.info('    NCBI genomes: %d' % len(ncbi_genome_ids))
-        self.logger.info('    User genomes: %d' % len(user_genome_ids))
+        self.logger.info('Inferring tree for %d genomes.' % len(genome_ids))
+        self.logger.info('NCBI genomes: %d' % len(ncbi_genome_ids))
+        self.logger.info('User genomes: %d' % len(user_genome_ids))
 
         # get marker genes
-        self.logger.info('')
-        self.logger.info('  Reading marker genes.')
+        self.logger.info('Reading marker genes.')
         marker_genes = read_marker_id_file(marker_id_file)
-        self.logger.info('    Read %d marker genes.' % len(marker_genes))
+        self.logger.info('Read %d marker genes.' % len(marker_genes))
 
         # gather all single-copy HMMs into a single model file
         hmm_model_out = os.path.join(output_dir, 'phylo.hmm')
         hmm_info_out = os.path.join(output_dir, 'phylo.tsv')
-        self.logger.info('')
-        self.logger.info('  Generating marker gene HMM model files.')
+        self.logger.info('Generating marker gene HMM model files.')
         self._fetch_marker_models(marker_genes, hmm_model_out, hmm_info_out, output_model_dir)
 
         # align gene sequences
@@ -163,14 +160,13 @@ class InferWorkflow(object):
         align_markers.run(genome_ids, genome_dirs, marker_genes, True, output_alignment_dir, output_model_dir)
 
         # create concatenated alignment file
-        self.logger.info('')
-        self.logger.info('  Concatenating alignments.')
+        self.logger.info('Concatenating alignments.')
         concatenated_alignment_file = os.path.join(output_dir, 'concatenated_alignment.faa')
         marker_file = os.path.join(output_dir, 'concatenated_markers.tsv')
         create_concatenated_alignment(genome_ids, marker_genes, output_alignment_dir, concatenated_alignment_file, marker_file)
 
         # create concatenated genome tree
-        self.logger.info('  Inferring concatenated genome tree.')
+        self.logger.info('Inferring concatenated genome tree.')
         concatenated_tree = os.path.join(output_dir, 'concatenated.tree')
         concatenated_tree_log = os.path.join(output_dir, 'concatenated.tree.log')
         log_file = os.path.join(output_dir, 'fasttree.log')

@@ -16,14 +16,15 @@
 ###############################################################################
 
 import os
+import sys
 import shutil
 import logging
 import ntpath
 from collections import defaultdict
 
-from genome_tree_tk.defaultValues import DefaultValues
-from genome_tree_tk.markers.align_markers import AlignMarkers
-from genome_tree_tk.common import read_genome_id_file, read_genome_dir_file
+from genometreetk.default_values import DefaultValues
+from genometreetk.markers.align_markers import AlignMarkers
+from genometreetk.common import read_genome_id_file, read_genome_dir_file
 
 from biolib.external.fasttree import FastTree
 
@@ -146,7 +147,8 @@ class InferMarkers(object):
         """
 
         if ubiquity_threshold > 1 or single_copy_threshold > 1:
-            print '[Warning] Looks like degenerate threshold.'
+            self.logger.error('Ubiquity or single-copy threshold is invalid: %f, %f' % (ubiquity_threshold, single_copy_threshold))
+            sys.exit(0)
 
         fout = open(output_file, 'w')
         fout.write('Model accession\tUbiquity\tSingle copy\n')
@@ -184,8 +186,8 @@ class InferMarkers(object):
         the set of Pfam and TIGRFAMs HMMs. Redundancy between these two
         protein families is common. Redundancy within the TIGRFAMs HMMs
         is also common as there are a number of lineage-specific HMMs
-        (e.g., archaeal and universal). Preference if given to TIGRFAMs
-        HMMs over Pfam HMMs as the former often model full genes instead
+        (e.g., archaeal and universal). Preference is given to TIGRFAM
+        HMMs over Pfam HMMs as the former often models full genes instead
         of just domains.
 
         Parameters
@@ -197,7 +199,7 @@ class InferMarkers(object):
         redundancy : float
             Threshold for declaring HMMs redundant.
         output_file : str
-            Output file to contain list of HMMs deemed to be redunant.
+            Output file to contain list of HMMs deemed to be redundant.
 
         Returns
         -------
@@ -206,7 +208,8 @@ class InferMarkers(object):
         """
 
         if redundancy < 1:
-            print '[Warning] Looks like redundancy threshold is degenerate.'
+            self.logger.error('Redundancy threshold is invalid: %f.' % redundancy)
+            sys.exit(0)
 
         fout = open(output_file, 'w')
         fout.write('Kept marker\tRedundant marker\n')
@@ -342,13 +345,12 @@ class InferMarkers(object):
         # read genomes within the ingroup
         ncbi_genome_ids, user_genome_ids = read_genome_id_file(ingroup_file)
         genome_ids = ncbi_genome_ids.union(user_genome_ids)
-        self.logger.info('    Ingroup genomes: %d' % len(genome_ids))
-        self.logger.info('      NCBI genomes: %d' % len(ncbi_genome_ids))
-        self.logger.info('      User genomes: %d' % len(user_genome_ids))
+        self.logger.info('Ingroup genomes: %d' % len(genome_ids))
+        self.logger.info('NCBI genomes: %d' % len(ncbi_genome_ids))
+        self.logger.info('User genomes: %d' % len(user_genome_ids))
 
         # identify marker genes
-        self.logger.info('')
-        self.logger.info('  Identifying marker genes.')
+        self.logger.info('Identifying marker genes.')
         gene_stats_file = os.path.join(output_model_dir, '..', 'gene_stats.all.tsv')
         gene_count_table = self._gene_count_table(genome_ids, genome_dirs)
         marker_gene_stats = self._marker_genes(genome_ids, gene_count_table, ubiquity_threshold, single_copy_threshold, gene_stats_file)
@@ -360,22 +362,20 @@ class InferMarkers(object):
         #    marker_gene_stats = pickle.load(f)
 
         marker_genes = set(marker_gene_stats.keys())
-
         if valid_marker_genes:
-            self.logger.info('    Restricting %d identified markers to specified marker set.' % len(marker_genes))
+            self.logger.info('Restricting %d identified markers to specified set of valid markers.' % len(marker_genes))
             marker_genes = marker_genes.intersection(valid_marker_genes)
-        self.logger.info('    Ubiquitous, single-copy marker genes: %d' % len(marker_genes))
+        self.logger.info('Identified ubiquitous, single-copy marker genes: %d' % len(marker_genes))
 
         redundancy_out_file = os.path.join(output_model_dir, '..', 'redundant_markers.tsv')
         redundancy = redundancy * len(genome_ids)
         redundant_hmms = self._identify_redundant_hmms(marker_genes, gene_count_table, redundancy, redundancy_out_file)
         marker_genes = marker_genes - redundant_hmms
-        self.logger.info('      Markers identified as redundant: %d' % len(redundant_hmms))
-        self.logger.info('      Ubiquitous, single-copy marker genes: %d' % len(marker_genes))
+        self.logger.info('Marker genes identified as redundant between TIGRFAM and Pfam: %d' % len(redundant_hmms))
+        self.logger.info('Remaining ubiquitous, single-copy marker genes: %d' % len(marker_genes))
 
         # get HMM for each marker gene
-        self.logger.info('')
-        self.logger.info('  Fetching HMM for each marker genes.')
+        self.logger.info('Fetching HMM for each marker genes.')
         self._fetch_marker_models(marker_genes, output_model_dir)
 
         # align gene sequences
