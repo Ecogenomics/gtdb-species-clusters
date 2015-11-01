@@ -20,7 +20,6 @@ import sys
 import logging
 
 from biolib.common import check_file_exists, make_sure_path_exists
-from biolib.taxonomy import Taxonomy
 from biolib.external.execute import check_dependencies
 
 from genometreetk.trusted_genome_workflow import TrustedGenomeWorkflow
@@ -31,8 +30,8 @@ from genometreetk.bootstrap import Bootstrap
 from genometreetk.jackknife_markers import JackknifeMarkers
 from genometreetk.jackknife_taxa import JackknifeTaxa
 from genometreetk.combine_support import CombineSupport
-
 from genometreetk.reroot_tree import RerootTree
+from genometreetk.cluster import Cluster
 
 
 class OptionsParser():
@@ -222,6 +221,18 @@ class OptionsParser():
         reroot = RerootTree()
         reroot.root_with_outgroup(options.input_tree, options.output_tree, outgroup)
 
+    def aai_cluster(self, options):
+        """Cluster genomes based on AAI."""
+
+        check_file_exists(options.msa_file)
+        make_sure_path_exists(options.output_dir)
+
+        config_data = self._read_config_file()
+        cluster = Cluster(config_data['assembly_metadata_file'],
+                            config_data['taxonomy_file'],
+                            config_data['type_strain_file'])
+        cluster.run(options.msa_file, options.threshold, options.output_dir)
+
     def parse_options(self, options):
         """Parse user options and call the correct pipeline(s)"""
 
@@ -249,8 +260,10 @@ class OptionsParser():
             self.midpoint(options)
         elif options.subparser_name == 'outgroup':
             self.outgroup(options)
+        elif options.subparser_name == 'aai_cluster':
+            self.aai_cluster(options)
         else:
-            self.logger.error('  [Error] Unknown RefineM command: ' + options.subparser_name + '\n')
+            self.logger.error('  [Error] Unknown GenomeTreeTk command: ' + options.subparser_name + '\n')
             sys.exit()
 
         return 0

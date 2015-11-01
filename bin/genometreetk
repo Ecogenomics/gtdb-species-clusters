@@ -65,6 +65,9 @@ def print_help():
       midpoint    -> Reroot tree at midpoint.
       outgroup    -> Reroot tree with outgroup.
 
+    Dereplicate:
+      aai_cluster -> Cluster genomes based on AAI of concatenated alignment
+
   Use: genometreetk <command> -h for command specific help.
 
   Feature requests or bug reports can be sent to Donovan Parks (donovan.parks@gmail.com)
@@ -142,7 +145,7 @@ if __name__ == '__main__':
     markers_parser.add_argument('--single_copy', help='single-copy threshold for defining marker genes', type=float, default=0.95)
 
     markers_parser.add_argument('--min_support', help='minimum jackknife support of split during LGT filtering', type=float, default=0.8)
-    markers_parser.add_argument('--min_per_taxa', help='minimum percentage of taxa to consider a split during LGT filtering', type=float, default=0.02)
+    markers_parser.add_argument('--min_per_taxa', help='minimum percentage of taxa to consider a split during LGT filtering', type=float, default=0.01)
     markers_parser.add_argument('--perc_markers', help='percentage of markers to keep during marker jackknifing', type=float, default=0.7)
 
     markers_parser.add_argument('--restict_marker_list', help='restrict marker set to genes within this list', default=None)
@@ -228,6 +231,15 @@ if __name__ == '__main__':
     outgroup_parser.add_argument('outgroup_file', help="file containing taxa in outgroup")
     outgroup_parser.add_argument('output_tree', help="output tree")
     outgroup_parser.add_argument('--silent', help="suppress output", action='store_true')
+
+    # determine trusted genomes
+    aai_cluster_parser = subparsers.add_parser('aai_cluster',
+                                        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+                                        description='Cluster genomes based on AAI of concatenated alignment.')
+    aai_cluster_parser.add_argument('msa_file', help="file containing multiple sequence alignment")
+    aai_cluster_parser.add_argument('output_dir', help='output_dir')
+    aai_cluster_parser.add_argument('--threshold', help='AAI threshold for forming clusters', type=float, default=0.90)
+    aai_cluster_parser.add_argument('--silent', help="suppress output", action='store_true')
 
     # get and check options
     args = None

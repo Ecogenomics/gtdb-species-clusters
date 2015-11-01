@@ -20,7 +20,6 @@ import logging
 
 from biolib.common import make_sure_path_exists
 from biolib.external.hmmer import HmmModelParser
-from biolib.taxonomy import Taxonomy
 
 from genometreetk.markers.infer_markers import InferMarkers
 from genometreetk.markers.lgt_test import LgtTest

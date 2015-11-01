@@ -22,6 +22,8 @@ from collections import defaultdict
 
 from biolib.taxonomy import Taxonomy
 
+import genometreetk.ncbi as ncbi
+
 
 class DereplicationWorkflow(object):
     """Dereplicate genomes based on taxonomy.
@@ -55,63 +57,6 @@ class DereplicationWorkflow(object):
         self.logger.info('Taxonomy: %s' % self.taxonomy_file)
         self.logger.info('Type strains: %s' % self.type_strain_file)
 
-    def _read_metadata(self, assembly_metadata_file):
-        """Parse assembly metadata file.
-
-        Parameters
-        ----------
-        assembly_metadata_file : str
-            File specifying assembly statistics of genomes.
-
-        Returns
-        -------
-        dict : d[assembly_accession] -> taxonomy id
-            Taxonomy id of assemblies.
-        set
-            Set representing complete genomes.
-        """
-
-        accession_to_taxid = {}
-        complete_genomes = set()
-        with open(assembly_metadata_file) as f:
-            header = f.readline().split('\t')
-            taxid_index = header.index('ncbi_taxid')
-            assembly_level_index = header.index('ncbi_assembly_level')
-
-            for line in f:
-                line_split = line.split('\t')
-
-                assembly_accession = line_split[0]
-                accession_to_taxid[assembly_accession] = line_split[taxid_index]
-
-                assembly_level = line_split[assembly_level_index]
-                if assembly_level == 'Complete Genome':
-                    complete_genomes.add(assembly_accession)
-
-        return accession_to_taxid, complete_genomes
-
-    def _read_type_strains(self, type_strain_file):
-        """Parse type strain file.
-
-        Parameters
-        ----------
-        type_strain_file : str
-            File specifying NCBI taxonomy ids representing type strains.
-
-        Returns
-        -------
-        set
-            NCBI taxonomy identifiers of type strains.
-        """
-
-        type_strain_taxids = set()
-        with open(type_strain_file) as f:
-            for line in f:
-                line_split = line.split('\t')
-                type_strain_taxids.add(line_split[0])
-
-        return type_strain_taxids
-
     def _read_trusted_genomes(self, trusted_genomes_file):
         """Parse trusted genomes file.
 
@@ -135,33 +80,6 @@ class DereplicationWorkflow(object):
             trusted_accessions.add(line_split[0])
 
         return trusted_accessions
-
-    def _get_type_strains(self, genome_ids, accession_to_taxid, type_strain_taxids):
-        """Get genomes representing a type strain.
-
-        Parameters
-        ----------
-        genome_ids : set
-            Genomes to check.
-        accession_to_taxid : d[assembly_accession] -> taxonomy id
-            Taxonomy id for each genomes.
-        trusted_accessions : set
-            Set of trusted genomes.
-
-        Returns
-        -------
-        set
-            Genomes representing a type strain.
-        """
-
-        type_strains = set()
-        for genome_id in genome_ids:
-            taxid = accession_to_taxid[genome_id]
-
-            if taxid in type_strain_taxids:
-                type_strains.add(genome_id)
-
-        return type_strains
 
     def _dereplicate(self, max_species,
                             taxonomy,
@@ -213,7 +131,7 @@ class DereplicationWorkflow(object):
             if len(genome_ids) > max_species:
                 selected_genomes = set()
 
-                type_strains = self._get_type_strains(genome_ids, accession_to_taxid, type_strain_taxids)
+                type_strains = ncbi.get_type_strains(genome_ids, accession_to_taxid, type_strain_taxids)
                 complete = genome_ids.intersection(complete_genomes)
 
                 complete_type_strains = type_strains.intersection(complete)
@@ -263,9 +181,9 @@ class DereplicationWorkflow(object):
             Output file to contain list of dereplicated genomes.
         """
 
-        accession_to_taxid, complete_genomes = self._read_metadata(self.assembly_metadata_file)
+        accession_to_taxid, complete_genomes = ncbi.read_metadata(self.assembly_metadata_file)
         taxonomy = Taxonomy().read(self.taxonomy_file)
-        type_strain_taxids = self._read_type_strains(self.type_strain_file)
+        type_strain_taxids = ncbi.read_type_strains(self.type_strain_file)
 
         trusted_accessions = set()
         if trusted_genomes_file:
@@ -280,7 +198,7 @@ class DereplicationWorkflow(object):
 
         self.logger.info('Retained %d genomes after dereplication.' % len(dereplicated))
 
-        type_strains = self._get_type_strains(dereplicated, accession_to_taxid, type_strain_taxids)
+        type_strains = ncbi.get_type_strains(dereplicated, accession_to_taxid, type_strain_taxids)
 
         if not trusted_genomes_file:
             trusted_genomes_file = ''

@@ -51,12 +51,12 @@ class Bootstrap(object):
         """
 
         output_msa = os.path.join(self.replicate_dir, 'bootstrap_msa.r_' + str(replicated_num) + '.fna')
-        #***bootstrap_alignment(self.msa, output_msa)
+        bootstrap_alignment(self.msa, output_msa)
 
         fast_tree = FastTree(multithreaded=False)
         output_tree = os.path.join(self.replicate_dir, 'bootstrap_tree.r_' + str(replicated_num) + '.tree')
         fast_tree_output = os.path.join(self.replicate_dir, 'bootstrap_fasttree.r_' + str(replicated_num) + '.out')
-        #***fast_tree.run(output_msa, self.base_type, self.model, output_tree, fast_tree_output)
+        fast_tree.run(output_msa, self.base_type, self.model, output_tree, fast_tree_output)
 
         return True
 
