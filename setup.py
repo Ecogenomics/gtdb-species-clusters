@@ -13,7 +13,7 @@ setup(
     version=version(),
     author='Donovan Parks',
     author_email='donovan.parks@gmail.com',
-    packages=['genometreetk'],
+    packages=['genometreetk', 'genometreetk.markers'],
     scripts=['bin/genometreetk'],
     package_data={'genometreetk' : ['VERSION'], '': ['distributions/*.txt']},
     url='http://pypi.python.org/pypi/genometreetk/',

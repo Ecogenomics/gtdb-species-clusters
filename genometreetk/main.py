@@ -21,7 +21,9 @@ import logging
 
 from biolib.common import check_file_exists, make_sure_path_exists
 from biolib.external.execute import check_dependencies
+from biolib.taxonomy import Taxonomy
 
+from genometreetk.exceptions import GenomeTreeTkError
 from genometreetk.trusted_genome_workflow import TrustedGenomeWorkflow
 from genometreetk.dereplication_workflow import DereplicationWorkflow
 from genometreetk.marker_workflow import MarkerWorkflow
@@ -74,14 +76,21 @@ class OptionsParser():
         if options.trusted_genomes_file:
             check_file_exists(options.trusted_genomes_file)
 
-        config_data = self._read_config_file()
-        dereplication_workflow = DereplicationWorkflow(config_data['assembly_metadata_file'],
-                                                        config_data['taxonomy_file'],
-                                                        config_data['type_strain_file'])
+        try:
+            config_data = self._read_config_file()
+            dereplication_workflow = DereplicationWorkflow(config_data['genome_dir_file'],
+                                                            config_data['assembly_metadata_file'],
+                                                            config_data['taxonomy_file'],
+                                                            config_data['type_strain_file'])
 
-        dereplication_workflow.run(options.max_species,
-                                   options.trusted_genomes_file,
-                                   options.derep_genome_file)
+            dereplication_workflow.run(options.max_species,
+                                       options.trusted_genomes_file,
+                                       None,
+                                       None,
+                                       options.derep_genome_file)
+        except GenomeTreeTkError as e:
+            print e.message
+            raise SystemExit
 
         self.logger.info('Dereplicated genome list written to: %s' % options.derep_genome_file)
 
@@ -142,6 +151,7 @@ class OptionsParser():
                                     options.num_replicates,
                                     options.model,
                                     options.base_type,
+                                    options.fraction,
                                     options.output_dir)
 
         self.logger.info('Bootstrapped tree written to: %s' % output_tree)
@@ -211,27 +221,64 @@ class OptionsParser():
     def outgroup(self, options):
         """Reroot tree with outgroup."""
 
-        check_file_exists(options.outgroup_file)
+        check_file_exists(options.taxonomy_file)
 
+        self.logger.info('Identifying genomes from the specified outgroup.')
         outgroup = set()
-        for outgroup_id in open(options.outgroup_file):
-            outgroup_id = outgroup_id.split('\t')[0].strip()
-            outgroup.add(outgroup_id)
+        for genome_id, taxa in Taxonomy().read(options.taxonomy_file).iteritems():
+            if options.outgroup_taxon in taxa:
+                outgroup.add(genome_id)
+        self.logger.info('Identifying %d genomes in the outgroup.' % len(outgroup))
 
         reroot = RerootTree()
         reroot.root_with_outgroup(options.input_tree, options.output_tree, outgroup)
 
+    def representative(self, options):
+        """Determine representative genomes in RefSeq."""
+
+        check_file_exists(options.metadata_file)
+
+        try:
+            config_data = self._read_config_file()
+            rep_workflow = DereplicationWorkflow(config_data['genome_dir_file'],
+                                                            config_data['assembly_metadata_file'],
+                                                            config_data['taxonomy_file'],
+                                                            config_data['type_strain_file'])
+
+            rep_workflow.run(options.max_species,
+                                       None,
+                                       options.metadata_file,
+                                       options.min_rep_quality,
+                                       options.rep_genome_file)
+        except GenomeTreeTkError as e:
+            print e.message
+            raise SystemExit
+
+        self.logger.info('Representative genomes written to: %s' % options.rep_genome_file)
+
     def aai_cluster(self, options):
         """Cluster genomes based on AAI."""
 
-        check_file_exists(options.msa_file)
+        check_file_exists(options.ar_msa_file)
+        check_file_exists(options.bac_msa_file)
         make_sure_path_exists(options.output_dir)
 
-        config_data = self._read_config_file()
-        cluster = Cluster(config_data['assembly_metadata_file'],
-                            config_data['taxonomy_file'],
-                            config_data['type_strain_file'])
-        cluster.run(options.msa_file, options.threshold, options.output_dir)
+        try:
+            config_data = self._read_config_file()
+            cluster = Cluster(config_data['assembly_metadata_file'],
+                                config_data['taxonomy_file'],
+                                config_data['type_strain_file'],
+                                options.cpus)
+            cluster.run(options.ar_msa_file,
+                        options.bac_msa_file,
+                        options.representative_genomes,
+                        options.metadata_file,
+                        options.threshold,
+                        options.min_rep_quality,
+                        options.output_dir)
+        except GenomeTreeTkError as e:
+            print e.message
+            raise SystemExit
 
     def parse_options(self, options):
         """Parse user options and call the correct pipeline(s)"""
@@ -260,6 +307,8 @@ class OptionsParser():
             self.midpoint(options)
         elif options.subparser_name == 'outgroup':
             self.outgroup(options)
+        elif options.subparser_name == 'representative':
+            self.representative(options)
         elif options.subparser_name == 'aai_cluster':
             self.aai_cluster(options)
         else:

@@ -20,11 +20,113 @@
 ###############################################################################
 
 import os
+import csv
 from collections import defaultdict
 
 import biolib.seq_io as seq_io
 
 from genometreetk.default_values import DefaultValues
+
+
+def read_gtdb_genome_quality(metadata_file, keep_db_prefix=False):
+    """Parse genome quality from GTDB metadata.
+
+    Parameters
+    ----------
+    metadata_file : str
+        Metadata, including CheckM estimates, for all genomes.
+
+    Return
+    ------
+    dict : d[genome_id] -> genome_quality
+    """
+
+    genome_quality = {}
+
+    csv_reader = csv.reader(open(metadata_file, 'rt'))
+    bHeader = True
+    for row in csv_reader:
+        if bHeader:
+            headers = row
+            genome_index = headers.index('genome')
+            comp_index = headers.index('checkm_completeness')
+            cont_index = headers.index('checkm_contamination')
+            bHeader = False
+        else:
+            genome_id = row[genome_index]
+            if not keep_db_prefix:
+                genome_id = genome_id.replace('RS_', '').replace('GB_', '')
+            comp = float(row[comp_index])
+            cont = float(row[cont_index])
+
+            genome_quality[genome_id] = comp - cont
+
+    return genome_quality
+
+
+def read_gtdb_phylum(metadata_file, keep_db_prefix=False):
+    """Parse GTDB phylum information from GTDB metadata.
+
+    Parameters
+    ----------
+    metadata_file : str
+        Metadata for all genomes.
+
+    Return
+    ------
+    dict : d[genome_id] -> phyla
+    """
+
+    genome_phyla = {}
+
+    csv_reader = csv.reader(open(metadata_file, 'rt'))
+    bHeader = True
+    for row in csv_reader:
+        if bHeader:
+            headers = row
+            genome_index = headers.index('genome')
+            phylum_index = headers.index('gtdb_phylum')
+            bHeader = False
+        else:
+            genome_id = row[genome_index]
+            if not keep_db_prefix:
+                genome_id = genome_id.replace('RS_', '').replace('GB_', '')
+            genome_phyla[genome_id] = row[phylum_index]
+
+    return genome_phyla
+
+
+def read_gtdb_ncbi_taxonomy(metadata_file, keep_db_prefix=False):
+    """Parse NCBI taxonomy from GTDB metadata.
+
+    Parameters
+    ----------
+    metadata_file : str
+        Metadata for all genomes.
+
+    Return
+    ------
+    dict : d[genome_id] -> taxonomy list
+    """
+
+    taxonomy = {}
+
+    csv_reader = csv.reader(open(metadata_file, 'rt'))
+    bHeader = True
+    for row in csv_reader:
+        if bHeader:
+            headers = row
+            genome_index = headers.index('genome')
+            taxonomy_index = headers.index('ncbi_taxonomy')
+            bHeader = False
+        else:
+            genome_id = row[genome_index]
+            if not keep_db_prefix:
+                genome_id = genome_id.replace('RS_', '').replace('GB_', '')
+
+            taxonomy[genome_id] = row[taxonomy_index].split(';')
+
+    return taxonomy
 
 
 def read_tree_model(reportFile):

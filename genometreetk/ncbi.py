@@ -15,17 +15,31 @@
 #                                                                             #
 ###############################################################################
 
+import csv
 
 """Functions for working with NCBI genomes and metadata."""
 
 
-def read_metadata(assembly_metadata_file):
-    """Parse assembly metadata file.
+def read_genome_dir(genome_dir_file):
+    """Parse genome dir file.
+
+    """
+
+    genome_dirs = {}
+    for line in open(genome_dir_file):
+        line_split = line.rstrip().split('\t')
+        genome_dirs[line_split[0]] = line_split[1]
+
+    return genome_dirs
+
+
+def read_refseq_metadata(metadata_file, keep_db_prefix=False):
+    """Parse metadata for RefSeq genomes from GTDB metadata file.
 
     Parameters
     ----------
-    assembly_metadata_file : str
-        File specifying assembly statistics of genomes.
+    metadata_file : str
+        File specifying metadata for all genomes.
 
     Returns
     -------
@@ -33,26 +47,40 @@ def read_metadata(assembly_metadata_file):
         Taxonomy id of assemblies.
     set
         Set of complete genomes based on NCBI assembly level.
+    set
+        Set of reference or representative genomes based on NCBI RefSeq category.
     """
 
     accession_to_taxid = {}
     complete_genomes = set()
-    with open(assembly_metadata_file) as f:
-        header = f.readline().split('\t')
-        taxid_index = header.index('ncbi_taxid')
-        assembly_level_index = header.index('ncbi_assembly_level')
+    representative_genomes = set()
 
-        for line in f:
-            line_split = line.split('\t')
+    csv_reader = csv.reader(open(metadata_file, 'rt'))
+    bHeader = True
+    for row in csv_reader:
+        if bHeader:
+            genome_index = row.index('genome')
+            taxid_index = row.index('ncbi_taxid')
+            assembly_level_index = row.index('ncbi_assembly_level')
+            refseq_category_index = row.index('ncbi_refseq_category')
+            bHeader = False
+        else:
+            assembly_accession = row[genome_index]
+            if assembly_accession.startswith('RS_'):
+                if not keep_db_prefix:
+                    assembly_accession = assembly_accession.replace('RS_', '').replace('GB_', '')
 
-            assembly_accession = line_split[0]
-            accession_to_taxid[assembly_accession] = line_split[taxid_index]
+                accession_to_taxid[assembly_accession] = row[taxid_index]
 
-            assembly_level = line_split[assembly_level_index]
-            if assembly_level == 'Complete Genome':
-                complete_genomes.add(assembly_accession)
+                assembly_level = row[assembly_level_index].lower()
+                if assembly_level == 'complete genome':
+                    complete_genomes.add(assembly_accession)
 
-    return accession_to_taxid, complete_genomes
+                refseq_category = row[refseq_category_index].lower()
+                if 'reference' in refseq_category or 'representative' in refseq_category:
+                    representative_genomes.add(assembly_accession)
+
+    return accession_to_taxid, complete_genomes, representative_genomes
 
 
 def read_type_strains(type_strain_file):
@@ -98,7 +126,7 @@ def get_type_strains(genome_ids, accession_to_taxid, type_strain_taxids):
 
     type_strains = set()
     for genome_id in genome_ids:
-        taxid = accession_to_taxid[genome_id]
+        taxid = accession_to_taxid.get(genome_id, -1)
 
         if taxid in type_strain_taxids:
             type_strains.add(genome_id)

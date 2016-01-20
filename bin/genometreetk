@@ -56,17 +56,18 @@ def print_help():
       infer       -> Infer genome tree
 
     Assess stability of tree:
-      bootstrap   -> Bootstrap multiple sequence alignment
-      jk_markers  -> Jackknife marker genes
-      jk_taxa     -> Jackknife ingroup taxa
-      combine     -> Combine all support values into a single tree
+      bootstrap  -> Bootstrap multiple sequence alignment
+      jk_markers -> Jackknife marker genes
+      jk_taxa    -> Jackknife ingroup taxa
+      combine    -> Combine all support values into a single tree
 
     Reroot tree:
-      midpoint    -> Reroot tree at midpoint.
-      outgroup    -> Reroot tree with outgroup.
+      midpoint -> Reroot tree at midpoint
+      outgroup -> Reroot tree with outgroup
 
     Dereplicate:
-      aai_cluster -> Cluster genomes based on AAI of concatenated alignment
+      representative -> Determine representative genomes in RefSeq
+      aai_cluster    -> Cluster genomes based on AAI of concatenated alignment
 
   Use: genometreetk <command> -h for command specific help.
 
@@ -130,7 +131,7 @@ if __name__ == '__main__':
                                         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
                                         description='Dereplicate genomes based on taxonomy.')
     dereplicate_parser.add_argument('derep_genome_file', help="output file listing dereplicated genomes")
-    dereplicate_parser.add_argument('--max_species', help='maximum number of genomes of the same species to retain', type=int, default=3)
+    dereplicate_parser.add_argument('--max_species', help='maximum number of genomes of the same species to retain', type=int, default=2)
     dereplicate_parser.add_argument('--trusted_genomes_file', help='limit selected genomes to those marked as trusted', default=None)
     dereplicate_parser.add_argument('--silent', help="suppress output", action='store_true')
 
@@ -141,7 +142,7 @@ if __name__ == '__main__':
     markers_parser.add_argument('ingroup_file', help="unique ids of genomes within the ingroup")
     markers_parser.add_argument('output_dir', help="output directory")
     markers_parser.add_argument('--redundancy', help='threshold for declaring HMMs redundant', type=float, default=0.50)
-    markers_parser.add_argument('--ubiquity', help='ubiquity threshold for defining marker genes', type=float, default=0.9)
+    markers_parser.add_argument('--ubiquity', help='ubiquity threshold for defining marker genes', type=float, default=0.95)
     markers_parser.add_argument('--single_copy', help='single-copy threshold for defining marker genes', type=float, default=0.95)
 
     markers_parser.add_argument('--min_support', help='minimum jackknife support of split during LGT filtering', type=float, default=0.8)
@@ -173,6 +174,7 @@ if __name__ == '__main__':
     bootstrap_parser.add_argument('-b', '--base_type', choices=['nt', 'prot'], help="indicates if bases are nucleotides or amino acids", default='prot')
     bootstrap_parser.add_argument('-m', '--model', choices=['wag', 'jtt'], help="model of evolution to use", default='jtt')
     bootstrap_parser.add_argument('-r', '--num_replicates', help="number of bootstrap replicates to perform", type=int, default=100)
+    bootstrap_parser.add_argument('-f', '--fraction', help="fraction of alignment to subsample", type=float, default=1.0)
     bootstrap_parser.add_argument('-c', '--cpus', help='number of cpus', type=int, default=1)
     bootstrap_parser.add_argument('--silent', help="suppress output", action='store_true')
 
@@ -228,17 +230,33 @@ if __name__ == '__main__':
                                         formatter_class=CustomHelpFormatter,
                                         description='Reroot tree with outgroup.')
     outgroup_parser.add_argument('input_tree', help="tree to reroot")
-    outgroup_parser.add_argument('outgroup_file', help="file containing taxa in outgroup")
+    outgroup_parser.add_argument('taxonomy_file', help="file indicating taxonomy string for genomes")
+    outgroup_parser.add_argument('outgroup_taxon', help="taxon to use as outgroup (e.g., d__Archaea)")
     outgroup_parser.add_argument('output_tree', help="output tree")
     outgroup_parser.add_argument('--silent', help="suppress output", action='store_true')
+
+    # representative genomes
+    rep_parser = subparsers.add_parser('representative',
+                                        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+                                        description='Determine representative genomes in RefSeq.')
+    rep_parser.add_argument('metadata_file', help="metadata file from GTDB with CheckM estimates for all genomes in RefSeq")
+    rep_parser.add_argument('rep_genome_file', help="output file listing dereplicated genomes")
+    rep_parser.add_argument('--max_species', help='maximum number of genomes of the same species to retain', type=int, default=1)
+    rep_parser.add_argument('--min_rep_quality', help='minimum genome quality for a genome to be a representative', type=float, default=0.90)
+    rep_parser.add_argument('--silent', help="suppress output", action='store_true')
 
     # determine trusted genomes
     aai_cluster_parser = subparsers.add_parser('aai_cluster',
                                         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
                                         description='Cluster genomes based on AAI of concatenated alignment.')
-    aai_cluster_parser.add_argument('msa_file', help="file containing multiple sequence alignment")
+    aai_cluster_parser.add_argument('ar_msa_file', help="file containing canonical archaeal multiple sequence alignment")
+    aai_cluster_parser.add_argument('bac_msa_file', help="file containing canonical bacterial multiple sequence alignment")
+    aai_cluster_parser.add_argument('representative_genomes', help="list of initial representative genomes")
+    aai_cluster_parser.add_argument('metadata_file', help="metadata file for all genomes in the GTDB")
     aai_cluster_parser.add_argument('output_dir', help='output_dir')
-    aai_cluster_parser.add_argument('--threshold', help='AAI threshold for forming clusters', type=float, default=0.90)
+    aai_cluster_parser.add_argument('--threshold', help='AAI threshold for forming clusters', type=float, default=0.95)
+    aai_cluster_parser.add_argument('--min_rep_quality', help='minimum genome quality for a genome to be a representative', type=float, default=0.90)
+    aai_cluster_parser.add_argument('-c', '--cpus', help='number of cpus', type=int, default=32)
     aai_cluster_parser.add_argument('--silent', help="suppress output", action='store_true')
 
     # get and check options

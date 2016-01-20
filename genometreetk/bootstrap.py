@@ -51,7 +51,7 @@ class Bootstrap(object):
         """
 
         output_msa = os.path.join(self.replicate_dir, 'bootstrap_msa.r_' + str(replicated_num) + '.fna')
-        bootstrap_alignment(self.msa, output_msa)
+        bootstrap_alignment(self.msa, output_msa, frac=self.frac)
 
         fast_tree = FastTree(multithreaded=False)
         output_tree = os.path.join(self.replicate_dir, 'bootstrap_tree.r_' + str(replicated_num) + '.tree')
@@ -65,7 +65,7 @@ class Bootstrap(object):
 
         return '    Processed %d of %d replicates.' % (processed_items, total_items)
 
-    def run(self, input_tree, msa_file, num_replicates, model, base_type, output_dir):
+    def run(self, input_tree, msa_file, num_replicates, model, base_type, frac, output_dir):
         """Bootstrap multiple sequence alignment.
 
         Parameters
@@ -80,6 +80,8 @@ class Bootstrap(object):
           Desired model of evolution.
         base_type : str
           Indicates if bases are nucleotides or amino acids.
+        frac : float
+          Fraction of alignment to subsample.
         output_dir : str
           Directory for bootstrap trees.
         """
@@ -89,6 +91,7 @@ class Bootstrap(object):
 
         self.model = model
         self.base_type = base_type
+        self.frac = frac
 
         self.replicate_dir = os.path.join(output_dir, 'replicates')
         make_sure_path_exists(self.replicate_dir)
@@ -97,8 +100,7 @@ class Bootstrap(object):
         self.msa = seq_io.read(msa_file)
 
         # calculate replicates
-        self.logger.info('')
-        self.logger.info('  Calculating bootstrap replicates:')
+        self.logger.info('Calculating bootstrap replicates:')
         parallel = Parallel(self.cpus)
         parallel.run(self._producer, None, xrange(num_replicates), self._progress)
 
