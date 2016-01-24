@@ -17,77 +17,20 @@
 
 import logging
 
-from biolib.taxonomy import Taxonomy
+from genometreetk.common import read_gtdb_taxonomy
+
+import csv
 
 
 class TrustedGenomeWorkflow(object):
     """Determine trusted genomes based on genome statistics."""
 
-    def __init__(self, assembly_metadata_file, checkm_stats_file, taxonomy_file):
-        """Initialization.
-
-        Parameters
-        ----------
-        assembly_metadata_file : str
-            File specifying assembly statistics of genomes.
-        checkm_stats_file : str
-            File specifying CheckM statistics of genomes.
-        taxonomy_file : str
-            File specifying 7 rank taxonomy of genomes.
-        """
+    def __init__(self):
+        """Initialization."""
 
         self.logger = logging.getLogger()
 
-        self.assembly_metadata_file = assembly_metadata_file
-        self.checkm_stats_file = checkm_stats_file
-        self.taxonomy_file = taxonomy_file
-
-        self.logger.info('Assembly metadata: %s' % self.assembly_metadata_file)
-        self.logger.info('Genome quality estimates: %s' % self.checkm_stats_file)
-        self.logger.info('Taxonomy: %s' % self.taxonomy_file)
-
-    def _read_metadata(self, assembly_metadata_file):
-        """Parse assembly metadata file.
-
-        Parameters
-        ----------
-        assembly_metadata_file : str
-            File specifying assembly statistics of genomes.
-
-        Returns
-        -------
-        dict : d[assembly_accession] -> [# contigs, N50]
-            Number of contigs and N50 stats for assemblies.
-        """
-
-        assembly_stats = {}
-        with open(assembly_metadata_file) as f:
-            header = f.readline().split('\t')
-            num_contigs_index = header.index('ncbi_contig_count')
-            contig_N50_index = header.index('ncbi_contig_n50')
-            total_length_index = header.index('ncbi_total_length')
-
-            for line in f:
-                line_split = line.split('\t')
-
-                assembly_accession = line_split[0]
-
-                # the number of contigs and N50 is not specified,
-                # if the genome is complete
-                num_contigs = 1
-                if line_split[num_contigs_index]:
-                    num_contigs = int(line_split[num_contigs_index])
-
-                N50 = int(line_split[total_length_index])
-                if line_split[contig_N50_index]:
-                    N50 = int(line_split[contig_N50_index])
-
-                assembly_stats[assembly_accession] = [num_contigs, N50]
-
-        return assembly_stats
-
-    def _trusted_genomes(self, checkm_stats_file,
-                                assembly_metadata,
+    def _trusted_genomes(self, metadata_file,
                                 trusted_comp,
                                 trusted_cont,
                                 max_contigs,
@@ -96,13 +39,11 @@ class TrustedGenomeWorkflow(object):
 
         Parameters
         ----------
-        checkm_stats_file : str
-            File specifying CheckM statistics of genomes.
-        assembly_metadata : d[assembly_accession] -> [# contigs, N50]
-            Number of contigs and N50 stats for assemblies.
-        trusted_comp : float
+        metadata_file : str
+            Metadata, including CheckM estimates, for all genomes.
+        trusted_comp : float [0, 100]
             Minimum completeness of trusted genomes.
-        trusted_cont : float
+        trusted_cont : float [0, 100]
             Maximum contamination of trusted genomes.
         max_contigs : int
             Maximum number of contigs within trusted genomes.
@@ -114,32 +55,37 @@ class TrustedGenomeWorkflow(object):
         dict : d[assembly_accession] -> [comp, cont, # contigs, N50]
             Genome statistics for trusted genomes.
         """
-
+        
         trusted_genome_stats = {}
-        with open(checkm_stats_file) as f:
-            header = f.readline().split('\t')
-            comp_index = header.index('Completeness')
-            cont_index = header.index('Contamination')
 
-            for line in f:
-                line_split = line.split('\t')
+        csv_reader = csv.reader(open(metadata_file, 'rt'))
+        bHeader = True
+        for row in csv_reader:
+            if bHeader:
+                headers = row
+                genome_index = headers.index('genome')
+                comp_index = headers.index('checkm_completeness')
+                cont_index = headers.index('checkm_contamination')
+                num_contigs_index = headers.index('contig_count')
+                n50_index = headers.index('n50_contigs')
+                bHeader = False
+            else:
+                genome_id = row[genome_index]
+                comp = float(row[comp_index])
+                cont = float(row[cont_index])
+                num_contigs = int(row[num_contigs_index])
+                N50 = float(row[n50_index])
 
-                genome_id = line_split[0]
-                assembly_accession = genome_id[0:genome_id.find('_', 4)]
-
-                comp = float(line_split[comp_index])
-                cont = float(line_split[cont_index])
-                num_contigs, N50 = assembly_metadata[assembly_accession]
-
-                if (comp >= (trusted_comp * 100) and
-                    cont <= (trusted_cont * 100) and
+                if (comp >= trusted_comp and
+                    cont <= trusted_cont and
                     num_contigs <= max_contigs and
                     N50 >= min_N50):
-                        trusted_genome_stats[assembly_accession] = [comp, cont, num_contigs, N50]
+                        trusted_genome_stats[genome_id] = [comp, cont, num_contigs, N50]
 
         return trusted_genome_stats
 
-    def run(self, trusted_comp,
+    def run(self, metadata_file,
+                    trusted_comp,
                     trusted_cont,
                     max_contigs,
                     min_N50,
@@ -148,10 +94,12 @@ class TrustedGenomeWorkflow(object):
 
         Parameters
         ----------
-        trusted_comp : float
-            Minimum completeness to trust genome for marker set inference [0, 1].
-        trusted_cont : float
-            Maximum contamination to trust genome for marker set inference  [0, 1].
+        metadata_file : str
+            Metadata, including CheckM estimates, for all genomes.
+        trusted_comp : float [0, 100]
+            Minimum completeness to trust genome for marker set inference.
+        trusted_cont : float [0, 100]
+            Maximum contamination to trust genome for marker set inference.
         max_contigs : int
             Maximum number of contigs within trusted genomes.
         min_N50 : int
@@ -160,12 +108,9 @@ class TrustedGenomeWorkflow(object):
             Output file to contain list of trusted genomes.
         """
 
-        taxonomy = Taxonomy().read(self.taxonomy_file)
+        taxonomy = read_gtdb_taxonomy(metadata_file, keep_db_prefix=True)
 
-        assembly_metadata = self._read_metadata(self.assembly_metadata_file)
-
-        trusted_genomes_stats = self._trusted_genomes(self.checkm_stats_file,
-                                                      assembly_metadata,
+        trusted_genomes_stats = self._trusted_genomes(metadata_file,
                                                       trusted_comp, trusted_cont,
                                                       max_contigs, min_N50)
 
@@ -177,9 +122,6 @@ class TrustedGenomeWorkflow(object):
         fout.write('# Trusted contamination: %f\n' % trusted_cont)
         fout.write('# Maximum contigs: %d\n' % max_contigs)
         fout.write('# Minimum N50: %d\n' % min_N50)
-        fout.write('# Assembly metadata file: %s\n' % self.assembly_metadata_file)
-        fout.write('# Genome quality estimates file: %s\n' % self.checkm_stats_file)
-        fout.write('# Taxonomy file: %s\n' % self.taxonomy_file)
         fout.write('#\n')
         fout.write('# Genome Id\tCompleteness,Contamination,Contig count,N50\tTaxonomy\n')
 

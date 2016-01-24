@@ -55,14 +55,13 @@ class OptionsParser():
 
     def trusted(self, options):
         """Determine trusted genomes."""
+        
+        check_file_exists(options.metadata_file)
 
-        config_data = self._read_config_file()
+        trusted_genome_workflow = TrustedGenomeWorkflow()
 
-        trusted_genome_workflow = TrustedGenomeWorkflow(config_data['assembly_metadata_file'],
-                                                        config_data['checkm_stats_file'],
-                                                        config_data['taxonomy_file'])
-
-        trusted_genome_workflow.run(options.trusted_comp,
+        trusted_genome_workflow.run(options.metadata_file,
+                                        options.trusted_comp,
                                         options.trusted_cont,
                                         options.max_contigs,
                                         options.min_N50,
@@ -77,11 +76,7 @@ class OptionsParser():
             check_file_exists(options.trusted_genomes_file)
 
         try:
-            config_data = self._read_config_file()
-            dereplication_workflow = DereplicationWorkflow(config_data['genome_dir_file'],
-                                                            config_data['assembly_metadata_file'],
-                                                            config_data['taxonomy_file'],
-                                                            config_data['type_strain_file'])
+            dereplication_workflow = DereplicationWorkflow()
 
             dereplication_workflow.run(options.max_species,
                                        options.trusted_genomes_file,
@@ -100,6 +95,9 @@ class OptionsParser():
         make_sure_path_exists(options.output_dir)
 
         config_data = self._read_config_file()
+        
+        self.logger.error('NEED TO FIX ISSUE WITH GENOME DIR FILES!')
+        sys.exit(-1)
 
         marker_workflow = MarkerWorkflow(config_data['genome_dir_file'],
                                             config_data['pfam_model_file'],
@@ -124,6 +122,9 @@ class OptionsParser():
         check_file_exists(options.genome_id_file)
         check_file_exists(options.marker_id_file)
         make_sure_path_exists(options.output_dir)
+        
+        self.logger.error('NEED TO FIX ISSUE WITH GENOME DIR FILES!')
+        sys.exit(-1)
 
         config_data = self._read_config_file()
         infer_workflow = InferWorkflow(config_data['genome_dir_file'],
@@ -239,11 +240,7 @@ class OptionsParser():
         check_file_exists(options.metadata_file)
 
         try:
-            config_data = self._read_config_file()
-            rep_workflow = DereplicationWorkflow(config_data['genome_dir_file'],
-                                                            config_data['assembly_metadata_file'],
-                                                            config_data['taxonomy_file'],
-                                                            config_data['type_strain_file'])
+            rep_workflow = DereplicationWorkflow()
 
             rep_workflow.run(options.max_species,
                                        None,
@@ -261,14 +258,11 @@ class OptionsParser():
 
         check_file_exists(options.ar_msa_file)
         check_file_exists(options.bac_msa_file)
+        check_file_exists(options.metadata_file)
         make_sure_path_exists(options.output_dir)
 
         try:
-            config_data = self._read_config_file()
-            cluster = Cluster(config_data['assembly_metadata_file'],
-                                config_data['taxonomy_file'],
-                                config_data['type_strain_file'],
-                                options.cpus)
+            cluster = Cluster(options.cpus)
             cluster.run(options.ar_msa_file,
                         options.bac_msa_file,
                         options.representative_genomes,

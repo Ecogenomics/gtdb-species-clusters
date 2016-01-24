@@ -59,7 +59,7 @@ def read_gtdb_genome_quality(metadata_file, keep_db_prefix=False):
             comp = float(row[comp_index])
             cont = float(row[cont_index])
 
-            genome_quality[genome_id] = comp - cont
+            genome_quality[genome_id] = [comp, cont, comp - cont]
 
     return genome_quality
 
@@ -96,6 +96,39 @@ def read_gtdb_phylum(metadata_file, keep_db_prefix=False):
     return genome_phyla
 
 
+def read_gtdb_taxonomy(metadata_file, keep_db_prefix=False):
+    """Parse GTDB taxonomy from GTDB metadata.
+
+    Parameters
+    ----------
+    metadata_file : str
+        Metadata for all genomes.
+
+    Return
+    ------
+    dict : d[genome_id] -> taxonomy list
+    """
+
+    taxonomy = {}
+
+    csv_reader = csv.reader(open(metadata_file, 'rt'))
+    bHeader = True
+    for row in csv_reader:
+        if bHeader:
+            headers = row
+            genome_index = headers.index('genome')
+            taxonomy_index = headers.index('gtdb_taxonomy')
+            bHeader = False
+        else:
+            genome_id = row[genome_index]
+            if not keep_db_prefix:
+                genome_id = genome_id.replace('RS_', '').replace('GB_', '')
+
+            taxonomy[genome_id] = row[taxonomy_index].split(';')
+
+    return taxonomy
+
+
 def read_gtdb_ncbi_taxonomy(metadata_file, keep_db_prefix=False):
     """Parse NCBI taxonomy from GTDB metadata.
 
@@ -127,6 +160,41 @@ def read_gtdb_ncbi_taxonomy(metadata_file, keep_db_prefix=False):
             taxonomy[genome_id] = row[taxonomy_index].split(';')
 
     return taxonomy
+
+
+def read_gtdb_ncbi_type_strain(metadata_file, keep_db_prefix=False):
+    """Parse NCBI type strain from GTDB metadata.
+
+    Parameters
+    ----------
+    metadata_file : str
+        Metadata for all genomes.
+
+    Return
+    ------
+    set
+        Set of genomes marked as type strains by NCBI.
+    """
+
+    type_strains = set()
+
+    csv_reader = csv.reader(open(metadata_file, 'rt'))
+    bHeader = True
+    for row in csv_reader:
+        if bHeader:
+            headers = row
+            genome_index = headers.index('genome')
+            type_strain_index = headers.index('ncbi_type_strain')
+            bHeader = False
+        else:
+            genome_id = row[genome_index]
+            if not keep_db_prefix:
+                genome_id = genome_id.replace('RS_', '').replace('GB_', '')
+                
+            if bool(row[type_strain_index]):
+                type_strains.add(genome_id)
+
+    return type_strains
 
 
 def read_tree_model(reportFile):

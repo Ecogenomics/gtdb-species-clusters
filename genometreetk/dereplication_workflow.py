@@ -22,7 +22,9 @@ from collections import defaultdict
 
 from biolib.taxonomy import Taxonomy
 
-from genometreetk.common import read_gtdb_genome_quality
+from genometreetk.common import (read_gtdb_genome_quality,
+                                 read_gtdb_ncbi_taxonomy,
+                                 read_gtdb_ncbi_type_strain)
 import genometreetk.ncbi as ncbi
 
 
@@ -39,39 +41,17 @@ class DereplicationWorkflow(object):
     retained.
     """
 
-    def __init__(self, genome_dir_file, assembly_metadata_file, taxonomy_file, type_strain_file):
-        """Initialization.
-
-        Parameters
-        ----------
-        genome_dir_file : str
-            File specifying NCBI accession and path to all files to process.
-        assembly_metadata_file : str
-            File specifying assembly statistics of genomes.
-        taxonomy_file : str
-            File specifying 7 rank taxonomy of genomes.
-        type_strain_file : str
-            File specifying NCBI taxonomy ids representing type strains.
-        """
+    def __init__(self):
+        """Initialization."""
 
         self.logger = logging.getLogger()
-
-        self.genome_dir_file = genome_dir_file
-        self.assembly_metadata_file = assembly_metadata_file
-        self.taxonomy_file = taxonomy_file
-        self.type_strain_file = type_strain_file
-
-        self.logger.info('Assembly metadata: %s' % self.assembly_metadata_file)
-        self.logger.info('Taxonomy: %s' % self.taxonomy_file)
-        self.logger.info('Type strains: %s' % self.type_strain_file)
-
+        
     def _dereplicate(self, assemble_accessions,
                             max_species,
                             taxonomy,
                             representative_genomes,
                             complete_genomes,
-                            accession_to_taxid,
-                            type_strain_taxids,
+                            ncbi_type_strains,
                             trusted_accessions):
         """Dereplicate genomes based on taxonomy.
 
@@ -87,10 +67,8 @@ class DereplicationWorkflow(object):
             Set of representative genomes to prioritize.
         complete_genomes : set
             Set of complete genomes  to prioritize.
-        accession_to_taxid : d[assembly_accession] -> taxonomy id
-            Taxonomy id for each genomes.
-        type_strain_taxids : set
-            Set of taxonomy ids representing type strains.
+        ncbi_type_strains : set
+            Set of genomes marked as type strains at NCBI.
         trusted_accessions : set
             Set of trusted genomes.
 
@@ -104,12 +82,12 @@ class DereplicationWorkflow(object):
         species = defaultdict(set)
         genomes_to_retain = set()
         for genome_id in assemble_accessions:
-            t = taxonomy.get(genome_id, Taxonomy.rank_prefixes)
+            t = taxonomy[genome_id]
             try:
                 sp = t[Taxonomy.rank_index['s__']]
             except:
-                self.logger.error('Genome does not have a complete taxonomy string: %s' % genome_id)
-                sys.exit(0)
+                # NCBI species not specified in GTDB
+                sp = 's__unclassified'
 
             if not trusted_accessions or genome_id in trusted_accessions:
                 if sp == 's__' or sp.lower() == 's__unclassified':
@@ -125,9 +103,8 @@ class DereplicationWorkflow(object):
                 selected_genomes = set()
 
                 representatives = genome_ids.intersection(representative_genomes)
-                type_strains = ncbi.get_type_strains(genome_ids, accession_to_taxid, type_strain_taxids)
                 complete = genome_ids.intersection(complete_genomes)
-
+                type_strains = genome_ids.intersection(ncbi_type_strains)
                 complete_type_strains = type_strains.intersection(complete)
 
                 # select all representative genomes
@@ -184,18 +161,18 @@ class DereplicationWorkflow(object):
             File containing list of trusted genomes.
         metadata_file : str
             Metadata, including CheckM estimates, for all genomes.
-        min_rep_quality : float
+        min_rep_quality : float [0, 100]
             Minimum genome quality for a genome to be a representative.
         output_file : str
             Output file to contain list of dereplicated genomes.
         """
 
-        accession_to_taxid, complete_genomes, representative_genomes = ncbi.read_refseq_metadata(metadata_file, keep_db_prefix=False)
+        accession_to_taxid, complete_genomes, representative_genomes = ncbi.read_refseq_metadata(metadata_file, keep_db_prefix=True)
         self.logger.info('Identified %d RefSeq genomes.' % len(accession_to_taxid))
         self.logger.info('Identified %d representative or reference genomes.' % len(representative_genomes))
         self.logger.info('Identified %d complete genomes.' % len(complete_genomes))
 
-        taxonomy = Taxonomy().read(self.taxonomy_file)
+        taxonomy = read_gtdb_ncbi_taxonomy(metadata_file, keep_db_prefix=True)
         self.logger.info('Identified %d genomes with taxonomy information.' % len(taxonomy))
 
         trusted_accessions = set()
@@ -205,32 +182,36 @@ class DereplicationWorkflow(object):
         # get genome quality
         genomes_to_consider = accession_to_taxid.keys()
         if metadata_file:
-            genome_quality = read_gtdb_genome_quality(metadata_file)
+            genome_quality = read_gtdb_genome_quality(metadata_file, keep_db_prefix=True)
             missing_quality = set(accession_to_taxid.keys()) - set(genome_quality.keys())
             if missing_quality:
                 self.logger.warning('There are %d genomes without metadata information.' % len(missing_quality))
 
             new_genomes_to_consider = []
             for genome_id in accession_to_taxid.keys():
-                if genome_quality.get(genome_id, 0) >= min_rep_quality:
+                comp, cont, qual = genome_quality.get(genome_id, [-1, -1, -1])
+                if qual >= min_rep_quality:
                     new_genomes_to_consider.append(genome_id)
+                else:
+                    # check if genome is marked as a representative at NCBI
+                    if genome_id in representative_genomes:
+                        self.logger.warning('Filtered RefSeq representative %s with comp = %.2f, cont = %.2f' % (genome_id, comp, cont))
 
             genomes_to_consider = new_genomes_to_consider
             self.logger.info('Considering %d genomes after filtering at a quality of %.2f.' % (len(genomes_to_consider), min_rep_quality))
 
-        type_strain_taxids = ncbi.read_type_strains(self.type_strain_file)
+        ncbi_type_strains = read_gtdb_ncbi_type_strain(metadata_file, keep_db_prefix=True)
+        self.logger.info('Identified %d genomes marked as type strains at NCBI.' % len(ncbi_type_strains))
+        
         genomes_to_retain = self._dereplicate(genomes_to_consider,
                                                 max_species,
                                                 taxonomy,
                                                 representative_genomes,
                                                 complete_genomes,
-                                                accession_to_taxid,
-                                                type_strain_taxids,
+                                                ncbi_type_strains,
                                                 trusted_accessions)
 
         self.logger.info('Retained %d genomes.' % len(genomes_to_retain))
-
-        type_strains = ncbi.get_type_strains(genomes_to_retain, accession_to_taxid, type_strain_taxids)
 
         if not trusted_genomes_file:
             trusted_genomes_file = ''
@@ -239,9 +220,6 @@ class DereplicationWorkflow(object):
         fout.write('# Selection criteria:\n')
         fout.write('# Maximum species: %d\n' % max_species)
         fout.write('# Trusted genomes file: %s\n' % trusted_genomes_file)
-        fout.write('# Assembly metadata: %s\n' % self.assembly_metadata_file)
-        fout.write('# Taxonomy: %s\n' % self.taxonomy_file)
-        fout.write('# Type strains: %s\n' % self.type_strain_file)
         fout.write('# Genome quality metadata file: %s\n' % str(metadata_file))
         fout.write('# Min. representative quality: %s\n' % str(min_rep_quality))
         fout.write('#\n')
@@ -249,7 +227,7 @@ class DereplicationWorkflow(object):
         for assembly_accession in genomes_to_retain:
             representative = 'yes' if assembly_accession in representative_genomes else 'no'
             complete = 'yes' if assembly_accession in complete_genomes else 'no'
-            ts = 'yes' if assembly_accession in type_strains else 'no'
+            ts = 'yes' if assembly_accession in ncbi_type_strains else 'no'
             taxa_str = ';'.join(taxonomy.get(assembly_accession, Taxonomy.rank_prefixes))
 
             if assembly_accession.startswith('GCF_'):

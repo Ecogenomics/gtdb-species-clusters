@@ -36,11 +36,17 @@ class Cluster(object):
     """Cluster genomes based on AAI of concatenated alignment.
 
     Clustering is performed in a greedy manner similar to uClust,
-    and the input order of sequences is important. An initial set
-    of representatives can be specified and clustering if first
+    and the input order of sequences is important. To reduce
+    computational requirements genomes are order by species
+    abundance and then genome quality. To further reduce 
+    computational requirements, clustering is first performed 
+    only between genomes marked as being the same species at NCBI 
+    and then marked as being from the same phylum in the GTDB.
+    
+    An initial set of representatives can be specified and clustering is first
     performed against these. Additional clusters are then formed
     from the remaining genomes.
-
+    
     To form a cluster, the first sequence on the list of remaining genomes
     is taken and all genomes within a define AAI threshold are assigned to
     the cluster. This process is repeated until all genomes have been assigned
@@ -52,24 +58,16 @@ class Cluster(object):
     genome quality.
     """
 
-    def __init__(self, assembly_metadata_file, taxonomy_file, type_strain_file, cpus):
+    def __init__(self, cpus):
         """Initialization.
 
         Parameters
         ----------
-        assembly_metadata_file : str
-            File specifying assembly statistics of genomes.
-        taxonomy_file : str
-            File specifying 7 rank taxonomy of genomes.
-        type_strain_file : str
-            File specifying NCBI taxonomy ids representing type strains.
+        cpus : int
+            Number of CPUs to use during clustering.
         """
 
         self.logger = logging.getLogger()
-
-        self.assembly_metadata_file = assembly_metadata_file
-        self.taxonomy_file = taxonomy_file
-        self.type_strain_file = type_strain_file
 
         self.cpus = cpus
 
@@ -148,9 +146,7 @@ class Cluster(object):
                     sorted_rep_genomes.append(genome_id)
 
         # sort genomes by initial representatives and then genome quality
-        sorted_genomes_refeq = []
-        sorted_genomes_genbank = []
-        sorted_genomes_user = []
+        sorted_genomes = []
         sorted_by_quality = sorted(genome_quality.items(), key=operator.itemgetter(1), reverse=True)
         for genome_id, _quality in sorted_by_quality:
             if genome_id not in genome_set:
@@ -160,17 +156,9 @@ class Cluster(object):
                 if genome_id not in sorted_rep_genomes:  # make sure genome hasn't already been added
                     sorted_rep_genomes.append(genome_id)
             else:
-                if genome_id.startswith('RS_'):
-                    sorted_genomes_refeq.append(genome_id)
-                elif genome_id.startswith('GB_'):
-                    sorted_genomes_genbank.append(genome_id)
-                elif genome_id.startswith('U_'):
-                    sorted_genomes_user.append(genome_id)
-                else:
-                    self.logger.error('Unrecognized genome prefix: %s' % genome_id)
-                    sys.exit(-1)
+                sorted_genomes.append(genome_id)
 
-        return sorted_rep_genomes + sorted_genomes_refeq + sorted_genomes_genbank + sorted_genomes_user
+        return sorted_rep_genomes + sorted_genomes
 
     def _producer(self, data):
         """Producer thread for parallel processing of AAIs."""
@@ -239,7 +227,7 @@ class Cluster(object):
             Alignment of archaeal marker genes.
         bac_seqs : d[genome_id] -> alignment
             Alignment of bacterial marker genes.
-        genome_quality : d[genome_id] - genome quality
+        genome_quality : d[genome_id] -> genome quality
             Quality of each genome.
         genome_taxon : d[genome_id] -> taxon
             Taxon for genomes used to restrict comparisons.
@@ -383,13 +371,22 @@ class Cluster(object):
 
             genome_id = line.rstrip().split('\t')[0]
             if genome_id not in genome_set:
-                self.logger.error('Representative genomes %s has no sequence data.' % genome_id)
+                self.logger.error('Representative genome %s has no sequence data.' % genome_id)
             rep_genomes.add(genome_id)
 
         self.logger.info('Identified %d initial representatives.' % len(rep_genomes))
 
         # read genome quality
-        genome_quality = read_gtdb_genome_quality(metadata_file, keep_db_prefix=True)
+        gq = read_gtdb_genome_quality(metadata_file, keep_db_prefix=True)
+
+        genome_quality = {}
+        for genome_id, qual in gq.iteritems():
+            genome_quality[genome_id] = qual[2]
+
+        for r in rep_genomes:
+            if genome_quality[r] < min_rep_quality:
+                self.logger.error('Specified representative does not meet minimum quality threshold: %s' % r)
+                sys.exit(-1)
 
         missing_quality = genome_set - set(genome_quality.keys())
         if missing_quality:
@@ -450,7 +447,7 @@ class Cluster(object):
         for cluster_rep in sorted_clusters[0:10]:
             print cluster_rep, len(clusters[cluster_rep]), ncbi_species.get(cluster_rep, 'none')
 
-        # perform greedy clustering on genomes from same species
+        # perform greedy clustering on genomes from same phylum
         self.logger.info('Performing phylum-specific greedy clustering on %d genomes with threshold = %.2f.' % (len(genomes_to_process), threshold))
         genomes_to_process, clusters = self._greedy_clustering(genomes_to_process,
                                                                        threshold,
@@ -477,17 +474,13 @@ class Cluster(object):
 
             fout_retain.write('%s\t%d\n' % (cluster_rep, c))
 
-            reps = set(cluster_rep).intersection(rep_genomes)
-            for r in reps:
-                fout_retain.write('%s\t%d\n' % (r, c))
-
-            if not len(reps) and len(cluster) >= 1:
+            if len(cluster) >= 1:
                 # two genomes should be retained for every cluster in order to aid annotating
                 # in ARB. The first genome in cluster list  will be the highest quality genome.
                 fout_retain.write('%s\t%d\n' % (cluster[0], c))
 
         # the remaining genomes to be processed are of insufficient quality to form representatives
-        # but should be retained as they are novelty relative to the representatives
+        # but should be retained as they represent novelty relative to the representatives
         for genome_id in set(genomes_to_process).difference(clusters.keys()):
             fout_retain.write('%s\t%d\n' % (genome_id, -1))
 

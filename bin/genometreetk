@@ -119,9 +119,10 @@ if __name__ == '__main__':
     trusted_parser = subparsers.add_parser('trusted',
                                         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
                                         description='Determine trusted genomes to use for marker gene inference.')
+    trusted_parser.add_argument('metadata_file', help="metadata file from GTDB with CheckM estimates for all genomes in RefSeq")
     trusted_parser.add_argument('trusted_genomes_file', help="output file listing trusted genomes")
-    trusted_parser.add_argument('--trusted_comp', help='minimum completeness to trust genome for marker set inference [0, 1]', type=float, default=0.95)
-    trusted_parser.add_argument('--trusted_cont', help='maximum contamination to trust genome for marker set inference [0, 1]', type=float, default=0.05)
+    trusted_parser.add_argument('--trusted_comp', help='minimum completeness to trust genome for marker set inference [0, 100]', type=float, default=95)
+    trusted_parser.add_argument('--trusted_cont', help='maximum contamination to trust genome for marker set inference [0, 100]', type=float, default=5)
     trusted_parser.add_argument('--max_contigs', help='maximum number of contigs to trust genome for marker set inference', type=int, default=200)
     trusted_parser.add_argument('--min_N50', help='minimum N50 of contigs to trust genome for marker set inference', type=int, default=20000)
     trusted_parser.add_argument('--silent', help="suppress output", action='store_true')
@@ -242,7 +243,7 @@ if __name__ == '__main__':
     rep_parser.add_argument('metadata_file', help="metadata file from GTDB with CheckM estimates for all genomes in RefSeq")
     rep_parser.add_argument('rep_genome_file', help="output file listing dereplicated genomes")
     rep_parser.add_argument('--max_species', help='maximum number of genomes of the same species to retain', type=int, default=1)
-    rep_parser.add_argument('--min_rep_quality', help='minimum genome quality for a genome to be a representative', type=float, default=0.90)
+    rep_parser.add_argument('--min_rep_quality', help='minimum genome quality for a genome to be a representative [0, 100]', type=float, default=90)
     rep_parser.add_argument('--silent', help="suppress output", action='store_true')
 
     # determine trusted genomes
@@ -255,7 +256,7 @@ if __name__ == '__main__':
     aai_cluster_parser.add_argument('metadata_file', help="metadata file for all genomes in the GTDB")
     aai_cluster_parser.add_argument('output_dir', help='output_dir')
     aai_cluster_parser.add_argument('--threshold', help='AAI threshold for forming clusters', type=float, default=0.95)
-    aai_cluster_parser.add_argument('--min_rep_quality', help='minimum genome quality for a genome to be a representative', type=float, default=0.90)
+    aai_cluster_parser.add_argument('--min_rep_quality', help='minimum genome quality for a genome to be a representative [0, 100]', type=float, default=90)
     aai_cluster_parser.add_argument('-c', '--cpus', help='number of cpus', type=int, default=32)
     aai_cluster_parser.add_argument('--silent', help="suppress output", action='store_true')
 
