@@ -45,7 +45,7 @@ class DereplicationWorkflow(object):
         """Initialization."""
 
         self.logger = logging.getLogger()
-        
+
     def _dereplicate(self, assemble_accessions,
                             max_species,
                             taxonomy,
@@ -172,7 +172,7 @@ class DereplicationWorkflow(object):
         self.logger.info('Identified %d representative or reference genomes.' % len(representative_genomes))
         self.logger.info('Identified %d complete genomes.' % len(complete_genomes))
 
-        taxonomy = read_gtdb_ncbi_taxonomy(metadata_file, keep_db_prefix=True)
+        taxonomy = read_gtdb_ncbi_taxonomy(metadata_file)
         self.logger.info('Identified %d genomes with taxonomy information.' % len(taxonomy))
 
         trusted_accessions = set()
@@ -182,7 +182,7 @@ class DereplicationWorkflow(object):
         # get genome quality
         genomes_to_consider = accession_to_taxid.keys()
         if metadata_file:
-            genome_quality = read_gtdb_genome_quality(metadata_file, keep_db_prefix=True)
+            genome_quality = read_gtdb_genome_quality(metadata_file)
             missing_quality = set(accession_to_taxid.keys()) - set(genome_quality.keys())
             if missing_quality:
                 self.logger.warning('There are %d genomes without metadata information.' % len(missing_quality))
@@ -200,9 +200,9 @@ class DereplicationWorkflow(object):
             genomes_to_consider = new_genomes_to_consider
             self.logger.info('Considering %d genomes after filtering at a quality of %.2f.' % (len(genomes_to_consider), min_rep_quality))
 
-        ncbi_type_strains = read_gtdb_ncbi_type_strain(metadata_file, keep_db_prefix=True)
+        ncbi_type_strains = read_gtdb_ncbi_type_strain(metadata_file)
         self.logger.info('Identified %d genomes marked as type strains at NCBI.' % len(ncbi_type_strains))
-        
+
         genomes_to_retain = self._dereplicate(genomes_to_consider,
                                                 max_species,
                                                 taxonomy,

@@ -17,45 +17,29 @@
 
 import os
 import sys
-import pickle
 import logging
 import operator
-import itertools
 from collections import defaultdict
+import multiprocessing as mp
 
 import biolib.seq_io as seq_io
-from biolib.parallel import Parallel
 
 from genometreetk.exceptions import GenomeTreeTkError
 from genometreetk.common import (read_gtdb_genome_quality,
                                     read_gtdb_ncbi_taxonomy,
                                     read_gtdb_phylum)
+from genometreetk.aai import mismatches
 
 
 class Cluster(object):
     """Cluster genomes based on AAI of concatenated alignment.
 
-    Clustering is performed in a greedy manner similar to uClust,
-    and the input order of sequences is important. To reduce
-    computational requirements genomes are order by species
-    abundance and then genome quality. To further reduce 
-    computational requirements, clustering is first performed 
-    only between genomes marked as being the same species at NCBI 
-    and then marked as being from the same phylum in the GTDB.
-    
-    An initial set of representatives can be specified and clustering is first
-    performed against these. Additional clusters are then formed
-    from the remaining genomes.
-    
-    To form a cluster, the first sequence on the list of remaining genomes
-    is taken and all genomes within a define AAI threshold are assigned to
-    the cluster. This process is repeated until all genomes have been assigned
-    to a cluster.
-
-    It is useful to retain two genomes per cluster so the cluster can be named
-    in ARB. A separate file is produced that keeps both the representative genome
-    for a cluster along with another genome, preferable the one with the best
-    genome quality.
+    Genomes are preferentially assigned to representatives from
+    RefSeq, followed by GenBank, and final User genomes. This
+    is done to ensure the majority of genomes are assigned to
+    publicly available representatives. However, this means
+    a genome will not necessarily be assigned to the representative
+    with the highest AAI.
     """
 
     def __init__(self, cpus):
@@ -64,291 +48,274 @@ class Cluster(object):
         Parameters
         ----------
         cpus : int
-            Number of CPUs to use during clustering.
+            Maximum number of cpus/threads to use.
         """
 
         self.logger = logging.getLogger()
 
         self.cpus = cpus
 
-    def _aai(self, seq1, seq2, threshold):
-        """Calculate AAI between sequences.
+        self.source_order = {'R': 0,  # RefSeq
+                                'G': 1,  # GenBank
+                                'U': 2}  # User
 
-        Parameters
-        ----------
-        seq1 : str
-            First sequence.
-        seq2 : float
-            Second sequence.
-        threshold : float
-            Required AAI to cluster sequences.
+    def _reassign_representative(self,
+                                    cur_representative_id,
+                                    cur_max_mismatches,
+                                    new_representative_id,
+                                    new_max_mismatches):
+        """Determines best representative genome.
 
-        Returns
-        -------
-        bool
-            True if AAI is greater than or equal to threshold, else False.
+        Genomes are preferentially assigned to representatives based on
+        source repository (RefSeq => GenBank => User) and AAI.
         """
 
-        max_mismatches = (1.0 - threshold) * len(seq1)
+        if not cur_representative_id:
+            # no currently assigned representative
+            return new_representative_id, new_max_mismatches
 
-        mismatches = 0
-        matches = 0
-        for c1, c2 in itertools.izip(seq1, seq2):
-            if c1 == '-' or c2 == '-':
-                continue
-            elif c1 != c2:
-                mismatches += 1
-                if mismatches >= max_mismatches:
-                    return False
-            else:
-                matches += 1
+        cur_source = self.source_order[cur_representative_id[0]]
+        new_source = self.source_order[new_representative_id[0]]
 
-        aai = float(matches) / max(1, (matches + mismatches))
+        if new_source < cur_source:
+            # give preference to genome source
+            return new_representative_id, new_max_mismatches
+        elif new_source == cur_source:
+            # for the same source, find the representative with the highest AAI
+            if new_max_mismatches < cur_max_mismatches:
+                return new_representative_id, new_max_mismatches
 
-        return aai >= threshold
+        return cur_representative_id, cur_max_mismatches
 
-    def _order_genomes(self, genome_set, rep_genomes, genome_quality, ncbi_species):
-        """Determine order to process genomes based on existing representatives and genome quality.
+    def __worker(self,
+                 representatives,
+                 bac_seqs,
+                 ar_seqs,
+                 aai_threshold,
+                 metadata_file,
+                 queue_in,
+                 queue_out):
+        """Process genomes in parallel."""
 
-        Parameters
-        ----------
-        genome_set : set
-            Unique identifier of genomes to order.
-        rep_genomes : set
-            Initial set of representative genomes.
-        genome_quality : d[genome_id] -> genome quality
-            Genome quality.
-        ncbi_species : d[genome_id] -> species
-            Species of NCBI genomes.
+        # determine genus of each genome and representatives belonging to a genus
+        ncbi_taxonomy = read_gtdb_ncbi_taxonomy(metadata_file)
+        ncbi_genus = {}
+        ncbi_species = {}
+        reps_from_genus = defaultdict(set)
+        for genome_id, t in ncbi_taxonomy.iteritems():
+            if len(t) >= 6 and t[5] != 'g__':
+                genus = t[6]
+                ncbi_genus[genome_id] = genus
 
-        Returns
-        -------
-        list
-            Genomes placed in order for clustering.
-        """
+                if genome_id in representatives:
+                    reps_from_genus[genus].add(genome_id)
 
-        self.logger.info('Sorting genomes into suitable order for clustering.')
+                if len(t) >= 7 and t[6] != 's__':
+                    species = t[6]
+                    if 'sp.' not in species and len(species.split()) == 2:
+                        ncbi_species[genome_id] = species
 
-        # determine most common species
-        species_count = defaultdict(int)
-        for species in ncbi_species.values():
-            species_count[species] += 1
-
-        # prioritize clustering on representatives from abundant species
-        sorted_rep_genomes = []
-        sorted_species_count = sorted(species_count.items(), key=operator.itemgetter(1), reverse=True)
-        for species, count in sorted_species_count:
-            if count < 100:
+        while True:
+            genome_id = queue_in.get(block=True, timeout=None)
+            if genome_id == None:
                 break
 
-            for genome_id in rep_genomes:
-                if ncbi_species.get(genome_id, None) == species:
-                    sorted_rep_genomes.append(genome_id)
+            genome_genus = ncbi_genus.get(genome_id, None)
+            # genome_species = ncbi_species.get(genome_id, None)
+            genome_bac_seq = bac_seqs[genome_id]
+            genome_ar_seq = ar_seqs[genome_id]
 
-        # sort genomes by initial representatives and then genome quality
-        sorted_genomes = []
-        sorted_by_quality = sorted(genome_quality.items(), key=operator.itemgetter(1), reverse=True)
-        for genome_id, _quality in sorted_by_quality:
-            if genome_id not in genome_set:
-                continue
+            cur_aai_threshold = aai_threshold
+            assigned_representative = None
 
-            if genome_id in rep_genomes:
-                if genome_id not in sorted_rep_genomes:  # make sure genome hasn't already been added
-                    sorted_rep_genomes.append(genome_id)
-            else:
-                sorted_genomes.append(genome_id)
+            bac_max_mismatches = (1.0 - aai_threshold) * (len(genome_bac_seq) - genome_bac_seq.count('-'))
+            ar_max_mismatches = (1.0 - aai_threshold) * (len(genome_ar_seq) - genome_ar_seq.count('-'))
 
-        return sorted_rep_genomes + sorted_genomes
+            # speed up computation by first comparing genome
+            # to representatives of the same genus
+            cur_reps_from_genus = reps_from_genus.get(genome_genus, set())
+            for rep_id in cur_reps_from_genus:
+                rep_bac_seq = bac_seqs[rep_id]
+                rep_ar_seq = ar_seqs[rep_id]
 
-    def _producer(self, data):
-        """Producer thread for parallel processing of AAIs."""
+                # rep_species = ncbi_species.get(rep_id, None)
+                # if genome_species and rep_species and genome_species != rep_species:
+                #    continue
 
-        index, genomeI, genomeJ = data
+                m = mismatches(rep_bac_seq, genome_bac_seq, bac_max_mismatches)
+                if m is not None:  # necessary to distinguish None and 0
+                    assigned_representative, bac_max_mismatches = self._reassign_representative(assigned_representative,
+                                                                                                bac_max_mismatches,
+                                                                                                rep_id,
+                                                                                                m)
+                else:
+                    m = mismatches(rep_ar_seq, genome_ar_seq, ar_max_mismatches)
+                    if m is not None:  # necessary to distinguish None and 0
+                        assigned_representative, ar_max_mismatches = self._reassign_representative(assigned_representative,
+                                                                                                    ar_max_mismatches,
+                                                                                                    rep_id,
+                                                                                                    m)
 
-        ar_seqI = self.ar_seqs[genomeI]
-        bac_seqI = self.bac_seqs[genomeI]
+            # compare genome to remaining representatives
+            remaining_reps = representatives.difference(cur_reps_from_genus)
+            for rep_id in remaining_reps:
+                rep_bac_seq = bac_seqs[rep_id]
+                rep_ar_seq = ar_seqs[rep_id]
 
-        ar_seqJ = self.ar_seqs[genomeJ]
-        bac_seqJ = self.bac_seqs[genomeJ]
+                m = mismatches(rep_bac_seq, genome_bac_seq, bac_max_mismatches)
+                if m is not None:  # necessary to distinguish None and 0
+                    assigned_representative, bac_max_mismatches = self._reassign_representative(assigned_representative,
+                                                                                                bac_max_mismatches,
+                                                                                                rep_id,
+                                                                                                m)
+                else:
+                    m = mismatches(rep_ar_seq, genome_ar_seq, ar_max_mismatches)
+                    if m is not None:  # necessary to distinguish None and 0
+                        assigned_representative, ar_max_mismatches = self._reassign_representative(assigned_representative,
+                                                                                                    ar_max_mismatches,
+                                                                                                    rep_id,
+                                                                                                    m)
 
-        bCluster = False
-        if self._aai(bac_seqI, bac_seqJ, self.threshold) or self._aai(ar_seqI, ar_seqJ, self.threshold):
-            bCluster = True
+            queue_out.put((genome_id, assigned_representative))
 
-        return (index, bCluster, genomeJ)
-
-    def _consumer(self, produced_data, consumer_data):
-        """Consumer thread for parallel processing.
-
-        Returns
-        -------
-        dict : d[genome_id] -> bool
-            Indicates if a genome should be clustered.
-        """
-
-        if consumer_data == None:
-            # setup structure for consumed data
-            consumer_data = {}
-
-        index, bCluster, genomeJ = produced_data
-        consumer_data[index] = (genomeJ, bCluster)
-
-        return consumer_data
-
-    def _greedy_clustering(self,
-                               genomes_to_process,
-                               threshold,
-                               min_rep_quality,
-                               ar_seqs,
-                               bac_seqs,
-                               genome_quality,
-                               genome_taxon,
-                               strict_taxon_matching,
-                               clusters):
-        """Cluster genomes.
-
-        Only genomes from the same taxon as defined by
-        genome_taxon are compared. This drastically reduces
-        processing time. If the strict_taxon_matching
-        flag is set to True, only genomes from the same
-        defined taxon are compared. When this flag is False,
-        genomes are compared when they are from the same taxon
-        or where one or both genomes have an undefined taxon.
+    def __writer(self, representatives, num_genomes, output_file, writer_queue):
+        """Process representative assignments from each process.
 
         Parameters
         ----------
+        representatives : set
+            Initial set of representative genomes.
+        num_genomes : int
+            Number of genomes being processed.
+        output_file : str
+            Output file specifying genome clustering.
+        """
+
+        # initialize clusters
+        clusters = {}
+        for rep_id in representatives:
+            clusters[rep_id] = []
+
+        # gather results for each genome
+        processed_genomes = 0
+        while True:
+            genome_id, assigned_representative = writer_queue.get(block=True, timeout=None)
+            if genome_id == None:
+              break
+
+            processed_genomes += 1
+            statusStr = 'Finished processing %d of %d (%.2f%%) genomes.' % (processed_genomes,
+                                                                            num_genomes,
+                                                                            float(processed_genomes) * 100 / num_genomes)
+            sys.stdout.write('%s\r' % statusStr)
+            sys.stdout.flush()
+
+            if assigned_representative:
+                clusters[assigned_representative].append(genome_id)
+
+
+        sys.stdout.write('\n')
+
+        # write out cluster
+        fout = open(output_file, 'w')
+        for c, cluster_rep in enumerate(sorted(clusters, key=lambda x: len(clusters[x]), reverse=True)):
+            cluster_str = 'cluster_%d' % (c + 1)
+            cluster = clusters[cluster_rep]
+            fout.write('%s\t%s\t%d\t%s\n' % (cluster_rep, cluster_str, len(cluster) + 1, ','.join(cluster)))
+
+        fout.close()
+
+    def _cluster(self,
+                    representatives,
+                    genomes_to_process,
+                    aai_threshold,
+                    ar_seqs,
+                    bac_seqs,
+                    metadata_file,
+                    output_file):
+        """Assign genomes to representatives.
+
+
+        Parameters
+        ----------
+        representatives : set
+            Initial set of representative genomes.
         genomes_to_process : list
-            Genomes to cluster placed in desired clustering order.
-        threshold : float
-              AAI threshold for forming clusters.
-        min_rep_quality : float
-            Minimum genome quality for a genome to be a representative.
+            Genomes to process for identification of new representatives.
+        aai_threshold : float
+              AAI threshold for assigning a genome to a representative.
         ar_seqs : d[genome_id] -> alignment
             Alignment of archaeal marker genes.
         bac_seqs : d[genome_id] -> alignment
             Alignment of bacterial marker genes.
-        genome_quality : d[genome_id] -> genome quality
-            Quality of each genome.
-        genome_taxon : d[genome_id] -> taxon
-            Taxon for genomes used to restrict comparisons.
-        strict_taxon_matching : bool
-            Determines how genomes without an assigned taxon are processed.
-        clusters: d[genome_id] -> genomes in cluster
-            Clustering of genomes to representatives.
+        metadata_file : str
+            Metadata, including CheckM estimates, for all genomes.
+        output_file : str
+            Output file specifying genome clustering.
         """
 
-        remaining_genomes_to_cluster = list(genomes_to_process)
+        # populate worker queue with data to process
+        worker_queue = mp.Queue()
+        writer_queue = mp.Queue()
 
-        self.threshold = threshold
-        self.ar_seqs = ar_seqs
-        self.bac_seqs = bac_seqs
+        for genome_id in genomes_to_process:
+          worker_queue.put(genome_id)
 
-        # perform greedy clustering of genomes
-        parallel = Parallel(cpus=self.cpus)
-        while len(genomes_to_process):
-            genomeI = genomes_to_process.pop(0)
+        for _ in range(self.cpus):
+          worker_queue.put(None)
 
-            if genome_quality.get(genomeI, 0) < min_rep_quality:
-                # remaining genomes do not have sufficient quality
-                # to become representatives
-                break
+        try:
+          worker_proc = [mp.Process(target=self.__worker, args=(representatives,
+                                                                    bac_seqs,
+                                                                    ar_seqs,
+                                                                    aai_threshold,
+                                                                    metadata_file,
+                                                                    worker_queue,
+                                                                    writer_queue)) for _ in range(self.cpus)]
+          write_proc = mp.Process(target=self.__writer, args=(representatives,
+                                                              len(genomes_to_process),
+                                                              output_file,
+                                                              writer_queue))
 
-            taxonI = genome_taxon.get(genomeI, None)
-            if strict_taxon_matching and not taxonI:
-                continue
+          write_proc.start()
 
-            # determine genomes to compare with current genome
-            genomes_to_compare = []
-            results = {}
-            for index, genomeJ in enumerate(genomes_to_process):
-                # check taxon of both genomes
-                taxonJ = genome_taxon.get(genomeJ, None)
-                if strict_taxon_matching:
-                    if not taxonJ or taxonI != taxonJ:
-                        results[index] = (genomeJ, False)
-                        continue
-                else:
-                    if taxonI and taxonJ and taxonI != taxonJ:
-                        results[index] = (genomeJ, False)
-                        continue
+          for p in worker_proc:
+              p.start()
 
-                if genomeJ in clusters:
-                    # do not cluster representatives together
-                    results[index] = (genomeJ, False)
-                    continue
+          for p in worker_proc:
+              p.join()
 
-                genomes_to_compare.append((index, genomeI, genomeJ))
+          writer_queue.put((None, None))
+          write_proc.join()
+        except:
+          for p in worker_proc:
+            p.terminate()
 
-            # compare genomes in parallel
-            if len(genomes_to_compare) > 10 * self.cpus:
-                aai_results = parallel.run(self._producer, self._consumer, data_items=genomes_to_compare)
-            else:
-                aai_results = {}
-
-                ar_seqI = self.ar_seqs[genomeI]
-                bac_seqI = self.bac_seqs[genomeI]
-                for index, genomeI, genomeJ in genomes_to_compare:
-                    ar_seqJ = self.ar_seqs[genomeJ]
-                    bac_seqJ = self.bac_seqs[genomeJ]
-
-                    bCluster = self._aai(bac_seqI, bac_seqJ, self.threshold) or self._aai(ar_seqI, ar_seqJ, self.threshold)
-                    aai_results[index] = (genomeJ, bCluster)
-
-            if aai_results:
-                results.update(aai_results)
-
-            cur_cluster = []
-            remaining_genomes_to_process = []
-            for index in sorted(results.keys()):
-                genomeJ, bCluster = results[index]
-                if bCluster:
-                    cur_cluster.append(genomeJ)
-                    remaining_genomes_to_cluster.remove(genomeJ)
-                else:
-                    remaining_genomes_to_process.append(genomeJ)
-
-            clusters[genomeI].extend(cur_cluster)
-            genomes_to_process = remaining_genomes_to_process
-
-            # report progress of clustering (extra spaces are to ensure line in completely overwritten)
-            #***self.logger.info('%s\t%d\t%s\t%d' % (genomeI, len(cur_cluster), genome_taxon.get(genomeI, None), len(genomes_to_compare)))
-            statusStr = '==> Cluster %s contains %d genomes. There are %d of %d genomes remaining.       ' % (genomeI,
-                                                                                                               len(cur_cluster) + 1,
-                                                                                                               len(genomes_to_process),
-                                                                                                               len(ar_seqs))
-            sys.stdout.write('%s\r' % statusStr)
-            sys.stdout.flush()
-
-        sys.stdout.write('\n')
-
-        return remaining_genomes_to_cluster, clusters
+          write_proc.terminate()
 
     def run(self,
+            representatives_file,
             ar_msa_file,
             bac_msa_file,
-            representative_genomes,
+            aai_threshold,
             metadata_file,
-            threshold,
-            min_rep_quality,
-            output_dir):
-        """Perform clustering based on AAI between aligned sequences.
+            output_file):
+        """Identify additional representatives based on AAI between aligned sequences.
 
         Parameters
         ----------
+        representatives_file : str
+            File listing genome identifiers as initial representatives.
         ar_msa_file : str
             Name of file containing canonical archaeal multiple sequence alignment.
         bac_msa_file : str
             Name of file containing canonical bacterial multiple sequence alignment.
-        representative_genomes : str
-            File listing genome identifiers for initial representatives.
+        aai_threshold : float
+              AAI threshold for clustering genomes to a representative.
         metadata_file : str
             Metadata, including CheckM estimates, for all genomes.
-        threshold : float
-              AAI threshold for forming clusters.
-        min_rep_quality : float
-            Minimum genome quality for a genome to be a representative.
-        output_dir : str
-            Output directory to store results.
+        output_file : str
+            Output file specifying genome clustering.
         """
 
         # read sequences
@@ -361,130 +328,30 @@ class Cluster(object):
             self.logger.error('Archaeal and bacterial MSA files do not contain the same number of sequences.')
             raise GenomeTreeTkError('Error with MSA input files.')
 
-        genome_set = set(ar_seqs.keys())
+        genome_to_consider = set(ar_seqs.keys())
 
         # read initial representatives
         rep_genomes = set()
-        for line in open(representative_genomes):
+        for line in open(representatives_file):
             if line[0] == '#':
                 continue
 
             genome_id = line.rstrip().split('\t')[0]
-            if genome_id not in genome_set:
+            if genome_id not in genome_to_consider:
                 self.logger.error('Representative genome %s has no sequence data.' % genome_id)
             rep_genomes.add(genome_id)
 
-        self.logger.info('Identified %d initial representatives.' % len(rep_genomes))
+        self.logger.info('Identified %d representatives.' % len(rep_genomes))
 
-        # read genome quality
-        gq = read_gtdb_genome_quality(metadata_file, keep_db_prefix=True)
-
-        genome_quality = {}
-        for genome_id, qual in gq.iteritems():
-            genome_quality[genome_id] = qual[2]
-
-        for r in rep_genomes:
-            if genome_quality[r] < min_rep_quality:
-                self.logger.error('Specified representative does not meet minimum quality threshold: %s' % r)
-                sys.exit(-1)
-
-        missing_quality = genome_set - set(genome_quality.keys())
-        if missing_quality:
-            self.logger.warning('There are %d genomes with sequence data, but no metadata information.' % len(missing_quality))
-
-        # read NCBI taxonomy
-        ncbi_taxonomy = read_gtdb_ncbi_taxonomy(metadata_file, keep_db_prefix=True)
-        ncbi_species = {}
-        for genome_id, t in ncbi_taxonomy.iteritems():
-            if len(t) == 7 and t[6] != 's__':
-                ncbi_species[genome_id] = t[6]
-
-        phyla = read_gtdb_phylum(metadata_file, keep_db_prefix=True)
-        gtdb_phyla = {}
-        for genome_id, phyla in phyla.iteritems():
-            if phyla and phyla != 'p__':
-                gtdb_phyla[genome_id] = phyla
-            else:
-                t = ncbi_taxonomy.get(genome_id, None)
-                if t and len(t) >= 2:
-                    gtdb_phyla[genome_id] = t[1]
-
-        self.logger.info('Identified %d genomes with defined species, and %d genomes with defined phyla.' % (len(ncbi_species), len(gtdb_phyla)))
-
-        # order genomes
-        genomes_to_process = self._order_genomes(genome_set, rep_genomes, genome_quality, ncbi_species)
-
-        # ensure specified representative genomes remain representatives
-        clusters = defaultdict(list)
-        for genome_id in rep_genomes:
-            clusters[genome_id] = []
-
-        # perform greedy clustering on genomes from same species
-        self.logger.info('Performing species-specific greedy clustering of %d genomes with threshold = %.2f.' % (len(genomes_to_process), threshold))
-        genomes_to_process, clusters = self._greedy_clustering(genomes_to_process,
-                                                                       threshold,
-                                                                       min_rep_quality,
-                                                                       ar_seqs,
-                                                                       bac_seqs,
-                                                                       genome_quality,
-                                                                       ncbi_species,
-                                                                       True,
-                                                                       clusters)
-
-        with open('clusters.pkl', 'wb') as f:
-            pickle.dump(clusters, f, pickle.HIGHEST_PROTOCOL)
-
-        with open('genomes_to_process.pkl', 'wb') as f:
-            pickle.dump(genomes_to_process, f, pickle.HIGHEST_PROTOCOL)
-
-        with open('clusters.pkl', 'rb') as f:
-            clusters = pickle.load(f)
-
-        with open('genomes_to_process.pkl', 'rb') as f:
-            genomes_to_process = pickle.load(f)
-
-        sorted_clusters = sorted(clusters, key=lambda k: len(clusters[k]), reverse=True)
-        for cluster_rep in sorted_clusters[0:10]:
-            print cluster_rep, len(clusters[cluster_rep]), ncbi_species.get(cluster_rep, 'none')
-
-        # perform greedy clustering on genomes from same phylum
-        self.logger.info('Performing phylum-specific greedy clustering on %d genomes with threshold = %.2f.' % (len(genomes_to_process), threshold))
-        genomes_to_process, clusters = self._greedy_clustering(genomes_to_process,
-                                                                       threshold,
-                                                                       min_rep_quality,
-                                                                       ar_seqs,
-                                                                       bac_seqs,
-                                                                       genome_quality,
-                                                                       gtdb_phyla,
-                                                                       False,
-                                                                       clusters)
-
-        # write out representative genomes, genomes clustered to each representative, and
-        # genomes to retain (which may, or may not, have a representative)
-        self.logger.info('Writing out clusters.')
-        cluster_file = os.path.join(output_dir, 'representatives.tsv')
-        genome_to_retain_file = os.path.join(output_dir, 'genomes_to_retain.tsv')
-
-        fout = open(cluster_file, 'w')
-        fout_retain = open(genome_to_retain_file, 'w')
-        for c, cluster_rep in enumerate(sorted(clusters, key=lambda x: len(clusters[x]), reverse=True)):
-            cluster_str = 'cluster_%d' % (c + 1)
-            cluster = clusters[cluster_rep]
-            fout.write('%s\t%s\t%d\t%s\n' % (cluster_rep, cluster_str, len(cluster) + 1, ','.join(cluster)))
-
-            fout_retain.write('%s\t%d\n' % (cluster_rep, c))
-
-            if len(cluster) >= 1:
-                # two genomes should be retained for every cluster in order to aid annotating
-                # in ARB. The first genome in cluster list  will be the highest quality genome.
-                fout_retain.write('%s\t%d\n' % (cluster[0], c))
-
-        # the remaining genomes to be processed are of insufficient quality to form representatives
-        # but should be retained as they represent novelty relative to the representatives
-        for genome_id in set(genomes_to_process).difference(clusters.keys()):
-            fout_retain.write('%s\t%d\n' % (genome_id, -1))
-
-        fout.close()
-        fout_retain.close()
-
-        self.logger.info('Done.')
+        # cluster genomes to representatives
+        genomes_to_cluster = genome_to_consider - rep_genomes
+        self.logger.info('Comparing %d genomes to %d representatives with threshold = %.3f.' % (len(genomes_to_cluster),
+                                                                                                len(rep_genomes),
+                                                                                                aai_threshold))
+        self._cluster(rep_genomes,
+                                    genomes_to_cluster,
+                                    aai_threshold,
+                                    ar_seqs,
+                                    bac_seqs,
+                                    metadata_file,
+                                    output_file)

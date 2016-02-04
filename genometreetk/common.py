@@ -28,7 +28,7 @@ import biolib.seq_io as seq_io
 from genometreetk.default_values import DefaultValues
 
 
-def read_gtdb_genome_quality(metadata_file, keep_db_prefix=False):
+def read_gtdb_genome_quality(metadata_file):
     """Parse genome quality from GTDB metadata.
 
     Parameters
@@ -54,8 +54,6 @@ def read_gtdb_genome_quality(metadata_file, keep_db_prefix=False):
             bHeader = False
         else:
             genome_id = row[genome_index]
-            if not keep_db_prefix:
-                genome_id = genome_id.replace('RS_', '').replace('GB_', '')
             comp = float(row[comp_index])
             cont = float(row[cont_index])
 
@@ -64,7 +62,7 @@ def read_gtdb_genome_quality(metadata_file, keep_db_prefix=False):
     return genome_quality
 
 
-def read_gtdb_phylum(metadata_file, keep_db_prefix=False):
+def read_gtdb_phylum(metadata_file):
     """Parse GTDB phylum information from GTDB metadata.
 
     Parameters
@@ -89,14 +87,12 @@ def read_gtdb_phylum(metadata_file, keep_db_prefix=False):
             bHeader = False
         else:
             genome_id = row[genome_index]
-            if not keep_db_prefix:
-                genome_id = genome_id.replace('RS_', '').replace('GB_', '')
             genome_phyla[genome_id] = row[phylum_index]
 
     return genome_phyla
 
 
-def read_gtdb_taxonomy(metadata_file, keep_db_prefix=False):
+def read_gtdb_taxonomy(metadata_file):
     """Parse GTDB taxonomy from GTDB metadata.
 
     Parameters
@@ -121,15 +117,12 @@ def read_gtdb_taxonomy(metadata_file, keep_db_prefix=False):
             bHeader = False
         else:
             genome_id = row[genome_index]
-            if not keep_db_prefix:
-                genome_id = genome_id.replace('RS_', '').replace('GB_', '')
-
             taxonomy[genome_id] = row[taxonomy_index].split(';')
 
     return taxonomy
 
 
-def read_gtdb_ncbi_taxonomy(metadata_file, keep_db_prefix=False):
+def read_gtdb_ncbi_taxonomy(metadata_file):
     """Parse NCBI taxonomy from GTDB metadata.
 
     Parameters
@@ -154,15 +147,12 @@ def read_gtdb_ncbi_taxonomy(metadata_file, keep_db_prefix=False):
             bHeader = False
         else:
             genome_id = row[genome_index]
-            if not keep_db_prefix:
-                genome_id = genome_id.replace('RS_', '').replace('GB_', '')
-
             taxonomy[genome_id] = row[taxonomy_index].split(';')
 
     return taxonomy
 
 
-def read_gtdb_ncbi_type_strain(metadata_file, keep_db_prefix=False):
+def read_gtdb_ncbi_type_strain(metadata_file):
     """Parse NCBI type strain from GTDB metadata.
 
     Parameters
@@ -188,9 +178,6 @@ def read_gtdb_ncbi_type_strain(metadata_file, keep_db_prefix=False):
             bHeader = False
         else:
             genome_id = row[genome_index]
-            if not keep_db_prefix:
-                genome_id = genome_id.replace('RS_', '').replace('GB_', '')
-                
             if bool(row[type_strain_index]):
                 type_strains.add(genome_id)
 

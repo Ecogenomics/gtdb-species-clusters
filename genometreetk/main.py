@@ -33,6 +33,7 @@ from genometreetk.jackknife_markers import JackknifeMarkers
 from genometreetk.jackknife_taxa import JackknifeTaxa
 from genometreetk.combine_support import CombineSupport
 from genometreetk.reroot_tree import RerootTree
+from genometreetk.representatives import Representatives
 from genometreetk.cluster import Cluster
 
 
@@ -55,7 +56,7 @@ class OptionsParser():
 
     def trusted(self, options):
         """Determine trusted genomes."""
-        
+
         check_file_exists(options.metadata_file)
 
         trusted_genome_workflow = TrustedGenomeWorkflow()
@@ -95,7 +96,7 @@ class OptionsParser():
         make_sure_path_exists(options.output_dir)
 
         config_data = self._read_config_file()
-        
+
         self.logger.error('NEED TO FIX ISSUE WITH GENOME DIR FILES!')
         sys.exit(-1)
 
@@ -122,7 +123,7 @@ class OptionsParser():
         check_file_exists(options.genome_id_file)
         check_file_exists(options.marker_id_file)
         make_sure_path_exists(options.output_dir)
-        
+
         self.logger.error('NEED TO FIX ISSUE WITH GENOME DIR FILES!')
         sys.exit(-1)
 
@@ -234,7 +235,7 @@ class OptionsParser():
         reroot = RerootTree()
         reroot.root_with_outgroup(options.input_tree, options.output_tree, outgroup)
 
-    def representative(self, options):
+    def refseq_representatives(self, options):
         """Determine representative genomes in RefSeq."""
 
         check_file_exists(options.metadata_file)
@@ -251,25 +252,51 @@ class OptionsParser():
             print e.message
             raise SystemExit
 
-        self.logger.info('Representative genomes written to: %s' % options.rep_genome_file)
+        self.logger.info('RefSeq representative genomes written to: %s' % options.rep_genome_file)
+
+    def representatives(self, options):
+        """Determine additional representatives genomes."""
+
+        check_file_exists(options.ar_msa_file)
+        check_file_exists(options.bac_msa_file)
+        check_file_exists(options.refseq_representatives)
+        check_file_exists(options.metadata_file)
+
+        try:
+            representatives = Representatives()
+            representatives.run(options.refseq_representatives,
+                                    options.ar_msa_file,
+                                    options.bac_msa_file,
+                                    options.threshold,
+                                    options.min_rep_quality,
+                                    options.metadata_file,
+                                    options.rep_genome_file)
+
+            self.logger.info('Representative genomes written to: %s' % options.rep_genome_file)
+
+        except GenomeTreeTkError as e:
+            print e.message
+            raise SystemExit
 
     def aai_cluster(self, options):
         """Cluster genomes based on AAI."""
 
         check_file_exists(options.ar_msa_file)
         check_file_exists(options.bac_msa_file)
+        check_file_exists(options.representatives)
         check_file_exists(options.metadata_file)
-        make_sure_path_exists(options.output_dir)
 
         try:
             cluster = Cluster(options.cpus)
-            cluster.run(options.ar_msa_file,
+            cluster.run(options.representatives,
+                        options.ar_msa_file,
                         options.bac_msa_file,
-                        options.representative_genomes,
-                        options.metadata_file,
                         options.threshold,
-                        options.min_rep_quality,
-                        options.output_dir)
+                        options.metadata_file,
+                        options.cluster_file)
+
+            self.logger.info('Clustering information written to: %s' % options.cluster_file)
+
         except GenomeTreeTkError as e:
             print e.message
             raise SystemExit
@@ -301,8 +328,10 @@ class OptionsParser():
             self.midpoint(options)
         elif options.subparser_name == 'outgroup':
             self.outgroup(options)
-        elif options.subparser_name == 'representative':
-            self.representative(options)
+        elif options.subparser_name == 'refseq_representatives':
+            self.refseq_representatives(options)
+        elif options.subparser_name == 'representatives':
+            self.representatives(options)
         elif options.subparser_name == 'aai_cluster':
             self.aai_cluster(options)
         else:

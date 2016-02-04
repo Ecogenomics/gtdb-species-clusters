@@ -66,8 +66,9 @@ def print_help():
       outgroup -> Reroot tree with outgroup
 
     Dereplicate:
-      representative -> Determine representative genomes in RefSeq
-      aai_cluster    -> Cluster genomes based on AAI of concatenated alignment
+      refseq_representatives -> Determine representative genomes in RefSeq
+      representatives        -> Determine additional representatives genomes
+      aai_cluster            -> Cluster genomes based on AAI of concatenated alignment
 
   Use: genometreetk <command> -h for command specific help.
 
@@ -161,7 +162,7 @@ if __name__ == '__main__':
     infer_parser.add_argument('genome_id_file', help="unique ids of genomes to include in tree")
     infer_parser.add_argument('marker_id_file', help="unique ids of marker genes to use for inference")
     infer_parser.add_argument('output_dir', help="output directory")
-    infer_parser.add_argument('-m', '--model', choices=['wag', 'jtt'], help="model of evolution to use", default='jtt')
+    infer_parser.add_argument('-m', '--model', choices=['wag', 'jtt'], help="model of evolution to use", default='wag')
     infer_parser.add_argument('-c', '--cpus', help='number of cpus', type=int, default=1)
     infer_parser.add_argument('--silent', help="suppress output", action='store_true')
 
@@ -173,7 +174,7 @@ if __name__ == '__main__':
     bootstrap_parser.add_argument('msa_file', help="file containing multiple sequence alignment")
     bootstrap_parser.add_argument('output_dir', help="output directory")
     bootstrap_parser.add_argument('-b', '--base_type', choices=['nt', 'prot'], help="indicates if bases are nucleotides or amino acids", default='prot')
-    bootstrap_parser.add_argument('-m', '--model', choices=['wag', 'jtt'], help="model of evolution to use", default='jtt')
+    bootstrap_parser.add_argument('-m', '--model', choices=['wag', 'jtt'], help="model of evolution to use", default='wag')
     bootstrap_parser.add_argument('-r', '--num_replicates', help="number of bootstrap replicates to perform", type=int, default=100)
     bootstrap_parser.add_argument('-f', '--fraction', help="fraction of alignment to subsample", type=float, default=1.0)
     bootstrap_parser.add_argument('-c', '--cpus', help='number of cpus', type=int, default=1)
@@ -187,7 +188,7 @@ if __name__ == '__main__':
     jk_markers_parser.add_argument('msa_file', help="file containing multiple sequence alignment")
     jk_markers_parser.add_argument('gene_length_file', help="file indicating length of each gene in concatenated alignment")
     jk_markers_parser.add_argument('output_dir', help="output directory)")
-    jk_markers_parser.add_argument('-m', '--model', choices=['wag', 'jtt'], help="model of evolution to use", default='jtt')
+    jk_markers_parser.add_argument('-m', '--model', choices=['wag', 'jtt'], help="model of evolution to use", default='wag')
     jk_markers_parser.add_argument('-p', '--perc_markers', help="percentage of markers to keep", type=float, default=0.5)
     jk_markers_parser.add_argument('-r', '--num_replicates', help="number of jackknife replicates to perform", type=int, default=100)
     jk_markers_parser.add_argument('-c', '--cpus', help='number of cpus', type=int, default=1)
@@ -201,7 +202,7 @@ if __name__ == '__main__':
     jk_taxa_parser.add_argument('msa_file', help="file containing multiple sequence alignment")
     jk_taxa_parser.add_argument('output_dir', help="output directory")
     jk_taxa_parser.add_argument('--outgroup_ids', help="file indicating outgroup taxa", default=None)
-    jk_taxa_parser.add_argument('-m', '--model', choices=['wag', 'jtt'], help="model of evolution to use", default='jtt')
+    jk_taxa_parser.add_argument('-m', '--model', choices=['wag', 'jtt'], help="model of evolution to use", default='wag')
     jk_taxa_parser.add_argument('-p', '--perc_taxa', help="percentage of taxa to keep", type=float, default=0.5)
     jk_taxa_parser.add_argument('-r', '--num_replicates', help="number of jackknife replicates to perform", type=int, default=100)
     jk_taxa_parser.add_argument('-c', '--cpus', help='number of cpus', type=int, default=1)
@@ -237,12 +238,25 @@ if __name__ == '__main__':
     outgroup_parser.add_argument('--silent', help="suppress output", action='store_true')
 
     # representative genomes
-    rep_parser = subparsers.add_parser('representative',
+    refseq_rep_parser = subparsers.add_parser('refseq_representatives',
                                         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
                                         description='Determine representative genomes in RefSeq.')
+    refseq_rep_parser.add_argument('metadata_file', help="metadata file from GTDB with CheckM estimates for all genomes in RefSeq")
+    refseq_rep_parser.add_argument('rep_genome_file', help="output file listing RefSeq representative genomes")
+    refseq_rep_parser.add_argument('--max_species', help='maximum number of genomes of the same species to retain', type=int, default=1)
+    refseq_rep_parser.add_argument('--min_rep_quality', help='minimum genome quality for a genome to be a representative [0, 100]', type=float, default=90)
+    refseq_rep_parser.add_argument('--silent', help="suppress output", action='store_true')
+
+    # representative genomes
+    rep_parser = subparsers.add_parser('representatives',
+                                        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+                                        description='Determine additional representatives genomes.')
+    rep_parser.add_argument('ar_msa_file', help="file containing canonical archaeal multiple sequence alignment")
+    rep_parser.add_argument('bac_msa_file', help="file containing canonical bacterial multiple sequence alignment")
+    rep_parser.add_argument('refseq_representatives', help="file listing RefSeq representative genomes")
     rep_parser.add_argument('metadata_file', help="metadata file from GTDB with CheckM estimates for all genomes in RefSeq")
-    rep_parser.add_argument('rep_genome_file', help="output file listing dereplicated genomes")
-    rep_parser.add_argument('--max_species', help='maximum number of genomes of the same species to retain', type=int, default=1)
+    rep_parser.add_argument('rep_genome_file', help="output file listing representative genomes")
+    rep_parser.add_argument('--threshold', help='AAI threshold for identifying new representatives', type=float, default=0.99)
     rep_parser.add_argument('--min_rep_quality', help='minimum genome quality for a genome to be a representative [0, 100]', type=float, default=90)
     rep_parser.add_argument('--silent', help="suppress output", action='store_true')
 
@@ -252,12 +266,11 @@ if __name__ == '__main__':
                                         description='Cluster genomes based on AAI of concatenated alignment.')
     aai_cluster_parser.add_argument('ar_msa_file', help="file containing canonical archaeal multiple sequence alignment")
     aai_cluster_parser.add_argument('bac_msa_file', help="file containing canonical bacterial multiple sequence alignment")
-    aai_cluster_parser.add_argument('representative_genomes', help="list of initial representative genomes")
+    aai_cluster_parser.add_argument('representatives', help="list of representative genomes")
     aai_cluster_parser.add_argument('metadata_file', help="metadata file for all genomes in the GTDB")
-    aai_cluster_parser.add_argument('output_dir', help='output_dir')
-    aai_cluster_parser.add_argument('--threshold', help='AAI threshold for forming clusters', type=float, default=0.95)
-    aai_cluster_parser.add_argument('--min_rep_quality', help='minimum genome quality for a genome to be a representative [0, 100]', type=float, default=90)
-    aai_cluster_parser.add_argument('-c', '--cpus', help='number of cpus', type=int, default=32)
+    aai_cluster_parser.add_argument('cluster_file', help='output file indicating genome clusters')
+    aai_cluster_parser.add_argument('--threshold', help='AAI threshold for assigning a genome to a representative', type=float, default=0.99)
+    aai_cluster_parser.add_argument('-c', '--cpus', help='number of cpus', type=int, default=1)
     aai_cluster_parser.add_argument('--silent', help="suppress output", action='store_true')
 
     # get and check options

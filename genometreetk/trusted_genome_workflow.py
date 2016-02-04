@@ -55,7 +55,7 @@ class TrustedGenomeWorkflow(object):
         dict : d[assembly_accession] -> [comp, cont, # contigs, N50]
             Genome statistics for trusted genomes.
         """
-        
+
         trusted_genome_stats = {}
 
         csv_reader = csv.reader(open(metadata_file, 'rt'))
@@ -108,7 +108,7 @@ class TrustedGenomeWorkflow(object):
             Output file to contain list of trusted genomes.
         """
 
-        taxonomy = read_gtdb_taxonomy(metadata_file, keep_db_prefix=True)
+        taxonomy = read_gtdb_taxonomy(metadata_file)
 
         trusted_genomes_stats = self._trusted_genomes(metadata_file,
                                                       trusted_comp, trusted_cont,
