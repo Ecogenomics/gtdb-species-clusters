@@ -256,7 +256,7 @@ if __name__ == '__main__':
     rep_parser.add_argument('refseq_representatives', help="file listing RefSeq representative genomes")
     rep_parser.add_argument('metadata_file', help="metadata file from GTDB with CheckM estimates for all genomes in RefSeq")
     rep_parser.add_argument('rep_genome_file', help="output file listing representative genomes")
-    rep_parser.add_argument('--threshold', help='AAI threshold for identifying new representatives', type=float, default=0.99)
+    rep_parser.add_argument('--threshold', help='AAI threshold for identifying new representatives', type=float, default=0.997)
     rep_parser.add_argument('--min_rep_quality', help='minimum genome quality for a genome to be a representative [0, 100]', type=float, default=90)
     rep_parser.add_argument('--silent', help="suppress output", action='store_true')
 
@@ -269,7 +269,7 @@ if __name__ == '__main__':
     aai_cluster_parser.add_argument('representatives', help="list of representative genomes")
     aai_cluster_parser.add_argument('metadata_file', help="metadata file for all genomes in the GTDB")
     aai_cluster_parser.add_argument('cluster_file', help='output file indicating genome clusters')
-    aai_cluster_parser.add_argument('--threshold', help='AAI threshold for assigning a genome to a representative', type=float, default=0.99)
+    aai_cluster_parser.add_argument('--threshold', help='AAI threshold for assigning a genome to a representative', type=float, default=0.997)
     aai_cluster_parser.add_argument('-c', '--cpus', help='number of cpus', type=int, default=1)
     aai_cluster_parser.add_argument('--silent', help="suppress output", action='store_true')
 

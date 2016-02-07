@@ -60,7 +60,9 @@ class RerootTree(object):
         if mrca.edge_length is None:
             self.logger.info('Tree appears to already be rooted on this outgroup.')
         else:
-            tree.reroot_at_edge(mrca.edge, length1=0.5 * mrca.edge_length, length2=0.5 * mrca.edge_length)
+            tree.reroot_at_edge(mrca.edge,
+                                length1=0.5 * mrca.edge_length,
+                                length2=0.5 * mrca.edge_length)
             tree.write_to_path(output_tree, schema='newick', suppress_rooting=True, unquoted_underscores=True)
 
     def midpoint(self, input_tree, output_tree):
