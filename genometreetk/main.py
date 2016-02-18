@@ -19,6 +19,8 @@ import os
 import sys
 import logging
 
+import dendropy
+
 from biolib.common import check_file_exists, make_sure_path_exists
 from biolib.external.execute import check_dependencies
 from biolib.taxonomy import Taxonomy
@@ -28,6 +30,7 @@ from genometreetk.trusted_genome_workflow import TrustedGenomeWorkflow
 from genometreetk.dereplication_workflow import DereplicationWorkflow
 from genometreetk.marker_workflow import MarkerWorkflow
 from genometreetk.infer_workflow import InferWorkflow
+from genometreetk.ssu_workflow import SSU_Workflow
 from genometreetk.bootstrap import Bootstrap
 from genometreetk.jackknife_markers import JackknifeMarkers
 from genometreetk.jackknife_taxa import JackknifeTaxa
@@ -137,6 +140,20 @@ class OptionsParser():
                                 options.marker_id_file,
                                 options.model,
                                 options.output_dir)
+
+        self.logger.info('Results written to: %s' % options.output_dir)
+
+    def ssu_rep_tree(self, options):
+        """Infer 16S tree spanning NCBI representative and reference genomes."""
+
+        check_dependencies(['ssu-align', 'ssu-mask', 'FastTreeMP'])
+
+        check_file_exists(options.gtdb_metadata_file)
+        check_file_exists(options.gtdb_dir_file)
+        make_sure_path_exists(options.output_dir)
+
+        ssu_workflow = SSU_Workflow(options.gtdb_metadata_file, options.gtdb_dir_file)
+        ssu_workflow.ncbi_rep_tree(options.min_rep_quality, options.output_dir)
 
         self.logger.info('Results written to: %s' % options.output_dir)
 
@@ -301,6 +318,96 @@ class OptionsParser():
             print e.message
             raise SystemExit
 
+    def validate(self, options):
+        """Check taxonomy file is formatted as expected."""
+
+        check_file_exists(options.input_taxonomy)
+
+        taxonomy = Taxonomy()
+        t = taxonomy.read(options.input_taxonomy)
+
+        taxonomy.validate(t,
+                          check_prefixes=True,
+                          check_ranks=True,
+                          check_hierarchy=True,
+                          check_species=True,
+                          report_errors=True)
+
+        self.logger.info('Finished performing validation tests.')
+
+    def binomial(self, options):
+        """Ensure species are designated using binomial nomenclature."""
+
+        check_file_exists(options.input_taxonomy)
+
+        fout = open(options.output_taxonomy, 'w')
+        taxonomy = Taxonomy()
+        t = taxonomy.read(options.input_taxonomy)
+
+        for genome_id, taxon_list in t.iteritems():
+            taxonomy_str = ';'.join(taxon_list)
+            if not taxonomy.check_full(taxonomy_str):
+                sys.exit(-1)
+
+            genus = taxon_list[5][3:]
+            species = taxon_list[6][3:]
+            if species and genus not in species:
+                taxon_list[6] = 's__' + genus + ' ' + species
+                taxonomy_str = ';'.join(taxon_list)
+
+            fout.write('%s\t%s\n' % (genome_id, taxonomy_str))
+
+        fout.close()
+
+
+        self.logger.info('Revised taxonomy written to: %s' % options.output_taxonomy)
+
+    def fill_ranks(self, options):
+        """Ensure taxonomy strings contain all 7 canonical ranks."""
+
+        check_file_exists(options.input_taxonomy)
+
+        fout = open(options.output_taxonomy, 'w')
+        taxonomy = Taxonomy()
+        t = taxonomy.read(options.input_taxonomy)
+
+        for genome_id, taxon_list in t.iteritems():
+            full_taxon_list = taxonomy.fill_missing_ranks(taxon_list)
+
+            taxonomy_str = ';'.join(full_taxon_list)
+            if not taxonomy.check_full(taxonomy_str):
+                sys.exit(-1)
+
+            fout.write('%s\t%s\n' % (genome_id, taxonomy_str))
+
+        fout.close()
+
+        self.logger.info('Revised taxonomy written to: %s' % options.output_taxonomy)
+
+    def strip(self, options):
+        """Remove taxonomic labels from tree."""
+
+        check_file_exists(options.input_tree)
+
+        outgroup_in_tree = set()
+        tree = dendropy.Tree.get_from_path(options.input_tree,
+                                            schema='newick',
+                                            rooting='force-rooted',
+                                            preserve_underscores=True)
+
+        for node in tree.internal_nodes():
+            if node.label:
+                if ':' in node.label:
+                    support, _taxa = node.label.split(':')
+                    node.label = support
+
+        tree.write_to_path(options.output_tree,
+                            schema='newick',
+                            suppress_rooting=True,
+                            unquoted_underscores=True)
+
+        self.logger.info('Stripped tree written to: %s' % options.output_tree)
+
     def parse_options(self, options):
         """Parse user options and call the correct pipeline(s)"""
 
@@ -316,6 +423,8 @@ class OptionsParser():
             self.markers(options)
         elif options.subparser_name == 'infer':
             self.infer(options)
+        elif options.subparser_name == 'ssu_rep_tree':
+            self.ssu_rep_tree(options)
         elif options.subparser_name == 'bootstrap':
             self.bootstrap(options)
         elif options.subparser_name == 'jk_markers':
@@ -334,6 +443,14 @@ class OptionsParser():
             self.representatives(options)
         elif options.subparser_name == 'aai_cluster':
             self.aai_cluster(options)
+        elif options.subparser_name == 'validate':
+            self.validate(options)
+        elif options.subparser_name == 'binomial':
+            self.binomial(options)
+        elif options.subparser_name == 'fill_ranks':
+            self.fill_ranks(options)
+        elif options.subparser_name == 'strip':
+            self.strip(options)
         else:
             self.logger.error('  [Error] Unknown GenomeTreeTk command: ' + options.subparser_name + '\n')
             sys.exit()

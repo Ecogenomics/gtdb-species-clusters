@@ -55,6 +55,9 @@ def print_help():
       markers     -> Determine phylogenetically informative marker genes
       infer       -> Infer genome tree
 
+    Infer 16S tree for GTDB genomes:
+      ssu_rep_tree -> Infer a 16S tree spanning NCBI representative and reference genomes
+
     Assess stability of tree:
       bootstrap  -> Bootstrap multiple sequence alignment
       jk_markers -> Jackknife marker genes
@@ -65,10 +68,17 @@ def print_help():
       midpoint -> Reroot tree at midpoint
       outgroup -> Reroot tree with outgroup
 
-    Dereplicate:
+    Select representative genomes:
       refseq_representatives -> Determine representative genomes in RefSeq
       representatives        -> Determine additional representatives genomes
       aai_cluster            -> Cluster genomes based on AAI of concatenated alignment
+
+    Taxonomy verification and manipulation:
+      validate   -> Check taxonomy file is formatted as expected
+      fill_ranks -> Ensure all taxonomy strings contain all 7 canonical ranks
+      binomial   -> Ensure species are designated using binomial nomenclature
+      strip      -> Remove taxonomic labels from a tree (useful for re-decorating)
+
 
   Use: genometreetk <command> -h for command specific help.
 
@@ -155,7 +165,7 @@ if __name__ == '__main__':
     markers_parser.add_argument('-c', '--cpus', help='number of cpus to use', type=int, default=16)
     markers_parser.add_argument('--silent', help="suppress output", action='store_true')
 
-    # determine marker genes
+    # infer tree
     infer_parser = subparsers.add_parser('infer',
                                         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
                                         description='Infer genome tree.')
@@ -165,6 +175,16 @@ if __name__ == '__main__':
     infer_parser.add_argument('-m', '--model', choices=['wag', 'jtt'], help="model of evolution to use", default='wag')
     infer_parser.add_argument('-c', '--cpus', help='number of cpus', type=int, default=1)
     infer_parser.add_argument('--silent', help="suppress output", action='store_true')
+
+    # infer 16S tree across NCBI representative and reference genomes
+    ssu_rep_tree_parser = subparsers.add_parser('ssu_rep_tree',
+                                        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+                                        description='Infer 16S tree spanning NCBI representative and reference genomes.')
+    ssu_rep_tree_parser.add_argument('gtdb_metadata_file', help="metadata file from GTDB")
+    ssu_rep_tree_parser.add_argument('gtdb_dir_file', help="file indicating path to each GTDB genome")
+    ssu_rep_tree_parser.add_argument('output_dir', help="output directory")
+    ssu_rep_tree_parser.add_argument('--min_rep_quality', help='minimum quality for a genome to be considered [0, 100]', type=float, default=80)
+    ssu_rep_tree_parser.add_argument('--silent', help="suppress output", action='store_true')
 
     # assess robustness of genome tree using classic bootstrapping
     bootstrap_parser = subparsers.add_parser('bootstrap',
@@ -272,6 +292,37 @@ if __name__ == '__main__':
     aai_cluster_parser.add_argument('--threshold', help='AAI threshold for assigning a genome to a representative', type=float, default=0.997)
     aai_cluster_parser.add_argument('-c', '--cpus', help='number of cpus', type=int, default=1)
     aai_cluster_parser.add_argument('--silent', help="suppress output", action='store_true')
+
+    # validate taxonomy file
+    validate_parser = subparsers.add_parser('validate',
+                                        formatter_class=CustomHelpFormatter,
+                                        description='Check taxonomy file is formatted as expected.')
+    validate_parser.add_argument('input_taxonomy', help='input taxonomy file')
+    validate_parser.add_argument('--silent', help="suppress output", action='store_true')
+
+    # fill all 7 taxonomic ranks
+    fill_ranks_parser = subparsers.add_parser('fill_ranks',
+                                        formatter_class=CustomHelpFormatter,
+                                        description='Ensure taxonomy strings contain all 7 canonical ranks.')
+    fill_ranks_parser.add_argument('input_taxonomy', help='input taxonomy file')
+    fill_ranks_parser.add_argument('output_taxonomy', help='output taxonomy file')
+    fill_ranks_parser.add_argument('--silent', help="suppress output", action='store_true')
+
+    # ensure species names use binomial nomenclature
+    binomial_parser = subparsers.add_parser('binomial',
+                                        formatter_class=CustomHelpFormatter,
+                                        description='Ensure species are designated using binomial nomenclature.')
+    binomial_parser.add_argument('input_taxonomy', help='input taxonomy file')
+    binomial_parser.add_argument('output_taxonomy', help='output taxonomy file')
+    binomial_parser.add_argument('--silent', help="suppress output", action='store_true')
+
+    # strip taxonomic labels from tree
+    strip_parser = subparsers.add_parser('strip',
+                                        formatter_class=CustomHelpFormatter,
+                                        description='Remove taxonomic labels from a tree.')
+    strip_parser.add_argument('input_tree', help="tree to reroot")
+    strip_parser.add_argument('output_tree', help="output tree")
+    strip_parser.add_argument('--silent', help="suppress output", action='store_true')
 
     # get and check options
     args = None
