@@ -75,7 +75,7 @@ class SSU_Workflow(object):
 
             if not os.path.exists(ssu_hmm_file):
                 no_identified_ssu += 1
-                self.logger.warning('RefSeq representative %s has no identified 16S sequence.' % genome_id)
+                #self.logger.warning('Genome %s has no identified 16S sequence.' % genome_id)
                 continue
 
 
@@ -110,7 +110,7 @@ class SSU_Workflow(object):
                     fout.write(seqs[seq_id] + '\n')
         fout.close()
 
-        self.logger.info('Identified %d RefSeq representatives with no 16S sequence.' % no_identified_ssu)
+        self.logger.info('Identified %d genomes with no 16S sequence.' % no_identified_ssu)
 
         return ssu_output_file
 
@@ -208,43 +208,56 @@ class SSU_Workflow(object):
         self.logger.info('Filtered %d of %d sequences due to length.' % (num_filtered_seq, len(seqs) - len(identical_seqs)))
         self.logger.info('Short sequence written to: %s' % short_seq_file)
 
-    def ncbi_rep_tree(self, min_rep_quality, output_dir):
-        """Infer 16S tree for NCBI representative and reference genomes.
+    def run(self, min_quality, ncbi_rep_only, user_genomes, output_dir):
+        """Infer 16S tree spanning select GTDB genomes.
 
         Parameters
         ----------
-        min_rep_quality : float [0, 100]
-            Minimum genome quality for a genome to be a representative.
+        min_quality : float [0, 100]
+            Minimum genome quality for a genome to be include in tree.
+        ncbi_rep_only : boolean
+            Restrict tree to NCBI representative and reference genomes.
+        user_genomes : boolean
+            Include User genomes in tree.
         output_dir : str
             Directory to store results
         """
 
-        accession_to_taxid, _complete_genomes, representative_genomes = ncbi.read_refseq_metadata(self.gtdb_metadata_file , keep_db_prefix=True)
-        self.logger.info('Identified %d RefSeq genomes.' % len(accession_to_taxid))
-        self.logger.info('Identified %d representative or reference genomes.' % len(representative_genomes))
+        genome_quality = read_gtdb_genome_quality(self.gtdb_metadata_file)
+
+        num_user_genomes = 0
+        num_ncbi_genomes = 0
+        for genome_id in genome_quality:
+            if genome_id.startswith('U_'):
+                num_user_genomes += 1
+            elif genome_id.startswith('RS_') or genome_id.startswith('GB_'):
+                num_ncbi_genomes += 1
+            else:
+                self.logger.warning('Unrecognized genome prefix: %s' % genome_id)
+        self.logger.info('Considering %d genomes (%d NCBI, %d User).' % (len(genome_quality), num_ncbi_genomes, num_user_genomes))
+
+        if ncbi_rep_only:
+            _accession_to_taxid, _complete_genomes, ncbi_rep_genomes = ncbi.read_refseq_metadata(self.gtdb_metadata_file , keep_db_prefix=True)
+            self.logger.info('Identified %d RefSeq genomes.' % len(accession_to_taxid))
+            self.logger.info('Identified %d representative or reference genomes.' % len(ncbi_rep_genomes))
 
         # access genome quality
-        genome_quality = read_gtdb_genome_quality(self.gtdb_metadata_file)
-        missing_quality = set(accession_to_taxid.keys()) - set(genome_quality.keys())
-        if missing_quality:
-            self.logger.error('There are %d genomes without metadata information.' % len(missing_quality))
-            sys.exit()
-
         new_genomes_to_consider = []
-        poor_quality_ref_genomes = 0
-        for genome_id in list(representative_genomes):
+        poor_quality_genomes = 0
+        for genome_id in genome_quality:
+            if not user_genomes and genome_id.startswith('U_'):
+                continue
+
             comp, cont, qual = genome_quality.get(genome_id, [-1, -1, -1])
-            if qual >= min_rep_quality:
-                new_genomes_to_consider.append(genome_id)
-            else:
-                # check if genome is marked as a representative at NCBI
-                if genome_id in representative_genomes:
-                    poor_quality_ref_genomes += 1
-                    self.logger.warning('Filtered RefSeq representative %s with comp = %.2f, cont = %.2f' % (genome_id, comp, cont))
+            if not ncbi_rep_only or (genome_id in ncbi_rep_genomes):
+                if qual >= min_quality:
+                    new_genomes_to_consider.append(genome_id)
+                else:
+                    poor_quality_genomes += 1
 
         genomes_to_consider = new_genomes_to_consider
-        self.logger.info('Filtered %d poor quality RefSeq representative genomes.' % poor_quality_ref_genomes)
-        self.logger.info('Considering %d genomes after filtering at a quality of %.2f.' % (len(genomes_to_consider), min_rep_quality))
+        self.logger.info('Filtered %d poor-quality genomes.' % poor_quality_genomes)
+        self.logger.info('Considering %d genomes after filtering at a quality of %.2f.' % (len(genomes_to_consider), min_quality))
 
         # get SSU sequences for genomes
         ssu_output_file = self._get_ssu_seqs(genomes_to_consider, output_dir)
@@ -261,5 +274,5 @@ class SSU_Workflow(object):
             self._trim_seqs(input_msa, trimmed_msa)
 
             # infer tree
-            output_tree = os.path.join(output_dir, domain + '.ssu_refseq_reps.tree')
+            output_tree = os.path.join(output_dir, domain + '.tree')
             os.system('FastTreeMP -nosupport -nt -gamma %s > %s' % (trimmed_msa, output_tree))

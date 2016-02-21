@@ -143,8 +143,8 @@ class OptionsParser():
 
         self.logger.info('Results written to: %s' % options.output_dir)
 
-    def ssu_rep_tree(self, options):
-        """Infer 16S tree spanning NCBI representative and reference genomes."""
+    def ssu_tree(self, options):
+        """Infer 16S tree spanning GTDB genomes."""
 
         check_dependencies(['ssu-align', 'ssu-mask', 'FastTreeMP'])
 
@@ -153,7 +153,7 @@ class OptionsParser():
         make_sure_path_exists(options.output_dir)
 
         ssu_workflow = SSU_Workflow(options.gtdb_metadata_file, options.gtdb_dir_file)
-        ssu_workflow.ncbi_rep_tree(options.min_rep_quality, options.output_dir)
+        ssu_workflow.run(options.min_quality, options.ncbi_rep_only, options.user_genomes, options.output_dir)
 
         self.logger.info('Results written to: %s' % options.output_dir)
 
@@ -423,8 +423,8 @@ class OptionsParser():
             self.markers(options)
         elif options.subparser_name == 'infer':
             self.infer(options)
-        elif options.subparser_name == 'ssu_rep_tree':
-            self.ssu_rep_tree(options)
+        elif options.subparser_name == 'ssu_tree':
+            self.ssu_tree(options)
         elif options.subparser_name == 'bootstrap':
             self.bootstrap(options)
         elif options.subparser_name == 'jk_markers':

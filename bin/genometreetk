@@ -56,7 +56,7 @@ def print_help():
       infer       -> Infer genome tree
 
     Infer 16S tree for GTDB genomes:
-      ssu_rep_tree -> Infer a 16S tree spanning NCBI representative and reference genomes
+      ssu_tree -> Infer a 16S tree spanning GTDB genomes
 
     Assess stability of tree:
       bootstrap  -> Bootstrap multiple sequence alignment
@@ -176,15 +176,17 @@ if __name__ == '__main__':
     infer_parser.add_argument('-c', '--cpus', help='number of cpus', type=int, default=1)
     infer_parser.add_argument('--silent', help="suppress output", action='store_true')
 
-    # infer 16S tree across NCBI representative and reference genomes
-    ssu_rep_tree_parser = subparsers.add_parser('ssu_rep_tree',
+    # infer 16S tree across GTDB genomes
+    ssu_tree_parser = subparsers.add_parser('ssu_tree',
                                         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
-                                        description='Infer 16S tree spanning NCBI representative and reference genomes.')
-    ssu_rep_tree_parser.add_argument('gtdb_metadata_file', help="metadata file from GTDB")
-    ssu_rep_tree_parser.add_argument('gtdb_dir_file', help="file indicating path to each GTDB genome")
-    ssu_rep_tree_parser.add_argument('output_dir', help="output directory")
-    ssu_rep_tree_parser.add_argument('--min_rep_quality', help='minimum quality for a genome to be considered [0, 100]', type=float, default=80)
-    ssu_rep_tree_parser.add_argument('--silent', help="suppress output", action='store_true')
+                                        description='Infer 16S tree spanning GTDBgenomes.')
+    ssu_tree_parser.add_argument('gtdb_metadata_file', help="metadata file from GTDB")
+    ssu_tree_parser.add_argument('gtdb_dir_file', help="file indicating path to each GTDB genome")
+    ssu_tree_parser.add_argument('output_dir', help="output directory")
+    ssu_tree_parser.add_argument('--ncbi_rep_only', help="include only NCBI representative and reference genomes", action='store_true')
+    ssu_tree_parser.add_argument('--user_genomes', help="include User genomes (default is NCBI only)", action='store_true')
+    ssu_tree_parser.add_argument('--min_quality', help='minimum quality for a genome to be included in tree [0, 100]', type=float, default=80)
+    ssu_tree_parser.add_argument('--silent', help="suppress output", action='store_true')
 
     # assess robustness of genome tree using classic bootstrapping
     bootstrap_parser = subparsers.add_parser('bootstrap',
