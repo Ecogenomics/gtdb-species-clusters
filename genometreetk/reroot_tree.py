@@ -45,25 +45,28 @@ class RerootTree(object):
         for taxa in outgroup:
             node = tree.find_node_with_taxon_label(taxa)
             if not node:
-                self.logger.warning('Missing taxa %s.' % taxa)
+                #self.logger.warning('Missing taxa %s.' % taxa)
+                pass
             else:
                 outgroup_in_tree.add(taxa)
 
         mrca = tree.mrca(taxon_labels=outgroup_in_tree)
 
         if len(mrca.leaf_nodes()) != len(outgroup_in_tree):
-            self.logger.info('Outgroup is not monophyletic. Tree was rerooted at the MRCA of the outgroup.')
+            self.logger.info('Outgroup is not monophyletic. Tree will be rerooted at the MRCA of the outgroup.')
             self.logger.info('The outgroup consisted of %d taxa, while the MRCA has %d leaf nodes.' % (len(outgroup_in_tree), len(mrca.leaf_nodes())))
         else:
-            self.logger.info('Outgroup is monophyletic. Tree rerooted.')
+            self.logger.info('Outgroup is monophyletic.')
 
         if mrca.edge_length is None:
             self.logger.info('Tree appears to already be rooted on this outgroup.')
         else:
+            self.logger.info('Rerooting tree.')
             tree.reroot_at_edge(mrca.edge,
                                 length1=0.5 * mrca.edge_length,
                                 length2=0.5 * mrca.edge_length)
             tree.write_to_path(output_tree, schema='newick', suppress_rooting=True, unquoted_underscores=True)
+            self.logger.info('Rerooted tree written to: %s' % output_tree)
 
     def midpoint(self, input_tree, output_tree):
         """Reroot tree bat midpoint.

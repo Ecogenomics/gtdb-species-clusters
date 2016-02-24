@@ -77,6 +77,7 @@ def print_help():
       validate   -> Check taxonomy file is formatted as expected
       fill_ranks -> Ensure all taxonomy strings contain all 7 canonical ranks
       binomial   -> Ensure species are designated using binomial nomenclature
+      propagate  -> Propagate labels from representatives to all genomes in a cluster
       strip      -> Remove taxonomic labels from a tree (useful for re-decorating)
 
 
@@ -317,6 +318,15 @@ if __name__ == '__main__':
     binomial_parser.add_argument('input_taxonomy', help='input taxonomy file')
     binomial_parser.add_argument('output_taxonomy', help='output taxonomy file')
     binomial_parser.add_argument('--silent', help="suppress output", action='store_true')
+
+    # ensure species names use binomial nomenclature
+    propagate_parser = subparsers.add_parser('propagate',
+                                        formatter_class=CustomHelpFormatter,
+                                        description='Propagate labels to all genomes in a cluster.')
+    propagate_parser.add_argument('input_taxonomy', help='input taxonomy file')
+    propagate_parser.add_argument('metadata_file', help="metadata file for all genomes in the GTDB")
+    propagate_parser.add_argument('output_taxonomy', help='output taxonomy file')
+    propagate_parser.add_argument('--silent', help="suppress output", action='store_true')
 
     # strip taxonomic labels from tree
     strip_parser = subparsers.add_parser('strip',

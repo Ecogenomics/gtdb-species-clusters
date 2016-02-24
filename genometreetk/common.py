@@ -27,6 +27,46 @@ import biolib.seq_io as seq_io
 
 from genometreetk.default_values import DefaultValues
 
+def read_gtdb_metadata(metadata_file, fields):
+    """Parse genome quality from GTDB metadata.
+
+    Parameters
+    ----------
+    metadata_file : str
+        Metadata for all genomes in CSV file.
+    fields : iterable
+        Fields  to read.
+
+    Return
+    ------
+    dict : d[genome_id] -> list
+        Value for fields indicted by genome IDs.
+    """
+
+    m = {}
+
+    csv_reader = csv.reader(open(metadata_file, 'rt'))
+    bHeader = True
+    for row in csv_reader:
+        if bHeader:
+            headers = row
+
+            genome_index = headers.index('genome')
+
+            indices = []
+            for field in fields:
+                indices.append(headers.index(field))
+
+            bHeader = False
+        else:
+            genome_id = row[genome_index]
+
+            values = [row[i] for i in indices]
+
+            m[genome_id] = values
+
+    return m
+
 
 def read_gtdb_genome_quality(metadata_file):
     """Parse genome quality from GTDB metadata.

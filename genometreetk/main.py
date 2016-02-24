@@ -38,6 +38,7 @@ from genometreetk.combine_support import CombineSupport
 from genometreetk.reroot_tree import RerootTree
 from genometreetk.representatives import Representatives
 from genometreetk.cluster import Cluster
+from genometreetk.common import read_gtdb_metadata
 
 
 class OptionsParser():
@@ -335,6 +336,28 @@ class OptionsParser():
 
         self.logger.info('Finished performing validation tests.')
 
+    def fill_ranks(self, options):
+        """Ensure taxonomy strings contain all 7 canonical ranks."""
+
+        check_file_exists(options.input_taxonomy)
+
+        fout = open(options.output_taxonomy, 'w')
+        taxonomy = Taxonomy()
+        t = taxonomy.read(options.input_taxonomy)
+
+        for genome_id, taxon_list in t.iteritems():
+            full_taxon_list = taxonomy.fill_missing_ranks(taxon_list)
+
+            taxonomy_str = ';'.join(full_taxon_list)
+            if not taxonomy.check_full(taxonomy_str):
+                sys.exit(-1)
+
+            fout.write('%s\t%s\n' % (genome_id, taxonomy_str))
+
+        fout.close()
+
+        self.logger.info('Revised taxonomy written to: %s' % options.output_taxonomy)
+
     def binomial(self, options):
         """Ensure species are designated using binomial nomenclature."""
 
@@ -362,27 +385,47 @@ class OptionsParser():
 
         self.logger.info('Revised taxonomy written to: %s' % options.output_taxonomy)
 
-    def fill_ranks(self, options):
-        """Ensure taxonomy strings contain all 7 canonical ranks."""
+    def propagate(self, options):
+        """Propagate labels to all genomes in a cluster."""
 
         check_file_exists(options.input_taxonomy)
+        check_file_exists(options.metadata_file)
 
-        fout = open(options.output_taxonomy, 'w')
+        # get representative genome information
+        rep_metadata = read_gtdb_metadata(options.metadata_file, ['gtdb_representative',
+                                                                  'gtdb_clustered_genomes'])
+
         taxonomy = Taxonomy()
         t = taxonomy.read(options.input_taxonomy)
-
+        expanded_taxonomy = {}
         for genome_id, taxon_list in t.iteritems():
-            full_taxon_list = taxonomy.fill_missing_ranks(taxon_list)
-
-            taxonomy_str = ';'.join(full_taxon_list)
-            if not taxonomy.check_full(taxonomy_str):
+            if genome_id in expanded_taxonomy:
+                # this should never happen
+                self.logger.error('Genome has both a representative and explicit taxonomy string: %s' % cluster_genome_id)
                 sys.exit(-1)
 
-            fout.write('%s\t%s\n' % (genome_id, taxonomy_str))
+            taxonomy_str = ';'.join(taxon_list)
+            expanded_taxonomy[genome_id] = taxonomy_str
 
+            _rep_genome, clustered_genomes = rep_metadata[genome_id]
+            if clustered_genomes:
+                for cluster_genome_id in clustered_genomes.split(';'):
+                    if cluster_genome_id == genome_id:
+                        continue
+
+                    if cluster_genome_id in expanded_taxonomy:
+                        # this should never happen
+                        self.logger.error('Genome has both a representative and explicit taxonomy string: %s' % cluster_genome_id)
+                        sys.exit(-1)
+
+                    expanded_taxonomy[cluster_genome_id] = taxonomy_str
+
+        fout = open(options.output_taxonomy, 'w')
+        for genome_id, taxonomy_str in expanded_taxonomy.iteritems():
+            fout.write('%s\t%s\n' % (genome_id, taxonomy_str))
         fout.close()
 
-        self.logger.info('Revised taxonomy written to: %s' % options.output_taxonomy)
+        self.logger.info('Taxonomy written to: %s' % options.output_taxonomy)
 
     def strip(self, options):
         """Remove taxonomic labels from tree."""
@@ -447,6 +490,10 @@ class OptionsParser():
             self.validate(options)
         elif options.subparser_name == 'binomial':
             self.binomial(options)
+        elif options.subparser_name == 'binomial':
+            self.binomial(options)
+        elif options.subparser_name == 'propagate':
+            self.propagate(options)
         elif options.subparser_name == 'fill_ranks':
             self.fill_ranks(options)
         elif options.subparser_name == 'strip':
