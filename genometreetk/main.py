@@ -154,7 +154,13 @@ class OptionsParser():
         make_sure_path_exists(options.output_dir)
 
         ssu_workflow = SSU_Workflow(options.gtdb_metadata_file, options.gtdb_dir_file)
-        ssu_workflow.run(options.min_quality, options.ncbi_rep_only, options.user_genomes, options.output_dir)
+        ssu_workflow.run(options.min_ssu_length,
+                         options.min_quality,
+                         options.max_contigs,
+                         options.min_N50,
+                         options.ncbi_rep_only,
+                         options.user_genomes,
+                         options.output_dir)
 
         self.logger.info('Results written to: %s' % options.output_dir)
 

@@ -24,7 +24,7 @@ from biolib.misc.time_keeper import TimeKeeper
 from biolib.external.fasttree import FastTree
 
 import genometreetk.ncbi as ncbi
-from genometreetk.common import (read_gtdb_genome_quality,
+from genometreetk.common import (read_gtdb_metadata,
                                     read_genome_dir_file)
 
 
@@ -47,11 +47,13 @@ class SSU_Workflow(object):
         self.gtdb_metadata_file = gtdb_metadata_file
         self.genome_dir_file = genome_dir_file
 
-    def _get_ssu_seqs(self, genomes_to_consider, output_dir):
+    def _get_ssu_seqs(self, min_ssu_length, genomes_to_consider, output_dir):
         """Get 16S sequences from genomes.
 
         Parameters
         ----------
+        min_ssu_length : int
+            Minimum required length of 16S sequences.
         genomes_to_consider : iterable
             IDs of genomes to obtain 16S sequences.
         output_dir : str
@@ -75,35 +77,42 @@ class SSU_Workflow(object):
 
             if not os.path.exists(ssu_hmm_file):
                 no_identified_ssu += 1
-                #self.logger.warning('Genome %s has no identified 16S sequence.' % genome_id)
+                # self.logger.warning('Genome %s has no identified 16S sequence.' % genome_id)
                 continue
 
 
             with open(ssu_hmm_file) as f:
                 headers = f.readline().rstrip().split('\t')
                 hmm_model_index = headers.index('HMM')
-                length_index = headers.index('SSU gene length')
+                ssu_length_index = headers.index('SSU gene length')
+                contig_length_index = headers.index('Sequence length')
 
-                longest_query_len = 0
+                longest_contig_len = 0
                 best_hmm_model = None
                 seq_info = None
                 seq_id = None
                 for line in f:
                     line_split = line.rstrip().split('\t')
-                    query_len = int(line_split[length_index])
+
+                    ssu_query_len = int(line_split[ssu_length_index])
+                    if ssu_query_len < min_ssu_length:
+                        continue
+
                     hmm_model = line_split[hmm_model_index]
-                    if query_len > longest_query_len or (best_hmm_model == 'euk' and hmm_model != 'euk'):
-                        # preferentially select the longest sequence, but aim
+                    contig_length = int(line_split[contig_length_index])
+
+                    if contig_length > longest_contig_len or (best_hmm_model == 'euk' and hmm_model != 'euk'):
+                        # preferentially select the longest contig, but aim
                         # for a SSU that had the best match to either the archaeal
                         # or bacterial HMM models as we know these genomes are prokaryotic
                         # (sequences with a best hit to a Eukaryotic model will appear as
                         # Euks when aligned with ssu-align!)
-                        longest_query_len = query_len
+                        longest_contig_len = contig_length
                         best_hmm_model = hmm_model
                         seq_id = line_split[0]
                         seq_info = line.strip()
 
-                if longest_query_len:
+                if longest_contig_len:
                     ssu_seq_file = os.path.join(genome_dirs[genome_id], 'ssu_gg_2013_08', 'ssu.fna')
                     seqs = seq_io.read_fasta(ssu_seq_file)
                     fout.write('>' + genome_id + ' ' + seq_info + '\n')
@@ -208,11 +217,19 @@ class SSU_Workflow(object):
         self.logger.info('Filtered %d of %d sequences due to length.' % (num_filtered_seq, len(seqs) - len(identical_seqs)))
         self.logger.info('Short sequence written to: %s' % short_seq_file)
 
-    def run(self, min_quality, ncbi_rep_only, user_genomes, output_dir):
+    def run(self, min_ssu_length,
+                    min_quality,
+                    max_contigs,
+                    min_N50,
+                    ncbi_rep_only,
+                    user_genomes,
+                    output_dir):
         """Infer 16S tree spanning select GTDB genomes.
 
         Parameters
         ----------
+        min_ssu_length : int
+            Minimum required length of 16S sequences.
         min_quality : float [0, 100]
             Minimum genome quality for a genome to be include in tree.
         ncbi_rep_only : boolean
@@ -223,7 +240,10 @@ class SSU_Workflow(object):
             Directory to store results
         """
 
-        genome_quality = read_gtdb_genome_quality(self.gtdb_metadata_file)
+        genome_quality = read_gtdb_metadata(self.gtdb_metadata_file, ['checkm_completeness',
+                                                                      'checkm_contamination',
+                                                                      'scaffold_count',
+                                                                      'n50_contigs'])
 
         num_user_genomes = 0
         num_ncbi_genomes = 0
@@ -248,19 +268,22 @@ class SSU_Workflow(object):
             if not user_genomes and genome_id.startswith('U_'):
                 continue
 
-            comp, cont, qual = genome_quality.get(genome_id, [-1, -1, -1])
+            comp, cont, scaffold_count, n50_contigs = genome_quality.get(genome_id, [-1, -1, -1])
             if not ncbi_rep_only or (genome_id in ncbi_rep_genomes):
-                if qual >= min_quality:
+                q = float(comp) - float(cont)
+                if q >= min_quality and int(scaffold_count) <= max_contigs and int(n50_contigs) >= min_N50:
                     new_genomes_to_consider.append(genome_id)
                 else:
                     poor_quality_genomes += 1
 
         genomes_to_consider = new_genomes_to_consider
-        self.logger.info('Filtered %d poor-quality genomes.' % poor_quality_genomes)
-        self.logger.info('Considering %d genomes after filtering at a quality of %.2f.' % (len(genomes_to_consider), min_quality))
+        self.logger.info('Filtered %d genomes.' % poor_quality_genomes)
+        self.logger.info('Considering %d genomes after filtering.' % len(genomes_to_consider))
 
         # get SSU sequences for genomes
-        ssu_output_file = self._get_ssu_seqs(genomes_to_consider, output_dir)
+        ssu_output_file = self._get_ssu_seqs(min_ssu_length,
+                                             genomes_to_consider,
+                                             output_dir)
 
         # align sequences
         ssu_align_dir = os.path.join(output_dir, 'ssu_align')

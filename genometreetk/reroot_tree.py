@@ -15,6 +15,7 @@
 #                                                                             #
 ###############################################################################
 
+import sys
 import logging
 
 import dendropy
@@ -49,6 +50,11 @@ class RerootTree(object):
                 pass
             else:
                 outgroup_in_tree.add(taxa)
+
+        if len(outgroup_in_tree) == 0:
+            self.logger.warning('No outgroup taxa identified in the tree.')
+            self.logger.warning('Tree was not rerooted.')
+            sys.exit(0)
 
         mrca = tree.mrca(taxon_labels=outgroup_in_tree)
 
