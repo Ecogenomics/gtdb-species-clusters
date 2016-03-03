@@ -121,6 +121,7 @@ def logger_setup(output_dir, silent):
     logger.info('GenomeTreeTk v%s' % version())
     logger.info(ntpath.basename(sys.argv[0]) + ' ' + ' '.join(sys.argv[1:]))
 
+
 if __name__ == '__main__':
 
     # initialize the options parser
@@ -187,6 +188,7 @@ if __name__ == '__main__':
     ssu_tree_parser.add_argument('--ncbi_rep_only', help="include only NCBI representative and reference genomes", action='store_true')
     ssu_tree_parser.add_argument('--user_genomes', help="include User genomes (default is NCBI only)", action='store_true')
     ssu_tree_parser.add_argument('--min_ssu_length', help='minimum length of 16S sequence to be include in tree', type=int, default=1200)
+    ssu_tree_parser.add_argument('--min_ssu_contig', help='minimum length of contig containing 16S sequence to be include in tree', type=int, default=5000)
     ssu_tree_parser.add_argument('--min_quality', help='minimum quality (completeness - contamination) for a genome to be included in tree [0, 100]', type=float, default=80)
     ssu_tree_parser.add_argument('--max_contigs', help='maximum contigs comprising a genome for it to be included in tree', type=int, default=200)
     ssu_tree_parser.add_argument('--min_N50', help='minimum N50 of contigs for a genome to be include in tree', type=int, default=20000)

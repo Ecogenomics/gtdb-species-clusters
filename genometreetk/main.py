@@ -155,6 +155,7 @@ class OptionsParser():
 
         ssu_workflow = SSU_Workflow(options.gtdb_metadata_file, options.gtdb_dir_file)
         ssu_workflow.run(options.min_ssu_length,
+                         options.min_ssu_contig,
                          options.min_quality,
                          options.max_contigs,
                          options.min_N50,

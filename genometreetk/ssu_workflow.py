@@ -47,13 +47,19 @@ class SSU_Workflow(object):
         self.gtdb_metadata_file = gtdb_metadata_file
         self.genome_dir_file = genome_dir_file
 
-    def _get_ssu_seqs(self, min_ssu_length, genomes_to_consider, output_dir):
+    def _get_ssu_seqs(self,
+                      min_ssu_length,
+                      min_ssu_contig,
+                      genomes_to_consider,
+                      output_dir):
         """Get 16S sequences from genomes.
 
         Parameters
         ----------
         min_ssu_length : int
             Minimum required length of 16S sequences.
+        min_ssu_contig : int
+            Minimum required length of contig containing 16S sequence.
         genomes_to_consider : iterable
             IDs of genomes to obtain 16S sequences.
         output_dir : str
@@ -100,6 +106,8 @@ class SSU_Workflow(object):
 
                     hmm_model = line_split[hmm_model_index]
                     contig_length = int(line_split[contig_length_index])
+                    if contig_length < min_ssu_contig:
+                        continue
 
                     if contig_length > longest_contig_len or (best_hmm_model == 'euk' and hmm_model != 'euk'):
                         # preferentially select the longest contig, but aim
@@ -119,7 +127,7 @@ class SSU_Workflow(object):
                     fout.write(seqs[seq_id] + '\n')
         fout.close()
 
-        self.logger.info('Identified %d genomes with no 16S sequence.' % no_identified_ssu)
+        self.logger.info('Identified %d genomes with no 16S sequence meeting filtering criteria.' % no_identified_ssu)
 
         return ssu_output_file
 
@@ -218,6 +226,7 @@ class SSU_Workflow(object):
         self.logger.info('Short sequence written to: %s' % short_seq_file)
 
     def run(self, min_ssu_length,
+                    min_ssu_contig,
                     min_quality,
                     max_contigs,
                     min_N50,
@@ -230,6 +239,8 @@ class SSU_Workflow(object):
         ----------
         min_ssu_length : int
             Minimum required length of 16S sequences.
+        min_ssu_contig : int
+            Minimum required length of contig containing 16S sequence.
         min_quality : float [0, 100]
             Minimum genome quality for a genome to be include in tree.
         ncbi_rep_only : boolean
@@ -282,6 +293,7 @@ class SSU_Workflow(object):
 
         # get SSU sequences for genomes
         ssu_output_file = self._get_ssu_seqs(min_ssu_length,
+                                             min_ssu_contig,
                                              genomes_to_consider,
                                              output_dir)
 

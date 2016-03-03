@@ -46,7 +46,7 @@ class RerootTree(object):
         for taxa in outgroup:
             node = tree.find_node_with_taxon_label(taxa)
             if not node:
-                #self.logger.warning('Missing taxa %s.' % taxa)
+                # self.logger.warning('Missing taxa %s.' % taxa)
                 pass
             else:
                 outgroup_in_tree.add(taxa)
@@ -61,6 +61,10 @@ class RerootTree(object):
         if len(mrca.leaf_nodes()) != len(outgroup_in_tree):
             self.logger.info('Outgroup is not monophyletic. Tree will be rerooted at the MRCA of the outgroup.')
             self.logger.info('The outgroup consisted of %d taxa, while the MRCA has %d leaf nodes.' % (len(outgroup_in_tree), len(mrca.leaf_nodes())))
+            if len(mrca.leaf_nodes()) == len(tree.leaf_nodes()):
+                self.logger.warning('The MRCA spans all taxa in the tree.')
+                self.logger.warning('This indicating the selected outgroup is likely polyphyletic in the current tree.')
+                self.logger.warning('Polyphyletic outgroups are not suitable for rooting. Try another outgroup.')
         else:
             self.logger.info('Outgroup is monophyletic.')
 
