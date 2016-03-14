@@ -414,7 +414,10 @@ class OptionsParser():
             taxonomy_str = ';'.join(taxon_list)
             expanded_taxonomy[genome_id] = taxonomy_str
 
-            _rep_genome, clustered_genomes = rep_metadata[genome_id]
+            # propagate taxonomy strings from representatives. Note that a genome may
+            # not have metadata as it is possible a User has removed a genome that
+            # is in the provided taxonomy file.
+            _rep_genome, clustered_genomes = rep_metadata.get(genome_id, (None, None))
             if clustered_genomes:
                 for cluster_genome_id in clustered_genomes.split(';'):
                     if cluster_genome_id == genome_id:

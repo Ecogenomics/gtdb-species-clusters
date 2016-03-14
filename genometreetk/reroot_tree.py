@@ -43,20 +43,20 @@ class RerootTree(object):
 
         outgroup_in_tree = set()
         tree = dendropy.Tree.get_from_path(input_tree, schema='newick', rooting='force-rooted', preserve_underscores=True)
-        for taxa in outgroup:
-            node = tree.find_node_with_taxon_label(taxa)
-            if not node:
-                # self.logger.warning('Missing taxa %s.' % taxa)
-                pass
-            else:
-                outgroup_in_tree.add(taxa)
+
+        outgroup = set(outgroup)
+        for n in tree.leaf_node_iter():
+            if n.taxon.label in outgroup:
+                outgroup_in_tree.add(n.taxon)
+
+        self.logger.info('Identified %d outgroup taxa in the tree.' % len(outgroup_in_tree))
 
         if len(outgroup_in_tree) == 0:
             self.logger.warning('No outgroup taxa identified in the tree.')
             self.logger.warning('Tree was not rerooted.')
             sys.exit(0)
 
-        mrca = tree.mrca(taxon_labels=outgroup_in_tree)
+        mrca = tree.mrca(taxa=outgroup_in_tree)
 
         if len(mrca.leaf_nodes()) != len(outgroup_in_tree):
             self.logger.info('Outgroup is not monophyletic. Tree will be rerooted at the MRCA of the outgroup.')
