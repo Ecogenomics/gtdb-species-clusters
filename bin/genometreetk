@@ -69,9 +69,9 @@ def print_help():
       outgroup -> Reroot tree with outgroup
 
     Select representative genomes:
-      refseq_representatives -> Determine representative genomes in RefSeq
-      representatives        -> Determine additional representatives genomes
-      aai_cluster            -> Cluster genomes based on AAI of concatenated alignment
+      refseq_reps -> Determine representative genomes in RefSeq
+      reps        -> Determine additional representatives genomes
+      aai_cluster -> Cluster genomes based on AAI of concatenated alignment
 
     Taxonomy verification and manipulation:
       validate   -> Check taxonomy file is formatted as expected
@@ -266,17 +266,18 @@ if __name__ == '__main__':
     outgroup_parser.add_argument('--silent', help="suppress output", action='store_true')
 
     # representative genomes
-    refseq_rep_parser = subparsers.add_parser('refseq_representatives',
+    refseq_rep_parser = subparsers.add_parser('refseq_reps',
                                         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
                                         description='Determine representative genomes in RefSeq.')
     refseq_rep_parser.add_argument('metadata_file', help="metadata file from GTDB with CheckM estimates for all genomes in RefSeq")
     refseq_rep_parser.add_argument('rep_genome_file', help="output file listing RefSeq representative genomes")
-    refseq_rep_parser.add_argument('--max_species', help='maximum number of genomes of the same species to retain', type=int, default=1)
-    refseq_rep_parser.add_argument('--min_rep_quality', help='minimum genome quality for a genome to be a representative [0, 100]', type=float, default=90)
+    refseq_rep_parser.add_argument('--max_species', help='maximum number of genomes of the same species to retain', type=int, default=2)
+    refseq_rep_parser.add_argument('--min_rep_comp', help='minimum completeness for a genome to be a representative [0, 100]', type=float, default=90)
+    refseq_rep_parser.add_argument('--max_rep_cont', help='maximum contamination for a genome to be a representative [0, 100]', type=float, default=10)
     refseq_rep_parser.add_argument('--silent', help="suppress output", action='store_true')
 
     # representative genomes
-    rep_parser = subparsers.add_parser('representatives',
+    rep_parser = subparsers.add_parser('reps',
                                         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
                                         description='Determine additional representatives genomes.')
     rep_parser.add_argument('ar_msa_file', help="file containing canonical archaeal multiple sequence alignment")
@@ -284,8 +285,9 @@ if __name__ == '__main__':
     rep_parser.add_argument('refseq_representatives', help="file listing RefSeq representative genomes")
     rep_parser.add_argument('metadata_file', help="metadata file from GTDB with CheckM estimates for all genomes in RefSeq")
     rep_parser.add_argument('rep_genome_file', help="output file listing representative genomes")
-    rep_parser.add_argument('--threshold', help='AAI threshold for identifying new representatives', type=float, default=0.997)
-    rep_parser.add_argument('--min_rep_quality', help='minimum genome quality for a genome to be a representative [0, 100]', type=float, default=90)
+    rep_parser.add_argument('--threshold', help='AAI threshold for identifying new representatives', type=float, default=0.995)
+    rep_parser.add_argument('--min_rep_comp', help='minimum completeness for a genome to be a representative [0, 100]', type=float, default=90)
+    rep_parser.add_argument('--max_rep_cont', help='maximum contamination for a genome to be a representative [0, 100]', type=float, default=10)
     rep_parser.add_argument('--silent', help="suppress output", action='store_true')
 
     # determine trusted genomes

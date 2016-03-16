@@ -271,7 +271,8 @@ class OptionsParser():
             rep_workflow.run(options.max_species,
                                        None,
                                        options.metadata_file,
-                                       options.min_rep_quality,
+                                       options.min_rep_comp,
+                                       options.max_rep_cont,
                                        options.rep_genome_file)
         except GenomeTreeTkError as e:
             print e.message
@@ -293,7 +294,8 @@ class OptionsParser():
                                     options.ar_msa_file,
                                     options.bac_msa_file,
                                     options.threshold,
-                                    options.min_rep_quality,
+                                    options.min_rep_comp,
+                                    options.max_rep_cont,
                                     options.metadata_file,
                                     options.rep_genome_file)
 
@@ -490,9 +492,9 @@ class OptionsParser():
             self.midpoint(options)
         elif options.subparser_name == 'outgroup':
             self.outgroup(options)
-        elif options.subparser_name == 'refseq_representatives':
+        elif options.subparser_name == 'refseq_reps':
             self.refseq_representatives(options)
-        elif options.subparser_name == 'representatives':
+        elif options.subparser_name == 'reps':
             self.representatives(options)
         elif options.subparser_name == 'aai_cluster':
             self.aai_cluster(options)

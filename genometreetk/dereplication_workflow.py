@@ -62,11 +62,11 @@ class DereplicationWorkflow(object):
         max_species : int
             Maximum number of genomes of the same species to retain.
         taxonomy : d[assembly_accession] -> [d__, ..., s__]
-            Taxonomy of each genomes.
+            Taxonomy of each genome.
         representative_genomes : set
             Set of representative genomes to prioritize.
         complete_genomes : set
-            Set of complete genomes  to prioritize.
+            Set of complete genomes to prioritize.
         ncbi_type_strains : set
             Set of genomes marked as type strains at NCBI.
         trusted_accessions : set
@@ -149,7 +149,8 @@ class DereplicationWorkflow(object):
     def run(self, max_species,
                     trusted_genomes_file,
                     metadata_file,
-                    min_rep_quality,
+                    min_rep_comp,
+                    max_rep_cont,
                     output_file):
         """Dereplicate genomes to a specific number per named species.
 
@@ -161,8 +162,10 @@ class DereplicationWorkflow(object):
             File containing list of trusted genomes.
         metadata_file : str
             Metadata, including CheckM estimates, for all genomes.
-        min_rep_quality : float [0, 100]
-            Minimum genome quality for a genome to be a representative.
+        min_rep_comp : float [0, 100]
+            Minimum completeness for a genome to be a representative.
+        max_rep_cont : float [0, 100]
+            Maximum contamination for a genome to be a representative.
         output_file : str
             Output file to contain list of dereplicated genomes.
         """
@@ -181,6 +184,7 @@ class DereplicationWorkflow(object):
 
         # get genome quality
         genomes_to_consider = accession_to_taxid.keys()
+        filtered_reps = 0
         if metadata_file:
             genome_quality = read_gtdb_genome_quality(metadata_file)
             missing_quality = set(accession_to_taxid.keys()) - set(genome_quality.keys())
@@ -190,15 +194,17 @@ class DereplicationWorkflow(object):
             new_genomes_to_consider = []
             for genome_id in accession_to_taxid.keys():
                 comp, cont, qual = genome_quality.get(genome_id, [-1, -1, -1])
-                if qual >= min_rep_quality:
+                if comp >= min_rep_comp and cont <= max_rep_cont:
                     new_genomes_to_consider.append(genome_id)
                 else:
                     # check if genome is marked as a representative at NCBI
                     if genome_id in representative_genomes:
                         self.logger.warning('Filtered RefSeq representative %s with comp = %.2f, cont = %.2f' % (genome_id, comp, cont))
+                        filtered_reps += 1
 
             genomes_to_consider = new_genomes_to_consider
-            self.logger.info('Considering %d genomes after filtering at a quality of %.2f.' % (len(genomes_to_consider), min_rep_quality))
+            self.logger.info('Filtered %d representative or reference genome based on genome quality.' % filtered_reps)
+            self.logger.info('Considering %d genomes after filtering for genome quality.' % (len(genomes_to_consider)))
 
         ncbi_type_strains = read_gtdb_ncbi_type_strain(metadata_file)
         self.logger.info('Identified %d genomes marked as type strains at NCBI.' % len(ncbi_type_strains))
@@ -221,7 +227,8 @@ class DereplicationWorkflow(object):
         fout.write('# Maximum species: %d\n' % max_species)
         fout.write('# Trusted genomes file: %s\n' % trusted_genomes_file)
         fout.write('# Genome quality metadata file: %s\n' % str(metadata_file))
-        fout.write('# Min. representative quality: %s\n' % str(min_rep_quality))
+        fout.write('# Min. representative completeness: %s\n' % str(min_rep_comp))
+        fout.write('# Max. representative contamination: %s\n' % str(max_rep_cont))
         fout.write('#\n')
         fout.write('# Genome Id\tTaxonomy\tType strain\tComplete\tRepresentative\n')
         for assembly_accession in genomes_to_retain:

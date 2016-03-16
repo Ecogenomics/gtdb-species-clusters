@@ -25,7 +25,7 @@ import biolib.seq_io as seq_io
 
 from genometreetk.exceptions import GenomeTreeTkError
 from genometreetk.common import (read_gtdb_genome_quality,
-                                    read_gtdb_ncbi_taxonomy)
+                                    read_gtdb_taxonomy)
 from genometreetk.aai import aai_test, mismatches
 
 
@@ -38,7 +38,7 @@ class Representatives(object):
 
     To ensure good representatives are selected, genomes
     are order before processing. Genomes are order first
-    based on their source: RefSeq, GenBank, user. Within
+    based on their source: RefSeq, GenBank, User. Within
     each source, genomes are order by genome quality
     (completeness - contamination). A threshold is used
     to limit representative to genomes of sufficient
@@ -63,8 +63,7 @@ class Representatives(object):
         Returns
         -------
         list
-            Gen
-            omes order by source and quality.
+            Genomes order by source and quality.
         """
         # sort genomes by source repository followed by genome quality
         sorted_refseq_rep_genomes = []
@@ -222,17 +221,31 @@ class Representatives(object):
             Representative genomes.
         """
 
-        # determine genus of each genome and representatives belonging to a genus
-        ncbi_taxonomy = read_gtdb_ncbi_taxonomy(metadata_file)
-        ncbi_genus = {}
+        # determine genus and species of all genomes and representatives
+        gtdb_taxonomy = read_gtdb_taxonomy(metadata_file)
+        gtdb_genus = {}
+        gtdb_species = {}
         reps_from_genus = defaultdict(set)
-        for genome_id, t in ncbi_taxonomy.iteritems():
+        for genome_id, t in gtdb_taxonomy.iteritems():
             if len(t) >= 6 and t[5] != 'g__':
-                genus = t[6]
-                ncbi_genus[genome_id] = genus
+                genus = t[5]
+                gtdb_genus[genome_id] = genus
 
                 if genome_id in representatives:
                     reps_from_genus[genus].add(genome_id)
+
+            if len(t) >= 7 and t[6] != 's__':
+                species = t[6]
+
+                # remove species name if it is not a proper
+                # binomial species name
+                species = species.replace('Candidatus ', '')
+                if 'sp.' in t[6] or len(species.split(' ')) != 2:
+                    species = 's__'
+
+                gtdb_species[genome_id] = species
+
+                gtdb_taxonomy[genome_id] = t[0:6] + [species]
 
         total_genomes = len(genomes_to_process)
         processed_genomes = 0
@@ -243,7 +256,8 @@ class Representatives(object):
 
             genome_id = genomes_to_process.pop(0)
 
-            genome_genus = ncbi_genus.get(genome_id, None)
+            genome_genus = gtdb_genus.get(genome_id, None)
+            genome_species = gtdb_species.get(genome_id, None)
             genome_bac_seq = bac_seqs[genome_id]
             genome_ar_seq = ar_seqs[genome_id]
 
@@ -251,6 +265,15 @@ class Representatives(object):
             cur_reps_from_genus = reps_from_genus.get(genome_genus, set())
             bCluster = False
             for rep_id in cur_reps_from_genus:
+                # do not cluster genomes from different named species
+                rep_species = gtdb_species.get(rep_id, None)
+                if rep_species and genome_species and rep_species != genome_species:
+                    continue
+
+                # do not cluster NCBI genomes with User representatives
+                if rep_id.startswith('U_') and not genome_id.startswith('U__'):
+                    continue
+
                 rep_bac_seq = bac_seqs[rep_id]
                 rep_ar_seq = ar_seqs[rep_id]
 
@@ -263,6 +286,17 @@ class Representatives(object):
                 # compare genome to remaining representatives
                 remaining_reps = representatives.difference(cur_reps_from_genus)
                 for rep_id in remaining_reps:
+                    # do not cluster genomes from different named groups
+                    for rep_taxon, taxon in zip(gtdb_taxonomy[rep_id], gtdb_taxonomy[genome_id]):
+                        rep_taxon = rep_taxon[3:]
+                        taxon = taxon[3:]
+                        if rep_taxon and taxon and rep_taxon != taxon:
+                            continue
+
+                    # do not cluster NCBI genomes with User representatives
+                    if rep_id.startswith('U_') and not genome_id.startswith('U__'):
+                        continue
+
                     rep_bac_seq = bac_seqs[rep_id]
                     rep_ar_seq = ar_seqs[rep_id]
 
@@ -287,7 +321,8 @@ class Representatives(object):
             ar_msa_file,
             bac_msa_file,
             aai_threshold,
-            min_rep_quality,
+            min_rep_comp,
+            max_rep_cont,
             metadata_file,
             output_file):
         """Identify additional representatives based on AAI between aligned sequences.
@@ -302,8 +337,10 @@ class Representatives(object):
             Name of file containing canonical bacterial multiple sequence alignment.
         aai_threshold : float
               AAI threshold for clustering genomes to a representative.
-        min_rep_quality : float
-            Minimum genome quality for a genome to be a representative.
+        min_rep_comp : float [0, 100]
+            Minimum completeness for a genome to be a representative.
+        max_rep_cont : float [0, 100]
+            Maximum contamination for a genome to be a representative.
         metadata_file : str
             Metadata, including CheckM estimates, for all genomes.
         output_file : str
@@ -337,14 +374,11 @@ class Representatives(object):
         self.logger.info('Identified %d initial representatives.' % len(refseq_rep_genomes))
 
         # read genome quality
-        gq = read_gtdb_genome_quality(metadata_file)
-
-        genome_quality = {}
-        for genome_id, qual in gq.iteritems():
-            genome_quality[genome_id] = qual[2]
+        genome_quality = read_gtdb_genome_quality(metadata_file)
 
         for r in refseq_rep_genomes:
-            if genome_quality[r] < min_rep_quality:
+            comp, cont, qual = genome_quality.get(r, [-1, -1, -1])
+            if comp < min_rep_comp or cont > max_rep_cont:
                 self.logger.error('Specified representative does not meet minimum quality threshold: %s' % r)
                 sys.exit(-1)
 
@@ -357,7 +391,8 @@ class Representatives(object):
         # genomes of insufficient quality to be a representative
         potential_reps = set()
         for genome_id in (genome_to_consider - refseq_rep_genomes):
-            if genome_quality[genome_id] >= min_rep_quality:
+            comp, cont, qual = genome_quality.get(genome_id, [-1, -1, -1])
+            if comp >= min_rep_comp and cont <= max_rep_cont:
                 potential_reps.add(genome_id)
 
         # perform greedy identification of new representatives
