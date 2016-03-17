@@ -17,7 +17,8 @@
 
 import logging
 
-from genometreetk.common import read_gtdb_taxonomy
+from genometreetk.common import read_gtdb_taxonomy, read_gtdb_ncbi_taxonomy
+import genometreetk.ncbi as ncbi
 
 import csv
 
@@ -89,6 +90,7 @@ class TrustedGenomeWorkflow(object):
                     trusted_cont,
                     max_contigs,
                     min_N50,
+                    refseq_rep,
                     output_file):
         """Determine trusted genomes based on genome statistics.
 
@@ -104,15 +106,27 @@ class TrustedGenomeWorkflow(object):
             Maximum number of contigs within trusted genomes.
         min_N50 : int
             Minimum N50 of trusted genomes.
+        refseq_rep : boolean
+            If true, consider only RefSeq representative and reference genomes.
         output_file : str
             Output file to contain list of trusted genomes.
         """
 
-        taxonomy = read_gtdb_taxonomy(metadata_file)
+        representative_genomes = None
+        if refseq_rep:
+            _accession_to_taxid, complete_genomes, representative_genomes = ncbi.read_refseq_metadata(metadata_file, keep_db_prefix=True)
+
+        gtdb_taxonomy = read_gtdb_taxonomy(metadata_file)
+        ncbi_taxonomy = read_gtdb_ncbi_taxonomy(metadata_file)
 
         trusted_genomes_stats = self._trusted_genomes(metadata_file,
                                                       trusted_comp, trusted_cont,
                                                       max_contigs, min_N50)
+        if representative_genomes:
+            self.logger.info('Limiting genomes to RefSeq representative.')
+            for genome_id in trusted_genomes_stats.keys():
+                if genome_id not in representative_genomes:
+                    del trusted_genomes_stats[genome_id]
 
         self.logger.info('Identified %d trusted genomes.' % len(trusted_genomes_stats))
 
@@ -123,9 +137,12 @@ class TrustedGenomeWorkflow(object):
         fout.write('# Maximum contigs: %d\n' % max_contigs)
         fout.write('# Minimum N50: %d\n' % min_N50)
         fout.write('#\n')
-        fout.write('# Genome Id\tCompleteness,Contamination,Contig count,N50\tTaxonomy\n')
+        fout.write('# Genome Id\tCompleteness,Contamination,Contig count,N50\tGTDB Taxonomy\tNCBI Taxonomy\n')
 
         for assembly_accession, stats in trusted_genomes_stats.iteritems():
-            fout.write('%s\t%s\t%s\n' % (assembly_accession, ','.join(map(str, stats)), ';'.join(taxonomy.get(assembly_accession, ['none']))))
+            fout.write('%s\t%s\t%s\t%s\n' % (assembly_accession,
+                                                 ','.join(map(str, stats)),
+                                                 ';'.join(gtdb_taxonomy.get(assembly_accession, ['none'])),
+                                                 ';'.join(ncbi_taxonomy.get(assembly_accession, ['none']))))
 
         fout.close()

@@ -70,6 +70,7 @@ class OptionsParser():
                                         options.trusted_cont,
                                         options.max_contigs,
                                         options.min_N50,
+                                        options.refseq_rep,
                                         options.trusted_genomes_file)
 
         self.logger.info('Trusted genome list written to: %s' % options.trusted_genomes_file)
@@ -273,6 +274,8 @@ class OptionsParser():
                                        options.metadata_file,
                                        options.min_rep_comp,
                                        options.max_rep_cont,
+                                       options.max_contigs,
+                                       options.min_N50,
                                        options.rep_genome_file)
         except GenomeTreeTkError as e:
             print e.message

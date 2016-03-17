@@ -42,7 +42,10 @@ class Representatives(object):
     each source, genomes are order by genome quality
     (completeness - contamination). A threshold is used
     to limit representative to genomes of sufficient
-    quality.
+    quality. Furthermore, a genome is not clustered
+    to an existing representative if they have different
+    valid species names. NCBI genomes are also never assigned
+    to User representatives.
     """
 
     def __init__(self):
@@ -87,109 +90,6 @@ class Representatives(object):
         return (sorted_refseq_rep_genomes
                     + sorted_genbank_rep_genomes
                     + sorted_user_rep_genomes)
-
-    def _greedy_representatives_2(self,
-                                    representatives,
-                                    genomes_to_process,
-                                    aai_threshold,
-                                    ar_seqs,
-                                    bac_seqs,
-                                    metadata_file):
-        """Identify additional representative genomes in a greedy fashion.
-
-        Parameters
-        ----------
-        representatives : set
-            Initial set of representative genomes.
-        genomes_to_process : list
-            Genomes to process for identification of new representatives.
-        aai_threshold : float
-              AAI threshold for assigning a genome to a representative.
-        ar_seqs : d[genome_id] -> alignment
-            Alignment of archaeal marker genes.
-        bac_seqs : d[genome_id] -> alignment
-            Alignment of bacterial marker genes.
-        metadata_file : str
-            Metadata for all genomes, including NCBI taxonomy information.
-
-        Returns
-        -------
-        set
-            Representative genomes.
-        """
-
-        # determine genus of each genome and representatives belonging to a genus
-        ncbi_taxonomy = read_gtdb_ncbi_taxonomy(metadata_file)
-        ncbi_genus = {}
-        reps_from_genus = defaultdict(set)
-        for genome_id, t in ncbi_taxonomy.iteritems():
-            if len(t) >= 6 and t[5] != 'g__':
-                genus = t[6]
-                ncbi_genus[genome_id] = genus
-
-                if genome_id in representatives:
-                    reps_from_genus[genus].add(genome_id)
-
-        total_genomes = len(genomes_to_process)
-        processed_genomes = 0
-        while len(genomes_to_process):
-            processed_genomes += 1
-            sys.stdout.write('==> Processed %d of %d genomes.\r' % (processed_genomes, total_genomes))
-            sys.stdout.flush()
-
-            genome_id = genomes_to_process.pop(0)
-
-            genome_genus = ncbi_genus.get(genome_id, None)
-            genome_bac_seq = bac_seqs[genome_id]
-            genome_ar_seq = ar_seqs[genome_id]
-
-            bac_max_mismatches = (1.0 - aai_threshold) * (len(genome_bac_seq) - genome_bac_seq.count('-'))
-            ar_max_mismatches = (1.0 - aai_threshold) * (len(genome_ar_seq) - genome_ar_seq.count('-'))
-
-            # speed up computation by comparing genome to representatives from the same genus
-            cur_reps_from_genus = reps_from_genus.get(genome_genus, set())
-            bCluster = False
-            for rep_id in cur_reps_from_genus:
-                rep_bac_seq = bac_seqs[rep_id]
-                rep_ar_seq = ar_seqs[rep_id]
-
-                m = mismatches(rep_bac_seq, genome_bac_seq, bac_max_mismatches)
-                if m is not None:  # necessary to distinguish None and 0
-                    bCluster = True
-                    break
-
-                m = mismatches(rep_ar_seq, genome_ar_seq, ar_max_mismatches)
-                if m is not None:  # necessary to distinguish None and 0
-                    bCluster = True
-                    break
-
-            if not bCluster:
-                # compare genome to remaining representatives
-                remaining_reps = representatives.difference(cur_reps_from_genus)
-                for rep_id in remaining_reps:
-                    rep_bac_seq = bac_seqs[rep_id]
-                    rep_ar_seq = ar_seqs[rep_id]
-
-                    m = mismatches(rep_bac_seq, genome_bac_seq, bac_max_mismatches)
-                    if m is not None:  # necessary to distinguish None and 0
-                        bCluster = True
-                        break
-
-                    m = mismatches(rep_ar_seq, genome_ar_seq, ar_max_mismatches)
-                    if m is not None:  # necessary to distinguish None and 0
-                        bCluster = True
-                        break
-
-            if not bCluster:
-                # genome was not assigned to an existing representative,
-                # so make it a new representative genome
-                representatives.add(genome_id)
-                if genome_genus:
-                    reps_from_genus[genome_genus].add(genome_id)
-
-        sys.stdout.write('\n')
-
-        return representatives
 
     def _greedy_representatives(self,
                                     representatives,
@@ -242,8 +142,8 @@ class Representatives(object):
                 species = species.replace('Candidatus ', '')
                 if 'sp.' in t[6] or len(species.split(' ')) != 2:
                     species = 's__'
-
-                gtdb_species[genome_id] = species
+                else:
+                    gtdb_species[genome_id] = species
 
                 gtdb_taxonomy[genome_id] = t[0:6] + [species]
 
@@ -287,11 +187,15 @@ class Representatives(object):
                 remaining_reps = representatives.difference(cur_reps_from_genus)
                 for rep_id in remaining_reps:
                     # do not cluster genomes from different named groups
+                    skip = False
                     for rep_taxon, taxon in zip(gtdb_taxonomy[rep_id], gtdb_taxonomy[genome_id]):
                         rep_taxon = rep_taxon[3:]
                         taxon = taxon[3:]
                         if rep_taxon and taxon and rep_taxon != taxon:
-                            continue
+                            skip = True
+                            break
+                    if skip:
+                        continue
 
                     # do not cluster NCBI genomes with User representatives
                     if rep_id.startswith('U_') and not genome_id.startswith('U__'):

@@ -25,9 +25,7 @@ import multiprocessing as mp
 import biolib.seq_io as seq_io
 
 from genometreetk.exceptions import GenomeTreeTkError
-from genometreetk.common import (read_gtdb_genome_quality,
-                                    read_gtdb_ncbi_taxonomy,
-                                    read_gtdb_phylum)
+from genometreetk.common import read_gtdb_taxonomy
 from genometreetk.aai import mismatches
 
 
@@ -39,7 +37,10 @@ class Cluster(object):
     is done to ensure the majority of genomes are assigned to
     publicly available representatives. However, this means
     a genome will not necessarily be assigned to the representative
-    with the highest AAI.
+    with the highest AAI. Furthermore, genomes are not clustered
+    if they have different valid species names. NCBI genomes are
+    never assigned to User representatives to ensure they always
+    appear in trees without User genomes.
     """
 
     def __init__(self, cpus):
@@ -98,30 +99,33 @@ class Cluster(object):
         """Process genomes in parallel."""
 
         # determine genus of each genome and representatives belonging to a genus
-        ncbi_taxonomy = read_gtdb_ncbi_taxonomy(metadata_file)
-        ncbi_genus = {}
-        ncbi_species = {}
+        gtdb_taxonomy = read_gtdb_taxonomy(metadata_file)
+        gtdb_genus = {}
+        gtdb_species = {}
         reps_from_genus = defaultdict(set)
-        for genome_id, t in ncbi_taxonomy.iteritems():
+        for genome_id, t in gtdb_taxonomy.iteritems():
             if len(t) >= 6 and t[5] != 'g__':
-                genus = t[6]
-                ncbi_genus[genome_id] = genus
+                genus = t[5]
+                gtdb_genus[genome_id] = genus
 
                 if genome_id in representatives:
                     reps_from_genus[genus].add(genome_id)
 
                 if len(t) >= 7 and t[6] != 's__':
-                    species = t[6]
-                    if 'sp.' not in species and len(species.split()) == 2:
-                        ncbi_species[genome_id] = species
+                    # ignore species if it is not a proper binomial species name
+                    species = t[6].replace('Candidatus ', '')
+                    if 'sp.' in t[6] or len(species.split(' ')) != 2:
+                        pass
+                    else:
+                        gtdb_species[genome_id] = species
 
         while True:
             genome_id = queue_in.get(block=True, timeout=None)
             if genome_id == None:
                 break
 
-            genome_genus = ncbi_genus.get(genome_id, None)
-            # genome_species = ncbi_species.get(genome_id, None)
+            genome_genus = gtdb_genus.get(genome_id, None)
+            genome_species = gtdb_species.get(genome_id, None)
             genome_bac_seq = bac_seqs[genome_id]
             genome_ar_seq = ar_seqs[genome_id]
 
@@ -135,12 +139,17 @@ class Cluster(object):
             # to representatives of the same genus
             cur_reps_from_genus = reps_from_genus.get(genome_genus, set())
             for rep_id in cur_reps_from_genus:
+                # do not cluster genomes from different named species
+                rep_species = gtdb_species.get(rep_id, None)
+                if rep_species and genome_species and rep_species != genome_species:
+                    continue
+
+                # do not cluster NCBI genomes with User representatives
+                if rep_id.startswith('U_') and not genome_id.startswith('U__'):
+                    continue
+
                 rep_bac_seq = bac_seqs[rep_id]
                 rep_ar_seq = ar_seqs[rep_id]
-
-                # rep_species = ncbi_species.get(rep_id, None)
-                # if genome_species and rep_species and genome_species != rep_species:
-                #    continue
 
                 m = mismatches(rep_bac_seq, genome_bac_seq, bac_max_mismatches)
                 if m is not None:  # necessary to distinguish None and 0
@@ -159,6 +168,21 @@ class Cluster(object):
             # compare genome to remaining representatives
             remaining_reps = representatives.difference(cur_reps_from_genus)
             for rep_id in remaining_reps:
+                # do not cluster genomes from different named groups
+                skip = False
+                for rep_taxon, taxon in zip(gtdb_taxonomy[rep_id], gtdb_taxonomy[genome_id]):
+                    rep_taxon = rep_taxon[3:]
+                    taxon = taxon[3:]
+                    if rep_taxon and taxon and rep_taxon != taxon:
+                        skip = True
+                        break
+                if skip:
+                    continue
+
+                # do not cluster NCBI genomes with User representatives
+                if rep_id.startswith('U_') and not genome_id.startswith('U__'):
+                    continue
+
                 rep_bac_seq = bac_seqs[rep_id]
                 rep_ar_seq = ar_seqs[rep_id]
 
@@ -213,17 +237,20 @@ class Cluster(object):
             if assigned_representative:
                 clusters[assigned_representative].append(genome_id)
 
-
         sys.stdout.write('\n')
 
         # write out cluster
         fout = open(output_file, 'w')
+        clustered_genomes = 0
         for c, cluster_rep in enumerate(sorted(clusters, key=lambda x: len(clusters[x]), reverse=True)):
             cluster_str = 'cluster_%d' % (c + 1)
             cluster = clusters[cluster_rep]
+            clustered_genomes += len(cluster)
             fout.write('%s\t%s\t%d\t%s\n' % (cluster_rep, cluster_str, len(cluster) + 1, ','.join(cluster)))
 
         fout.close()
+
+        self.logger.info('Assigned %d genomes to representatives.' % clustered_genomes)
 
     def _cluster(self,
                     representatives,

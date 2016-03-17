@@ -22,8 +22,9 @@ from collections import defaultdict
 
 from biolib.taxonomy import Taxonomy
 
-from genometreetk.common import (read_gtdb_genome_quality,
+from genometreetk.common import (read_gtdb_metadata,
                                  read_gtdb_ncbi_taxonomy,
+                                 read_gtdb_taxonomy,
                                  read_gtdb_ncbi_type_strain)
 import genometreetk.ncbi as ncbi
 
@@ -151,6 +152,8 @@ class DereplicationWorkflow(object):
                     metadata_file,
                     min_rep_comp,
                     max_rep_cont,
+                    max_contigs,
+                    min_N50,
                     output_file):
         """Dereplicate genomes to a specific number per named species.
 
@@ -166,6 +169,10 @@ class DereplicationWorkflow(object):
             Minimum completeness for a genome to be a representative.
         max_rep_cont : float [0, 100]
             Maximum contamination for a genome to be a representative.
+        max_contigs : int
+            Maximum number of contigs within trusted genomes.
+        min_N50 : int
+            Minimum N50 of trusted genomes.
         output_file : str
             Output file to contain list of dereplicated genomes.
         """
@@ -175,8 +182,9 @@ class DereplicationWorkflow(object):
         self.logger.info('Identified %d representative or reference genomes.' % len(representative_genomes))
         self.logger.info('Identified %d complete genomes.' % len(complete_genomes))
 
-        taxonomy = read_gtdb_ncbi_taxonomy(metadata_file)
-        self.logger.info('Identified %d genomes with taxonomy information.' % len(taxonomy))
+        gtdb_taxonomy = read_gtdb_taxonomy(metadata_file)
+        ncbi_taxonomy = read_gtdb_ncbi_taxonomy(metadata_file)
+        self.logger.info('Identified %d genomes with taxonomy information.' % len(gtdb_taxonomy))
 
         trusted_accessions = set()
         if trusted_genomes_file:
@@ -186,20 +194,30 @@ class DereplicationWorkflow(object):
         genomes_to_consider = accession_to_taxid.keys()
         filtered_reps = 0
         if metadata_file:
-            genome_quality = read_gtdb_genome_quality(metadata_file)
+            genome_quality = read_gtdb_metadata(metadata_file, ['checkm_completeness',
+                                                                'checkm_contamination',
+                                                                'contig_count',
+                                                                'n50_contigs'])
             missing_quality = set(accession_to_taxid.keys()) - set(genome_quality.keys())
             if missing_quality:
                 self.logger.warning('There are %d genomes without metadata information.' % len(missing_quality))
 
             new_genomes_to_consider = []
             for genome_id in accession_to_taxid.keys():
-                comp, cont, qual = genome_quality.get(genome_id, [-1, -1, -1])
-                if comp >= min_rep_comp and cont <= max_rep_cont:
-                    new_genomes_to_consider.append(genome_id)
+                comp, cont, contig_count, n50_contig = genome_quality.get(genome_id, [-1, -1, -1])
+                comp = float(comp)
+                cont = float(cont)
+                contig_count = int(contig_count)
+                n50_contig = int(n50_contig)
+                if (comp >= min_rep_comp
+                    and cont <= max_rep_cont
+                    and contig_count <= max_contigs
+                    and n50_contig >= min_N50):
+                        new_genomes_to_consider.append(genome_id)
                 else:
                     # check if genome is marked as a representative at NCBI
                     if genome_id in representative_genomes:
-                        self.logger.warning('Filtered RefSeq representative %s with comp = %.2f, cont = %.2f' % (genome_id, comp, cont))
+                        self.logger.warning('Filtered RefSeq representative %s with comp=%.2f, cont=%.2f, contigs=%d, N50=%d' % (genome_id, comp, cont, contig_count, n50_contig))
                         filtered_reps += 1
 
             genomes_to_consider = new_genomes_to_consider
@@ -211,7 +229,7 @@ class DereplicationWorkflow(object):
 
         genomes_to_retain = self._dereplicate(genomes_to_consider,
                                                 max_species,
-                                                taxonomy,
+                                                ncbi_taxonomy,
                                                 representative_genomes,
                                                 complete_genomes,
                                                 ncbi_type_strains,
@@ -230,17 +248,23 @@ class DereplicationWorkflow(object):
         fout.write('# Min. representative completeness: %s\n' % str(min_rep_comp))
         fout.write('# Max. representative contamination: %s\n' % str(max_rep_cont))
         fout.write('#\n')
-        fout.write('# Genome Id\tTaxonomy\tType strain\tComplete\tRepresentative\n')
+        fout.write('# Genome Id\tGTDB Taxonomy\tNCBI Taxonomy\tType strain\tComplete\tRepresentative\n')
         for assembly_accession in genomes_to_retain:
             representative = 'yes' if assembly_accession in representative_genomes else 'no'
             complete = 'yes' if assembly_accession in complete_genomes else 'no'
             ts = 'yes' if assembly_accession in ncbi_type_strains else 'no'
-            taxa_str = ';'.join(taxonomy.get(assembly_accession, Taxonomy.rank_prefixes))
+            gtdb_taxa_str = ';'.join(gtdb_taxonomy.get(assembly_accession, Taxonomy.rank_prefixes))
+            ncbi_taxa_str = ';'.join(ncbi_taxonomy.get(assembly_accession, Taxonomy.rank_prefixes))
 
             if assembly_accession.startswith('GCF_'):
                 assembly_accession = 'RS_' + assembly_accession
             elif assembly_accession.startswith('GCA_'):
                 assembly_accession = 'GB_' + assembly_accession
 
-            fout.write('%s\t%s\t%s\t%s\t%s\n' % (assembly_accession, taxa_str, ts, complete, representative))
+            fout.write('%s\t%s\t%s\t%s\t%s\t%s\n' % (assembly_accession,
+                                                         gtdb_taxa_str,
+                                                         ncbi_taxa_str,
+                                                         ts,
+                                                         complete,
+                                                         representative))
         fout.close()

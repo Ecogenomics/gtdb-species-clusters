@@ -138,6 +138,7 @@ if __name__ == '__main__':
     trusted_parser.add_argument('--trusted_cont', help='maximum contamination to trust genome for marker set inference [0, 100]', type=float, default=5)
     trusted_parser.add_argument('--max_contigs', help='maximum number of contigs to trust genome for marker set inference', type=int, default=200)
     trusted_parser.add_argument('--min_N50', help='minimum N50 of contigs to trust genome for marker set inference', type=int, default=20000)
+    trusted_parser.add_argument('--refseq_rep', help='limit selection to RefSeq representative and reference genomes', action='store_true')
     trusted_parser.add_argument('--silent', help="suppress output", action='store_true')
 
     # dereplicate genomes
@@ -274,6 +275,8 @@ if __name__ == '__main__':
     refseq_rep_parser.add_argument('--max_species', help='maximum number of genomes of the same species to retain', type=int, default=2)
     refseq_rep_parser.add_argument('--min_rep_comp', help='minimum completeness for a genome to be a representative [0, 100]', type=float, default=90)
     refseq_rep_parser.add_argument('--max_rep_cont', help='maximum contamination for a genome to be a representative [0, 100]', type=float, default=10)
+    refseq_rep_parser.add_argument('--max_contigs', help='maximum number of contigs for a genome to be a representative', type=int, default=200)
+    refseq_rep_parser.add_argument('--min_N50', help='minimum N50 of contigs for a genome to be a representative', type=int, default=20000)
     refseq_rep_parser.add_argument('--silent', help="suppress output", action='store_true')
 
     # representative genomes
@@ -299,7 +302,7 @@ if __name__ == '__main__':
     aai_cluster_parser.add_argument('representatives', help="list of representative genomes")
     aai_cluster_parser.add_argument('metadata_file', help="metadata file for all genomes in the GTDB")
     aai_cluster_parser.add_argument('cluster_file', help='output file indicating genome clusters')
-    aai_cluster_parser.add_argument('--threshold', help='AAI threshold for assigning a genome to a representative', type=float, default=0.997)
+    aai_cluster_parser.add_argument('--threshold', help='AAI threshold for assigning a genome to a representative', type=float, default=0.995)
     aai_cluster_parser.add_argument('-c', '--cpus', help='number of cpus', type=int, default=1)
     aai_cluster_parser.add_argument('--silent', help="suppress output", action='store_true')
 

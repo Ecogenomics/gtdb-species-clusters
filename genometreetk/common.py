@@ -24,6 +24,7 @@ import csv
 from collections import defaultdict
 
 import biolib.seq_io as seq_io
+from biolib.taxonomy import Taxonomy
 
 from genometreetk.default_values import DefaultValues
 
@@ -157,7 +158,12 @@ def read_gtdb_taxonomy(metadata_file):
             bHeader = False
         else:
             genome_id = row[genome_index]
-            taxonomy[genome_id] = row[taxonomy_index].split(';')
+            taxa_str = row[taxonomy_index].strip()
+
+            if taxa_str:
+                taxonomy[genome_id] = taxa_str.split(';')
+            else:
+                taxonomy[genome_id] = list(Taxonomy.rank_prefixes)
 
     return taxonomy
 
@@ -187,7 +193,12 @@ def read_gtdb_ncbi_taxonomy(metadata_file):
             bHeader = False
         else:
             genome_id = row[genome_index]
-            taxonomy[genome_id] = row[taxonomy_index].split(';')
+            taxa_str = row[taxonomy_index].strip()
+
+            if taxa_str:
+                taxonomy[genome_id] = taxa_str.split(';')
+            else:
+                taxonomy[genome_id] = list(Taxonomy.rank_prefixes)
 
     return taxonomy
 
