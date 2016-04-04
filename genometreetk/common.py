@@ -28,6 +28,56 @@ from biolib.taxonomy import Taxonomy
 
 from genometreetk.default_values import DefaultValues
 
+
+def species_label(gtdb_taxonomy, ncbi_taxonomy, ncbi_organism_name):
+    """Determine 'best' species label for each genome.
+
+    Genomes preferentially use the GTDB taxonomy,
+    NCBI taxonomy, and then NCBI organism name.
+
+    Parameters
+    ----------
+    gtdb_taxonomy : d[assembly_accession] -> [d__, ..., s__]
+        GTDB taxonomy of each genome.
+    ncbi_taxonomy : d[assembly_accession] -> [d__, ..., s__]
+        NCBI taxonomy of each genome.
+    ncbi_organism_name : d[assembly_accession] -> name
+        NCBI organism name of each genome.
+
+    Return
+    ------
+    dict : d[assembly_accession] -> species name
+        Species name of each genome.
+    """
+
+    taxonomy = Taxonomy()
+
+    species = {}
+    species_index = Taxonomy.rank_index['s__']
+    for genome_id, taxa in gtdb_taxonomy.iteritems():
+        sp = taxa[species_index]
+        if sp != 's__':
+            species[genome_id] = sp
+
+    for genome_id, taxa in ncbi_taxonomy.iteritems():
+        if genome_id in species:
+            continue
+
+        sp = taxa[species_index]
+        sp = taxonomy.extract_valid_species_name(sp)
+        if sp:
+            species[genome_id] = sp
+
+    for genome_id, sp in ncbi_organism_name.iteritems():
+        if genome_id in species:
+            continue
+
+        sp = taxonomy.extract_valid_species_name(sp)
+        if sp:
+            species[genome_id] = sp
+
+    return species
+
 def read_gtdb_metadata(metadata_file, fields):
     """Parse genome quality from GTDB metadata.
 
@@ -201,6 +251,40 @@ def read_gtdb_ncbi_taxonomy(metadata_file):
                 taxonomy[genome_id] = list(Taxonomy.rank_prefixes)
 
     return taxonomy
+
+
+def read_gtdb_ncbi_organism_name(metadata_file):
+    """Parse NCBI organism name from GTDB metadata.
+
+    Parameters
+    ----------
+    metadata_file : str
+        Metadata for all genomes.
+
+    Return
+    ------
+    dict : d[genome_id] -> organism name
+        Organism name of each genome.
+    """
+
+    d = {}
+
+    csv_reader = csv.reader(open(metadata_file, 'rt'))
+    bHeader = True
+    for row in csv_reader:
+        if bHeader:
+            headers = row
+            genome_index = headers.index('genome')
+            organism_name_index = headers.index('ncbi_organism_name')
+            bHeader = False
+        else:
+            genome_id = row[genome_index]
+            organism_name = row[organism_name_index].strip()
+
+            if organism_name:
+                d[genome_id] = organism_name
+
+    return d
 
 
 def read_gtdb_ncbi_type_strain(metadata_file):

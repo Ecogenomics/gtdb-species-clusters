@@ -25,7 +25,10 @@ import biolib.seq_io as seq_io
 
 from genometreetk.exceptions import GenomeTreeTkError
 from genometreetk.common import (read_gtdb_genome_quality,
-                                    read_gtdb_taxonomy)
+                                    read_gtdb_taxonomy,
+                                    read_gtdb_ncbi_taxonomy,
+                                    read_gtdb_ncbi_organism_name,
+                                    species_label)
 from genometreetk.aai import aai_test, mismatches
 
 
@@ -121,31 +124,26 @@ class Representatives(object):
             Representative genomes.
         """
 
-        # determine genus and species of all genomes and representatives
+        # read taxonomy information and determine 'best' species label for each genome
         gtdb_taxonomy = read_gtdb_taxonomy(metadata_file)
-        gtdb_genus = {}
-        gtdb_species = {}
+        ncbi_taxonomy = read_gtdb_ncbi_taxonomy(metadata_file)
+        ncbi_organism_names = read_gtdb_ncbi_organism_name(metadata_file)
+        species = species_label(gtdb_taxonomy, ncbi_taxonomy, ncbi_organism_names)
+
+        # determine genus of all genomes and representatives
+        genus = {}
         reps_from_genus = defaultdict(set)
         for genome_id, t in gtdb_taxonomy.iteritems():
             if len(t) >= 6 and t[5] != 'g__':
-                genus = t[5]
-                gtdb_genus[genome_id] = genus
+                g = t[5]
+            elif genome_id in species:
+                g = species[genome_id].split(' ')[0][3:]
+
+            if g:
+                genus[genome_id] = g
 
                 if genome_id in representatives:
-                    reps_from_genus[genus].add(genome_id)
-
-            if len(t) >= 7 and t[6] != 's__':
-                species = t[6]
-
-                # remove species name if it is not a proper
-                # binomial species name
-                species = species.replace('Candidatus ', '')
-                if 'sp.' in t[6] or len(species.split(' ')) != 2:
-                    species = 's__'
-                else:
-                    gtdb_species[genome_id] = species
-
-                gtdb_taxonomy[genome_id] = t[0:6] + [species]
+                    reps_from_genus[g].add(genome_id)
 
         total_genomes = len(genomes_to_process)
         processed_genomes = 0
@@ -156,8 +154,8 @@ class Representatives(object):
 
             genome_id = genomes_to_process.pop(0)
 
-            genome_genus = gtdb_genus.get(genome_id, None)
-            genome_species = gtdb_species.get(genome_id, None)
+            genome_genus = genus.get(genome_id, None)
+            genome_species = species.get(genome_id, None)
             genome_bac_seq = bac_seqs[genome_id]
             genome_ar_seq = ar_seqs[genome_id]
 
@@ -166,7 +164,7 @@ class Representatives(object):
             bCluster = False
             for rep_id in cur_reps_from_genus:
                 # do not cluster genomes from different named species
-                rep_species = gtdb_species.get(rep_id, None)
+                rep_species = species.get(rep_id, None)
                 if rep_species and genome_species and rep_species != genome_species:
                     continue
 
@@ -186,6 +184,11 @@ class Representatives(object):
                 # compare genome to remaining representatives
                 remaining_reps = representatives.difference(cur_reps_from_genus)
                 for rep_id in remaining_reps:
+                    # do not cluster genomes from different named species
+                    rep_species = species.get(rep_id, None)
+                    if rep_species and genome_species and rep_species != genome_species:
+                        continue
+
                     # do not cluster genomes from different named groups
                     skip = False
                     for rep_taxon, taxon in zip(gtdb_taxonomy[rep_id], gtdb_taxonomy[genome_id]):

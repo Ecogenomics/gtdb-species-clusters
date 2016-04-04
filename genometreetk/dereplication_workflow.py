@@ -18,14 +18,17 @@
 import sys
 import logging
 import random
+import operator
 from collections import defaultdict
 
 from biolib.taxonomy import Taxonomy
 
 from genometreetk.common import (read_gtdb_metadata,
                                  read_gtdb_ncbi_taxonomy,
+                                 read_gtdb_ncbi_organism_name,
                                  read_gtdb_taxonomy,
-                                 read_gtdb_ncbi_type_strain)
+                                 read_gtdb_ncbi_type_strain,
+                                 species_label)
 import genometreetk.ncbi as ncbi
 
 
@@ -49,11 +52,12 @@ class DereplicationWorkflow(object):
 
     def _dereplicate(self, assemble_accessions,
                             max_species,
-                            taxonomy,
+                            species_labels,
                             representative_genomes,
                             complete_genomes,
                             ncbi_type_strains,
-                            trusted_accessions):
+                            trusted_accessions,
+                            genome_quality):
         """Dereplicate genomes based on taxonomy.
 
         Parameters
@@ -62,8 +66,8 @@ class DereplicationWorkflow(object):
             All assemble accessions to consider.
         max_species : int
             Maximum number of genomes of the same species to retain.
-        taxonomy : d[assembly_accession] -> [d__, ..., s__]
-            Taxonomy of each genome.
+        species_labels : d[assembly_accession] -> species
+            Species label for each genome.
         representative_genomes : set
             Set of representative genomes to prioritize.
         complete_genomes : set
@@ -72,6 +76,8 @@ class DereplicationWorkflow(object):
             Set of genomes marked as type strains at NCBI.
         trusted_accessions : set
             Set of trusted genomes.
+        genome_quality : d[genome_id] -> comp - cont
+            Quality of each genome.
 
         Returns
         -------
@@ -83,15 +89,10 @@ class DereplicationWorkflow(object):
         species = defaultdict(set)
         genomes_to_retain = set()
         for genome_id in assemble_accessions:
-            t = taxonomy[genome_id]
-            try:
-                sp = t[Taxonomy.rank_index['s__']]
-            except:
-                # NCBI species not specified in GTDB
-                sp = 's__unclassified'
+            sp = species_labels.get(genome_id, None)
 
             if not trusted_accessions or genome_id in trusted_accessions:
-                if sp == 's__' or sp.lower() == 's__unclassified':
+                if not sp:
                     genomes_to_retain.add(genome_id)
                 else:
                     species[sp].add(genome_id)
@@ -103,10 +104,12 @@ class DereplicationWorkflow(object):
             if len(genome_ids) > max_species:
                 selected_genomes = set()
 
+                # get different classes of genomes
                 representatives = genome_ids.intersection(representative_genomes)
                 complete = genome_ids.intersection(complete_genomes)
                 type_strains = genome_ids.intersection(ncbi_type_strains)
                 complete_type_strains = type_strains.intersection(complete)
+                complete = complete - complete_type_strains
 
                 # select all representative genomes
                 if representatives:
@@ -114,31 +117,42 @@ class DereplicationWorkflow(object):
                     genome_ids.difference_update(representatives)
                     type_strains.difference_update(representatives)
                     complete_type_strains.difference_update(representatives)
+                    complete.difference_update(representatives)
+
+                # select genomes based on estimated genome quality
+                complete_quality = {k:genome_quality[k] for k in complete}
+                complete_quality_sorted = sorted(complete_quality.items(), key=operator.itemgetter(1), reverse=True)
+
+                type_strains_quality = {k:genome_quality[k] for k in type_strains}
+                type_strains_quality_sorted = sorted(type_strains_quality.items(), key=operator.itemgetter(1), reverse=True)
+
+                complete_type_strains_quality = {k:genome_quality[k] for k in complete_type_strains}
+                complete_type_strains_quality_sorted = sorted(complete_type_strains_quality.items(), key=operator.itemgetter(1), reverse=True)
 
                 # try to select a complete type strain, otherwise just take
                 # any type strain if one exists
                 if len(selected_genomes) < max_species:
                     if complete_type_strains:
-                        selected_type_strain = random.sample(complete_type_strains, 1)
+                        selected_type_strain = complete_type_strains_quality_sorted.pop(0)[0] # random.sample(complete_type_strains, 1)
                         selected_genomes.update(selected_type_strain)
-                        genome_ids.difference_update(selected_type_strain)
-                        complete.difference_update(selected_type_strain)
                     elif type_strains:
-                        selected_type_strain = random.sample(type_strains, 1)
+                        selected_type_strain = type_strains_quality_sorted.pop(0)[0] # random.sample(type_strains, 1)
                         selected_genomes.update(selected_type_strain)
-                        genome_ids.difference_update(selected_type_strain)
 
                 # grab as many complete genomes as possible
                 if len(selected_genomes) < max_species and complete:
                     genomes_to_select = min(len(complete), max_species - len(selected_genomes))
-                    selected_complete_genomes = random.sample(complete, genomes_to_select)
+                    selected_complete_genomes = [x[0] for x in complete_quality_sorted[0:genomes_to_select]] #random.sample(complete, genomes_to_select)
                     selected_genomes.update(selected_complete_genomes)
-                    genome_ids.difference_update(selected_complete_genomes)
 
                 # grab incomplete genomes to get to the desired number of genomes
                 if len(selected_genomes) < max_species and genome_ids:
+                    genome_ids.difference_update(selected_genomes)
+                    genome_ids_quality = {k:genome_quality[k] for k in genome_ids}
+                    genome_ids_quality_sorted = sorted(genome_ids_quality.items(), key=operator.itemgetter(1), reverse=True)
+                    
                     genomes_to_select = min(len(genome_ids), max_species - len(selected_genomes))
-                    rnd_additional_genomes = random.sample(genome_ids, genomes_to_select)
+                    rnd_additional_genomes = [x[0] for x in genome_ids_quality_sorted[0:genomes_to_select]] #random.sample(genome_ids, genomes_to_select)
                     selected_genomes.update(rnd_additional_genomes)
 
                 genomes_to_retain.update(selected_genomes)
@@ -184,7 +198,10 @@ class DereplicationWorkflow(object):
 
         gtdb_taxonomy = read_gtdb_taxonomy(metadata_file)
         ncbi_taxonomy = read_gtdb_ncbi_taxonomy(metadata_file)
-        self.logger.info('Identified %d genomes with taxonomy information.' % len(gtdb_taxonomy))
+        ncbi_organism_names = read_gtdb_ncbi_organism_name(metadata_file)
+        species = species_label(gtdb_taxonomy, ncbi_taxonomy, ncbi_organism_names)
+
+        self.logger.info('Identified %d genomes with a GTDB or NCBI species names.' % len(species))
 
         trusted_accessions = set()
         if trusted_genomes_file:
@@ -193,47 +210,51 @@ class DereplicationWorkflow(object):
         # get genome quality
         genomes_to_consider = accession_to_taxid.keys()
         filtered_reps = 0
-        if metadata_file:
-            genome_quality = read_gtdb_metadata(metadata_file, ['checkm_completeness',
-                                                                'checkm_contamination',
-                                                                'contig_count',
-                                                                'n50_contigs'])
-            missing_quality = set(accession_to_taxid.keys()) - set(genome_quality.keys())
-            if missing_quality:
-                self.logger.warning('There are %d genomes without metadata information.' % len(missing_quality))
 
-            new_genomes_to_consider = []
-            for genome_id in accession_to_taxid.keys():
-                comp, cont, contig_count, n50_contig = genome_quality.get(genome_id, [-1, -1, -1])
-                comp = float(comp)
-                cont = float(cont)
-                contig_count = int(contig_count)
-                n50_contig = int(n50_contig)
-                if (comp >= min_rep_comp
-                    and cont <= max_rep_cont
-                    and contig_count <= max_contigs
-                    and n50_contig >= min_N50):
-                        new_genomes_to_consider.append(genome_id)
-                else:
-                    # check if genome is marked as a representative at NCBI
-                    if genome_id in representative_genomes:
-                        self.logger.warning('Filtered RefSeq representative %s with comp=%.2f, cont=%.2f, contigs=%d, N50=%d' % (genome_id, comp, cont, contig_count, n50_contig))
-                        filtered_reps += 1
+        genome_stats = read_gtdb_metadata(metadata_file, ['checkm_completeness',
+                                                            'checkm_contamination',
+                                                            'contig_count',
+                                                            'n50_contigs'])
+        missing_quality = set(accession_to_taxid.keys()) - set(genome_stats.keys())
+        if missing_quality:
+            self.logger.error('There are %d genomes without metadata information.' % len(missing_quality))
+            self.exit(-1)
 
-            genomes_to_consider = new_genomes_to_consider
-            self.logger.info('Filtered %d representative or reference genome based on genome quality.' % filtered_reps)
-            self.logger.info('Considering %d genomes after filtering for genome quality.' % (len(genomes_to_consider)))
+        new_genomes_to_consider = []
+        genome_quality = {}
+        for genome_id in accession_to_taxid.keys():
+            comp, cont, contig_count, n50_contig = genome_stats.get(genome_id, [-1, -1, -1])
+            comp = float(comp)
+            cont = float(cont)
+            contig_count = int(contig_count)
+            n50_contig = int(n50_contig)
+            if (comp >= min_rep_comp
+                and cont <= max_rep_cont
+                and contig_count <= max_contigs
+                and n50_contig >= min_N50):
+                    new_genomes_to_consider.append(genome_id)
+                    genome_quality[genome_id] = comp - cont
+            else:
+                # check if genome is marked as a representative at NCBI
+                if genome_id in representative_genomes:
+                    self.logger.warning('Filtered RefSeq representative %s with comp=%.2f, cont=%.2f, contigs=%d, N50=%d' % (genome_id, comp, cont, contig_count, n50_contig))
+                    filtered_reps += 1
+
+        genomes_to_consider = new_genomes_to_consider
+        self.logger.info('Filtered %d representative or reference genome based on genome quality.' % filtered_reps)
+        self.logger.info('Considering %d genomes after filtering for genome quality.' % (len(genomes_to_consider)))
 
         ncbi_type_strains = read_gtdb_ncbi_type_strain(metadata_file)
         self.logger.info('Identified %d genomes marked as type strains at NCBI.' % len(ncbi_type_strains))
 
         genomes_to_retain = self._dereplicate(genomes_to_consider,
                                                 max_species,
-                                                ncbi_taxonomy,
+                                                species,
                                                 representative_genomes,
                                                 complete_genomes,
                                                 ncbi_type_strains,
-                                                trusted_accessions)
+                                                trusted_accessions,
+                                                genome_quality)
 
         self.logger.info('Retained %d genomes.' % len(genomes_to_retain))
 

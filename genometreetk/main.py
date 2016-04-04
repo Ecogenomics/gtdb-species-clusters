@@ -148,18 +148,21 @@ class OptionsParser():
     def ssu_tree(self, options):
         """Infer 16S tree spanning GTDB genomes."""
 
-        check_dependencies(['ssu-align', 'ssu-mask', 'FastTreeMP'])
+        check_dependencies(['ssu-align', 'ssu-mask', 'FastTreeMP', 'blastn'])
 
         check_file_exists(options.gtdb_metadata_file)
         check_file_exists(options.gtdb_dir_file)
         make_sure_path_exists(options.output_dir)
 
-        ssu_workflow = SSU_Workflow(options.gtdb_metadata_file, options.gtdb_dir_file)
+        ssu_workflow = SSU_Workflow(options.gtdb_metadata_file,
+                                    options.gtdb_dir_file,
+                                    options.cpus)
         ssu_workflow.run(options.min_ssu_length,
                          options.min_ssu_contig,
                          options.min_quality,
                          options.max_contigs,
                          options.min_N50,
+                         not options.disable_tax_filter,
                          options.ncbi_rep_only,
                          options.user_genomes,
                          options.output_dir)
@@ -466,6 +469,35 @@ class OptionsParser():
 
         self.logger.info('Stripped tree written to: %s' % options.output_tree)
 
+    def diff(self, options):
+        """Compare two taxonomy files."""
+
+        check_file_exists(options.input_taxonomy1)
+        check_file_exists(options.input_taxonomy2)
+
+        taxonomy1 = Taxonomy().read(options.input_taxonomy1)
+        taxonomy2 = Taxonomy().read(options.input_taxonomy2)
+
+        all_taxon_ids = set(taxonomy1.keys()).union(taxonomy2.keys())
+
+        rank_index = Taxonomy.rank_labels.index(options.rank)
+        for taxon_id in all_taxon_ids:
+            if options.report_missing_taxa:
+                if taxon_id not in taxonomy1:
+                    print 'Missing in taxonomy 1: %s' % taxon_id
+                elif taxon_id not in taxonomy2:
+                    print 'Missing in taxonomy 2: %s' % taxon_id
+
+            if taxon_id in taxonomy1 and taxon_id in taxonomy2:
+                taxon1 = taxonomy1[taxon_id][rank_index]
+                taxon2 = taxonomy2[taxon_id][rank_index]
+
+                if taxon1 != taxon2:
+                    if options.report_missing_ranks or (taxon1[3:] and taxon2[3:]):
+                        print 'Different taxon for %s: %s %s' % (taxon_id, taxon1, taxon2)
+
+        print 'Done.'
+
     def parse_options(self, options):
         """Parse user options and call the correct pipeline(s)"""
 
@@ -513,6 +545,8 @@ class OptionsParser():
             self.fill_ranks(options)
         elif options.subparser_name == 'strip':
             self.strip(options)
+        elif options.subparser_name == 'diff':
+            self.diff(options)
         else:
             self.logger.error('  [Error] Unknown GenomeTreeTk command: ' + options.subparser_name + '\n')
             sys.exit()

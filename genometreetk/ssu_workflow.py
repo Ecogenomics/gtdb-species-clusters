@@ -22,16 +22,19 @@ import logging
 import biolib.seq_io as seq_io
 from biolib.misc.time_keeper import TimeKeeper
 from biolib.external.fasttree import FastTree
+from biolib.external.blast import Blast
+from biolib.taxonomy import Taxonomy
 
 import genometreetk.ncbi as ncbi
 from genometreetk.common import (read_gtdb_metadata,
-                                    read_genome_dir_file)
+                                    read_genome_dir_file,
+                                    read_gtdb_taxonomy)
 
 
 class SSU_Workflow(object):
     """Infer SSU trees."""
 
-    def __init__(self, gtdb_metadata_file, genome_dir_file):
+    def __init__(self, gtdb_metadata_file, genome_dir_file, cpus):
         """Initialization.
 
         Parameters
@@ -40,16 +43,20 @@ class SSU_Workflow(object):
             File specifying GTDB metadata for each genome.
         genome_dir_file : str
             File specifying directory for each genome.
+        cpus : int
+            Maximum number of CPUs to use.
         """
 
         self.logger = logging.getLogger()
 
         self.gtdb_metadata_file = gtdb_metadata_file
         self.genome_dir_file = genome_dir_file
+        self.cpus = cpus
 
     def _get_ssu_seqs(self,
                       min_ssu_length,
                       min_ssu_contig,
+                      gtdb_taxonomy,
                       genomes_to_consider,
                       output_dir):
         """Get 16S sequences from genomes.
@@ -60,6 +67,8 @@ class SSU_Workflow(object):
             Minimum required length of 16S sequences.
         min_ssu_contig : int
             Minimum required length of contig containing 16S sequence.
+        gtdb_taxonomy : list
+            GTDB taxonomy for each genome assembly.
         genomes_to_consider : iterable
             IDs of genomes to obtain 16S sequences.
         output_dir : str
@@ -74,9 +83,9 @@ class SSU_Workflow(object):
 
         genome_dirs = read_genome_dir_file(self.genome_dir_file)
 
-        ssu_output_file = os.path.join(output_dir, 'ssu_reps.fna')
-        fout = open(ssu_output_file, 'w')
+        ssu_output_file = os.path.join(output_dir, 'gtdb_ssu.fna')
 
+        fout = open(ssu_output_file, 'w')
         no_identified_ssu = 0
         for genome_id in genomes_to_consider:
             ssu_hmm_file = os.path.join(genome_dirs[genome_id], 'ssu_gg_2013_08', 'ssu.hmm_summary.tsv')
@@ -123,7 +132,7 @@ class SSU_Workflow(object):
                 if longest_contig_len:
                     ssu_seq_file = os.path.join(genome_dirs[genome_id], 'ssu_gg_2013_08', 'ssu.fna')
                     seqs = seq_io.read_fasta(ssu_seq_file)
-                    fout.write('>' + genome_id + ' ' + seq_info + '\n')
+                    fout.write('>' + genome_id + ' ' + ';'.join(gtdb_taxonomy[genome_id]) + '\n')
                     fout.write(seqs[seq_id] + '\n')
         fout.close()
 
@@ -225,11 +234,50 @@ class SSU_Workflow(object):
         self.logger.info('Filtered %d of %d sequences due to length.' % (num_filtered_seq, len(seqs) - len(identical_seqs)))
         self.logger.info('Short sequence written to: %s' % short_seq_file)
 
+    def _tax_filter(self, ssu_output_file, taxonomy, output_dir):
+        """Identify sequence to filter based on taxonomy of best BLAST hit.
+
+        """
+
+        blast = Blast(self.cpus)
+        self.logger.info('Creating BLASTN database.')
+        blast.create_blastn_db(ssu_output_file)
+
+        self.logger.info('Performing reciprocal BLAST to identify sequences with incongruent taxonomies.')
+        blast_table = os.path.join(output_dir, 'blastn.tsv')
+        blast.blastn(ssu_output_file,
+                     ssu_output_file,
+                     blast_table,
+                     evalue=1e-10,
+                     max_matches=2,
+                     output_fmt='custom',
+                     task='megablast')
+
+        filter = set()
+        order_index = Taxonomy.rank_labels.index('order')
+        for hit in blast.read_hit(blast_table, table_fmt='custom'):
+            if hit.query_id == hit.subject_id:
+                # ignore self hits
+                continue
+
+            if hit.perc_identity >= 97 and hit.alignment_len > 800:
+                # there is a close hit in the database so verify it has
+                # the expected taxonomic order
+
+                order_of_query = taxonomy[hit.query_id][order_index][3:].strip()
+                if order_of_query != Taxonomy.rank_prefixes[order_index]:
+                    order_of_subject = taxonomy[hit.subject_id][order_index][3:].strip()
+                    if order_of_query and order_of_subject and order_of_query != order_of_subject:
+                        filter.add(hit.query_id)
+
+        return filter
+
     def run(self, min_ssu_length,
                     min_ssu_contig,
                     min_quality,
                     max_contigs,
                     min_N50,
+                    tax_filter,
                     ncbi_rep_only,
                     user_genomes,
                     output_dir):
@@ -243,6 +291,12 @@ class SSU_Workflow(object):
             Minimum required length of contig containing 16S sequence.
         min_quality : float [0, 100]
             Minimum genome quality for a genome to be include in tree.
+        max_contigs : int
+            Maximum number of contigs to include genome.
+        min_N50 : int
+            Minimum N50 to include genome.
+        tax_filter : boolean
+            Filter sequences based on incongruent taxonomy classification.
         ncbi_rep_only : boolean
             Restrict tree to NCBI representative and reference genomes.
         user_genomes : boolean
@@ -255,6 +309,8 @@ class SSU_Workflow(object):
                                                                       'checkm_contamination',
                                                                       'scaffold_count',
                                                                       'n50_contigs'])
+
+        gtdb_taxonomy = read_gtdb_taxonomy(self.gtdb_metadata_file)
 
         num_user_genomes = 0
         num_ncbi_genomes = 0
@@ -269,14 +325,19 @@ class SSU_Workflow(object):
 
         if ncbi_rep_only:
             _accession_to_taxid, _complete_genomes, ncbi_rep_genomes = ncbi.read_refseq_metadata(self.gtdb_metadata_file , keep_db_prefix=True)
+            self.logger.info('Considering only NCBI representative or reference genomes.')
             self.logger.info('Identified %d RefSeq genomes.' % len(accession_to_taxid))
             self.logger.info('Identified %d representative or reference genomes.' % len(ncbi_rep_genomes))
 
-        # access genome quality
+        # access genome quality and database source
+        if not user_genomes:
+            self.logger.info('Filtering User genomes.')
+        self.logger.info('Filtering genomes based on specified critieria.')
         new_genomes_to_consider = []
-        poor_quality_genomes = 0
+        filtered_genomes = 0
         for genome_id in genome_quality:
             if not user_genomes and genome_id.startswith('U_'):
+                filtered_genomes += 1
                 continue
 
             comp, cont, scaffold_count, n50_contigs = genome_quality.get(genome_id, [-1, -1, -1])
@@ -285,17 +346,37 @@ class SSU_Workflow(object):
                 if q >= min_quality and int(scaffold_count) <= max_contigs and int(n50_contigs) >= min_N50:
                     new_genomes_to_consider.append(genome_id)
                 else:
-                    poor_quality_genomes += 1
+                    filtered_genomes += 1
 
         genomes_to_consider = new_genomes_to_consider
-        self.logger.info('Filtered %d genomes.' % poor_quality_genomes)
+        self.logger.info('Filtered %d genomes.' % filtered_genomes)
         self.logger.info('Considering %d genomes after filtering.' % len(genomes_to_consider))
 
         # get SSU sequences for genomes
         ssu_output_file = self._get_ssu_seqs(min_ssu_length,
                                              min_ssu_contig,
+                                             gtdb_taxonomy,
                                              genomes_to_consider,
                                              output_dir)
+
+        # identify erroneous SSU sequences
+        if tax_filter:
+            self.logger.info('Filtering sequences with incongruent taxonomy strings.')
+            filter = self._tax_filter(ssu_output_file, gtdb_taxonomy, output_dir)
+
+            self.logger.info('Filtered %d sequences.' % len(filter))
+            print filter
+
+            if len(filter) > 0:
+                ssu_filtered_output = os.path.join(output_dir, 'gtdb_ssu.filtered.fna')
+                fout = open(ssu_filtered_output, 'w')
+                for seq_id, seq, annotation in seq_io.read_seq(ssu_output_file, keep_annotation=True):
+                    if seq_id not in filter:
+                        fout.write('>' + seq_id + ' ' + annotation + '\n')
+                        fout.write(seq + '\n')
+                fout.close()
+
+                ssu_output_file = ssu_filtered_output
 
         # align sequences
         ssu_align_dir = os.path.join(output_dir, 'ssu_align')

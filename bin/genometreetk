@@ -33,6 +33,7 @@ import argparse
 from genometreetk.main import OptionsParser
 from biolib.misc.custom_help_formatter import CustomHelpFormatter
 from biolib.common import make_sure_path_exists
+from biolib.taxonomy import Taxonomy
 
 
 def version():
@@ -79,6 +80,7 @@ def print_help():
       binomial   -> Ensure species are designated using binomial nomenclature
       propagate  -> Propagate labels from representatives to all genomes in a cluster
       strip      -> Remove taxonomic labels from a tree (useful for re-decorating)
+      diff       -> Determine differences between two taxonomy files
 
 
   Use: genometreetk <command> -h for command specific help.
@@ -193,6 +195,8 @@ if __name__ == '__main__':
     ssu_tree_parser.add_argument('--min_quality', help='minimum quality (completeness - contamination) for a genome to be included in tree [0, 100]', type=float, default=80)
     ssu_tree_parser.add_argument('--max_contigs', help='maximum contigs comprising a genome for it to be included in tree', type=int, default=200)
     ssu_tree_parser.add_argument('--min_N50', help='minimum N50 of contigs for a genome to be include in tree', type=int, default=20000)
+    ssu_tree_parser.add_argument('--disable_tax_filter', help="filter sequences with incongruent taxonomy", action='store_true')
+    ssu_tree_parser.add_argument('-c', '--cpus', help='number of cpus', type=int, default=1)
     ssu_tree_parser.add_argument('--silent', help="suppress output", action='store_true')
 
     # assess robustness of genome tree using classic bootstrapping
@@ -345,6 +349,17 @@ if __name__ == '__main__':
     strip_parser.add_argument('input_tree', help="tree to reroot")
     strip_parser.add_argument('output_tree', help="output tree")
     strip_parser.add_argument('--silent', help="suppress output", action='store_true')
+
+    # difference between two taxonomy files
+    diff_parser = subparsers.add_parser('diff',
+                                        formatter_class=CustomHelpFormatter,
+                                        description='Determine differences between two taxonomy files.')
+    diff_parser.add_argument('input_taxonomy1', help='first taxonomy file')
+    diff_parser.add_argument('input_taxonomy2', help='second taxonomy file')
+    diff_parser.add_argument('rank', help='taxonomic rank to compare', choices=Taxonomy.rank_labels, default='genus')
+    diff_parser.add_argument('--report_missing_taxa', help="report taxa not present in both files", action='store_true')
+    diff_parser.add_argument('--report_missing_ranks', help="report taxa with empty ranks", action='store_true')
+    diff_parser.add_argument('--silent', help="suppress output", action='store_true')
 
     # get and check options
     args = None
