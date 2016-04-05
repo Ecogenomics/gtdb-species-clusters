@@ -134,6 +134,7 @@ class Representatives(object):
         genus = {}
         reps_from_genus = defaultdict(set)
         for genome_id, t in gtdb_taxonomy.iteritems():
+            g = None
             if len(t) >= 6 and t[5] != 'g__':
                 g = t[5]
             elif genome_id in species:

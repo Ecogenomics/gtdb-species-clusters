@@ -133,10 +133,10 @@ class DereplicationWorkflow(object):
                 # any type strain if one exists
                 if len(selected_genomes) < max_species:
                     if complete_type_strains:
-                        selected_type_strain = complete_type_strains_quality_sorted.pop(0)[0] # random.sample(complete_type_strains, 1)
+                        selected_type_strain = [x[0] for x in complete_type_strains_quality_sorted[0:1]] # random.sample(complete_type_strains, 1)
                         selected_genomes.update(selected_type_strain)
                     elif type_strains:
-                        selected_type_strain = type_strains_quality_sorted.pop(0)[0] # random.sample(type_strains, 1)
+                        selected_type_strain = [x[0] for x in type_strains_quality_sorted[0:1]]# random.sample(type_strains, 1)
                         selected_genomes.update(selected_type_strain)
 
                 # grab as many complete genomes as possible
