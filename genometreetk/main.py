@@ -21,7 +21,7 @@ import logging
 
 import dendropy
 
-from biolib.common import check_file_exists, make_sure_path_exists
+from biolib.common import check_file_exists, make_sure_path_exists, is_float
 from biolib.external.execute import check_dependencies
 from biolib.taxonomy import Taxonomy
 
@@ -411,32 +411,83 @@ class OptionsParser():
                                                                   'gtdb_clustered_genomes'])
 
         taxonomy = Taxonomy()
-        t = taxonomy.read(options.input_taxonomy)
+        explict_tax = taxonomy.read(options.input_taxonomy)
         expanded_taxonomy = {}
-        for genome_id, taxon_list in t.iteritems():
-            if genome_id in expanded_taxonomy:
-                # this should never happen
-                self.logger.error('Genome has both a representative and explicit taxonomy string: %s' % cluster_genome_id)
-                sys.exit(-1)
-
+        incongruent_count = 0
+        for genome_id, taxon_list in explict_tax.iteritems():
             taxonomy_str = ';'.join(taxon_list)
-            expanded_taxonomy[genome_id] = taxonomy_str
 
-            # propagate taxonomy strings from representatives. Note that a genome may
-            # not have metadata as it is possible a User has removed a genome that
-            # is in the provided taxonomy file.
+            # Propagate taxonomy strings if genome is a representatives. Also, determine
+            # if genomes clustered together have compatible taxonomies. Note that a genome
+            # may not have metadata as it is possible a User  has removed a genome that is
+            # in the provided taxonomy file.
             _rep_genome, clustered_genomes = rep_metadata.get(genome_id, (None, None))
-            if clustered_genomes:
-                for cluster_genome_id in clustered_genomes.split(';'):
+            if clustered_genomes:  # genome is a representative
+                clustered_genome_ids = clustered_genomes.split(';')
+
+                # get taxonomy of all genomes in cluster with a specified taxonomy
+                clustered_genome_tax = {}
+                for cluster_genome_id in clustered_genome_ids:
                     if cluster_genome_id == genome_id:
                         continue
 
-                    if cluster_genome_id in expanded_taxonomy:
-                        # this should never happen
-                        self.logger.error('Genome has both a representative and explicit taxonomy string: %s' % cluster_genome_id)
-                        sys.exit(-1)
+                    if cluster_genome_id not in rep_metadata:
+                        continue  # genome is no longer in the GTDB so ignore it
 
-                    expanded_taxonomy[cluster_genome_id] = taxonomy_str
+                    if cluster_genome_id in explict_tax:
+                        clustered_genome_tax[cluster_genome_id] = explict_tax[cluster_genome_id]
+
+                # determine if representative and clustered genome taxonomy strings are congruent
+                working_cluster_taxonomy = list(taxon_list)
+                incongruent_with_rep = False
+                for cluster_genome_id, cluster_tax in clustered_genome_tax.iteritems():
+                    if incongruent_with_rep:
+                        working_cluster_taxonomy = list(taxon_list)  # default to rep taxonomy
+                        break
+
+                    for r in xrange(0, len(Taxonomy.rank_prefixes)):
+                        if cluster_tax[r] == Taxonomy.rank_prefixes[r]:
+                            break  # no more taxonomy information to consider
+
+                        if cluster_tax[r] != taxon_list[r]:
+                            if taxon_list[r] == Taxonomy.rank_prefixes[r]:
+                                # clustered genome has a more specific taxonomy string which
+                                # should be propagate to the representative if all clustered
+                                # genomes are in agreement
+                                if working_cluster_taxonomy[r] == Taxonomy.rank_prefixes[r]:
+                                    # make taxonomy more specific based on genomes in cluster
+                                    working_cluster_taxonomy[r] = cluster_tax[r]
+                                elif working_cluster_taxonomy[r] != cluster_tax[r]:
+                                    # not all genomes agree on the assignment of this rank so leave it unspecified
+                                    working_cluster_taxonomy[r] = Taxonomy.rank_prefixes[r]
+                                    break
+                            else:
+                                # genomes in cluster have incongruent taxonomies so defer to representative
+                                self.logger.warning("Genomes in cluster have incongruent taxonomies.")
+                                self.logger.warning("Representative %s: %s" % (genome_id, taxonomy_str))
+                                self.logger.warning("Clustered genome %s: %s" % (cluster_genome_id, ';'.join(cluster_tax)))
+                                self.logger.warning("Deferring to taxonomy specified for representative.")
+
+                                incongruent_count += 1
+                                incongruent_with_rep = True
+                                break
+
+                cluster_taxonomy_str = ';'.join(working_cluster_taxonomy)
+
+                # assign taxonomy to representative and all genomes in the cluster
+                expanded_taxonomy[genome_id] = cluster_taxonomy_str
+                for cluster_genome_id in clustered_genome_ids:
+                    expanded_taxonomy[cluster_genome_id] = cluster_taxonomy_str
+            else:
+                if genome_id in expanded_taxonomy:
+                    # genome has already been assigned a taxonomy based on its representative
+                    pass
+                else:
+                    # genome is a singleton
+                    expanded_taxonomy[genome_id] = taxonomy_str
+
+
+        self.logger.info('Identified %d clusters with incongruent taxonomies.' % incongruent_count)
 
         fout = open(options.output_taxonomy, 'w')
         for genome_id, taxonomy_str in expanded_taxonomy.iteritems():
@@ -498,6 +549,42 @@ class OptionsParser():
 
         print 'Done.'
 
+    def phylogenetic_diversity(self, options):
+        """Calculate phylogenetic diversity of named groups."""
+
+        check_file_exists(options.decorated_tree)
+
+        tree = dendropy.Tree.get_from_path(options.decorated_tree,
+                                            schema='newick',
+                                            rooting='force-rooted',
+                                            preserve_underscores=True)
+
+        total_pd = 0
+        pds = {}
+        for node in tree.preorder_node_iter():
+            if node.parent_node is not None:
+                total_pd += node.edge.length
+
+            if not node.label:
+                continue
+
+            taxon = None
+            if ':' in node.label:
+                _support, taxon = node.label.split(':')
+            else:
+                if not is_float(node.label):
+                    taxon = node.label
+
+            if taxon:
+                taxon_pd = 0
+                for nn in node.postorder_iter():
+                    if nn != node:
+                        taxon_pd += nn.edge.length
+
+                print '%s\t%f' % (taxon, taxon_pd)
+
+        print '%s\t%f' % ('Total branch length', total_pd)
+
     def parse_options(self, options):
         """Parse user options and call the correct pipeline(s)"""
 
@@ -547,6 +634,8 @@ class OptionsParser():
             self.strip(options)
         elif options.subparser_name == 'diff':
             self.diff(options)
+        elif options.subparser_name == 'pd':
+            self.phylogenetic_diversity(options)
         else:
             self.logger.error('  [Error] Unknown GenomeTreeTk command: ' + options.subparser_name + '\n')
             sys.exit()

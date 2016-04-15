@@ -111,7 +111,8 @@ class Cluster(object):
         genus = {}
         reps_from_genus = defaultdict(set)
         for genome_id, t in gtdb_taxonomy.iteritems():
-            if len(t) >= 6 and t[5] != 'g__':
+            g = None
+	    if len(t) >= 6 and t[5] != 'g__':
                 g = t[5]
             elif genome_id in species:
                 g = species[genome_id].split(' ')[0][3:]

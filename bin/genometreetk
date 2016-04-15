@@ -82,6 +82,9 @@ def print_help():
       strip      -> Remove taxonomic labels from a tree (useful for re-decorating)
       diff       -> Determine differences between two taxonomy files
 
+    Other:
+      pd -> Calculate phylogenetic diversity (branch length) of named groups
+
 
   Use: genometreetk <command> -h for command specific help.
 
@@ -360,6 +363,13 @@ if __name__ == '__main__':
     diff_parser.add_argument('--report_missing_taxa', help="report taxa not present in both files", action='store_true')
     diff_parser.add_argument('--report_missing_ranks', help="report taxa with empty ranks", action='store_true')
     diff_parser.add_argument('--silent', help="suppress output", action='store_true')
+
+    # difference between two taxonomy files
+    pd_parser = subparsers.add_parser('pd',
+                                        formatter_class=CustomHelpFormatter,
+                                        description='Calculate phylogenetic diversity of named groups.')
+    pd_parser.add_argument('decorated_tree', help='tree with labeled internal nodes')
+    pd_parser.add_argument('--silent', help="suppress output", action='store_true')
 
     # get and check options
     args = None
