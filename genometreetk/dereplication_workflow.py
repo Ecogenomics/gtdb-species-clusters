@@ -56,6 +56,7 @@ class DereplicationWorkflow(object):
                             representative_genomes,
                             complete_genomes,
                             ncbi_type_strains,
+                            lpsn_type_strains,
                             trusted_accessions,
                             genome_quality):
         """Dereplicate genomes based on taxonomy.
@@ -74,6 +75,8 @@ class DereplicationWorkflow(object):
             Set of complete genomes to prioritize.
         ncbi_type_strains : set
             Set of genomes marked as type strains at NCBI.
+        lpsn_type_strains : d[ncbi_species] -> set of genome IDs
+            Genomes marked as type strains at LPSN.
         trusted_accessions : set
             Set of trusted genomes.
         genome_quality : d[genome_id] -> comp - cont
@@ -86,6 +89,7 @@ class DereplicationWorkflow(object):
         """
 
         # determine genomes belonging to each named species
+        retained_reps = 0
         species = defaultdict(set)
         genomes_to_retain = set()
         for genome_id in assemble_accessions:
@@ -93,19 +97,23 @@ class DereplicationWorkflow(object):
 
             if not trusted_accessions or genome_id in trusted_accessions:
                 if not sp:
+                    if genome_id in representative_genomes:
+                        retained_reps += 1
                     genomes_to_retain.add(genome_id)
                 else:
                     species[sp].add(genome_id)
 
-        self.logger.info('Retained %d genomes without a species designation.' % len(genomes_to_retain))
+        self.logger.info('Retained %d genomes without a species designation.' % (len(genomes_to_retain) - retained_reps))
 
         # dereplicate species
+        additional_reps = 0
         for sp, genome_ids in species.iteritems():
+            representatives = genome_ids.intersection(representative_genomes)
+
             if len(genome_ids) > max_species:
                 selected_genomes = set()
 
                 # get different classes of genomes
-                representatives = genome_ids.intersection(representative_genomes)
                 complete = genome_ids.intersection(complete_genomes)
                 type_strains = genome_ids.intersection(ncbi_type_strains)
                 complete_type_strains = type_strains.intersection(complete)
@@ -114,6 +122,7 @@ class DereplicationWorkflow(object):
                 # select all representative genomes
                 if representatives:
                     selected_genomes.update(representatives)
+                    retained_reps += len(representatives)
                     genome_ids.difference_update(representatives)
                     type_strains.difference_update(representatives)
                     complete_type_strains.difference_update(representatives)
@@ -156,8 +165,29 @@ class DereplicationWorkflow(object):
                     selected_genomes.update(rnd_additional_genomes)
 
                 genomes_to_retain.update(selected_genomes)
+                additional_reps += len(selected_genomes) - len(representatives)
             else:
                 genomes_to_retain.update(genome_ids)
+                retained_reps += len(representatives)
+                additional_reps += len(genome_ids) - len(representatives)
+                
+        self.logger.info('Retained %d RefSeq representatives.' % retained_reps)
+        self.logger.info('Retained %d additional genomes in order to establish %s genomes per species.' % (additional_reps, max_species))
+      
+        # make sure to select at least one LPSN type strain for each species
+        lpsn_genomes = 0
+        for sp, genome_ids in lpsn_type_strains.iteritems():
+            if len(genome_ids.intersection(genomes_to_retain)) >= 1:
+                # an LPSN type strain has already been selected for this species
+                continue
+                
+            # select genome with the highest quality
+            genome_ids_quality = {k:genome_quality[k] for k in genome_ids}
+            genome_ids_quality_sorted = sorted(genome_ids_quality.items(), key=operator.itemgetter(1), reverse=True)
+            genomes_to_retain.add(genome_ids_quality_sorted[0][0])
+            lpsn_genomes += 1
+
+        self.logger.info('Retained %d additional genomes to ensure a LPSN type strain in each species.' % lpsn_genomes)
 
         return genomes_to_retain
 
@@ -166,8 +196,11 @@ class DereplicationWorkflow(object):
                     metadata_file,
                     min_rep_comp,
                     max_rep_cont,
+                    min_quality,
                     max_contigs,
                     min_N50,
+                    max_ambiguous,
+                    strict_filtering,
                     output_file):
         """Dereplicate genomes to a specific number per named species.
 
@@ -183,10 +216,18 @@ class DereplicationWorkflow(object):
             Minimum completeness for a genome to be a representative.
         max_rep_cont : float [0, 100]
             Maximum contamination for a genome to be a representative.
+        min_quality : float [0, 100]
+            Minimum genome quality (comp-4*cont) for a genome to be a representative.
         max_contigs : int
-            Maximum number of contigs within trusted genomes.
+            Maximum number of contigs for a genome to be a representative.
         min_N50 : int
-            Minimum N50 of trusted genomes.
+            Minimum N50 for a genome to be a representative.
+        max_ambiguous : int
+            Maximum number of ambiguous bases for a genome to be a representative.
+        strict_filtering : boolean
+            If True apply filtering to all genomes, otherise apply lenient 
+            filtering to genomes where the chromosome and plasmids are reported 
+            as complete.
         output_file : str
             Output file to contain list of dereplicated genomes.
         """
@@ -214,31 +255,69 @@ class DereplicationWorkflow(object):
         genome_stats = read_gtdb_metadata(metadata_file, ['checkm_completeness',
                                                             'checkm_contamination',
                                                             'contig_count',
-                                                            'n50_contigs'])
+                                                            'n50_contigs',
+                                                            'ambiguous_bases',
+                                                            'scaffold_count',
+                                                            'ssu_count',
+                                                            'ncbi_molecule_count',
+                                                            'ncbi_unspanned_gaps',
+                                                            'ncbi_genome_representation',
+                                                            'ncbi_spanned_gaps',
+                                                            'ncbi_assembly_level',
+                                                            'ncbi_taxonomy',
+                                                            'lpsn_strain'])
         missing_quality = set(accession_to_taxid.keys()) - set(genome_stats.keys())
         if missing_quality:
             self.logger.error('There are %d genomes without metadata information.' % len(missing_quality))
             self.exit(-1)
 
+        lpsn_type_strains = defaultdict(set)
         new_genomes_to_consider = []
         genome_quality = {}
         for genome_id in accession_to_taxid.keys():
-            comp, cont, contig_count, n50_contig = genome_stats.get(genome_id, [-1, -1, -1])
-            comp = float(comp)
-            cont = float(cont)
-            contig_count = int(contig_count)
-            n50_contig = int(n50_contig)
+            stats = genome_stats[genome_id]
+            comp = stats.checkm_completeness
+            cont = stats.checkm_contamination
+            
             if (comp >= min_rep_comp
-                and cont <= max_rep_cont
-                and contig_count <= max_contigs
-                and n50_contig >= min_N50):
-                    new_genomes_to_consider.append(genome_id)
-                    genome_quality[genome_id] = comp - cont
-            else:
-                # check if genome is marked as a representative at NCBI
-                if genome_id in representative_genomes:
-                    self.logger.warning('Filtered RefSeq representative %s with comp=%.2f, cont=%.2f, contigs=%d, N50=%d' % (genome_id, comp, cont, contig_count, n50_contig))
-                    filtered_reps += 1
+                    and cont <= max_rep_cont
+                    and (comp - 4*cont) >= min_quality
+                    and stats.contig_count <= max_contigs
+                    and stats.n50_contigs >= min_N50
+                    and stats.ambiguous_bases <= max_ambiguous):
+                        new_genomes_to_consider.append(genome_id)
+                        genome_quality[genome_id] = comp - cont
+                        if stats.lpsn_strain:
+                            ncbi_species = stats.ncbi_taxonomy.split(';')[6].strip()
+                            lpsn_type_strains[ncbi_species].add(genome_id)
+            elif not strict_filtering:
+                # check if genome appears to consist of only an unspanned
+                # chromosome and unspanned plasmids and thus can be 
+                # subjected to a more lenient quality check
+                if (stats.ncbi_assembly_level in ['Complete Genome', 'Chromosome']
+                    and stats.ncbi_genome_representation == 'full'
+                    and stats.scaffold_count == stats.ncbi_molecule_count
+                    and stats.ncbi_unspanned_gaps == 0
+                    and stats.ncbi_spanned_gaps <= 10
+                    and stats.ambiguous_bases <= 100
+                    and stats.ssu_count >= 1):
+                    
+                    # apply lenient quality check 
+                    if comp >= 50 and cont <= 15:
+                        new_genomes_to_consider.append(genome_id)
+                        genome_quality[genome_id] = comp - cont
+                        if stats.lpsn_strain:
+                            ncbi_species = stats.ncbi_taxonomy.split(';')[6].strip()
+                            lpsn_type_strains[ncbi_species].add(genome_id)
+            
+            # check if a representative at NCBI is being filtered
+            if genome_id in representative_genomes and genome_id not in new_genomes_to_consider:
+                self.logger.warning('Filtered RefSeq representative %s with comp=%.2f, cont=%.2f, contigs=%d, N50=%d' % (genome_id, 
+                                                                                                                            comp, 
+                                                                                                                            cont, 
+                                                                                                                            stats.contig_count, 
+                                                                                                                            stats.n50_contigs))
+                filtered_reps += 1
 
         genomes_to_consider = new_genomes_to_consider
         self.logger.info('Filtered %d representative or reference genome based on genome quality.' % filtered_reps)
@@ -246,6 +325,7 @@ class DereplicationWorkflow(object):
 
         ncbi_type_strains = read_gtdb_ncbi_type_strain(metadata_file)
         self.logger.info('Identified %d genomes marked as type strains at NCBI.' % len(ncbi_type_strains))
+        self.logger.info('Identified %d genomes marked as type strains at LPSN.' % sum([len(x) for x in lpsn_type_strains.values()]))
 
         genomes_to_retain = self._dereplicate(genomes_to_consider,
                                                 max_species,
@@ -253,6 +333,7 @@ class DereplicationWorkflow(object):
                                                 representative_genomes,
                                                 complete_genomes,
                                                 ncbi_type_strains,
+                                                lpsn_type_strains,
                                                 trusted_accessions,
                                                 genome_quality)
 

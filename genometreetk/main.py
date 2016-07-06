@@ -165,6 +165,7 @@ class OptionsParser():
                          not options.disable_tax_filter,
                          options.ncbi_rep_only,
                          options.user_genomes,
+                         options.genome_list,
                          options.output_dir)
 
         self.logger.info('Results written to: %s' % options.output_dir)
@@ -201,7 +202,6 @@ class OptionsParser():
                                                 options.perc_markers,
                                                 options.num_replicates,
                                                 options.model,
-                                                options.gamma,
                                                 options.output_dir)
 
         self.logger.info('Jackknifed marker tree written to: %s' % output_tree)
@@ -220,7 +220,6 @@ class OptionsParser():
                                             options.perc_taxa,
                                             options.num_replicates,
                                             options.model,
-                                            options.gamma,
                                             options.output_dir)
 
         self.logger.info('Jackknifed taxa tree written to: %s' % output_tree)
@@ -277,8 +276,11 @@ class OptionsParser():
                                        options.metadata_file,
                                        options.min_rep_comp,
                                        options.max_rep_cont,
+                                       options.min_quality,
                                        options.max_contigs,
                                        options.min_N50,
+                                       options.max_ambiguous,
+                                       options.strict_filtering,
                                        options.rep_genome_file)
         except GenomeTreeTkError as e:
             print e.message
@@ -297,11 +299,16 @@ class OptionsParser():
         try:
             representatives = Representatives()
             representatives.run(options.refseq_representatives,
+                                    options.trusted_user_file,
                                     options.ar_msa_file,
                                     options.bac_msa_file,
                                     options.threshold,
                                     options.min_rep_comp,
                                     options.max_rep_cont,
+                                    options.min_quality,
+                                    options.max_contigs,
+                                    options.min_N50,
+                                    options.max_ambiguous,
                                     options.metadata_file,
                                     options.rep_genome_file)
 
@@ -322,6 +329,7 @@ class OptionsParser():
         try:
             cluster = Cluster(options.cpus)
             cluster.run(options.representatives,
+                        options.trusted_user_file,
                         options.ar_msa_file,
                         options.bac_msa_file,
                         options.threshold,
@@ -519,6 +527,16 @@ class OptionsParser():
                             unquoted_underscores=True)
 
         self.logger.info('Stripped tree written to: %s' % options.output_tree)
+        
+    def pull(self, options):
+        """Create taxonomy file from a decorated tree."""
+
+        check_file_exists(options.input_tree)
+
+        taxonomy = Taxonomy().read_from_tree(options.input_tree)
+        Taxonomy().write(taxonomy, options.output_taxonomy)
+            
+        self.logger.info('Stripped tree written to: %s' % options.output_taxonomy)
 
     def diff(self, options):
         """Compare two taxonomy files."""
@@ -632,6 +650,8 @@ class OptionsParser():
             self.fill_ranks(options)
         elif options.subparser_name == 'strip':
             self.strip(options)
+        elif options.subparser_name == 'pull':
+            self.pull(options)
         elif options.subparser_name == 'diff':
             self.diff(options)
         elif options.subparser_name == 'pd':

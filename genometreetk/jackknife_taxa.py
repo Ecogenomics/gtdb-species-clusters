@@ -23,6 +23,7 @@ from math import floor
 import biolib.seq_io as seq_io
 from biolib.external.fasttree import FastTree
 from biolib.parallel import Parallel
+from biolib.bootstrap import bootstrap_support
 from biolib.common import remove_extension, make_sure_path_exists
 
 from genometreetk.tree_support import TreeSupport
@@ -135,8 +136,8 @@ class JackknifeTaxa(object):
         # calculate replicates
         self.logger.info('')
         self.logger.info('  Calculating jackknife taxa replicates:')
-        parallel = Parallel(self.cpus)
-        parallel.run(self._producer, None, xrange(num_replicates), self._progress)
+        #parallel = Parallel(self.cpus)
+        #parallel.run(self._producer, None, xrange(num_replicates), self._progress)
 
         # calculate support
         rep_tree_files = []
@@ -145,6 +146,6 @@ class JackknifeTaxa(object):
 
         tree_support = TreeSupport()
         output_tree = os.path.join(output_dir, remove_extension(input_tree) + '.jk_taxa.tree')
-        tree_support.common_taxa(input_tree, rep_tree_files, output_tree)
+        tree_support.subset_taxa(input_tree, rep_tree_files, output_tree)
 
         return output_tree

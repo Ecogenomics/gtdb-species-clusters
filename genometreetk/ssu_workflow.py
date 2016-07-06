@@ -280,6 +280,7 @@ class SSU_Workflow(object):
                     tax_filter,
                     ncbi_rep_only,
                     user_genomes,
+                    genome_list,
                     output_dir):
         """Infer 16S tree spanning select GTDB genomes.
 
@@ -301,9 +302,15 @@ class SSU_Workflow(object):
             Restrict tree to NCBI representative and reference genomes.
         user_genomes : boolean
             Include User genomes in tree.
+        genome_list : str
+            Explict list of genomes to use (ignores --ncbi_rep_only and --user_genomes).
         output_dir : str
             Directory to store results
         """
+        
+        if genome_list and (ncbi_rep_only or user_genomes):
+            self.logger.error("The 'genome_list' flag cannot be used with the 'ncbi_rep_only' and 'user_genomes' flags.")
+            sys.exit(-1)
 
         genome_quality = read_gtdb_metadata(self.gtdb_metadata_file, ['checkm_completeness',
                                                                       'checkm_contamination',
@@ -321,35 +328,62 @@ class SSU_Workflow(object):
                 num_ncbi_genomes += 1
             else:
                 self.logger.warning('Unrecognized genome prefix: %s' % genome_id)
-        self.logger.info('Considering %d genomes (%d NCBI, %d User).' % (len(genome_quality), num_ncbi_genomes, num_user_genomes))
+        self.logger.info('Initially considering %d genomes (%d NCBI, %d User).' % (len(genome_quality), num_ncbi_genomes, num_user_genomes))
+        
+        # filter genomes based on quality and database source
+        genomes_in_list = set()
+        if genome_list:
+            for line in open(genome_list):
+                genomes_in_list.add(line.rstrip().split('\t')[0])
+            self.logger.info('Restricted genomes to the %d in the genome list.' % len(genomes_in_list))
+        else:
+            if ncbi_rep_only:
+                _accession_to_taxid, _complete_genomes, ncbi_rep_genomes = ncbi.read_refseq_metadata(self.gtdb_metadata_file , keep_db_prefix=True)
+                self.logger.info('Considering only NCBI representative or reference genomes.')
+                self.logger.info('Identified %d RefSeq genomes.' % len(accession_to_taxid))
+                self.logger.info('Identified %d representative or reference genomes.' % len(ncbi_rep_genomes))
+                
+            if not user_genomes:
+                self.logger.info('Filtering User genomes.')
 
-        if ncbi_rep_only:
-            _accession_to_taxid, _complete_genomes, ncbi_rep_genomes = ncbi.read_refseq_metadata(self.gtdb_metadata_file , keep_db_prefix=True)
-            self.logger.info('Considering only NCBI representative or reference genomes.')
-            self.logger.info('Identified %d RefSeq genomes.' % len(accession_to_taxid))
-            self.logger.info('Identified %d representative or reference genomes.' % len(ncbi_rep_genomes))
-
-        # access genome quality and database source
-        if not user_genomes:
-            self.logger.info('Filtering User genomes.')
         self.logger.info('Filtering genomes based on specified critieria.')
         new_genomes_to_consider = []
         filtered_genomes = 0
-        for genome_id in genome_quality:
-            if not user_genomes and genome_id.startswith('U_'):
+        gq = 0
+        sc = 0
+        n50 = 0
+        for genome_id in genome_quality:                
+            if genomes_in_list: 
+                if genome_id not in genomes_in_list:
+                    continue
+            else:
+                if not user_genomes and genome_id.startswith('U_'):
+                    filtered_genomes += 1
+                    continue
+
+                if ncbi_rep_only and genome_id not in ncbi_rep_genomes:
+                    filtered_genomes += 1
+                    continue
+   
+            comp, cont, scaffold_count, n50_contigs = genome_quality.get(genome_id, [-1, -1, -1])
+            q = float(comp) - float(cont)
+            if q < min_quality or int(scaffold_count) > max_contigs or int(n50_contigs) < min_N50:
+                if q < min_quality:
+                    gq += 1
+                    
+                if int(scaffold_count) > max_contigs:
+                    sc += 1
+                    
+                if int(n50_contigs) < min_N50:
+                    n50 += 1
+            
                 filtered_genomes += 1
                 continue
-
-            comp, cont, scaffold_count, n50_contigs = genome_quality.get(genome_id, [-1, -1, -1])
-            if not ncbi_rep_only or (genome_id in ncbi_rep_genomes):
-                q = float(comp) - float(cont)
-                if q >= min_quality and int(scaffold_count) <= max_contigs and int(n50_contigs) >= min_N50:
-                    new_genomes_to_consider.append(genome_id)
-                else:
-                    filtered_genomes += 1
+                
+            new_genomes_to_consider.append(genome_id)
 
         genomes_to_consider = new_genomes_to_consider
-        self.logger.info('Filtered %d genomes.' % filtered_genomes)
+        self.logger.info('Filtered %d genomes (%d on genome quality, %d on number of contigs, %d on N50).' % (filtered_genomes, gq, sc, n50))
         self.logger.info('Considering %d genomes after filtering.' % len(genomes_to_consider))
 
         # get SSU sequences for genomes

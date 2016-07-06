@@ -67,11 +67,12 @@ class Cluster(object):
                                     cur_representative_id,
                                     cur_max_mismatches,
                                     new_representative_id,
-                                    new_max_mismatches):
+                                    new_max_mismatches,
+                                    trusted_user_genomes):
         """Determines best representative genome.
 
         Genomes are preferentially assigned to representatives based on
-        source repository (RefSeq => GenBank => User) and AAI.
+        source repository (RefSeq => GenBank => Trusted User => User) and AAI.
         """
 
         if not cur_representative_id:
@@ -80,7 +81,9 @@ class Cluster(object):
 
         cur_source = self.source_order[cur_representative_id[0]]
         new_source = self.source_order[new_representative_id[0]]
-
+        if new_representative_id in trusted_user_genomes:
+            new_source = self.source_order['G']
+        
         if new_source < cur_source:
             # give preference to genome source
             return new_representative_id, new_max_mismatches
@@ -97,6 +100,7 @@ class Cluster(object):
                  ar_seqs,
                  aai_threshold,
                  metadata_file,
+                 trusted_user_genomes,
                  queue_in,
                  queue_out):
         """Process genomes in parallel."""
@@ -112,7 +116,7 @@ class Cluster(object):
         reps_from_genus = defaultdict(set)
         for genome_id, t in gtdb_taxonomy.iteritems():
             g = None
-	    if len(t) >= 6 and t[5] != 'g__':
+            if len(t) >= 6 and t[5] != 'g__':
                 g = t[5]
             elif genome_id in species:
                 g = species[genome_id].split(' ')[0][3:]
@@ -148,8 +152,8 @@ class Cluster(object):
                 if rep_species and genome_species and rep_species != genome_species:
                     continue
 
-                # do not cluster NCBI genomes with User representatives
-                if rep_id.startswith('U_') and not genome_id.startswith('U__'):
+                # do not cluster NCBI or trusted User genomes with User representatives
+                if rep_id.startswith('U_') and (not genome_id.startswith('U__') or genome_id in trusted_user_genomes):
                     continue
 
                 rep_bac_seq = bac_seqs[rep_id]
@@ -160,14 +164,16 @@ class Cluster(object):
                     assigned_representative, bac_max_mismatches = self._reassign_representative(assigned_representative,
                                                                                                 bac_max_mismatches,
                                                                                                 rep_id,
-                                                                                                m)
+                                                                                                m,
+                                                                                                trusted_user_genomes)
                 else:
                     m = mismatches(rep_ar_seq, genome_ar_seq, ar_max_mismatches)
                     if m is not None:  # necessary to distinguish None and 0
                         assigned_representative, ar_max_mismatches = self._reassign_representative(assigned_representative,
                                                                                                     ar_max_mismatches,
                                                                                                     rep_id,
-                                                                                                    m)
+                                                                                                    m,
+                                                                                                    trusted_user_genomes)
 
             # compare genome to remaining representatives
             remaining_reps = representatives.difference(cur_reps_from_genus)
@@ -188,8 +194,8 @@ class Cluster(object):
                 if skip:
                     continue
 
-                # do not cluster NCBI genomes with User representatives
-                if rep_id.startswith('U_') and not genome_id.startswith('U__'):
+                # do not cluster NCBI or trusted User genomes with User representatives
+                if rep_id.startswith('U_') and (not genome_id.startswith('U__') or genome_id in trusted_user_genomes):
                     continue
 
                 rep_bac_seq = bac_seqs[rep_id]
@@ -200,14 +206,16 @@ class Cluster(object):
                     assigned_representative, bac_max_mismatches = self._reassign_representative(assigned_representative,
                                                                                                 bac_max_mismatches,
                                                                                                 rep_id,
-                                                                                                m)
+                                                                                                m,
+                                                                                                trusted_user_genomes)
                 else:
                     m = mismatches(rep_ar_seq, genome_ar_seq, ar_max_mismatches)
                     if m is not None:  # necessary to distinguish None and 0
                         assigned_representative, ar_max_mismatches = self._reassign_representative(assigned_representative,
                                                                                                     ar_max_mismatches,
                                                                                                     rep_id,
-                                                                                                    m)
+                                                                                                    m,
+                                                                                                    trusted_user_genomes)
 
             queue_out.put((genome_id, assigned_representative))
 
@@ -268,6 +276,7 @@ class Cluster(object):
                     ar_seqs,
                     bac_seqs,
                     metadata_file,
+                    trusted_user_genomes,
                     output_file):
         """Assign genomes to representatives.
 
@@ -286,6 +295,8 @@ class Cluster(object):
             Alignment of bacterial marker genes.
         metadata_file : str
             Metadata, including CheckM estimates, for all genomes.
+        trusted_user_genomes : set
+            Trusted User genomes to treat as if they were in GenBank.
         output_file : str
             Output file specifying genome clustering.
         """
@@ -306,6 +317,7 @@ class Cluster(object):
                                                                     ar_seqs,
                                                                     aai_threshold,
                                                                     metadata_file,
+                                                                    trusted_user_genomes,
                                                                     worker_queue,
                                                                     writer_queue)) for _ in range(self.cpus)]
           write_proc = mp.Process(target=self.__writer, args=(representatives,
@@ -331,6 +343,7 @@ class Cluster(object):
 
     def run(self,
             representatives_file,
+            trusted_user_file,
             ar_msa_file,
             bac_msa_file,
             aai_threshold,
@@ -342,6 +355,8 @@ class Cluster(object):
         ----------
         representatives_file : str
             File listing genome identifiers as initial representatives.
+        trusted_user_file : str
+            File listing trusted User genomes that should be treated as if they are in GenBank.
         ar_msa_file : str
             Name of file containing canonical archaeal multiple sequence alignment.
         bac_msa_file : str
@@ -378,6 +393,15 @@ class Cluster(object):
             rep_genomes.add(genome_id)
 
         self.logger.info('Identified %d representatives.' % len(rep_genomes))
+        
+        # read trusted User genomes
+        trusted_user_genomes = set()
+        if trusted_user_file:
+            for line in open(trusted_user_file):
+                line_split = line.split('\t')
+                trusted_user_genomes.add(line_split[0])
+                
+        self.logger.info('Identified %d trusted User genomes.' % len(trusted_user_genomes)) 
 
         # cluster genomes to representatives
         genomes_to_cluster = genome_to_consider - rep_genomes
@@ -390,4 +414,5 @@ class Cluster(object):
                                     ar_seqs,
                                     bac_seqs,
                                     metadata_file,
+                                    trusted_user_genomes,
                                     output_file)

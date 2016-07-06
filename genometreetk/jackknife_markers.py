@@ -132,12 +132,14 @@ class JackknifeMarkers(object):
         self.model = model
         self.perc_markers_to_keep = perc_markers_to_keep
         self.replicate_dir = os.path.join(output_dir, 'replicates')
-        make_sure_path_exists(self.replicate_dir)
+        make_sure_path_exists(self.replicate_dir)
         # determine length of each marker gene in alignment
         self.marker_lengths = []
-        for line in open(marker_file):
-            line_split = line.split('\t')
-            self.marker_lengths.append(int(line_split[3]))
+        with open(marker_file) as f:
+	    f.readline()
+	    for line in f:
+            	line_split = line.split('\t')
+            	self.marker_lengths.append(int(line_split[3]))
 
         # read full multiple sequence alignment
         self.msa = seq_io.read(msa_file)

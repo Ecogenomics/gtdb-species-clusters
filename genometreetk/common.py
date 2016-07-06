@@ -21,7 +21,7 @@
 
 import os
 import csv
-from collections import defaultdict
+from collections import defaultdict, namedtuple
 
 import biolib.seq_io as seq_io
 from biolib.taxonomy import Taxonomy
@@ -90,10 +90,11 @@ def read_gtdb_metadata(metadata_file, fields):
 
     Return
     ------
-    dict : d[genome_id] -> list
+    dict : d[genome_id] -> namedtuple
         Value for fields indicted by genome IDs.
     """
 
+    gtdb_metadata = namedtuple('gtdb_metadata', ' '.join(fields))
     m = {}
 
     csv_reader = csv.reader(open(metadata_file, 'rt'))
@@ -112,9 +113,14 @@ def read_gtdb_metadata(metadata_file, fields):
         else:
             genome_id = row[genome_index]
 
-            values = [row[i] for i in indices]
-
-            m[genome_id] = values
+            values = []
+            for i in indices:
+                # save values as floats or strings
+                try:
+                    values.append(float(row[i]))
+                except ValueError:
+                    values.append(row[i])
+            m[genome_id] = gtdb_metadata._make(values)
 
     return m
 
@@ -129,7 +135,7 @@ def read_gtdb_genome_quality(metadata_file):
 
     Return
     ------
-    dict : d[genome_id] -> genome_quality
+    dict : d[genome_id] -> comp, cont, comp - 4*cont
     """
 
     genome_quality = {}
@@ -148,7 +154,7 @@ def read_gtdb_genome_quality(metadata_file):
             comp = float(row[comp_index])
             cont = float(row[cont_index])
 
-            genome_quality[genome_id] = [comp, cont, comp - cont]
+            genome_quality[genome_id] = [comp, cont, comp - 4*cont]
 
     return genome_quality
 
