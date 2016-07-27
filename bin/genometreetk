@@ -8,7 +8,7 @@
 #                                                                             #
 #    This program is distributed in the hope that it will be useful,          #
 #    but WITHOUT ANY WARRANTY; without even the implied warranty of           #
-#    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the            #
+#    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the            #r
 #    GNU General Public License for more details.                             #
 #                                                                             #
 #    You should have received a copy of the GNU General Public License        #
@@ -84,8 +84,8 @@ def print_help():
       diff       -> Determine differences between two taxonomy files
 
     Other:
-      pd -> Calculate phylogenetic diversity (branch length) of named groups
-
+      pd      -> Calculate phylogenetic diversity (branch length) for extant organisms
+      pd_taxa -> Calculate phylogenetic diversity (branch length) of all named groups
 
   Use: genometreetk <command> -h for command specific help.
 
@@ -200,7 +200,7 @@ if __name__ == '__main__':
     ssu_tree_parser.add_argument('--min_quality', help='minimum quality (completeness - contamination) for a genome to be included in tree [0, 100]', type=float, default=80)
     ssu_tree_parser.add_argument('--max_contigs', help='maximum contigs comprising a genome for it to be included in tree', type=int, default=200)
     ssu_tree_parser.add_argument('--min_N50', help='minimum N50 of contigs for a genome to be include in tree', type=int, default=20000)
-    ssu_tree_parser.add_argument('--disable_tax_filter', help="filter sequences with incongruent taxonomy", action='store_true')
+    ssu_tree_parser.add_argument('--disable_tax_filter', help="disable filtering of sequences with incongruent taxonomy", action='store_true')
     ssu_tree_parser.add_argument('-c', '--cpus', help='number of cpus', type=int, default=1)
     ssu_tree_parser.add_argument('--silent', help="suppress output", action='store_true')
 
@@ -280,11 +280,12 @@ if __name__ == '__main__':
                                         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
                                         description='Determine representative genomes in RefSeq.')
     refseq_rep_parser.add_argument('metadata_file', help="metadata file from GTDB with CheckM estimates for all genomes in RefSeq")
+    refseq_rep_parser.add_argument('exceptions_file', help="list of RefSeq representative to retain regardless of filtering criteria")
     refseq_rep_parser.add_argument('rep_genome_file', help="output file listing RefSeq representative genomes")
     refseq_rep_parser.add_argument('--max_species', help='maximum number of genomes of the same species to retain', type=int, default=2)
     refseq_rep_parser.add_argument('--min_rep_comp', help='minimum completeness for a genome to be a representative [0, 100]', type=float, default=90)
     refseq_rep_parser.add_argument('--max_rep_cont', help='maximum contamination for a genome to be a representative [0, 100]', type=float, default=10)
-    refseq_rep_parser.add_argument('--min_quality', help='minimum genome quality (comp - 4*cont) to be a representative [0, 100]', type=float, default=60)
+    refseq_rep_parser.add_argument('--min_quality', help='minimum genome quality (comp - 5*cont) to be a representative [0, 100]', type=float, default=50)
     refseq_rep_parser.add_argument('--max_contigs', help='maximum number of contigs for a genome to be a representative', type=int, default=300)
     refseq_rep_parser.add_argument('--min_N50', help='minimum N50 of contigs for a genome to be a representative', type=int, default=20000)
     refseq_rep_parser.add_argument('--max_ambiguous', help='maximum number of ambiguous bases for a genome to be a representative', type=int, default=10000)
@@ -304,7 +305,7 @@ if __name__ == '__main__':
     rep_parser.add_argument('--threshold', help='AAI threshold for identifying new representatives', type=float, default=0.995)
     rep_parser.add_argument('--min_rep_comp', help='minimum completeness for a genome to be a representative [0, 100]', type=float, default=90)
     rep_parser.add_argument('--max_rep_cont', help='maximum contamination for a genome to be a representative [0, 100]', type=float, default=10)
-    rep_parser.add_argument('--min_quality', help='minimum genome quality (comp - 4*cont) to be a representative [0, 100]', type=float, default=60)
+    rep_parser.add_argument('--min_quality', help='minimum genome quality (comp - 5*cont) to be a representative [0, 100]', type=float, default=50)
     rep_parser.add_argument('--max_contigs', help='maximum number of contigs for a genome to be a representative', type=int, default=300)
     rep_parser.add_argument('--min_N50', help='minimum N50 of contigs for a genome to be a representative', type=int, default=20000)
     rep_parser.add_argument('--max_ambiguous', help='maximum number of ambiguous bases for a genome to be a representative', type=int, default=10000)
@@ -383,12 +384,20 @@ if __name__ == '__main__':
     diff_parser.add_argument('--report_missing_ranks', help="report taxa with empty ranks", action='store_true')
     diff_parser.add_argument('--silent', help="suppress output", action='store_true')
 
-    # difference between two taxonomy files
+    # calculate phylogenetic diversity
     pd_parser = subparsers.add_parser('pd',
                                         formatter_class=CustomHelpFormatter,
-                                        description='Calculate phylogenetic diversity of named groups.')
-    pd_parser.add_argument('decorated_tree', help='tree with labeled internal nodes')
+                                        description='Calculate phylogenetic diversity of extant organisms.')
+    pd_parser.add_argument('tree', help='newick tree')
+    pd_parser.add_argument('taxa_list', help='list of taxa, one per line, to calculated PD over')
     pd_parser.add_argument('--silent', help="suppress output", action='store_true')
+    
+    # calculate phylogenetic diversity
+    pd_taxa_parser = subparsers.add_parser('pd_taxa',
+                                        formatter_class=CustomHelpFormatter,
+                                        description='Calculate phylogenetic diversity of named groups.')
+    pd_taxa_parser.add_argument('decorated_tree', help='tree with labeled internal nodes')
+    pd_taxa_parser.add_argument('--silent', help="suppress output", action='store_true')
 
     # get and check options
     args = None

@@ -57,7 +57,6 @@ class DereplicationWorkflow(object):
                             complete_genomes,
                             ncbi_type_strains,
                             lpsn_type_strains,
-                            trusted_accessions,
                             genome_quality):
         """Dereplicate genomes based on taxonomy.
 
@@ -77,8 +76,6 @@ class DereplicationWorkflow(object):
             Set of genomes marked as type strains at NCBI.
         lpsn_type_strains : d[ncbi_species] -> set of genome IDs
             Genomes marked as type strains at LPSN.
-        trusted_accessions : set
-            Set of trusted genomes.
         genome_quality : d[genome_id] -> comp - cont
             Quality of each genome.
 
@@ -95,13 +92,12 @@ class DereplicationWorkflow(object):
         for genome_id in assemble_accessions:
             sp = species_labels.get(genome_id, None)
 
-            if not trusted_accessions or genome_id in trusted_accessions:
-                if not sp:
-                    if genome_id in representative_genomes:
-                        retained_reps += 1
-                    genomes_to_retain.add(genome_id)
-                else:
-                    species[sp].add(genome_id)
+            if not sp:
+                if genome_id in representative_genomes:
+                    retained_reps += 1
+                genomes_to_retain.add(genome_id)
+            else:
+                species[sp].add(genome_id)
 
         self.logger.info('Retained %d genomes without a species designation.' % (len(genomes_to_retain) - retained_reps))
 
@@ -209,7 +205,7 @@ class DereplicationWorkflow(object):
         max_species : int
             Maximum number of genomes of the same species to retain.
         trusted_genomes_file:
-            File containing list of trusted genomes.
+            File containing list of genomes to retain regardless of filtering criteria.
         metadata_file : str
             Metadata, including CheckM estimates, for all genomes.
         min_rep_comp : float [0, 100]
@@ -217,7 +213,7 @@ class DereplicationWorkflow(object):
         max_rep_cont : float [0, 100]
             Maximum contamination for a genome to be a representative.
         min_quality : float [0, 100]
-            Minimum genome quality (comp-4*cont) for a genome to be a representative.
+            Minimum genome quality (comp-5*cont) for a genome to be a representative.
         max_contigs : int
             Maximum number of contigs for a genome to be a representative.
         min_N50 : int
@@ -231,22 +227,29 @@ class DereplicationWorkflow(object):
         output_file : str
             Output file to contain list of dereplicated genomes.
         """
+        
+        trusted_accessions = set()
+        if trusted_genomes_file:
+            for line in open(trusted_genomes_file):
+                line_split = line.split('\t')
+                trusted_accessions.add(line_split[0].strip())
 
         accession_to_taxid, complete_genomes, representative_genomes = ncbi.read_refseq_metadata(metadata_file, keep_db_prefix=True)
         self.logger.info('Identified %d RefSeq genomes.' % len(accession_to_taxid))
         self.logger.info('Identified %d representative or reference genomes.' % len(representative_genomes))
         self.logger.info('Identified %d complete genomes.' % len(complete_genomes))
-
+        self.logger.info('Identified %d genomes in exception list.' % len(trusted_accessions))
+        
+        if trusted_accessions.difference(representative_genomes):
+            self.logger.error('There are genomes in the exception list which are not representatives.')
+            sys.exit()
+        
         gtdb_taxonomy = read_gtdb_taxonomy(metadata_file)
         ncbi_taxonomy = read_gtdb_ncbi_taxonomy(metadata_file)
         ncbi_organism_names = read_gtdb_ncbi_organism_name(metadata_file)
         species = species_label(gtdb_taxonomy, ncbi_taxonomy, ncbi_organism_names)
 
         self.logger.info('Identified %d genomes with a GTDB or NCBI species names.' % len(species))
-
-        trusted_accessions = set()
-        if trusted_genomes_file:
-            trusted_accessions = self._read_trusted_genomes(trusted_genomes_file)
 
         # get genome quality
         genomes_to_consider = accession_to_taxid.keys()
@@ -270,6 +273,9 @@ class DereplicationWorkflow(object):
         if missing_quality:
             self.logger.error('There are %d genomes without metadata information.' % len(missing_quality))
             self.exit(-1)
+            
+        filtered_reps_file = output_file + '.filtered_reps'
+        fout = open(filtered_reps_file, 'w')
 
         lpsn_type_strains = defaultdict(set)
         new_genomes_to_consider = []
@@ -279,17 +285,16 @@ class DereplicationWorkflow(object):
             comp = stats.checkm_completeness
             cont = stats.checkm_contamination
             
-            if (comp >= min_rep_comp
+            keep = False
+            if genome_id in trusted_accessions:
+                keep = True
+            elif (comp >= min_rep_comp
                     and cont <= max_rep_cont
-                    and (comp - 4*cont) >= min_quality
+                    and (comp - 5*cont) >= min_quality
                     and stats.contig_count <= max_contigs
                     and stats.n50_contigs >= min_N50
                     and stats.ambiguous_bases <= max_ambiguous):
-                        new_genomes_to_consider.append(genome_id)
-                        genome_quality[genome_id] = comp - cont
-                        if stats.lpsn_strain:
-                            ncbi_species = stats.ncbi_taxonomy.split(';')[6].strip()
-                            lpsn_type_strains[ncbi_species].add(genome_id)
+                        keep = True
             elif not strict_filtering:
                 # check if genome appears to consist of only an unspanned
                 # chromosome and unspanned plasmids and thus can be 
@@ -304,23 +309,30 @@ class DereplicationWorkflow(object):
                     
                     # apply lenient quality check 
                     if comp >= 50 and cont <= 15:
-                        new_genomes_to_consider.append(genome_id)
-                        genome_quality[genome_id] = comp - cont
-                        if stats.lpsn_strain:
-                            ncbi_species = stats.ncbi_taxonomy.split(';')[6].strip()
-                            lpsn_type_strains[ncbi_species].add(genome_id)
+                        keep = True
+                        
+            if keep:
+                new_genomes_to_consider.append(genome_id)
+                genome_quality[genome_id] = comp - cont
+                if stats.lpsn_strain:
+                    ncbi_species = stats.ncbi_taxonomy.split(';')[6].strip()
+                    lpsn_type_strains[ncbi_species].add(genome_id)
             
             # check if a representative at NCBI is being filtered
             if genome_id in representative_genomes and genome_id not in new_genomes_to_consider:
+                fout.write('%s\t%.2f\t%.2f\t%d\t%d\n' % (genome_id, comp, cont, stats.contig_count, stats.n50_contigs))
                 self.logger.warning('Filtered RefSeq representative %s with comp=%.2f, cont=%.2f, contigs=%d, N50=%d' % (genome_id, 
                                                                                                                             comp, 
                                                                                                                             cont, 
                                                                                                                             stats.contig_count, 
                                                                                                                             stats.n50_contigs))
                 filtered_reps += 1
+                
+        fout.close()
 
         genomes_to_consider = new_genomes_to_consider
         self.logger.info('Filtered %d representative or reference genome based on genome quality.' % filtered_reps)
+        self.logger.info('Filtered representative or reference genomes written to %s' % filtered_reps_file)
         self.logger.info('Considering %d genomes after filtering for genome quality.' % (len(genomes_to_consider)))
 
         ncbi_type_strains = read_gtdb_ncbi_type_strain(metadata_file)
@@ -334,7 +346,6 @@ class DereplicationWorkflow(object):
                                                 complete_genomes,
                                                 ncbi_type_strains,
                                                 lpsn_type_strains,
-                                                trusted_accessions,
                                                 genome_quality)
 
         self.logger.info('Retained %d genomes.' % len(genomes_to_retain))

@@ -272,7 +272,7 @@ class OptionsParser():
             rep_workflow = DereplicationWorkflow()
 
             rep_workflow.run(options.max_species,
-                                       None,
+                                       options.exceptions_file,
                                        options.metadata_file,
                                        options.min_rep_comp,
                                        options.max_rep_cont,
@@ -417,7 +417,7 @@ class OptionsParser():
         # get representative genome information
         rep_metadata = read_gtdb_metadata(options.metadata_file, ['gtdb_representative',
                                                                   'gtdb_clustered_genomes'])
-
+                                                                  
         taxonomy = Taxonomy()
         explict_tax = taxonomy.read(options.input_taxonomy)
         expanded_taxonomy = {}
@@ -427,7 +427,7 @@ class OptionsParser():
 
             # Propagate taxonomy strings if genome is a representatives. Also, determine
             # if genomes clustered together have compatible taxonomies. Note that a genome
-            # may not have metadata as it is possible a User  has removed a genome that is
+            # may not have metadata as it is possible a User has removed a genome that is
             # in the provided taxonomy file.
             _rep_genome, clustered_genomes = rep_metadata.get(genome_id, (None, None))
             if clustered_genomes:  # genome is a representative
@@ -566,8 +566,53 @@ class OptionsParser():
                         print 'Different taxon for %s: %s %s' % (taxon_id, taxon1, taxon2)
 
         print 'Done.'
-
+        
     def phylogenetic_diversity(self, options):
+        """Calculate phylogenetic diversity of extant taxa."""
+        
+        check_file_exists(options.tree)
+        check_file_exists(options.taxa_list)
+        
+        tree = dendropy.Tree.get_from_path(options.tree,
+                                            schema='newick',
+                                            rooting='force-rooted',
+                                            preserve_underscores=True)
+                                            
+        print ''
+        print '\tNo. Taxa\tPD\tPercent PD'
+                                            
+        # get total branch length of tree
+        total_pd = 0
+        for node in tree.preorder_node_iter():
+            if node.parent_node is not None:
+                total_pd += node.edge.length
+                
+        total_taxa = sum((1 for _ in tree.leaf_nodes()))
+        print '%s\t%d\t%.2f\t%.2f%%' % ('Full tree', total_taxa, total_pd, 100)
+
+        # get branch length of tree with specified taxa
+        taxa = set()
+        for line in open(options.taxa_list):
+            taxa.add(line.strip().split('\t')[0])
+            
+        tree.prune_taxa_with_labels(taxa)
+        
+        remaining_pd = 0
+        for node in tree.preorder_node_iter():
+            if node.parent_node is not None:
+                remaining_pd += node.edge.length
+        
+        remaining_taxa = sum((1 for _ in tree.leaf_nodes()))
+        print '%s\t%d\t%.2f\t%.2f%%' % ('Tree without specified taxa',
+                                        remaining_taxa,
+                                        remaining_pd, 
+                                        remaining_pd * 100 / total_pd)        
+        print '%s\t%d\t%.2f\t%.2f%%' % ('Unique to specified taxa',
+                                        total_taxa - remaining_taxa,
+                                        total_pd - remaining_pd, 
+                                        (total_pd - remaining_pd) * 100 / total_pd)
+        
+    def phylogenetic_diversity_taxa(self, options):
         """Calculate phylogenetic diversity of named groups."""
 
         check_file_exists(options.decorated_tree)
@@ -578,11 +623,12 @@ class OptionsParser():
                                             preserve_underscores=True)
 
         total_pd = 0
-        pds = {}
+        
         for node in tree.preorder_node_iter():
             if node.parent_node is not None:
                 total_pd += node.edge.length
 
+        for node in tree.preorder_node_iter():
             if not node.label:
                 continue
 
@@ -599,9 +645,9 @@ class OptionsParser():
                     if nn != node:
                         taxon_pd += nn.edge.length
 
-                print '%s\t%f' % (taxon, taxon_pd)
+                print '%s\t%.2f\t%.2f' % (taxon, taxon_pd, taxon_pd * 100 / total_pd)
 
-        print '%s\t%f' % ('Total branch length', total_pd)
+        print '%s\t%.2f' % ('Total branch length', total_pd)
 
     def parse_options(self, options):
         """Parse user options and call the correct pipeline(s)"""
@@ -656,6 +702,8 @@ class OptionsParser():
             self.diff(options)
         elif options.subparser_name == 'pd':
             self.phylogenetic_diversity(options)
+        elif options.subparser_name == 'pd_taxa':
+            self.phylogenetic_diversity_taxa(options)
         else:
             self.logger.error('  [Error] Unknown GenomeTreeTk command: ' + options.subparser_name + '\n')
             sys.exit()

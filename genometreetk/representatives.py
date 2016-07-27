@@ -180,8 +180,9 @@ class Representatives(object):
                     continue
 
                 # do not cluster NCBI or trusted User genomes with User representatives
-                if rep_id.startswith('U_') and (not genome_id.startswith('U__') or genome_id in trusted_user_genomes):
-                    continue
+                if rep_id.startswith('U_') and rep_id not in trusted_user_genomes: 
+                    if not genome_id.startswith('U__') or genome_id in trusted_user_genomes:
+                        continue
 
                 rep_bac_seq = bac_seqs[rep_id]
                 rep_ar_seq = ar_seqs[rep_id]
@@ -212,8 +213,9 @@ class Representatives(object):
                         continue
 
                     # do not cluster NCBI or trusted User genomes with User representatives
-                    if rep_id.startswith('U_') and (not genome_id.startswith('U__') or genome_id in trusted_user_genomes):
-                        continue
+                    if rep_id.startswith('U_') and rep_id not in trusted_user_genomes: 
+                        if not genome_id.startswith('U__') or genome_id in trusted_user_genomes:
+                            continue
 
                     rep_bac_seq = bac_seqs[rep_id]
                     rep_ar_seq = ar_seqs[rep_id]
@@ -267,7 +269,7 @@ class Representatives(object):
         max_rep_cont : float [0, 100]
             Maximum contamination for a genome to be a representative.
         min_quality : float [0, 100]
-            Minimum quality (comp - 4*cont) for a genome to be a representative.
+            Minimum quality (comp - 5*cont) for a genome to be a representative.
         max_contigs : int
             Maximum number of contigs for a genome to be a representative.
         min_N50 : int
@@ -334,7 +336,7 @@ class Representatives(object):
             stats = genome_stats[genome_id]
             if (comp >= min_rep_comp 
                 and cont <= max_rep_cont 
-                and (comp - 4*cont) >= min_quality
+                and (comp - 5*cont) >= min_quality
                 and stats.contig_count <= max_contigs
                 and stats.n50_contigs >= min_N50
                 and stats.ambiguous_bases <= max_ambiguous):

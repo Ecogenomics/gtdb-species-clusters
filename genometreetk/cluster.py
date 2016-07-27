@@ -153,8 +153,9 @@ class Cluster(object):
                     continue
 
                 # do not cluster NCBI or trusted User genomes with User representatives
-                if rep_id.startswith('U_') and (not genome_id.startswith('U__') or genome_id in trusted_user_genomes):
-                    continue
+                if rep_id.startswith('U_') and rep_id not in trusted_user_genomes: 
+                    if not genome_id.startswith('U__') or genome_id in trusted_user_genomes:
+                        continue
 
                 rep_bac_seq = bac_seqs[rep_id]
                 rep_ar_seq = ar_seqs[rep_id]
@@ -195,8 +196,9 @@ class Cluster(object):
                     continue
 
                 # do not cluster NCBI or trusted User genomes with User representatives
-                if rep_id.startswith('U_') and (not genome_id.startswith('U__') or genome_id in trusted_user_genomes):
-                    continue
+                if rep_id.startswith('U_') and rep_id not in trusted_user_genomes: 
+                    if not genome_id.startswith('U__') or genome_id in trusted_user_genomes:
+                        continue
 
                 rep_bac_seq = bac_seqs[rep_id]
                 rep_ar_seq = ar_seqs[rep_id]
@@ -409,10 +411,10 @@ class Cluster(object):
                                                                                                 len(rep_genomes),
                                                                                                 aai_threshold))
         self._cluster(rep_genomes,
-                                    genomes_to_cluster,
-                                    aai_threshold,
-                                    ar_seqs,
-                                    bac_seqs,
-                                    metadata_file,
-                                    trusted_user_genomes,
-                                    output_file)
+                        genomes_to_cluster,
+                        aai_threshold,
+                        ar_seqs,
+                        bac_seqs,
+                        metadata_file,
+                        trusted_user_genomes,
+                        output_file)

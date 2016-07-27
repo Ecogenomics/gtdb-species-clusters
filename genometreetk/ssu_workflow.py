@@ -87,14 +87,13 @@ class SSU_Workflow(object):
 
         fout = open(ssu_output_file, 'w')
         no_identified_ssu = 0
-        for genome_id in genomes_to_consider:
+        for genome_id in genomes_to_consider: 
             ssu_hmm_file = os.path.join(genome_dirs[genome_id], 'ssu_gg_2013_08', 'ssu.hmm_summary.tsv')
 
             if not os.path.exists(ssu_hmm_file):
                 no_identified_ssu += 1
                 # self.logger.warning('Genome %s has no identified 16S sequence.' % genome_id)
                 continue
-
 
             with open(ssu_hmm_file) as f:
                 headers = f.readline().rstrip().split('\t')

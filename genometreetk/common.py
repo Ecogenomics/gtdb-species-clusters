@@ -1,8 +1,4 @@
 ###############################################################################
-#
-# common.py - utility functions used in many places in CheckM
-#
-###############################################################################
 #                                                                             #
 #    This program is free software: you can redistribute it and/or modify     #
 #    it under the terms of the GNU General Public License as published by     #
@@ -135,7 +131,7 @@ def read_gtdb_genome_quality(metadata_file):
 
     Return
     ------
-    dict : d[genome_id] -> comp, cont, comp - 4*cont
+    dict : d[genome_id] -> comp, cont, comp - 5*cont
     """
 
     genome_quality = {}
@@ -154,7 +150,7 @@ def read_gtdb_genome_quality(metadata_file):
             comp = float(row[comp_index])
             cont = float(row[cont_index])
 
-            genome_quality[genome_id] = [comp, cont, comp - 4*cont]
+            genome_quality[genome_id] = [comp, cont, comp - 5*cont]
 
     return genome_quality
 
