@@ -30,7 +30,7 @@ from genometreetk.trusted_genome_workflow import TrustedGenomeWorkflow
 from genometreetk.dereplication_workflow import DereplicationWorkflow
 from genometreetk.marker_workflow import MarkerWorkflow
 from genometreetk.infer_workflow import InferWorkflow
-from genometreetk.ssu_workflow import SSU_Workflow
+from genometreetk.rna_workflow import RNA_Workflow
 from genometreetk.bootstrap import Bootstrap
 from genometreetk.jackknife_markers import JackknifeMarkers
 from genometreetk.jackknife_taxa import JackknifeTaxa
@@ -39,6 +39,9 @@ from genometreetk.reroot_tree import RerootTree
 from genometreetk.representatives import Representatives
 from genometreetk.cluster import Cluster
 from genometreetk.common import read_gtdb_metadata
+from genometreetk.phylogenetic_diversity import PhylogeneticDiversity
+from genometreetk.arb import Arb
+from genometreetk.derep_tree import DereplicateTree
 
 
 class OptionsParser():
@@ -151,24 +154,88 @@ class OptionsParser():
         check_dependencies(['ssu-align', 'ssu-mask', 'FastTreeMP', 'blastn'])
 
         check_file_exists(options.gtdb_metadata_file)
-        check_file_exists(options.gtdb_dir_file)
+        check_file_exists(options.gtdb_ssu_file)
         make_sure_path_exists(options.output_dir)
 
-        ssu_workflow = SSU_Workflow(options.gtdb_metadata_file,
-                                    options.gtdb_dir_file,
-                                    options.cpus)
-        ssu_workflow.run(options.min_ssu_length,
-                         options.min_ssu_contig,
-                         options.min_quality,
-                         options.max_contigs,
-                         options.min_N50,
-                         not options.disable_tax_filter,
-                         options.ncbi_rep_only,
-                         options.user_genomes,
-                         options.genome_list,
-                         options.output_dir)
+        rna_workflow = RNA_Workflow(options.cpus)
+        rna_workflow.run('ssu',
+                            options.gtdb_metadata_file,
+                            options.gtdb_ssu_file,
+                            options.min_ssu_length,
+                            options.min_scaffold_length,
+                            options.min_quality,
+                            options.max_contigs,
+                            options.min_N50,
+                            not options.disable_tax_filter,
+                            #options.reps_only,
+                            #options.user_genomes,
+                            options.genome_list,
+                            options.output_dir)
 
         self.logger.info('Results written to: %s' % options.output_dir)
+        
+    def lsu_tree(self, options):
+        """Infer 23S tree spanning GTDB genomes."""
+
+        check_dependencies(['esl-sfetch', 'cmsearch', 'cmalign', 'esl-alimask', 'FastTreeMP', 'blastn'])
+
+        check_file_exists(options.gtdb_metadata_file)
+        check_file_exists(options.gtdb_lsu_file)
+        make_sure_path_exists(options.output_dir)
+
+        rna_workflow = RNA_Workflow(options.cpus)
+        rna_workflow.run('lsu',
+                            options.gtdb_metadata_file,
+                            options.gtdb_lsu_file,
+                            options.min_lsu_length,
+                            options.min_scaffold_length,
+                            options.min_quality,
+                            options.max_contigs,
+                            options.min_N50,
+                            not options.disable_tax_filter,
+                            #options.reps_only,
+                            #options.user_genomes,
+                            options.genome_list,
+                            options.output_dir)
+
+        self.logger.info('Results written to: %s' % options.output_dir)
+        
+    def rna_tree(self, options):
+        """Infer 16S + 23S tree spanning GTDB genomes."""
+
+        check_dependencies(['FastTreeMP'])
+
+        check_file_exists(options.ssu_msa)
+        check_file_exists(options.ssu_tree)
+        check_file_exists(options.lsu_msa)
+        check_file_exists(options.lsu_tree)
+        make_sure_path_exists(options.output_dir)
+
+        rna_workflow = RNA_Workflow(options.cpus)
+        rna_workflow.combine(options.ssu_msa,
+                                options.ssu_tree,
+                                options.lsu_msa,
+                                options.lsu_tree,
+                                options.output_dir)
+
+        self.logger.info('Results written to: %s' % options.output_dir)
+        
+    def derep_tree(self, options):
+        """Dereplicate tree."""
+        
+        check_file_exists(options.input_tree)
+        check_file_exists(options.gtdb_metadata)
+        make_sure_path_exists(options.output_dir)
+        
+        derep_tree = DereplicateTree()
+        derep_tree.run(options.input_tree,
+                        options.lineage_of_interest,
+                        options.outgroup,
+                        options.gtdb_metadata,
+                        options.taxa_to_retain,
+                        options.msa_file,
+                        options.keep_unclassified,
+                        options.output_dir)
 
     def bootstrap(self, options):
         """Bootstrap multiple sequence alignment."""
@@ -355,6 +422,8 @@ class OptionsParser():
                           check_ranks=True,
                           check_hierarchy=True,
                           check_species=True,
+                          check_group_names=True,
+                          check_duplicate_names=True,
                           report_errors=True)
 
         self.logger.info('Finished performing validation tests.')
@@ -573,81 +642,54 @@ class OptionsParser():
         check_file_exists(options.tree)
         check_file_exists(options.taxa_list)
         
-        tree = dendropy.Tree.get_from_path(options.tree,
-                                            schema='newick',
-                                            rooting='force-rooted',
-                                            preserve_underscores=True)
+        pd = PhylogeneticDiversity()
+        rtn = pd.pd(options.tree, options.taxa_list, options.rep_list, options.per_taxa_pg_file)
+        
+        total_pd, in_taxa, in_taxa_derep, in_pd, out_taxa, out_taxa_derep, out_pd = rtn
+        total_taxa = in_taxa + out_taxa
+        total_taxa_derep = in_taxa_derep + out_taxa_derep
+        in_pg = total_pd - out_pd
                                             
+        # report phylogenetic diversity (PD) and gain (PG)
         print ''
-        print '\tNo. Taxa\tPD\tPercent PD'
-                                            
-        # get total branch length of tree
-        total_pd = 0
-        for node in tree.preorder_node_iter():
-            if node.parent_node is not None:
-                total_pd += node.edge.length
-                
-        total_taxa = sum((1 for _ in tree.leaf_nodes()))
-        print '%s\t%d\t%.2f\t%.2f%%' % ('Full tree', total_taxa, total_pd, 100)
+        print '\tNo. Taxa\tNo. Dereplicated Taxa\tPD\tPercent PD'
+        
+        print '%s\t%d\t%d\t%.2f\t%.2f%%' % ('Full tree', total_taxa, total_taxa_derep, total_pd, 100)
+        
+        print '%s\t%d\t%d\t%.2f\t%.3f%%' % ('Outgroup taxa (PD)',
+                                            out_taxa,
+                                            out_taxa_derep,
+                                            out_pd, 
+                                            out_pd * 100 / total_pd)
 
-        # get branch length of tree with specified taxa
-        taxa = set()
-        for line in open(options.taxa_list):
-            taxa.add(line.strip().split('\t')[0])
-            
-        tree.prune_taxa_with_labels(taxa)
-        
-        remaining_pd = 0
-        for node in tree.preorder_node_iter():
-            if node.parent_node is not None:
-                remaining_pd += node.edge.length
-        
-        remaining_taxa = sum((1 for _ in tree.leaf_nodes()))
-        print '%s\t%d\t%.2f\t%.2f%%' % ('Tree without specified taxa',
-                                        remaining_taxa,
-                                        remaining_pd, 
-                                        remaining_pd * 100 / total_pd)        
-        print '%s\t%d\t%.2f\t%.2f%%' % ('Unique to specified taxa',
-                                        total_taxa - remaining_taxa,
-                                        total_pd - remaining_pd, 
-                                        (total_pd - remaining_pd) * 100 / total_pd)
-        
-    def phylogenetic_diversity_taxa(self, options):
+        print '%s\t%d\t%d\t%.2f\t%.3f%%' % ('Ingroup taxa (PD)',
+                                            in_taxa,
+                                            in_taxa_derep,
+                                            in_pd, 
+                                            (in_pd) * 100 / total_pd)   
+                                        
+        print '%s\t%d\t%d\t%.2f\t%.3f%%' % ('Ingroup taxa (PG)',
+                                            in_taxa,
+                                            in_taxa_derep,
+                                            in_pg, 
+                                            in_pg * 100 / total_pd)
+              
+    def phylogenetic_diversity_clade(self, options):
         """Calculate phylogenetic diversity of named groups."""
 
         check_file_exists(options.decorated_tree)
-
-        tree = dendropy.Tree.get_from_path(options.decorated_tree,
-                                            schema='newick',
-                                            rooting='force-rooted',
-                                            preserve_underscores=True)
-
-        total_pd = 0
         
-        for node in tree.preorder_node_iter():
-            if node.parent_node is not None:
-                total_pd += node.edge.length
+        pd = PhylogeneticDiversity()
+        pd.pd_clade(options.decorated_tree, options.output_file, options.taxa_list, options.rep_list)
+        
+        
+    def arb_records(self, options):
+        """Create an ARB records file from GTDB metadata."""
 
-        for node in tree.preorder_node_iter():
-            if not node.label:
-                continue
-
-            taxon = None
-            if ':' in node.label:
-                _support, taxon = node.label.split(':')
-            else:
-                if not is_float(node.label):
-                    taxon = node.label
-
-            if taxon:
-                taxon_pd = 0
-                for nn in node.postorder_iter():
-                    if nn != node:
-                        taxon_pd += nn.edge.length
-
-                print '%s\t%.2f\t%.2f' % (taxon, taxon_pd, taxon_pd * 100 / total_pd)
-
-        print '%s\t%.2f' % ('Total branch length', total_pd)
+        check_file_exists(options.metadata_file)
+        
+        arb = Arb()
+        arb.create_records(options.metadata_file, options.msa_file, options.genome_list, options.output_file)
 
     def parse_options(self, options):
         """Parse user options and call the correct pipeline(s)"""
@@ -666,6 +708,12 @@ class OptionsParser():
             self.infer(options)
         elif options.subparser_name == 'ssu_tree':
             self.ssu_tree(options)
+        elif options.subparser_name == 'lsu_tree':
+            self.lsu_tree(options)
+        elif options.subparser_name == 'rna_tree':
+            self.rna_tree(options)
+        elif options.subparser_name == 'derep_tree':
+            self.derep_tree(options)
         elif options.subparser_name == 'bootstrap':
             self.bootstrap(options)
         elif options.subparser_name == 'jk_markers':
@@ -702,8 +750,10 @@ class OptionsParser():
             self.diff(options)
         elif options.subparser_name == 'pd':
             self.phylogenetic_diversity(options)
-        elif options.subparser_name == 'pd_taxa':
-            self.phylogenetic_diversity_taxa(options)
+        elif options.subparser_name == 'pd_clade':
+            self.phylogenetic_diversity_clade(options)
+        elif options.subparser_name == 'arb_records':
+            self.arb_records(options)
         else:
             self.logger.error('  [Error] Unknown GenomeTreeTk command: ' + options.subparser_name + '\n')
             sys.exit()

@@ -50,16 +50,19 @@ def print_help():
     print '                ...::: GenomeTreeTk v' + version() + ' :::...'''
     print '''\
 
-    Infer lineage-specific genome tree:
+    Infer lineage-specific genome trees:
       trusted     -> Determine trusted genomes to use for marker gene inference
       dereplicate -> Dereplicate genomes based on taxonomy
       markers     -> Determine phylogenetically informative marker genes
       infer       -> Infer genome tree
 
-    Infer 16S tree for GTDB genomes:
+    Infer rRNA trees:
       ssu_tree -> Infer a 16S tree spanning GTDB genomes
+      lsu_tree -> Infer a 23S tree spanning GTDB genomes
+      rna_tree -> Infer a concatenated 16S + 23S tree spanning GTDB genomes
 
     Assess stability of tree:
+      derep_tree -> Dereplicate tree to taxa of interest
       bootstrap  -> Bootstrap multiple sequence alignment
       jk_markers -> Jackknife marker genes
       jk_taxa    -> Jackknife ingroup taxa
@@ -83,9 +86,12 @@ def print_help():
       pull       -> Create taxonomy file from a decorated tree
       diff       -> Determine differences between two taxonomy files
 
-    Other:
-      pd      -> Calculate phylogenetic diversity (branch length) for extant organisms
-      pd_taxa -> Calculate phylogenetic diversity (branch length) of all named groups
+    Phylogenetic diversity:
+      pd       -> Calculate phylogenetic diversity of specified taxa
+      pd_clade -> Calculate phylogenetic diversity of all named groups
+      
+    Others:
+      arb_records -> Create an ARB records file from GTDB metadata
 
   Use: genometreetk <command> -h for command specific help.
 
@@ -188,21 +194,68 @@ if __name__ == '__main__':
     # infer 16S tree across GTDB genomes
     ssu_tree_parser = subparsers.add_parser('ssu_tree',
                                         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
-                                        description='Infer 16S tree spanning GTDBgenomes.')
+                                        description='Infer 16S tree spanning GTDB genomes.')
     ssu_tree_parser.add_argument('gtdb_metadata_file', help="metadata file from GTDB")
-    ssu_tree_parser.add_argument('gtdb_dir_file', help="file indicating path to each GTDB genome")
+    ssu_tree_parser.add_argument('gtdb_ssu_file', help="file with 16S sequences in fasta format")
     ssu_tree_parser.add_argument('output_dir', help="output directory")
-    ssu_tree_parser.add_argument('--ncbi_rep_only', help="include only NCBI representative and reference genomes", action='store_true')
-    ssu_tree_parser.add_argument('--user_genomes', help="include User genomes (default is NCBI only)", action='store_true')
-    ssu_tree_parser.add_argument('--genome_list', help="explict list of genomes to use (ignores --ncbi_rep_only and --user_genomes)")
+    #ssu_tree_parser.add_argument('--ncbi_reps', help="include NCBI representative genomes", action='store_true')
+    #ssu_tree_parser.add_argument('--uba_reps', help="include UBA representative genomes", action='store_true')
+    #ssu_tree_parser.add_argument('--user_genomes', help="include all User genomes", action='store_true')
+    ssu_tree_parser.add_argument('--genome_list', help="explict list of genomes to use (ignores --reps_only and --user_genomes)")
     ssu_tree_parser.add_argument('--min_ssu_length', help='minimum length of 16S sequence to be include in tree', type=int, default=1200)
-    ssu_tree_parser.add_argument('--min_ssu_contig', help='minimum length of contig containing 16S sequence to be include in tree', type=int, default=5000)
-    ssu_tree_parser.add_argument('--min_quality', help='minimum quality (completeness - contamination) for a genome to be included in tree [0, 100]', type=float, default=80)
-    ssu_tree_parser.add_argument('--max_contigs', help='maximum contigs comprising a genome for it to be included in tree', type=int, default=200)
-    ssu_tree_parser.add_argument('--min_N50', help='minimum N50 of contigs for a genome to be include in tree', type=int, default=20000)
+    ssu_tree_parser.add_argument('--min_scaffold_length', help='minimum length of scaffold containing 16S sequence to be include in tree', type=int, default=0)
+    ssu_tree_parser.add_argument('--min_quality', help='minimum quality (completeness - 5*contamination) for a genome to be included in tree [0, 100]', type=float, default=50)
+    ssu_tree_parser.add_argument('--max_contigs', help='maximum contigs comprising a genome for it to be included in tree', type=int, default=500)
+    ssu_tree_parser.add_argument('--min_N50', help='minimum N50 of contigs for a genome to be include in tree', type=int, default=5000)
     ssu_tree_parser.add_argument('--disable_tax_filter', help="disable filtering of sequences with incongruent taxonomy", action='store_true')
     ssu_tree_parser.add_argument('-c', '--cpus', help='number of cpus', type=int, default=1)
     ssu_tree_parser.add_argument('--silent', help="suppress output", action='store_true')
+
+    # infer 23S tree across GTDB genomes
+    lsu_tree_parser = subparsers.add_parser('lsu_tree',
+                                        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+                                        description='Infer 23S tree spanning GTDB genomes.')
+    lsu_tree_parser.add_argument('gtdb_metadata_file', help="metadata file from GTDB")
+    lsu_tree_parser.add_argument('gtdb_lsu_file', help="file with 23S sequences in fasta format")
+    lsu_tree_parser.add_argument('output_dir', help="output directory")
+    #lsu_tree_parser.add_argument('--ncbi_reps', help="include NCBI representative genomes", action='store_true')
+    #lsu_tree_parser.add_argument('--uba_reps', help="include UBA representative genomes", action='store_true')
+    #lsu_tree_parser.add_argument('--user_genomes', help="include User genomes (default is NCBI only)", action='store_true')
+    lsu_tree_parser.add_argument('--genome_list', help="explict list of genomes to use (ignores --reps_only and --user_genomes)")
+    lsu_tree_parser.add_argument('--min_lsu_length', help='minimum length of 23S sequence to be include in tree', type=int, default=1800)
+    lsu_tree_parser.add_argument('--min_scaffold_length', help='minimum length of scaffold containing 23S sequence to be include in tree', type=int, default=0)
+    lsu_tree_parser.add_argument('--min_quality', help='minimum quality (completeness - 5*contamination) for a genome to be included in tree [0, 100]', type=float, default=50)
+    lsu_tree_parser.add_argument('--max_contigs', help='maximum contigs comprising a genome for it to be included in tree', type=int, default=500)
+    lsu_tree_parser.add_argument('--min_N50', help='minimum N50 of contigs for a genome to be include in tree', type=int, default=5000)
+    lsu_tree_parser.add_argument('--disable_tax_filter', help="disable filtering of sequences with incongruent taxonomy", action='store_true')
+    lsu_tree_parser.add_argument('-c', '--cpus', help='number of cpus', type=int, default=1)
+    lsu_tree_parser.add_argument('--silent', help="suppress output", action='store_true')
+    
+    # infer concatenated rRNA tree
+    rna_tree_parser = subparsers.add_parser('rna_tree',
+                                        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+                                        description='Infer a concatenated 16S + 23S tree spanning GTDB genomes.')
+    rna_tree_parser.add_argument('ssu_msa', help="FASTA file with MSA of 16S rRNA gene sequences")
+    rna_tree_parser.add_argument('ssu_tree', help="decorated 16S tree")
+    rna_tree_parser.add_argument('lsu_msa', help="FASTA file with MSA of 23S rRNA gene sequences")
+    rna_tree_parser.add_argument('lsu_tree', help="decorated 23S tree")
+    rna_tree_parser.add_argument('output_dir', help="output directory")
+    rna_tree_parser.add_argument('-c', '--cpus', help='number of cpus', type=int, default=1)
+    rna_tree_parser.add_argument('--silent', help="suppress output", action='store_true')
+    
+    # assess robustness of genome tree using classic bootstrapping
+    derep_tree_parser = subparsers.add_parser('derep_tree',
+                                        formatter_class=CustomHelpFormatter,
+                                        description='Dereplicate tree to taxa of interest.')
+    derep_tree_parser.add_argument('input_tree', help="tree to dereplicate")
+    derep_tree_parser.add_argument('lineage_of_interest', help="named lineage where all taxa should be retain")
+    derep_tree_parser.add_argument('outgroup', help="named lineage to use as outgroup")
+    derep_tree_parser.add_argument('gtdb_metadata', help="GTDB metadata for taxa in tree")
+    derep_tree_parser.add_argument('output_dir', help="output directory")
+    derep_tree_parser.add_argument('--taxa_to_retain', help="number of taxa to sample from dereplicated lineages", type=int, default=2)
+    derep_tree_parser.add_argument('--msa_file', help="multiple sequence alignment to dereplicate")
+    derep_tree_parser.add_argument('--keep_unclassified', help="keep all taxa in unclassified lineages", action='store_true')
+    derep_tree_parser.add_argument('--silent', help="suppress output", action='store_true')
 
     # assess robustness of genome tree using classic bootstrapping
     bootstrap_parser = subparsers.add_parser('bootstrap',
@@ -212,7 +265,7 @@ if __name__ == '__main__':
     bootstrap_parser.add_argument('msa_file', help="file containing multiple sequence alignment")
     bootstrap_parser.add_argument('output_dir', help="output directory")
     bootstrap_parser.add_argument('-b', '--base_type', choices=['nt', 'prot'], help="indicates if bases are nucleotides or amino acids", default='prot')
-    bootstrap_parser.add_argument('-m', '--model', choices=['wag', 'jtt'], help="model of evolution to use", default='wag')
+    bootstrap_parser.add_argument('-m', '--model', choices=['wag', 'lg', 'jtt'], help="model of evolution to use", default='wag')
     bootstrap_parser.add_argument('-r', '--num_replicates', help="number of bootstrap replicates to perform", type=int, default=100)
     bootstrap_parser.add_argument('-f', '--fraction', help="fraction of alignment to subsample", type=float, default=1.0)
     bootstrap_parser.add_argument('-c', '--cpus', help='number of cpus', type=int, default=1)
@@ -287,7 +340,7 @@ if __name__ == '__main__':
     refseq_rep_parser.add_argument('--max_rep_cont', help='maximum contamination for a genome to be a representative [0, 100]', type=float, default=10)
     refseq_rep_parser.add_argument('--min_quality', help='minimum genome quality (comp - 5*cont) to be a representative [0, 100]', type=float, default=50)
     refseq_rep_parser.add_argument('--max_contigs', help='maximum number of contigs for a genome to be a representative', type=int, default=300)
-    refseq_rep_parser.add_argument('--min_N50', help='minimum N50 of contigs for a genome to be a representative', type=int, default=20000)
+    refseq_rep_parser.add_argument('--min_N50', help='minimum N50 of scaffolds for a genome to be a representative', type=int, default=20000)
     refseq_rep_parser.add_argument('--max_ambiguous', help='maximum number of ambiguous bases for a genome to be a representative', type=int, default=10000)
     refseq_rep_parser.add_argument('--strict_filtering', help='apply filtering to all genomes; default is to apply lenient filtering to genomes where the chromosome and plasmids are reported as complete', action='store_true')
     refseq_rep_parser.add_argument('--silent', help="suppress output", action='store_true')
@@ -307,7 +360,7 @@ if __name__ == '__main__':
     rep_parser.add_argument('--max_rep_cont', help='maximum contamination for a genome to be a representative [0, 100]', type=float, default=10)
     rep_parser.add_argument('--min_quality', help='minimum genome quality (comp - 5*cont) to be a representative [0, 100]', type=float, default=50)
     rep_parser.add_argument('--max_contigs', help='maximum number of contigs for a genome to be a representative', type=int, default=300)
-    rep_parser.add_argument('--min_N50', help='minimum N50 of contigs for a genome to be a representative', type=int, default=20000)
+    rep_parser.add_argument('--min_N50', help='minimum N50 of scaffolds for a genome to be a representative', type=int, default=20000)
     rep_parser.add_argument('--max_ambiguous', help='maximum number of ambiguous bases for a genome to be a representative', type=int, default=10000)
     rep_parser.add_argument('--silent', help="suppress output", action='store_true')
 
@@ -383,21 +436,36 @@ if __name__ == '__main__':
     diff_parser.add_argument('--report_missing_taxa', help="report taxa not present in both files", action='store_true')
     diff_parser.add_argument('--report_missing_ranks', help="report taxa with empty ranks", action='store_true')
     diff_parser.add_argument('--silent', help="suppress output", action='store_true')
-
+    
     # calculate phylogenetic diversity
     pd_parser = subparsers.add_parser('pd',
                                         formatter_class=CustomHelpFormatter,
-                                        description='Calculate phylogenetic diversity of extant organisms.')
+                                        description='Calculate phylogenetic diversity of specified taxa.')
     pd_parser.add_argument('tree', help='newick tree')
-    pd_parser.add_argument('taxa_list', help='list of taxa, one per line, to calculated PD over')
+    pd_parser.add_argument('taxa_list', help='list of ingroup taxa, one per line, to calculated PD over (including genomes of interest assigned to a representative)')
+    pd_parser.add_argument('--rep_list', help='list of representatives in tree and the genomes they represent')
+    pd_parser.add_argument('--per_taxa_pg_file', help='file to record phylogenetic gain of each ingroup taxa relative to the outgroup')
     pd_parser.add_argument('--silent', help="suppress output", action='store_true')
     
     # calculate phylogenetic diversity
-    pd_taxa_parser = subparsers.add_parser('pd_taxa',
+    pd_clade_parser = subparsers.add_parser('pd_clade',
                                         formatter_class=CustomHelpFormatter,
                                         description='Calculate phylogenetic diversity of named groups.')
-    pd_taxa_parser.add_argument('decorated_tree', help='tree with labeled internal nodes')
-    pd_taxa_parser.add_argument('--silent', help="suppress output", action='store_true')
+    pd_clade_parser.add_argument('decorated_tree', help='tree with labeled internal nodes')
+    pd_clade_parser.add_argument('output_file', help='output file')
+    pd_clade_parser.add_argument('--taxa_list', help='list of ingroup taxa, one per line, to calculated PD over (including genomes of interest assigned to a representative)')
+    pd_clade_parser.add_argument('--rep_list', help='list of representatives in tree and the genomes they represent')
+    pd_clade_parser.add_argument('--silent', help="suppress output", action='store_true')
+    
+    # create an ARB records file from GTDB metadata
+    arb_records_parser = subparsers.add_parser('arb_records',
+                                        formatter_class=CustomHelpFormatter,
+                                        description='Create an ARB records file from GTDB metadata.')
+    arb_records_parser.add_argument('metadata_file', help="metadata file for all genomes in the GTDB")
+    arb_records_parser.add_argument('output_file', help='output file with ARB records')
+    arb_records_parser.add_argument('--msa_file', help='aligned sequences to include in ARB records')
+    arb_records_parser.add_argument('--genome_list', help='create ARB records only for genome IDs in file')
+    arb_records_parser.add_argument('--silent', help="suppress output", action='store_true')
 
     # get and check options
     args = None

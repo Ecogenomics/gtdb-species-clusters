@@ -23,13 +23,188 @@ import biolib.seq_io as seq_io
 from biolib.taxonomy import Taxonomy
 
 from genometreetk.default_values import DefaultValues
+from genometreetk.aai import aai_thresholds
 
 
+def check_domain_assignment(genome_id, gtdb_taxonomy, ncbi_taxonomy, rep_is_bacteria):
+    """Check that domain assignment agrees with GTDB and NCBI taxonomy.
+    
+    Parameters
+    ----------
+    genome_id : str
+        Genome of interest.
+    gtdb_taxonomy : list
+        GTDB taxonomy.
+    ncbi_taxonomy : list
+        NCBI taxonomy.
+    rep_is_bacteria : boolean
+        Flag indicating if genome was classified as a Bacteria (True) or  Archaea (False).
+        
+    Returns
+    -------
+    boolean
+        True if taxonomies agrees with domain assignment, else False.
+    """
+    
+    gtdb_domain = gtdb_taxonomy[genome_id][0]
+    ncbi_domain = ncbi_taxonomy[genome_id][0]
+    if gtdb_domain != 'd__' and ncbi_domain != 'd__' and gtdb_domain != ncbi_domain:
+        print '[Warning] GTDB and NCBI domain assignments do not agree: %s' % genome_id
+        return False
+    else:
+        for domain in [gtdb_domain, ncbi_domain]:
+            if domain == 'd__':
+                continue
+                
+            if rep_is_bacteria and domain != 'd__Bacteria':
+                print '[Warning] Taxonomy and predicted bacterial domain assignment do not agree: %s' % genome_id
+                print '*%s\t%s' % (genome_id, ';'.join(Taxonomy.rank_prefixes))
+                print gtdb_taxonomy[genome_id]
+                print ncbi_taxonomy[genome_id]
+                return False
+            elif not rep_is_bacteria and domain != 'd__Archaea':
+                print '[Warning] Taxonomy and predicted archaeal domain assignment do not agree: %s' % genome_id
+                print '*%s\t%s' % (genome_id, ';'.join(Taxonomy.rank_prefixes))
+                print gtdb_taxonomy[genome_id]
+                print ncbi_taxonomy[genome_id]
+                return False
+                
+    return True
+    
+
+def predict_bacteria(genome_id, bac_seqs, ar_seqs):
+    """Check that domain assignment agrees with GTDB and NCBI taxonomy.
+    
+    Parameters
+    ----------
+    genome_id : str
+        Genome of interest.
+    bac_seqs : dict
+        Bacterial sequences for all genomes.
+    ar_seqs : dict
+        Archaea sequences for all genomes.
+    rep_is_bacteria : boolean
+        Flag indicating if genome was classified as a Bacteria (True) or  Archaea (False).
+        
+    Returns
+    -------
+    boolean
+        True if predicted domain is Bacteria, else False for Archaea.
+    """
+    rep_bac_seq = bac_seqs[genome_id]
+    rep_ar_seq = ar_seqs[genome_id]
+    
+    per_bac_aa = float(len(rep_bac_seq) - rep_bac_seq.count('-')) / len(rep_bac_seq)
+    per_ar_aa = float(len(rep_ar_seq) - rep_ar_seq.count('-')) / len(rep_ar_seq)
+    
+    is_bac = per_bac_aa >= per_ar_aa
+    
+    return is_bac, per_bac_aa, per_ar_aa
+    
+    
+def reassign_representative(cur_representative_id,
+                                cur_aai,
+                                new_representative_id,
+                                new_aai,
+                                trusted_user_genomes):
+    """Determines best representative genome.
+
+    Genomes are preferentially assigned to representatives based on
+    source repository (RefSeq => GenBank => Trusted User => User) and AAI.
+    """
+    
+    source_order = {'R': 0,  # RefSeq
+                    'G': 1,  # GenBank
+                    'U': 2}  # User
+
+    if not cur_representative_id:
+        # no currently assigned representative
+        return new_representative_id, new_aai
+
+    cur_source = source_order[cur_representative_id[0]]
+    new_source = source_order[new_representative_id[0]]
+    if new_representative_id in trusted_user_genomes:
+        new_source = source_order['G']
+    
+    if new_source < cur_source:
+        # give preference to genome source
+        return new_representative_id, new_aai
+    elif new_source == cur_source:
+        # for the same source, find the representative with the highest AAI
+        if new_aai > cur_aai:
+            return new_representative_id, new_aai
+
+    return cur_representative_id, cur_aai
+
+def assign_rep(rep_id, 
+                    genome_id,
+                    rep_is_bacteria, 
+                    genome_is_bacteria,
+                    bac_seqs, 
+                    ar_seqs,
+                    species,
+                    gtdb_taxonomy,
+                    genome_aa_count,
+                    trusted_user_genomes,
+                    aai_threshold,
+                    min_matches,
+                    assigned_representative, 
+                    cur_aai):
+    """Detering if genome should be assigned to a representative."""
+
+    # do not cluster genomes from different predicted domains
+    if rep_is_bacteria != genome_is_bacteria:
+        return assigned_representative, cur_aai
+        
+    # do not cluster genomes from different named species
+    rep_species = species.get(rep_id, None)
+    genome_species = species.get(genome_id, None)
+    if rep_species and genome_species and rep_species != genome_species:
+        return assigned_representative, cur_aai
+
+    # do not cluster NCBI or trusted User genomes with User representatives
+    if rep_id.startswith('U_') and rep_id not in trusted_user_genomes: 
+        if not genome_id.startswith('U__') or genome_id in trusted_user_genomes:
+            return assigned_representative, cur_aai
+            
+    # do not cluster genomes from different named groups
+    skip = False
+    for rep_taxon, taxon in zip(gtdb_taxonomy[rep_id], gtdb_taxonomy[genome_id]):
+        rep_taxon = rep_taxon[3:]
+        taxon = taxon[3:]
+        if rep_taxon and taxon and rep_taxon != taxon:
+            skip = True
+            break
+    if skip:
+        return assigned_representative, cur_aai
+            
+    if rep_is_bacteria:
+        rep_seq = bac_seqs[rep_id]
+        genome_seq = bac_seqs[genome_id]
+    else:
+        rep_seq = ar_seqs[rep_id]
+        genome_seq = ar_seqs[genome_id]
+        
+    max_mismatches = (1.0 - cur_aai) * genome_aa_count
+    aai = aai_thresholds(rep_seq, genome_seq, max_mismatches, min_matches)
+    if aai > aai_threshold:  
+        assigned_representative, cur_aai = reassign_representative(assigned_representative,
+                                                                            cur_aai,
+                                                                            rep_id,
+                                                                            aai,
+                                                                            trusted_user_genomes)
+        
+    return assigned_representative, cur_aai
+    
+        
 def species_label(gtdb_taxonomy, ncbi_taxonomy, ncbi_organism_name):
     """Determine 'best' species label for each genome.
 
-    Genomes preferentially use the GTDB taxonomy,
-    NCBI taxonomy, and then NCBI organism name.
+    Currently, this is just being set to the species label in the
+    GTDB taxonomy. In theory, the NCBI taxonomy and organism name
+    could also be consulted. However, since the GTDB taxonomy redefines
+    some species this might be problematic so isn't currently being
+    done.
 
     Parameters
     ----------
@@ -55,22 +230,26 @@ def species_label(gtdb_taxonomy, ncbi_taxonomy, ncbi_organism_name):
         if sp != 's__':
             species[genome_id] = sp
 
-    for genome_id, taxa in ncbi_taxonomy.iteritems():
-        if genome_id in species:
-            continue
+    if False:   # do not consider NCBI information as
+                # it may conflict with GTDB information
+                # in unwanted ways
+        
+        for genome_id, taxa in ncbi_taxonomy.iteritems():
+            if genome_id in species:
+                continue
 
-        sp = taxa[species_index]
-        sp = taxonomy.extract_valid_species_name(sp)
-        if sp:
-            species[genome_id] = sp
+            sp = taxa[species_index]
+            sp = taxonomy.extract_valid_species_name(sp)
+            if sp:
+                species[genome_id] = sp
 
-    for genome_id, sp in ncbi_organism_name.iteritems():
-        if genome_id in species:
-            continue
+        for genome_id, sp in ncbi_organism_name.iteritems():
+            if genome_id in species:
+                continue
 
-        sp = taxonomy.extract_valid_species_name(sp)
-        if sp:
-            species[genome_id] = sp
+            sp = taxonomy.extract_valid_species_name(sp)
+            if sp:
+                species[genome_id] = sp
 
     return species
 

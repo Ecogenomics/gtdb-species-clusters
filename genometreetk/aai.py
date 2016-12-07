@@ -17,8 +17,8 @@
 
 import itertools
 
-def mismatches(seq1, seq2, max_mismatches):
-    """Calculate mismatches between sequences.
+def aai_thresholds(seq1, seq2, max_mismatches, min_matches):
+    """Calculate AAI between sequences.
 
     Mismatches are only calculate across
     positions where both sequences have
@@ -35,11 +35,13 @@ def mismatches(seq1, seq2, max_mismatches):
         Second sequence.
     max_mismatches : int
         Maximum allowed mismatches between sequences.
+    min_matches : int
+        Minimum required matches between sequences.
 
     Returns
     -------
-    int
-        Mismatches between sequences if it contains <= max_mismatches, else None.
+    float
+        AAI between sequences, or 0 if criteria is not meet.
     """
 
     mismatches = 0
@@ -50,11 +52,15 @@ def mismatches(seq1, seq2, max_mismatches):
         elif c1 != c2:
             mismatches += 1
             if mismatches > max_mismatches:
-                return None
+                return 0
         else:
             matches += 1
+            
+    if matches < min_matches:
+        return 0
 
-    return mismatches
+    aai = float(matches) / (matches + mismatches)
+    return aai
 
 
 def aai(seq1, seq2, threshold):

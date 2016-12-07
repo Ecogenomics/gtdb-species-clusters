@@ -86,7 +86,7 @@ class Bootstrap(object):
           Directory for bootstrap trees.
         """
 
-        assert(model in ['wag', 'jtt'])
+        assert(model in ['wag', 'lg', 'jtt'])
         assert(base_type in ['nt', 'prot'])
 
         self.model = model

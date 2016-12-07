@@ -138,16 +138,16 @@ class DereplicationWorkflow(object):
                 # any type strain if one exists
                 if len(selected_genomes) < max_species:
                     if complete_type_strains:
-                        selected_type_strain = [x[0] for x in complete_type_strains_quality_sorted[0:1]] # random.sample(complete_type_strains, 1)
+                        selected_type_strain = [x[0] for x in complete_type_strains_quality_sorted[0:1]]
                         selected_genomes.update(selected_type_strain)
                     elif type_strains:
-                        selected_type_strain = [x[0] for x in type_strains_quality_sorted[0:1]]# random.sample(type_strains, 1)
+                        selected_type_strain = [x[0] for x in type_strains_quality_sorted[0:1]]
                         selected_genomes.update(selected_type_strain)
 
                 # grab as many complete genomes as possible
                 if len(selected_genomes) < max_species and complete:
                     genomes_to_select = min(len(complete), max_species - len(selected_genomes))
-                    selected_complete_genomes = [x[0] for x in complete_quality_sorted[0:genomes_to_select]] #random.sample(complete, genomes_to_select)
+                    selected_complete_genomes = [x[0] for x in complete_quality_sorted[0:genomes_to_select]] 
                     selected_genomes.update(selected_complete_genomes)
 
                 # grab incomplete genomes to get to the desired number of genomes
@@ -157,8 +157,8 @@ class DereplicationWorkflow(object):
                     genome_ids_quality_sorted = sorted(genome_ids_quality.items(), key=operator.itemgetter(1), reverse=True)
                     
                     genomes_to_select = min(len(genome_ids), max_species - len(selected_genomes))
-                    rnd_additional_genomes = [x[0] for x in genome_ids_quality_sorted[0:genomes_to_select]] #random.sample(genome_ids, genomes_to_select)
-                    selected_genomes.update(rnd_additional_genomes)
+                    additional_genomes = [x[0] for x in genome_ids_quality_sorted[0:genomes_to_select]] 
+                    selected_genomes.update(additional_genomes)
 
                 genomes_to_retain.update(selected_genomes)
                 additional_reps += len(selected_genomes) - len(representatives)
@@ -217,7 +217,7 @@ class DereplicationWorkflow(object):
         max_contigs : int
             Maximum number of contigs for a genome to be a representative.
         min_N50 : int
-            Minimum N50 for a genome to be a representative.
+            Minimum N50 of scaffolds for a genome to be a representative.
         max_ambiguous : int
             Maximum number of ambiguous bases for a genome to be a representative.
         strict_filtering : boolean
@@ -253,12 +253,10 @@ class DereplicationWorkflow(object):
 
         # get genome quality
         genomes_to_consider = accession_to_taxid.keys()
-        filtered_reps = 0
-
         genome_stats = read_gtdb_metadata(metadata_file, ['checkm_completeness',
                                                             'checkm_contamination',
                                                             'contig_count',
-                                                            'n50_contigs',
+                                                            'n50_scaffolds',
                                                             'ambiguous_bases',
                                                             'scaffold_count',
                                                             'ssu_count',
@@ -268,6 +266,7 @@ class DereplicationWorkflow(object):
                                                             'ncbi_spanned_gaps',
                                                             'ncbi_assembly_level',
                                                             'ncbi_taxonomy',
+                                                            'ncbi_organism_name',
                                                             'lpsn_strain'])
         missing_quality = set(accession_to_taxid.keys()) - set(genome_stats.keys())
         if missing_quality:
@@ -276,12 +275,22 @@ class DereplicationWorkflow(object):
             
         filtered_reps_file = output_file + '.filtered_reps'
         fout = open(filtered_reps_file, 'w')
+        fout.write('Genome ID\tCompleteness\tContamination\tContig Count\tN50\tNote\n')
 
         lpsn_type_strains = defaultdict(set)
         new_genomes_to_consider = []
         genome_quality = {}
+        filtered_reps = 0
+        lack_ncbi_taxonomy = 0       
         for genome_id in accession_to_taxid.keys():
             stats = genome_stats[genome_id]
+            
+            if not stats.ncbi_taxonomy:
+                lack_ncbi_taxonomy += 1
+                fout.write('%s\t%.2f\t%.2f\t%d\t%d\t%s\n' % (genome_id, comp, cont, stats.contig_count, stats.n50_scaffolds, 'no NCBI taxonomy'))
+                self.logger.warning('Skipping %s as it has not assigned NCBI taxonomy.' % genome_id)
+                continue
+            
             comp = stats.checkm_completeness
             cont = stats.checkm_contamination
             
@@ -292,7 +301,7 @@ class DereplicationWorkflow(object):
                     and cont <= max_rep_cont
                     and (comp - 5*cont) >= min_quality
                     and stats.contig_count <= max_contigs
-                    and stats.n50_contigs >= min_N50
+                    and stats.n50_scaffolds >= min_N50
                     and stats.ambiguous_bases <= max_ambiguous):
                         keep = True
             elif not strict_filtering:
@@ -315,22 +324,23 @@ class DereplicationWorkflow(object):
                 new_genomes_to_consider.append(genome_id)
                 genome_quality[genome_id] = comp - cont
                 if stats.lpsn_strain:
-                    ncbi_species = stats.ncbi_taxonomy.split(';')[6].strip()
-                    lpsn_type_strains[ncbi_species].add(genome_id)
+                        ncbi_species = stats.ncbi_taxonomy.split(';')[6].strip()
+                        lpsn_type_strains[ncbi_species].add(genome_id)
             
             # check if a representative at NCBI is being filtered
             if genome_id in representative_genomes and genome_id not in new_genomes_to_consider:
-                fout.write('%s\t%.2f\t%.2f\t%d\t%d\n' % (genome_id, comp, cont, stats.contig_count, stats.n50_contigs))
+                fout.write('%s\t%.2f\t%.2f\t%d\t%d\t%s\n' % (genome_id, comp, cont, stats.contig_count, stats.n50_scaffolds, stats.ncbi_organism_name))
                 self.logger.warning('Filtered RefSeq representative %s with comp=%.2f, cont=%.2f, contigs=%d, N50=%d' % (genome_id, 
                                                                                                                             comp, 
                                                                                                                             cont, 
                                                                                                                             stats.contig_count, 
-                                                                                                                            stats.n50_contigs))
+                                                                                                                            stats.n50_scaffolds))
                 filtered_reps += 1
                 
         fout.close()
 
         genomes_to_consider = new_genomes_to_consider
+        self.logger.info('Skipped %d genomes without an assigned NCBI taxonomy.' % lack_ncbi_taxonomy)
         self.logger.info('Filtered %d representative or reference genome based on genome quality.' % filtered_reps)
         self.logger.info('Filtered representative or reference genomes written to %s' % filtered_reps_file)
         self.logger.info('Considering %d genomes after filtering for genome quality.' % (len(genomes_to_consider)))

@@ -23,13 +23,16 @@ from collections import defaultdict
 import multiprocessing as mp
 
 import biolib.seq_io as seq_io
+from biolib.taxonomy import Taxonomy
 
 from genometreetk.exceptions import GenomeTreeTkError
 from genometreetk.common import (read_gtdb_taxonomy,
                                  read_gtdb_ncbi_taxonomy,
                                  read_gtdb_ncbi_organism_name,
-                                 species_label)
-from genometreetk.aai import mismatches
+                                 species_label,
+                                 predict_bacteria,
+                                 check_domain_assignment,
+                                 assign_rep)
 
 
 class Cluster(object):
@@ -59,41 +62,6 @@ class Cluster(object):
 
         self.cpus = cpus
 
-        self.source_order = {'R': 0,  # RefSeq
-                                'G': 1,  # GenBank
-                                'U': 2}  # User
-
-    def _reassign_representative(self,
-                                    cur_representative_id,
-                                    cur_max_mismatches,
-                                    new_representative_id,
-                                    new_max_mismatches,
-                                    trusted_user_genomes):
-        """Determines best representative genome.
-
-        Genomes are preferentially assigned to representatives based on
-        source repository (RefSeq => GenBank => Trusted User => User) and AAI.
-        """
-
-        if not cur_representative_id:
-            # no currently assigned representative
-            return new_representative_id, new_max_mismatches
-
-        cur_source = self.source_order[cur_representative_id[0]]
-        new_source = self.source_order[new_representative_id[0]]
-        if new_representative_id in trusted_user_genomes:
-            new_source = self.source_order['G']
-        
-        if new_source < cur_source:
-            # give preference to genome source
-            return new_representative_id, new_max_mismatches
-        elif new_source == cur_source:
-            # for the same source, find the representative with the highest AAI
-            if new_max_mismatches < cur_max_mismatches:
-                return new_representative_id, new_max_mismatches
-
-        return cur_representative_id, cur_max_mismatches
-
     def __worker(self,
                  representatives,
                  bac_seqs,
@@ -104,10 +72,11 @@ class Cluster(object):
                  queue_in,
                  queue_out):
         """Process genomes in parallel."""
-
-        # determine genus of each genome and representatives belonging to a genus
+        
         gtdb_taxonomy = read_gtdb_taxonomy(metadata_file)
         ncbi_taxonomy = read_gtdb_ncbi_taxonomy(metadata_file)
+
+        # read taxonomy information and determine 'best' species label for each genome
         ncbi_organism_names = read_gtdb_ncbi_organism_name(metadata_file)
         species = species_label(gtdb_taxonomy, ncbi_taxonomy, ncbi_organism_names)
 
@@ -126,113 +95,75 @@ class Cluster(object):
 
                 if genome_id in representatives:
                     reps_from_genus[g].add(genome_id)
+                    
+        # predict domain of each representative
+        rep_is_bacteria = {}
+        for rep_id in representatives:
+            rep_is_bacteria[rep_id], per_bac_aa, per_ar_aa = predict_bacteria(rep_id, bac_seqs, ar_seqs)
+            if not check_domain_assignment(rep_id, gtdb_taxonomy, ncbi_taxonomy, rep_is_bacteria[rep_id]):
+                print 'Problem with representative.'
+                print 'Bac vs Ar:', per_bac_aa, per_ar_aa
 
+        # assign representatives           
         while True:
             genome_id = queue_in.get(block=True, timeout=None)
             if genome_id == None:
                 break
-
-            genome_genus = genus.get(genome_id, None)
-            genome_species = species.get(genome_id, None)
-            genome_bac_seq = bac_seqs[genome_id]
-            genome_ar_seq = ar_seqs[genome_id]
-
-            cur_aai_threshold = aai_threshold
+                
+            cur_aai = aai_threshold
             assigned_representative = None
 
-            bac_max_mismatches = (1.0 - aai_threshold) * (len(genome_bac_seq) - genome_bac_seq.count('-'))
-            ar_max_mismatches = (1.0 - aai_threshold) * (len(genome_ar_seq) - genome_ar_seq.count('-'))
-
-            # speed up computation by first comparing genome
-            # to representatives of the same genus
-            cur_reps_from_genus = reps_from_genus.get(genome_genus, set())
-            for rep_id in cur_reps_from_genus:
-                # do not cluster genomes from different named species
-                rep_species = species.get(rep_id, None)
-                if rep_species and genome_species and rep_species != genome_species:
-                    continue
-
-                # do not cluster NCBI or trusted User genomes with User representatives
-                if rep_id.startswith('U_') and rep_id not in trusted_user_genomes: 
-                    if not genome_id.startswith('U__') or genome_id in trusted_user_genomes:
-                        continue
-
-                rep_bac_seq = bac_seqs[rep_id]
-                rep_ar_seq = ar_seqs[rep_id]
-
-                m = mismatches(rep_bac_seq, genome_bac_seq, bac_max_mismatches)
-                if m is not None:  # necessary to distinguish None and 0
-                    assigned_representative, bac_max_mismatches = self._reassign_representative(assigned_representative,
-                                                                                                bac_max_mismatches,
-                                                                                                rep_id,
-                                                                                                m,
-                                                                                                trusted_user_genomes)
+            genome_is_bacteria, per_bac_aa, per_ar_aa = predict_bacteria(genome_id, bac_seqs, ar_seqs)
+            if not check_domain_assignment(genome_id, gtdb_taxonomy, ncbi_taxonomy, genome_is_bacteria):
+                print 'Bac vs Ar:', per_bac_aa, per_ar_aa
+            else:
+                if genome_is_bacteria:
+                    genome_seq = bac_seqs[genome_id]
                 else:
-                    m = mismatches(rep_ar_seq, genome_ar_seq, ar_max_mismatches)
-                    if m is not None:  # necessary to distinguish None and 0
-                        assigned_representative, ar_max_mismatches = self._reassign_representative(assigned_representative,
-                                                                                                    ar_max_mismatches,
-                                                                                                    rep_id,
-                                                                                                    m,
-                                                                                                    trusted_user_genomes)
+                    genome_seq = ar_seqs[genome_id]
 
-            # compare genome to remaining representatives
-            remaining_reps = representatives.difference(cur_reps_from_genus)
-            for rep_id in remaining_reps:
-                # do not cluster genomes from different named species
-                rep_species = species.get(rep_id, None)
-                if rep_species and genome_species and rep_species != genome_species:
-                    continue
+                genome_aa_count = len(genome_seq) - genome_seq.count('-')
+                min_matches = max(0.5*genome_aa_count, 0.1*len(genome_seq))
 
-                # do not cluster genomes from different named groups
-                skip = False
-                for rep_taxon, taxon in zip(gtdb_taxonomy[rep_id], gtdb_taxonomy[genome_id]):
-                    rep_taxon = rep_taxon[3:]
-                    taxon = taxon[3:]
-                    if rep_taxon and taxon and rep_taxon != taxon:
-                        skip = True
-                        break
-                if skip:
-                    continue
+                # speed up computation by first comparing genome 
+                # to representatives of the same genus
+                genome_genus = genus.get(genome_id, None)
+                cur_reps_from_genus = reps_from_genus.get(genome_genus, set())
+                remaining_reps = representatives.difference(cur_reps_from_genus)
+                for rep_set in [cur_reps_from_genus, remaining_reps]:
+                    for rep_id in rep_set:
+                        assigned_representative, cur_aai = assign_rep(rep_id, 
+                                                                        genome_id,
+                                                                        rep_is_bacteria[rep_id], 
+                                                                        genome_is_bacteria,
+                                                                        bac_seqs, ar_seqs,
+                                                                        species,
+                                                                        gtdb_taxonomy,
+                                                                        genome_aa_count,
+                                                                        trusted_user_genomes,
+                                                                        aai_threshold,
+                                                                        min_matches,
+                                                                        assigned_representative,
+                                                                        cur_aai)
 
-                # do not cluster NCBI or trusted User genomes with User representatives
-                if rep_id.startswith('U_') and rep_id not in trusted_user_genomes: 
-                    if not genome_id.startswith('U__') or genome_id in trusted_user_genomes:
-                        continue
+            queue_out.put((genome_id, assigned_representative, cur_aai))
 
-                rep_bac_seq = bac_seqs[rep_id]
-                rep_ar_seq = ar_seqs[rep_id]
-
-                m = mismatches(rep_bac_seq, genome_bac_seq, bac_max_mismatches)
-                if m is not None:  # necessary to distinguish None and 0
-                    assigned_representative, bac_max_mismatches = self._reassign_representative(assigned_representative,
-                                                                                                bac_max_mismatches,
-                                                                                                rep_id,
-                                                                                                m,
-                                                                                                trusted_user_genomes)
-                else:
-                    m = mismatches(rep_ar_seq, genome_ar_seq, ar_max_mismatches)
-                    if m is not None:  # necessary to distinguish None and 0
-                        assigned_representative, ar_max_mismatches = self._reassign_representative(assigned_representative,
-                                                                                                    ar_max_mismatches,
-                                                                                                    rep_id,
-                                                                                                    m,
-                                                                                                    trusted_user_genomes)
-
-            queue_out.put((genome_id, assigned_representative))
-
-    def __writer(self, representatives, num_genomes, output_file, writer_queue):
+    def __writer(self, representatives, metadata_file, num_genomes, output_file, writer_queue):
         """Process representative assignments from each process.
 
         Parameters
         ----------
         representatives : set
             Initial set of representative genomes.
+        metadata_file : str
+            GTDB metadata file.
         num_genomes : int
             Number of genomes being processed.
         output_file : str
             Output file specifying genome clustering.
         """
+        
+        ncbi_taxonomy = read_gtdb_ncbi_taxonomy(metadata_file)
 
         # initialize clusters
         clusters = {}
@@ -240,9 +171,11 @@ class Cluster(object):
             clusters[rep_id] = []
 
         # gather results for each genome
+        fout_details = open(output_file + '.details', 'w')
+        fout_details.write('Representative Id\tGenome Id\tAAI\tRep. NCBI taxonomy\tGenome NCBI Taxonomy\n')
         processed_genomes = 0
         while True:
-            genome_id, assigned_representative = writer_queue.get(block=True, timeout=None)
+            genome_id, assigned_representative, aai = writer_queue.get(block=True, timeout=None)
             if genome_id == None:
               break
 
@@ -255,10 +188,17 @@ class Cluster(object):
 
             if assigned_representative:
                 clusters[assigned_representative].append(genome_id)
+                
+                fout_details.write('%s\t%s\t%.2f\t%s\t%s\n' % (assigned_representative,
+                                                                genome_id,
+                                                                aai * 100,
+                                                                ';'.join(ncbi_taxonomy.get(assigned_representative, Taxonomy.rank_prefixes)),
+                                                                ';'.join(ncbi_taxonomy.get(genome_id, Taxonomy.rank_prefixes))))
 
         sys.stdout.write('\n')
+        fout_details.close()
 
-        # write out cluster
+        # write out clusters
         fout = open(output_file, 'w')
         clustered_genomes = 0
         for c, cluster_rep in enumerate(sorted(clusters, key=lambda x: len(clusters[x]), reverse=True)):
@@ -323,9 +263,10 @@ class Cluster(object):
                                                                     worker_queue,
                                                                     writer_queue)) for _ in range(self.cpus)]
           write_proc = mp.Process(target=self.__writer, args=(representatives,
-                                                              len(genomes_to_process),
-                                                              output_file,
-                                                              writer_queue))
+                                                                metadata_file,
+                                                                  len(genomes_to_process),
+                                                                  output_file,
+                                                                  writer_queue))
 
           write_proc.start()
 
@@ -335,7 +276,7 @@ class Cluster(object):
           for p in worker_proc:
               p.join()
 
-          writer_queue.put((None, None))
+          writer_queue.put((None, None, None))
           write_proc.join()
         except:
           for p in worker_proc:

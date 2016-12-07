@@ -29,8 +29,11 @@ from genometreetk.common import (read_gtdb_genome_quality,
                                     read_gtdb_taxonomy,
                                     read_gtdb_ncbi_taxonomy,
                                     read_gtdb_ncbi_organism_name,
-                                    species_label)
-from genometreetk.aai import aai_test, mismatches
+                                    species_label,
+                                    predict_bacteria,
+                                    check_domain_assignment,
+                                    assign_rep)
+from genometreetk.aai import aai_test
 
 
 class Representatives(object):
@@ -133,10 +136,11 @@ class Representatives(object):
         set
             Representative genomes.
         """
-
-        # read taxonomy information and determine 'best' species label for each genome
+        
         gtdb_taxonomy = read_gtdb_taxonomy(metadata_file)
         ncbi_taxonomy = read_gtdb_ncbi_taxonomy(metadata_file)
+
+        # read taxonomy information and determine 'best' species label for each genome
         ncbi_organism_names = read_gtdb_ncbi_organism_name(metadata_file)
         species = species_label(gtdb_taxonomy, ncbi_taxonomy, ncbi_organism_names)
 
@@ -155,7 +159,14 @@ class Representatives(object):
 
                 if genome_id in representatives:
                     reps_from_genus[g].add(genome_id)
-
+                    
+        # predict domain of each representative
+        rep_is_bacteria = {}
+        for rep_id in representatives:
+            rep_is_bacteria[rep_id], per_bac_aa, per_ar_aa = predict_bacteria(rep_id, bac_seqs, ar_seqs)
+            if not check_domain_assignment(rep_id, gtdb_taxonomy, ncbi_taxonomy, rep_is_bacteria[rep_id]):
+                print 'Bac vs Ar:', per_bac_aa, per_ar_aa
+                
         total_genomes = len(genomes_to_process)
         processed_genomes = 0
         while len(genomes_to_process):
@@ -164,73 +175,52 @@ class Representatives(object):
             sys.stdout.flush()
 
             genome_id = genomes_to_process.pop(0)
-
             genome_genus = genus.get(genome_id, None)
-            genome_species = species.get(genome_id, None)
-            genome_bac_seq = bac_seqs[genome_id]
-            genome_ar_seq = ar_seqs[genome_id]
 
-            # speed up computation by comparing genome to representatives from the same genus
+            genome_is_bacteria, per_bac_aa, per_ar_aa = predict_bacteria(genome_id, bac_seqs, ar_seqs)
+            if not check_domain_assignment(genome_id, gtdb_taxonomy, ncbi_taxonomy, genome_is_bacteria):
+                print 'Bac vs Ar:', per_bac_aa, per_ar_aa
+            
+            if genome_is_bacteria:
+                genome_seq = bac_seqs[genome_id]
+            else:
+                genome_seq = ar_seqs[genome_id]
+
+            genome_aa_count = len(genome_seq) - genome_seq.count('-')
+            min_matches = max(0.5*genome_aa_count, 0.1*len(genome_seq))
+
+            # speed up computation by first comparing genome 
+            # to representatives of the same genus
+            cur_aai = aai_threshold
+            assigned_representative = None
             cur_reps_from_genus = reps_from_genus.get(genome_genus, set())
-            bCluster = False
-            for rep_id in cur_reps_from_genus:
-                # do not cluster genomes from different named species
-                rep_species = species.get(rep_id, None)
-                if rep_species and genome_species and rep_species != genome_species:
-                    continue
+            remaining_reps = representatives.difference(cur_reps_from_genus)
 
-                # do not cluster NCBI or trusted User genomes with User representatives
-                if rep_id.startswith('U_') and rep_id not in trusted_user_genomes: 
-                    if not genome_id.startswith('U__') or genome_id in trusted_user_genomes:
-                        continue
-
-                rep_bac_seq = bac_seqs[rep_id]
-                rep_ar_seq = ar_seqs[rep_id]
-
-                bCluster = (aai_test(rep_bac_seq, genome_bac_seq, aai_threshold)
-                            or aai_test(rep_ar_seq, genome_ar_seq, aai_threshold))
-                if bCluster:
-                    break
-
-            if not bCluster:
-                # compare genome to remaining representatives
-                remaining_reps = representatives.difference(cur_reps_from_genus)
-                for rep_id in remaining_reps:
-                    # do not cluster genomes from different named species
-                    rep_species = species.get(rep_id, None)
-                    if rep_species and genome_species and rep_species != genome_species:
-                        continue
-
-                    # do not cluster genomes from different named groups
-                    skip = False
-                    for rep_taxon, taxon in zip(gtdb_taxonomy[rep_id], gtdb_taxonomy[genome_id]):
-                        rep_taxon = rep_taxon[3:]
-                        taxon = taxon[3:]
-                        if rep_taxon and taxon and rep_taxon != taxon:
-                            skip = True
-                            break
-                    if skip:
-                        continue
-
-                    # do not cluster NCBI or trusted User genomes with User representatives
-                    if rep_id.startswith('U_') and rep_id not in trusted_user_genomes: 
-                        if not genome_id.startswith('U__') or genome_id in trusted_user_genomes:
-                            continue
-
-                    rep_bac_seq = bac_seqs[rep_id]
-                    rep_ar_seq = ar_seqs[rep_id]
-
-                    bCluster = (aai_test(rep_bac_seq, genome_bac_seq, aai_threshold)
-                                or aai_test(rep_ar_seq, genome_ar_seq, aai_threshold))
-                    if bCluster:
+            for rep_set in [cur_reps_from_genus, remaining_reps]:
+                for rep_id in rep_set:
+                    assigned_representative, cur_aai = assign_rep(rep_id, 
+                                                                    genome_id,
+                                                                    rep_is_bacteria[rep_id], 
+                                                                    genome_is_bacteria,
+                                                                    bac_seqs, ar_seqs,
+                                                                    species,
+                                                                    gtdb_taxonomy,
+                                                                    genome_aa_count,
+                                                                    trusted_user_genomes,
+                                                                    aai_threshold,
+                                                                    min_matches,
+                                                                    assigned_representative,
+                                                                    cur_aai)
+                    if assigned_representative:
                         break
 
-            if not bCluster:
+            if not assigned_representative:
                 # genome was not assigned to an existing representative,
                 # so make it a new representative genome
                 representatives.add(genome_id)
                 if genome_genus:
                     reps_from_genus[genome_genus].add(genome_id)
+                rep_is_bacteria[genome_id] = genome_is_bacteria
 
         sys.stdout.write('\n')
 
@@ -273,7 +263,7 @@ class Representatives(object):
         max_contigs : int
             Maximum number of contigs for a genome to be a representative.
         min_N50 : int
-            Minimum N50 for a genome to be a representative.
+            Minimum N50 of scaffolds for a genome to be a representative.
         max_ambiguous : int
             Maximum number of ambiguous bases for a genome to be a representative.
         metadata_file : str
@@ -328,7 +318,7 @@ class Representatives(object):
         # remove existing representative genomes and genomes
         # of insufficient quality to be a representative
         genome_stats = read_gtdb_metadata(metadata_file, ['contig_count',
-                                                            'n50_contigs',
+                                                            'n50_scaffolds',
                                                             'ambiguous_bases'])
         potential_reps = set()
         for genome_id in (genome_to_consider - refseq_rep_genomes):
@@ -338,7 +328,7 @@ class Representatives(object):
                 and cont <= max_rep_cont 
                 and (comp - 5*cont) >= min_quality
                 and stats.contig_count <= max_contigs
-                and stats.n50_contigs >= min_N50
+                and stats.n50_scaffolds >= min_N50
                 and stats.ambiguous_bases <= max_ambiguous):
                     potential_reps.add(genome_id)
 
