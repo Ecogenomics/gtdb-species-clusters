@@ -341,7 +341,7 @@ if __name__ == '__main__':
     refseq_rep_parser.add_argument('--min_quality', help='minimum genome quality (comp - 5*cont) to be a representative [0, 100]', type=float, default=50)
     refseq_rep_parser.add_argument('--max_contigs', help='maximum number of contigs for a genome to be a representative', type=int, default=300)
     refseq_rep_parser.add_argument('--min_N50', help='minimum N50 of scaffolds for a genome to be a representative', type=int, default=20000)
-    refseq_rep_parser.add_argument('--max_ambiguous', help='maximum number of ambiguous bases for a genome to be a representative', type=int, default=10000)
+    refseq_rep_parser.add_argument('--max_ambiguous', help='maximum number of ambiguous bases for a genome to be a representative', type=int, default=100000)
     refseq_rep_parser.add_argument('--strict_filtering', help='apply filtering to all genomes; default is to apply lenient filtering to genomes where the chromosome and plasmids are reported as complete', action='store_true')
     refseq_rep_parser.add_argument('--silent', help="suppress output", action='store_true')
 
@@ -361,7 +361,7 @@ if __name__ == '__main__':
     rep_parser.add_argument('--min_quality', help='minimum genome quality (comp - 5*cont) to be a representative [0, 100]', type=float, default=50)
     rep_parser.add_argument('--max_contigs', help='maximum number of contigs for a genome to be a representative', type=int, default=300)
     rep_parser.add_argument('--min_N50', help='minimum N50 of scaffolds for a genome to be a representative', type=int, default=20000)
-    rep_parser.add_argument('--max_ambiguous', help='maximum number of ambiguous bases for a genome to be a representative', type=int, default=10000)
+    rep_parser.add_argument('--max_ambiguous', help='maximum number of ambiguous bases for a genome to be a representative', type=int, default=100000)
     rep_parser.add_argument('--silent', help="suppress output", action='store_true')
 
     # determine trusted genomes

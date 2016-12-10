@@ -24,9 +24,9 @@ from collections import defaultdict
 import biolib.seq_io as seq_io
 
 from genometreetk.exceptions import GenomeTreeTkError
-from genometreetk.common import (read_gtdb_genome_quality,
-                                    read_gtdb_metadata,
+from genometreetk.common import (read_gtdb_metadata,
                                     read_gtdb_taxonomy,
+                                    read_gtdb_representative,
                                     read_gtdb_ncbi_taxonomy,
                                     read_gtdb_ncbi_organism_name,
                                     species_label,
@@ -60,7 +60,7 @@ class Representatives(object):
 
         self.logger = logging.getLogger()
 
-    def _order_genomes(self, genomes_to_consider, genome_quality, trusted_user_genomes):
+    def _order_genomes(self, genomes_to_consider, genome_quality, trusted_user_genomes, gtdb_representative):
         """Order genomes by source and genome quality.
 
         Parameters
@@ -71,6 +71,8 @@ class Representatives(object):
             Estimate quality (completeness - contamination) of each genome.
         trusted_user_genomes : set
             Trusted User genomes to treat as if they were in GenBank.
+        gtdb_representative : d[genome_id] -> True or False
+            Flag indicating if a genome was previously a GTDB representative.
 
         Returns
         -------
@@ -78,6 +80,13 @@ class Representatives(object):
             Genomes order by source and quality.
         """
         # sort genomes by source repository followed by genome quality
+        # giving a slight boost to genomes that were previously a representative
+        
+        rep_quality_boost = 5.0
+        for genome_id, quality in  genome_quality.iteritems():
+            if genome_id in gtdb_representative:
+                genome_quality[genome_id] = quality + rep_quality_boost
+                
         sorted_refseq_rep_genomes = []
         sorted_genbank_rep_genomes = []
         sorted_trusted_user_rep_genomes = []
@@ -94,15 +103,17 @@ class Representatives(object):
             elif genome_id in trusted_user_genomes:
                 sorted_trusted_user_rep_genomes.append(genome_id)
             elif genome_id.startswith('U_'):
-                sorted_user_rep_genomes.append(genome_id)
+                # User genomes should not be selected as representatives
+                # since these are not publicly available
+                pass
+                #    sorted_user_rep_genomes.append(genome_id)
             else:
                 self.logger.error('Unrecognized genome prefix: %s' % genome_id)
                 sys.exit(-1)
 
         return (sorted_refseq_rep_genomes
                     + sorted_genbank_rep_genomes
-                    + sorted_trusted_user_rep_genomes
-                    + sorted_user_rep_genomes)
+                    + sorted_trusted_user_rep_genomes)
 
     def _greedy_representatives(self,
                                     representatives,
@@ -307,33 +318,35 @@ class Representatives(object):
                 
         self.logger.info('Identified %d trusted User genomes.' % len(trusted_user_genomes))        
 
-        # read genome quality
-        genome_quality = read_gtdb_genome_quality(metadata_file)
-
-        missing_quality = genome_to_consider - set(genome_quality.keys())
-        if missing_quality:
-            self.logger.error('There are %d genomes with sequence data, but no genome quality information.' % len(missing_quality))
-            sys.exit(-1)
-
         # remove existing representative genomes and genomes
         # of insufficient quality to be a representative
-        genome_stats = read_gtdb_metadata(metadata_file, ['contig_count',
+        genome_stats = read_gtdb_metadata(metadata_file, ['checkm_completeness',
+                                                            'checkm_contamination',
+                                                            'contig_count',
                                                             'n50_scaffolds',
                                                             'ambiguous_bases'])
+                                                            
+        missing_metadata = genome_to_consider - set(genome_stats.keys())
+        if missing_metadata:
+            self.logger.error('There are %d genomes with sequence data, but no metadata information.' % len(missing_metadata))
+            sys.exit(-1)
+            
+        genome_quality = {}
         potential_reps = set()
         for genome_id in (genome_to_consider - refseq_rep_genomes):
-            comp, cont, qual = genome_quality.get(genome_id, [-1, -1, -1])
             stats = genome_stats[genome_id]
-            if (comp >= min_rep_comp 
-                and cont <= max_rep_cont 
-                and (comp - 5*cont) >= min_quality
+            if (stats.checkm_completeness >= min_rep_comp 
+                and stats.checkm_contamination <= max_rep_cont 
+                and (stats.checkm_completeness - 5*stats.checkm_contamination) >= min_quality
                 and stats.contig_count <= max_contigs
                 and stats.n50_scaffolds >= min_N50
                 and stats.ambiguous_bases <= max_ambiguous):
                     potential_reps.add(genome_id)
+                    genome_quality[genome_id] = stats.checkm_completeness - 5*stats.checkm_contamination
 
         # perform greedy identification of new representatives
-        ordered_genomes = self._order_genomes(potential_reps, genome_quality, trusted_user_genomes)
+        gtdb_representative = read_gtdb_representative(metadata_file)
+        ordered_genomes = self._order_genomes(potential_reps, genome_quality, trusted_user_genomes, gtdb_representative)
         self.logger.info('Comparing %d genomes to %d representatives with threshold = %.3f.' % (len(ordered_genomes),
                                                                                                 len(refseq_rep_genomes),
                                                                                                 aai_threshold))

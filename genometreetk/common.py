@@ -300,40 +300,6 @@ def read_gtdb_metadata(metadata_file, fields):
     return m
 
 
-def read_gtdb_genome_quality(metadata_file):
-    """Parse genome quality from GTDB metadata.
-
-    Parameters
-    ----------
-    metadata_file : str
-        Metadata, including CheckM estimates, for all genomes.
-
-    Return
-    ------
-    dict : d[genome_id] -> comp, cont, comp - 5*cont
-    """
-
-    genome_quality = {}
-
-    csv_reader = csv.reader(open(metadata_file, 'rt'))
-    bHeader = True
-    for row in csv_reader:
-        if bHeader:
-            headers = row
-            genome_index = headers.index('genome')
-            comp_index = headers.index('checkm_completeness')
-            cont_index = headers.index('checkm_contamination')
-            bHeader = False
-        else:
-            genome_id = row[genome_index]
-            comp = float(row[comp_index])
-            cont = float(row[cont_index])
-
-            genome_quality[genome_id] = [comp, cont, comp - 5*cont]
-
-    return genome_quality
-
-
 def read_gtdb_phylum(metadata_file):
     """Parse GTDB phylum information from GTDB metadata.
 
@@ -397,6 +363,36 @@ def read_gtdb_taxonomy(metadata_file):
                 taxonomy[genome_id] = list(Taxonomy.rank_prefixes)
 
     return taxonomy
+    
+def read_gtdb_representative(metadata_file):
+    """Parse GTDB representative from GTDB metadata.
+
+    Parameters
+    ----------
+    metadata_file : str
+        Metadata for all genomes.
+
+    Return
+    ------
+    dict : d[genome_id] -> True or False
+    """
+
+    gtdb_reps = {}
+
+    csv_reader = csv.reader(open(metadata_file, 'rt'))
+    bHeader = True
+    for row in csv_reader:
+        if bHeader:
+            headers = row
+            genome_index = headers.index('genome')
+            gtdb_representative_index = headers.index('gtdb_representative')
+            bHeader = False
+        else:
+            genome_id = row[genome_index]
+            is_rep = (row[gtdb_representative_index] == 't')
+            gtdb_reps[genome_id] = is_rep
+
+    return gtdb_reps
 
 
 def read_gtdb_ncbi_taxonomy(metadata_file):
