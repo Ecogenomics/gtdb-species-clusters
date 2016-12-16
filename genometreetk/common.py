@@ -17,6 +17,7 @@
 
 import os
 import csv
+import sys
 from collections import defaultdict, namedtuple
 
 import biolib.seq_io as seq_io
@@ -24,6 +25,10 @@ from biolib.taxonomy import Taxonomy
 
 from genometreetk.default_values import DefaultValues
 from genometreetk.aai import aai_thresholds
+
+
+# make sure large CSV files can be read
+csv.field_size_limit(sys.maxsize)
 
 
 def check_domain_assignment(genome_id, gtdb_taxonomy, ncbi_taxonomy, rep_is_bacteria):

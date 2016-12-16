@@ -334,21 +334,23 @@ class OptionsParser():
         """Determine representative genomes in RefSeq."""
 
         check_file_exists(options.metadata_file)
+        check_file_exists(options.prev_rep_file)
 
         try:
             rep_workflow = DereplicationWorkflow()
 
             rep_workflow.run(options.max_species,
-                                       options.exceptions_file,
-                                       options.metadata_file,
-                                       options.min_rep_comp,
-                                       options.max_rep_cont,
-                                       options.min_quality,
-                                       options.max_contigs,
-                                       options.min_N50,
-                                       options.max_ambiguous,
-                                       options.strict_filtering,
-                                       options.rep_genome_file)
+                                options.prev_rep_file,
+                                options.exceptions_file,
+                                options.metadata_file,
+                                options.min_rep_comp,
+                                options.max_rep_cont,
+                                options.min_quality,
+                                options.max_contigs,
+                                options.min_N50,
+                                options.max_ambiguous,
+                                options.strict_filtering,
+                                options.rep_genome_file)
         except GenomeTreeTkError as e:
             print e.message
             raise SystemExit
@@ -361,11 +363,13 @@ class OptionsParser():
         check_file_exists(options.ar_msa_file)
         check_file_exists(options.bac_msa_file)
         check_file_exists(options.refseq_representatives)
+        check_file_exists(options.prev_rep_file)
         check_file_exists(options.metadata_file)
 
         try:
             representatives = Representatives()
             representatives.run(options.refseq_representatives,
+                                    options.prev_rep_file,
                                     options.trusted_user_file,
                                     options.ar_msa_file,
                                     options.bac_msa_file,
@@ -408,7 +412,7 @@ class OptionsParser():
         except GenomeTreeTkError as e:
             print e.message
             raise SystemExit
-
+            
     def validate(self, options):
         """Check taxonomy file is formatted as expected."""
 
@@ -734,8 +738,6 @@ class OptionsParser():
             self.aai_cluster(options)
         elif options.subparser_name == 'validate':
             self.validate(options)
-        elif options.subparser_name == 'binomial':
-            self.binomial(options)
         elif options.subparser_name == 'binomial':
             self.binomial(options)
         elif options.subparser_name == 'propagate':

@@ -25,6 +25,7 @@ class CombineSupport(object):
 
     def __init__(self):
         """Initialization."""
+        
         self.logger = logging.getLogger()
 
     def _collect_support_values(self, tree):

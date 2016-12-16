@@ -333,6 +333,7 @@ if __name__ == '__main__':
                                         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
                                         description='Determine representative genomes in RefSeq.')
     refseq_rep_parser.add_argument('metadata_file', help="metadata file from GTDB with CheckM estimates for all genomes in RefSeq")
+    refseq_rep_parser.add_argument('prev_rep_file', help="list of previous representative genomes to favour during selection")
     refseq_rep_parser.add_argument('exceptions_file', help="list of RefSeq representative to retain regardless of filtering criteria")
     refseq_rep_parser.add_argument('rep_genome_file', help="output file listing RefSeq representative genomes")
     refseq_rep_parser.add_argument('--max_species', help='maximum number of genomes of the same species to retain', type=int, default=2)
@@ -352,6 +353,7 @@ if __name__ == '__main__':
     rep_parser.add_argument('ar_msa_file', help="file containing canonical archaeal multiple sequence alignment")
     rep_parser.add_argument('bac_msa_file', help="file containing canonical bacterial multiple sequence alignment")
     rep_parser.add_argument('refseq_representatives', help="file listing RefSeq representative genomes")
+    rep_parser.add_argument('prev_rep_file', help="list of previous representative genomes to favour during selection")
     rep_parser.add_argument('metadata_file', help="metadata file from GTDB with CheckM estimates for all genomes in RefSeq")
     rep_parser.add_argument('rep_genome_file', help="output file listing representative genomes")
     rep_parser.add_argument('--trusted_user_file', help='file specifying trusted User genomes that should be treated as being in GenBank')

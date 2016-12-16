@@ -58,7 +58,7 @@ class DereplicationWorkflow(object):
                             complete_genomes,
                             ncbi_type_strains,
                             lpsn_type_strains,
-                            gtdb_representative,
+                            prev_gtdb_reps,
                             genome_quality):
         """Dereplicate genomes based on taxonomy.
 
@@ -78,8 +78,8 @@ class DereplicationWorkflow(object):
             Set of genomes marked as type strains at NCBI.
         lpsn_type_strains : d[ncbi_species] -> set of genome IDs
             Genomes marked as type strains at LPSN.
-        gtdb_representative : d[genome_id] -> True or False
-            Flag indicating if a genome was previously a GTDB representative.
+        prev_gtdb_reps : set
+            Previous GTDB representative.
         genome_quality : d[genome_id] -> comp - cont
             Quality of each genome.
 
@@ -133,13 +133,13 @@ class DereplicationWorkflow(object):
                 # select genomes based on estimated genome quality given
                 # a slight increase to those previous marked as a GTDB 
                 # representative
-                complete_quality = {k:genome_quality[k] + rep_quality_boost*gtdb_representative[k] for k in complete}
+                complete_quality = {k:genome_quality[k] + rep_quality_boost*(k in prev_gtdb_reps) for k in complete}
                 complete_quality_sorted = sorted(complete_quality.items(), key=operator.itemgetter(1), reverse=True)
 
-                type_strains_quality = {k:genome_quality[k] + rep_quality_boost*gtdb_representative[k] for k in type_strains}
+                type_strains_quality = {k:genome_quality[k] + rep_quality_boost*(k in prev_gtdb_reps) for k in type_strains}
                 type_strains_quality_sorted = sorted(type_strains_quality.items(), key=operator.itemgetter(1), reverse=True)
 
-                complete_type_strains_quality = {k:genome_quality[k] + rep_quality_boost*gtdb_representative[k] for k in complete_type_strains}
+                complete_type_strains_quality = {k:genome_quality[k] + rep_quality_boost*(k in prev_gtdb_reps) for k in complete_type_strains}
                 complete_type_strains_quality_sorted = sorted(complete_type_strains_quality.items(), key=operator.itemgetter(1), reverse=True)
 
                 # try to select a complete type strain, otherwise just take
@@ -161,7 +161,7 @@ class DereplicationWorkflow(object):
                 # grab incomplete genomes to get to the desired number of genomes
                 if len(selected_genomes) < max_species and genome_ids:
                     genome_ids.difference_update(selected_genomes)
-                    genome_ids_quality = {k:genome_quality[k] + rep_quality_boost*gtdb_representative[k] for k in genome_ids}
+                    genome_ids_quality = {k:genome_quality[k] + rep_quality_boost*(k in prev_gtdb_reps) for k in genome_ids}
                     genome_ids_quality_sorted = sorted(genome_ids_quality.items(), key=operator.itemgetter(1), reverse=True)
                     
                     genomes_to_select = min(len(genome_ids), max_species - len(selected_genomes))
@@ -186,7 +186,7 @@ class DereplicationWorkflow(object):
                 continue
                 
             # select genome with the highest quality
-            genome_ids_quality = {k:genome_quality[k]+ rep_quality_boost*gtdb_representative[k] for k in genome_ids}
+            genome_ids_quality = {k:genome_quality[k]+ rep_quality_boost*(k in prev_gtdb_reps) for k in genome_ids}
             genome_ids_quality_sorted = sorted(genome_ids_quality.items(), key=operator.itemgetter(1), reverse=True)
             genomes_to_retain.add(genome_ids_quality_sorted[0][0])
             lpsn_genomes += 1
@@ -196,22 +196,25 @@ class DereplicationWorkflow(object):
         return genomes_to_retain
 
     def run(self, max_species,
-                    trusted_genomes_file,
-                    metadata_file,
-                    min_rep_comp,
-                    max_rep_cont,
-                    min_quality,
-                    max_contigs,
-                    min_N50,
-                    max_ambiguous,
-                    strict_filtering,
-                    output_file):
+                prev_rep_file,
+                trusted_genomes_file,
+                metadata_file,
+                min_rep_comp,
+                max_rep_cont,
+                min_quality,
+                max_contigs,
+                min_N50,
+                max_ambiguous,
+                strict_filtering,
+                output_file):
         """Dereplicate genomes to a specific number per named species.
 
         Parameters
         ----------
         max_species : int
             Maximum number of genomes of the same species to retain.
+        prev_rep_file : str
+            File indicating previous representatives to favour during selection.
         trusted_genomes_file:
             File containing list of genomes to retain regardless of filtering criteria.
         metadata_file : str
@@ -253,13 +256,18 @@ class DereplicationWorkflow(object):
             sys.exit()
         
         gtdb_taxonomy = read_gtdb_taxonomy(metadata_file)
-        gtdb_representative = read_gtdb_representative(metadata_file)
         ncbi_taxonomy = read_gtdb_ncbi_taxonomy(metadata_file)
         ncbi_organism_names = read_gtdb_ncbi_organism_name(metadata_file)
         species = species_label(gtdb_taxonomy, ncbi_taxonomy, ncbi_organism_names)
-
         self.logger.info('Identified %d genomes with a GTDB or NCBI species names.' % len(species))
 
+        # get previous representatives
+        prev_gtdb_reps = set()
+        for line in open(prev_rep_file):
+            prev_gtdb_reps.add(line.strip().split('\t')[0])
+            
+        self.logger.info('Identified %d previous GTDB representatives.' % len(prev_gtdb_reps))
+        
         # get genome quality
         genomes_to_consider = accession_to_taxid.keys()
         genome_stats = read_gtdb_metadata(metadata_file, ['checkm_completeness',
@@ -365,7 +373,7 @@ class DereplicationWorkflow(object):
                                                 complete_genomes,
                                                 ncbi_type_strains,
                                                 lpsn_type_strains,
-                                                gtdb_representative,
+                                                prev_gtdb_reps,
                                                 genome_quality)
 
         self.logger.info('Retained %d genomes.' % len(genomes_to_retain))

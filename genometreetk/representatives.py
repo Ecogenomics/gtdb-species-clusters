@@ -60,19 +60,19 @@ class Representatives(object):
 
         self.logger = logging.getLogger()
 
-    def _order_genomes(self, genomes_to_consider, genome_quality, trusted_user_genomes, gtdb_representative):
+    def _order_genomes(self, genomes_to_consider, genome_quality, trusted_user_genomes, prev_gtdb_reps):
         """Order genomes by source and genome quality.
 
         Parameters
         ----------
         genomes_to_consider : list
-            Genomes to order.
+          Genomes to order.
         genome_quality : d[genome_id] -> genome quality
-            Estimate quality (completeness - contamination) of each genome.
+          Estimate quality (completeness - contamination) of each genome.
         trusted_user_genomes : set
-            Trusted User genomes to treat as if they were in GenBank.
-        gtdb_representative : d[genome_id] -> True or False
-            Flag indicating if a genome was previously a GTDB representative.
+          Trusted User genomes to treat as if they were in GenBank.
+        prev_gtdb_reps : set
+          Previous GTDB representative.
 
         Returns
         -------
@@ -83,10 +83,11 @@ class Representatives(object):
         # giving a slight boost to genomes that were previously a representative
         
         rep_quality_boost = 5.0
+        self.logger.info('Boosting quality of previous representatives by %.1f%%.' % rep_quality_boost)
         for genome_id, quality in  genome_quality.iteritems():
-            if genome_id in gtdb_representative:
+            if genome_id in prev_gtdb_reps:
                 genome_quality[genome_id] = quality + rep_quality_boost
-                
+
         sorted_refseq_rep_genomes = []
         sorted_genbank_rep_genomes = []
         sorted_trusted_user_rep_genomes = []
@@ -239,6 +240,7 @@ class Representatives(object):
 
     def run(self,
             refseq_representatives,
+            prev_rep_file,
             trusted_user_file,
             ar_msa_file,
             bac_msa_file,
@@ -257,6 +259,8 @@ class Representatives(object):
         ----------
         refseq_representatives : str
             File listing RefSeq genome identifiers as initial representatives.
+        prev_rep_file : str
+            File indicating previous representatives to favour during selection.
         trusted_user_file : str
             File listing trusted User genomes that should be treated as if they are in GenBank.
         ar_msa_file : str
@@ -316,7 +320,14 @@ class Representatives(object):
                 line_split = line.split('\t')
                 trusted_user_genomes.add(line_split[0])
                 
-        self.logger.info('Identified %d trusted User genomes.' % len(trusted_user_genomes))        
+        self.logger.info('Identified %d trusted User genomes.' % len(trusted_user_genomes))  
+
+        # get previous representatives
+        prev_gtdb_reps = set()
+        for line in open(prev_rep_file):
+            prev_gtdb_reps.add(line.strip().split('\t')[0])  
+
+        self.logger.info('Identified %d previous GTDB representatives.' % len(prev_gtdb_reps)) 
 
         # remove existing representative genomes and genomes
         # of insufficient quality to be a representative
@@ -345,18 +356,17 @@ class Representatives(object):
                     genome_quality[genome_id] = stats.checkm_completeness - 5*stats.checkm_contamination
 
         # perform greedy identification of new representatives
-        gtdb_representative = read_gtdb_representative(metadata_file)
-        ordered_genomes = self._order_genomes(potential_reps, genome_quality, trusted_user_genomes, gtdb_representative)
+        ordered_genomes = self._order_genomes(potential_reps, genome_quality, trusted_user_genomes, prev_gtdb_reps)
         self.logger.info('Comparing %d genomes to %d representatives with threshold = %.3f.' % (len(ordered_genomes),
                                                                                                 len(refseq_rep_genomes),
                                                                                                 aai_threshold))
         representatives = self._greedy_representatives(refseq_rep_genomes,
-                                                            ordered_genomes,
-                                                            aai_threshold,
-                                                            ar_seqs,
-                                                            bac_seqs,
-                                                            metadata_file,
-                                                            trusted_user_genomes)
+                                                        ordered_genomes,
+                                                        aai_threshold,
+                                                        ar_seqs,
+                                                        bac_seqs,
+                                                        metadata_file,
+                                                        trusted_user_genomes)
 
         self.logger.info('Identified %d representatives.' % len(representatives))
 
