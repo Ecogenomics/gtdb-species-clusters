@@ -24,6 +24,7 @@ import dendropy
 from biolib.common import check_file_exists, make_sure_path_exists, is_float
 from biolib.external.execute import check_dependencies
 from biolib.taxonomy import Taxonomy
+from biolib.newick import parse_label
 
 from genometreetk.exceptions import GenomeTreeTkError
 from genometreetk.trusted_genome_workflow import TrustedGenomeWorkflow
@@ -431,6 +432,48 @@ class OptionsParser():
                           report_errors=True)
 
         self.logger.info('Finished performing validation tests.')
+        
+    def check_tree(self, options):
+        """Validate taxonomy of decorated tree and check for polyphyletic groups."""
+        
+        check_file_exists(options.decorated_tree)
+
+        taxonomy = Taxonomy()
+        t = taxonomy.read_from_tree(options.decorated_tree)
+        
+        taxonomy.validate(t,
+                          check_prefixes=True,
+                          check_ranks=True,
+                          check_hierarchy=True,
+                          check_species=True,
+                          check_group_names=True,
+                          check_duplicate_names=True,
+                          report_errors=True)
+                          
+        # check for polyphyletic groups
+        taxa = set()
+        polyphyletic_groups = set()
+        
+        tree = dendropy.Tree.get_from_path(options.decorated_tree, 
+                                            schema='newick', 
+                                            rooting="force-rooted", 
+                                            preserve_underscores=True)
+        for node in tree.preorder_node_iter(lambda n: not n.is_leaf()):
+            _support, taxon_label, _aux_info = parse_label(node.label)
+            if taxon_label:
+                for taxon in [t.strip() for t in taxon_label.split(';')]:
+                    if taxon in taxa:
+                        polyphyletic_groups.add(taxon)
+                    
+                    taxa.add(taxon)
+
+        if len(polyphyletic_groups):
+            print ''
+            print 'Tree contains polyphyletic groups:'
+            for taxon in polyphyletic_groups:
+                print '%s' % (taxon)
+                          
+        self.logger.info('Finished performing validation tests.')
 
     def fill_ranks(self, options):
         """Ensure taxonomy strings contain all 7 canonical ranks."""
@@ -738,6 +781,8 @@ class OptionsParser():
             self.aai_cluster(options)
         elif options.subparser_name == 'validate':
             self.validate(options)
+        elif(options.subparser_name == 'check_tree'):
+            self.check_tree(options)
         elif options.subparser_name == 'binomial':
             self.binomial(options)
         elif options.subparser_name == 'propagate':

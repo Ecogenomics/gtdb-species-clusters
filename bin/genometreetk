@@ -79,6 +79,7 @@ def print_help():
 
     Taxonomy verification and manipulation:
       validate   -> Check taxonomy file is formatted as expected
+      check_tree -> Validate taxonomy of decorated tree and check for polyphyletic groups
       fill_ranks -> Ensure all taxonomy strings contain all 7 canonical ranks
       binomial   -> Ensure species are designated using binomial nomenclature
       propagate  -> Propagate labels from representatives to all genomes in a cluster
@@ -386,6 +387,13 @@ if __name__ == '__main__':
                                         description='Check taxonomy file is formatted as expected.')
     validate_parser.add_argument('input_taxonomy', help='input taxonomy file')
     validate_parser.add_argument('--silent', help="suppress output", action='store_true')
+    
+    # validate taxonomy file
+    check_tree_parser = subparsers.add_parser('check_tree',
+                                        formatter_class=CustomHelpFormatter,
+                                        description='Validate taxonomy of decorated tree and check for polyphyletic groups.')
+    check_tree_parser.add_argument('decorated_tree', help='decorated tree to validate')
+    check_tree_parser.add_argument('--silent', help="suppress output", action='store_true')
 
     # fill all 7 taxonomic ranks
     fill_ranks_parser = subparsers.add_parser('fill_ranks',
