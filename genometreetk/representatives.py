@@ -33,8 +33,6 @@ from genometreetk.common import (read_gtdb_metadata,
                                     predict_bacteria,
                                     check_domain_assignment,
                                     assign_rep)
-from genometreetk.aai import aai_test
-
 
 class Representatives(object):
     """Identify representative genomes.
@@ -51,7 +49,7 @@ class Representatives(object):
     to limit representative to genomes of sufficient
     quality. Furthermore, a genome is not clustered
     to an existing representative if they have different
-    valid species names. NCBI genomes are also never assigned
+    species names. NCBI genomes are also never assigned
     to User representatives.
     """
 
@@ -251,6 +249,7 @@ class Representatives(object):
             max_contigs,
             min_N50,
             max_ambiguous,
+            max_gap_length,
             metadata_file,
             output_file):
         """Identify additional representatives based on AAI between aligned sequences.
@@ -268,7 +267,7 @@ class Representatives(object):
         bac_msa_file : str
             Name of file containing canonical bacterial multiple sequence alignment.
         aai_threshold : float
-              AAI threshold for clustering genomes to a representative.
+            AAI threshold for clustering genomes to a representative.
         min_rep_comp : float [0, 100]
             Minimum completeness for a genome to be a representative.
         max_rep_cont : float [0, 100]
@@ -280,7 +279,9 @@ class Representatives(object):
         min_N50 : int
             Minimum N50 of scaffolds for a genome to be a representative.
         max_ambiguous : int
-            Maximum number of ambiguous bases for a genome to be a representative.
+            Maximum number of ambiguous bases within contigs for a genome to be a representative.
+        max_gap_length : int
+            Maximum number of ambiguous bases between contigs for a genome to be a representative.
         metadata_file : str
             Metadata, including CheckM estimates, for all genomes.
         output_file : str
@@ -335,7 +336,8 @@ class Representatives(object):
                                                             'checkm_contamination',
                                                             'contig_count',
                                                             'n50_scaffolds',
-                                                            'ambiguous_bases'])
+                                                            'ambiguous_bases',
+                                                            'total_gap_length'])
                                                             
         missing_metadata = genome_to_consider - set(genome_stats.keys())
         if missing_metadata:
@@ -351,7 +353,8 @@ class Representatives(object):
                 and (stats.checkm_completeness - 5*stats.checkm_contamination) >= min_quality
                 and stats.contig_count <= max_contigs
                 and stats.n50_scaffolds >= min_N50
-                and stats.ambiguous_bases <= max_ambiguous):
+                and stats.ambiguous_bases <= max_ambiguous
+                and stats.total_gap_length <= max_gap_length):
                     potential_reps.add(genome_id)
                     genome_quality[genome_id] = stats.checkm_completeness - 5*stats.checkm_contamination
 

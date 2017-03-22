@@ -205,6 +205,7 @@ class DereplicationWorkflow(object):
                 max_contigs,
                 min_N50,
                 max_ambiguous,
+                max_gap_length,
                 strict_filtering,
                 output_file):
         """Dereplicate genomes to a specific number per named species.
@@ -231,6 +232,8 @@ class DereplicationWorkflow(object):
             Minimum N50 of scaffolds for a genome to be a representative.
         max_ambiguous : int
             Maximum number of ambiguous bases for a genome to be a representative.
+        max_gap_length : int
+            Maximum number of ambiguous bases between contigs for a genome to be a representative.
         strict_filtering : boolean
             If True apply filtering to all genomes, otherise apply lenient 
             filtering to genomes where the chromosome and plasmids are reported 
@@ -275,6 +278,7 @@ class DereplicationWorkflow(object):
                                                             'contig_count',
                                                             'n50_scaffolds',
                                                             'ambiguous_bases',
+                                                            'total_gap_length',
                                                             'scaffold_count',
                                                             'ssu_count',
                                                             'ncbi_molecule_count',
@@ -298,13 +302,21 @@ class DereplicationWorkflow(object):
         new_genomes_to_consider = []
         genome_quality = {}
         filtered_reps = 0
-        lack_ncbi_taxonomy = 0       
+        lack_ncbi_taxonomy = 0
+        contig_filter_count = 0
         for genome_id in accession_to_taxid.keys():
             stats = genome_stats[genome_id]
             
             if not stats.ncbi_taxonomy:
                 lack_ncbi_taxonomy += 1
-                fout.write('%s\t%.2f\t%.2f\t%d\t%d\t%s\n' % (genome_id, comp, cont, stats.contig_count, stats.n50_scaffolds, 'no NCBI taxonomy'))
+                fout.write('%s\t%.2f\t%.2f\t%d\t%d\t%d\t%d\t%s\n' % (genome_id, 
+                                                                        comp, 
+                                                                        cont, 
+                                                                        stats.contig_count, 
+                                                                        stats.n50_scaffolds, 
+                                                                        stats.ambiguous_bases,
+                                                                        stats.total_gap_length,
+                                                                        'no NCBI taxonomy'))
                 self.logger.warning('Skipping %s as it has no assigned NCBI taxonomy.' % genome_id)
                 continue
             
@@ -319,7 +331,8 @@ class DereplicationWorkflow(object):
                     and (comp - 5*cont) >= min_quality
                     and stats.contig_count <= max_contigs
                     and stats.n50_scaffolds >= min_N50
-                    and stats.ambiguous_bases <= max_ambiguous):
+                    and stats.ambiguous_bases <= max_ambiguous
+                    and stats.total_gap_length <= max_gap_length):
                         keep = True
             elif not strict_filtering:
                 # check if genome appears to consist of only an unspanned
@@ -330,7 +343,8 @@ class DereplicationWorkflow(object):
                     and stats.scaffold_count == stats.ncbi_molecule_count
                     and stats.ncbi_unspanned_gaps == 0
                     and stats.ncbi_spanned_gaps <= 10
-                    and stats.ambiguous_bases <= 100
+                    and stats.ambiguous_bases <= 1000
+                    and stats.total_gap_length <= 100000
                     and stats.ssu_count >= 1):
                     
                     # apply lenient quality check 
@@ -346,7 +360,18 @@ class DereplicationWorkflow(object):
             
             # check if a representative at NCBI is being filtered
             if genome_id in representative_genomes and genome_id not in new_genomes_to_consider:
-                fout.write('%s\t%.2f\t%.2f\t%d\t%d\t%s\n' % (genome_id, comp, cont, stats.contig_count, stats.n50_scaffolds, stats.ncbi_organism_name))
+                fout.write('%s\t%.2f\t%.2f\t%d\t%d\t%d\t%d\t%s\n' % (genome_id, 
+                                                                        comp, 
+                                                                        cont, 
+                                                                        stats.contig_count, 
+                                                                        stats.n50_scaffolds, 
+                                                                        stats.ambiguous_bases,
+                                                                        stats.total_gap_length,
+                                                                        stats.ncbi_organism_name))
+                                                                        
+                if stats.contig_count > 300:
+                    contig_filter_count += 1 
+
                 self.logger.warning('Filtered RefSeq representative %s with comp=%.2f, cont=%.2f, contigs=%d, N50=%d' % (genome_id, 
                                                                                                                             comp, 
                                                                                                                             cont, 
@@ -355,10 +380,12 @@ class DereplicationWorkflow(object):
                 filtered_reps += 1
                 
         fout.close()
+        
+        print 'contig_filter_count', contig_filter_count
 
         genomes_to_consider = new_genomes_to_consider
         self.logger.info('Skipped %d genomes without an assigned NCBI taxonomy.' % lack_ncbi_taxonomy)
-        self.logger.info('Filtered %d representative or reference genome based on genome quality.' % filtered_reps)
+        self.logger.info('Filtered %d representative or reference genomes based on genome or assembly quality.' % filtered_reps)
         self.logger.info('Filtered representative or reference genomes written to %s' % filtered_reps_file)
         self.logger.info('Considering %d genomes after filtering for genome quality.' % (len(genomes_to_consider)))
 

@@ -43,6 +43,7 @@ from genometreetk.common import read_gtdb_metadata
 from genometreetk.phylogenetic_diversity import PhylogeneticDiversity
 from genometreetk.arb import Arb
 from genometreetk.derep_tree import DereplicateTree
+from genometreetk.ani import ANI
 
 
 class OptionsParser():
@@ -350,6 +351,7 @@ class OptionsParser():
                                 options.max_contigs,
                                 options.min_N50,
                                 options.max_ambiguous,
+                                options.max_gap_length,
                                 options.strict_filtering,
                                 options.rep_genome_file)
         except GenomeTreeTkError as e:
@@ -381,6 +383,7 @@ class OptionsParser():
                                     options.max_contigs,
                                     options.min_N50,
                                     options.max_ambiguous,
+                                    options.max_gap_length,
                                     options.metadata_file,
                                     options.rep_genome_file)
 
@@ -438,8 +441,12 @@ class OptionsParser():
         
         check_file_exists(options.decorated_tree)
 
+        # validate taxonomy
         taxonomy = Taxonomy()
-        t = taxonomy.read_from_tree(options.decorated_tree)
+        if options.taxonomy_file:
+            t = taxonomy.read(options.taxonomy_file)
+        else:
+            t = taxonomy.read_from_tree(options.decorated_tree)
         
         taxonomy.validate(t,
                           check_prefixes=True,
@@ -451,21 +458,40 @@ class OptionsParser():
                           report_errors=True)
                           
         # check for polyphyletic groups
-        taxa = set()
         polyphyletic_groups = set()
-        
         tree = dendropy.Tree.get_from_path(options.decorated_tree, 
-                                            schema='newick', 
-                                            rooting="force-rooted", 
-                                            preserve_underscores=True)
-        for node in tree.preorder_node_iter(lambda n: not n.is_leaf()):
-            _support, taxon_label, _aux_info = parse_label(node.label)
-            if taxon_label:
-                for taxon in [t.strip() for t in taxon_label.split(';')]:
-                    if taxon in taxa:
+                                                schema='newick', 
+                                                rooting="force-rooted", 
+                                                preserve_underscores=True)
+                                                
+        if options.taxonomy_file:
+            # reduce taxonomy to taxa in tree and map taxon labels to Taxon objects
+            reduced_taxonomy = {}
+            taxon_map = {}
+            for leaf in tree.leaf_node_iter():
+                reduced_taxonomy[leaf.taxon.label] = t[leaf.taxon.label]
+                taxon_map[leaf.taxon.label] = leaf.taxon
+ 
+            # find taxa with an MRCA spanning additional taxa
+            for rank_label in Taxonomy.rank_labels[1:]:
+                extant_taxa = taxonomy.extant_taxa_for_rank(rank_label, reduced_taxonomy)
+                for taxon, taxa_ids in extant_taxa.iteritems():
+                    mrca = tree.mrca(taxa=[taxon_map[t] for t in taxa_ids])
+                    mrca_leaf_count = sum([1 for leaf in mrca.leaf_iter()])
+                    if mrca_leaf_count != len(taxa_ids):
                         polyphyletic_groups.add(taxon)
-                    
-                    taxa.add(taxon)
+        else:
+            # find duplicate taxon labels in tree
+            taxa = set()
+            
+            for node in tree.preorder_node_iter(lambda n: not n.is_leaf()):
+                _support, taxon_label, _aux_info = parse_label(node.label)
+                if taxon_label:
+                    for taxon in [t.strip() for t in taxon_label.split(';')]:
+                        if taxon in taxa:
+                            polyphyletic_groups.add(taxon)
+                        
+                        taxa.add(taxon)
 
         if len(polyphyletic_groups):
             print ''
@@ -721,6 +747,27 @@ class OptionsParser():
                                             in_pg, 
                                             in_pg * 100 / total_pd)
               
+    def ani(self, options):
+        """Calculate the ANI value of named species."""
+
+        check_file_exists(options.input_taxonomy)
+        check_file_exists(options.metadata_file)
+        make_sure_path_exists(options.output_dir)
+        
+        ani = ANI(options.cpus)
+        ani.run(options.input_taxonomy,
+                options.genome_path_file,
+                options.metadata_file, 
+                options.max_genomes,
+                options.min_comp,
+                options.max_cont,
+                options.min_quality, 
+                options.max_contigs, 
+                options.min_N50, 
+                options.max_ambiguous, 
+                options.max_gap_length, 
+                options.output_dir)
+    
     def phylogenetic_diversity_clade(self, options):
         """Calculate phylogenetic diversity of named groups."""
 
@@ -795,6 +842,8 @@ class OptionsParser():
             self.pull(options)
         elif options.subparser_name == 'diff':
             self.diff(options)
+        elif options.subparser_name == 'ani':
+            self.ani(options)
         elif options.subparser_name == 'pd':
             self.phylogenetic_diversity(options)
         elif options.subparser_name == 'pd_clade':

@@ -86,6 +86,9 @@ def print_help():
       strip      -> Remove taxonomic labels from a tree (useful for re-decorating)
       pull       -> Create taxonomy file from a decorated tree
       diff       -> Determine differences between two taxonomy files
+      
+    Species verification and exploration:
+      ani -> Calculate the ANI value of named species
 
     Phylogenetic diversity:
       pd       -> Calculate phylogenetic diversity of specified taxa
@@ -143,7 +146,7 @@ if __name__ == '__main__':
 
     # determine trusted genomes
     trusted_parser = subparsers.add_parser('trusted',
-                                        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+                                        formatter_class=CustomHelpFormatter,
                                         description='Determine trusted genomes to use for marker gene inference.')
     trusted_parser.add_argument('metadata_file', help="metadata file from GTDB with CheckM estimates for all genomes in RefSeq")
     trusted_parser.add_argument('trusted_genomes_file', help="output file listing trusted genomes")
@@ -156,7 +159,7 @@ if __name__ == '__main__':
 
     # dereplicate genomes
     dereplicate_parser = subparsers.add_parser('dereplicate',
-                                        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+                                        formatter_class=CustomHelpFormatter,
                                         description='Dereplicate genomes based on taxonomy.')
     dereplicate_parser.add_argument('derep_genome_file', help="output file listing dereplicated genomes")
     dereplicate_parser.add_argument('--max_species', help='maximum number of genomes of the same species to retain', type=int, default=2)
@@ -165,7 +168,7 @@ if __name__ == '__main__':
 
     # determine marker genes
     markers_parser = subparsers.add_parser('markers',
-                                        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+                                        formatter_class=CustomHelpFormatter,
                                         description='Determine phylogenetically informative marker genes.')
     markers_parser.add_argument('ingroup_file', help="unique ids of genomes within the ingroup")
     markers_parser.add_argument('output_dir', help="output directory")
@@ -183,7 +186,7 @@ if __name__ == '__main__':
 
     # infer tree
     infer_parser = subparsers.add_parser('infer',
-                                        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+                                        formatter_class=CustomHelpFormatter,
                                         description='Infer genome tree.')
     infer_parser.add_argument('genome_id_file', help="unique ids of genomes to include in tree")
     infer_parser.add_argument('marker_id_file', help="unique ids of marker genes to use for inference")
@@ -194,7 +197,7 @@ if __name__ == '__main__':
 
     # infer 16S tree across GTDB genomes
     ssu_tree_parser = subparsers.add_parser('ssu_tree',
-                                        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+                                        formatter_class=CustomHelpFormatter,
                                         description='Infer 16S tree spanning GTDB genomes.')
     ssu_tree_parser.add_argument('gtdb_metadata_file', help="metadata file from GTDB")
     ssu_tree_parser.add_argument('gtdb_ssu_file', help="file with 16S sequences in fasta format")
@@ -214,7 +217,7 @@ if __name__ == '__main__':
 
     # infer 23S tree across GTDB genomes
     lsu_tree_parser = subparsers.add_parser('lsu_tree',
-                                        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+                                        formatter_class=CustomHelpFormatter,
                                         description='Infer 23S tree spanning GTDB genomes.')
     lsu_tree_parser.add_argument('gtdb_metadata_file', help="metadata file from GTDB")
     lsu_tree_parser.add_argument('gtdb_lsu_file', help="file with 23S sequences in fasta format")
@@ -234,7 +237,7 @@ if __name__ == '__main__':
     
     # infer concatenated rRNA tree
     rna_tree_parser = subparsers.add_parser('rna_tree',
-                                        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+                                        formatter_class=CustomHelpFormatter,
                                         description='Infer a concatenated 16S + 23S tree spanning GTDB genomes.')
     rna_tree_parser.add_argument('ssu_msa', help="FASTA file with MSA of 16S rRNA gene sequences")
     rna_tree_parser.add_argument('ssu_tree', help="decorated 16S tree")
@@ -341,9 +344,10 @@ if __name__ == '__main__':
     refseq_rep_parser.add_argument('--min_rep_comp', help='minimum completeness for a genome to be a representative [0, 100]', type=float, default=90)
     refseq_rep_parser.add_argument('--max_rep_cont', help='maximum contamination for a genome to be a representative [0, 100]', type=float, default=10)
     refseq_rep_parser.add_argument('--min_quality', help='minimum genome quality (comp - 5*cont) to be a representative [0, 100]', type=float, default=50)
-    refseq_rep_parser.add_argument('--max_contigs', help='maximum number of contigs for a genome to be a representative', type=int, default=300)
+    refseq_rep_parser.add_argument('--max_contigs', help='maximum number of contigs for a genome to be a representative', type=int, default=500)
     refseq_rep_parser.add_argument('--min_N50', help='minimum N50 of scaffolds for a genome to be a representative', type=int, default=20000)
-    refseq_rep_parser.add_argument('--max_ambiguous', help='maximum number of ambiguous bases for a genome to be a representative', type=int, default=100000)
+    refseq_rep_parser.add_argument('--max_ambiguous', help='maximum number of ambiguous bases within contigs for a genome to be a representative', type=int, default=100000)
+    refseq_rep_parser.add_argument('--max_gap_length', help='maximum number of ambiguous bases between contigs for a genome to be a representative', type=int, default=200000)  
     refseq_rep_parser.add_argument('--strict_filtering', help='apply filtering to all genomes; default is to apply lenient filtering to genomes where the chromosome and plasmids are reported as complete', action='store_true')
     refseq_rep_parser.add_argument('--silent', help="suppress output", action='store_true')
 
@@ -362,9 +366,10 @@ if __name__ == '__main__':
     rep_parser.add_argument('--min_rep_comp', help='minimum completeness for a genome to be a representative [0, 100]', type=float, default=90)
     rep_parser.add_argument('--max_rep_cont', help='maximum contamination for a genome to be a representative [0, 100]', type=float, default=10)
     rep_parser.add_argument('--min_quality', help='minimum genome quality (comp - 5*cont) to be a representative [0, 100]', type=float, default=50)
-    rep_parser.add_argument('--max_contigs', help='maximum number of contigs for a genome to be a representative', type=int, default=300)
+    rep_parser.add_argument('--max_contigs', help='maximum number of contigs for a genome to be a representative', type=int, default=500)
     rep_parser.add_argument('--min_N50', help='minimum N50 of scaffolds for a genome to be a representative', type=int, default=20000)
-    rep_parser.add_argument('--max_ambiguous', help='maximum number of ambiguous bases for a genome to be a representative', type=int, default=100000)
+    rep_parser.add_argument('--max_ambiguous', help='maximum number of ambiguous bases within contigs for a genome to be a representative', type=int, default=100000)
+    rep_parser.add_argument('--max_gap_length', help='maximum number of ambiguous bases between contigs for a genome to be a representative', type=int, default=200000)  
     rep_parser.add_argument('--silent', help="suppress output", action='store_true')
 
     # determine trusted genomes
@@ -393,6 +398,7 @@ if __name__ == '__main__':
                                         formatter_class=CustomHelpFormatter,
                                         description='Validate taxonomy of decorated tree and check for polyphyletic groups.')
     check_tree_parser.add_argument('decorated_tree', help='decorated tree to validate')
+    check_tree_parser.add_argument('--taxonomy_file', help='alternative taxonomy to validate with respect to the input tree')
     check_tree_parser.add_argument('--silent', help="suppress output", action='store_true')
 
     # fill all 7 taxonomic ranks
@@ -446,6 +452,25 @@ if __name__ == '__main__':
     diff_parser.add_argument('--report_missing_taxa', help="report taxa not present in both files", action='store_true')
     diff_parser.add_argument('--report_missing_ranks', help="report taxa with empty ranks", action='store_true')
     diff_parser.add_argument('--silent', help="suppress output", action='store_true')
+    
+    # calculate ANI of named species
+    ani_parser = subparsers.add_parser('ani',
+                                        formatter_class=CustomHelpFormatter,
+                                        description='Calculate the ANI value of named species.')
+    ani_parser.add_argument('input_taxonomy', help='input taxonomy spanning all genomes in GTDB')
+    ani_parser.add_argument('genome_path_file', help="file indicating path to each GTDB genome")
+    ani_parser.add_argument('metadata_file', help="metadata file for all genomes in the GTDB")
+    ani_parser.add_argument('output_dir', help="output directory") 
+    ani_parser.add_argument('--max_genomes', help='maximum number of genomes to consider per species', type=int, default=20)
+    ani_parser.add_argument('--min_comp', help='minimum completeness for a genome to be considered [0, 100]', type=float, default=50)
+    ani_parser.add_argument('--max_cont', help='maximum contamination for a genome to be considered [0, 100]', type=float, default=10)
+    ani_parser.add_argument('--min_quality', help='minimum genome quality (comp - 5*cont) for a genome to be considered', type=float, default=50)
+    ani_parser.add_argument('--max_contigs', help='maximum number of contigs for a genome to be considered', type=int, default=500)
+    ani_parser.add_argument('--min_N50', help='minimum N50 of scaffolds for a genome to be considered', type=int, default=10000)
+    ani_parser.add_argument('--max_ambiguous', help='maximum number of ambiguous bases within contigs for a genome to be considered', type=int, default=100000)
+    ani_parser.add_argument('--max_gap_length', help='maximum number of ambiguous bases between contigs for a genome to be considered', type=int, default=1e6)  
+    ani_parser.add_argument('-c', '--cpus', help='number of cpus', type=int, default=1)
+    ani_parser.add_argument('--silent', help="suppress output", action='store_true')
     
     # calculate phylogenetic diversity
     pd_parser = subparsers.add_parser('pd',

@@ -31,6 +31,52 @@ from genometreetk.aai import aai_thresholds
 csv.field_size_limit(sys.maxsize)
 
 
+def filter_genomes(metadata_file,
+                    min_comp,
+                    max_cont,
+                    min_quality, 
+                    max_contigs, 
+                    min_N50, 
+                    max_ambiguous, 
+                    max_gap_length):
+    """Indentify genomes passing filtering criteria."""
+    
+    genome_ids = set()
+
+    csv_reader = csv.reader(open(metadata_file, 'rb'))
+    bHeader = True
+    for row in csv_reader:
+        if bHeader:
+            bHeader = False
+
+            genome_index = row.index('genome')
+            comp_index = row.index('checkm_completeness')
+            cont_index = row.index('checkm_contamination')
+            contig_count_index = row.index('contig_count')
+            n50_scaffolds_index = row.index('n50_scaffolds')
+            ambiguous_bases_index = row.index('ambiguous_bases')
+            total_gap_length_index = row.index('total_gap_length')
+            
+        else:
+            genome_id = row[genome_index]
+            
+            comp = float(row[comp_index])
+            cont = float(row[cont_index])
+            quality = comp - 5*cont
+            
+            contig_count = int(row[contig_count_index])
+            n50_scaffolds = int(row[n50_scaffolds_index])
+            ambiguous_bases = int(row[ambiguous_bases_index])
+            total_gap_length = int(row[total_gap_length_index])
+            
+            if comp >= min_comp and cont <= max_cont and quality >= min_quality:
+                if contig_count <= max_contigs and n50_scaffolds >= min_N50:
+                    if ambiguous_bases <= max_ambiguous and total_gap_length <= max_gap_length:
+                        genome_ids.add(genome_id)
+
+    return genome_ids
+
+    
 def check_domain_assignment(genome_id, gtdb_taxonomy, ncbi_taxonomy, rep_is_bacteria):
     """Check that domain assignment agrees with GTDB and NCBI taxonomy.
     
@@ -258,6 +304,7 @@ def species_label(gtdb_taxonomy, ncbi_taxonomy, ncbi_organism_name):
 
     return species
 
+    
 def read_gtdb_metadata(metadata_file, fields):
     """Parse genome quality from GTDB metadata.
 
@@ -277,7 +324,7 @@ def read_gtdb_metadata(metadata_file, fields):
     gtdb_metadata = namedtuple('gtdb_metadata', ' '.join(fields))
     m = {}
 
-    csv_reader = csv.reader(open(metadata_file, 'rt'))
+    csv_reader = csv.reader(open(metadata_file, 'rb'))
     bHeader = True
     for row in csv_reader:
         if bHeader:
