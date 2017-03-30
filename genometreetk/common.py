@@ -410,7 +410,7 @@ def read_gtdb_taxonomy(metadata_file):
             taxa_str = row[taxonomy_index].strip()
 
             if taxa_str:
-                taxonomy[genome_id] = taxa_str.split(';')
+                taxonomy[genome_id] = map(str.strip, taxa_str.split(';'))
             else:
                 taxonomy[genome_id] = list(Taxonomy.rank_prefixes)
 

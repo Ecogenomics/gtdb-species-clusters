@@ -38,7 +38,6 @@ from genometreetk.jackknife_taxa import JackknifeTaxa
 from genometreetk.combine_support import CombineSupport
 from genometreetk.reroot_tree import RerootTree
 from genometreetk.representatives import Representatives
-from genometreetk.cluster import Cluster
 from genometreetk.common import read_gtdb_metadata
 from genometreetk.phylogenetic_diversity import PhylogeneticDiversity
 from genometreetk.arb import Arb
@@ -332,19 +331,51 @@ class OptionsParser():
         reroot = RerootTree()
         reroot.root_with_outgroup(options.input_tree, options.output_tree, outgroup)
 
-    def refseq_representatives(self, options):
-        """Determine representative genomes in RefSeq."""
+    def dereplicate(self, options):
+        """Select representative genomes for named species."""
 
         check_file_exists(options.metadata_file)
         check_file_exists(options.prev_rep_file)
+        check_file_exists(options.trusted_user_file)
 
         try:
-            rep_workflow = DereplicationWorkflow()
+            rep = Representatives()
+            rep.dereplicate(options.metadata_file,
+                            options.prev_rep_file,
+                            options.exceptions_file,
+                            options.trusted_user_file,
+                            options.max_species,
+                            options.min_rep_comp,
+                            options.max_rep_cont,
+                            options.min_quality,
+                            options.max_contigs,
+                            options.min_N50,
+                            options.max_ambiguous,
+                            options.max_gap_length,
+                            options.strict_filtering,
+                            options.species_derep_file)
+        except GenomeTreeTkError as e:
+            print e.message
+            raise SystemExit
 
-            rep_workflow.run(options.max_species,
-                                options.prev_rep_file,
-                                options.exceptions_file,
+        self.logger.info('RefSeq representative genomes written to: %s' % options.species_derep_file)
+
+    def representatives(self, options):
+        """Determine additional representatives genomes."""
+
+        check_file_exists(options.species_derep_file)
+        check_file_exists(options.metadata_file)
+        check_file_exists(options.prev_rep_file)
+        check_file_exists(options.trusted_user_file)
+        check_file_exists(options.mash_pairwise_file)
+
+        try:
+            rep = Representatives()
+            rep.representatives(options.species_derep_file,
                                 options.metadata_file,
+                                options.prev_rep_file,
+                                options.mash_pairwise_file,
+                                options.trusted_user_file,
                                 options.min_rep_comp,
                                 options.max_rep_cont,
                                 options.min_quality,
@@ -352,40 +383,7 @@ class OptionsParser():
                                 options.min_N50,
                                 options.max_ambiguous,
                                 options.max_gap_length,
-                                options.strict_filtering,
                                 options.rep_genome_file)
-        except GenomeTreeTkError as e:
-            print e.message
-            raise SystemExit
-
-        self.logger.info('RefSeq representative genomes written to: %s' % options.rep_genome_file)
-
-    def representatives(self, options):
-        """Determine additional representatives genomes."""
-
-        check_file_exists(options.ar_msa_file)
-        check_file_exists(options.bac_msa_file)
-        check_file_exists(options.refseq_representatives)
-        check_file_exists(options.prev_rep_file)
-        check_file_exists(options.metadata_file)
-
-        try:
-            representatives = Representatives()
-            representatives.run(options.refseq_representatives,
-                                    options.prev_rep_file,
-                                    options.trusted_user_file,
-                                    options.ar_msa_file,
-                                    options.bac_msa_file,
-                                    options.threshold,
-                                    options.min_rep_comp,
-                                    options.max_rep_cont,
-                                    options.min_quality,
-                                    options.max_contigs,
-                                    options.min_N50,
-                                    options.max_ambiguous,
-                                    options.max_gap_length,
-                                    options.metadata_file,
-                                    options.rep_genome_file)
 
             self.logger.info('Representative genomes written to: %s' % options.rep_genome_file)
 
@@ -393,22 +391,18 @@ class OptionsParser():
             print e.message
             raise SystemExit
 
-    def aai_cluster(self, options):
-        """Cluster genomes based on AAI."""
+    def cluster(self, options):
+        """Cluster remaining genomes based on Mash distances."""
 
-        check_file_exists(options.ar_msa_file)
-        check_file_exists(options.bac_msa_file)
-        check_file_exists(options.representatives)
+        check_file_exists(options.rep_genome_file)
         check_file_exists(options.metadata_file)
+        check_file_exists(options.mash_pairwise_file)
 
         try:
-            cluster = Cluster(options.cpus)
-            cluster.run(options.representatives,
-                        options.trusted_user_file,
-                        options.ar_msa_file,
-                        options.bac_msa_file,
-                        options.threshold,
+            rep = Representatives()
+            rep.cluster(options.rep_genome_file,
                         options.metadata_file,
+                        options.mash_pairwise_file,
                         options.cluster_file)
 
             self.logger.info('Clustering information written to: %s' % options.cluster_file)
@@ -792,15 +786,7 @@ class OptionsParser():
 
         check_dependencies(('FastTree', 'hmmsearch'))
 
-        if options.subparser_name == 'trusted':
-            self.trusted(options)
-        elif options.subparser_name == 'dereplicate':
-            self.dereplicate(options)
-        elif options.subparser_name == 'markers':
-            self.markers(options)
-        elif options.subparser_name == 'infer':
-            self.infer(options)
-        elif options.subparser_name == 'ssu_tree':
+        if options.subparser_name == 'ssu_tree':
             self.ssu_tree(options)
         elif options.subparser_name == 'lsu_tree':
             self.lsu_tree(options)
@@ -820,12 +806,12 @@ class OptionsParser():
             self.midpoint(options)
         elif options.subparser_name == 'outgroup':
             self.outgroup(options)
-        elif options.subparser_name == 'refseq_reps':
-            self.refseq_representatives(options)
+        elif options.subparser_name == 'dereplicate':
+            self.dereplicate(options)
         elif options.subparser_name == 'reps':
             self.representatives(options)
-        elif options.subparser_name == 'aai_cluster':
-            self.aai_cluster(options)
+        elif options.subparser_name == 'cluster':
+            self.cluster(options)
         elif options.subparser_name == 'validate':
             self.validate(options)
         elif(options.subparser_name == 'check_tree'):

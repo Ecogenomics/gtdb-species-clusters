@@ -33,7 +33,7 @@ def read_genome_dir(genome_dir_file):
     return genome_dirs
 
 
-def read_refseq_metadata(metadata_file, keep_db_prefix=False):
+def read_refseq_metadata(metadata_file):
     """Parse metadata for RefSeq genomes from GTDB metadata file.
 
     Parameters
@@ -51,7 +51,7 @@ def read_refseq_metadata(metadata_file, keep_db_prefix=False):
         Set of reference or representative genomes based on NCBI RefSeq category.
     """
 
-    accession_to_taxid = {}
+    refseq_genomes = set()
     complete_genomes = set()
     representative_genomes = set()
 
@@ -60,25 +60,21 @@ def read_refseq_metadata(metadata_file, keep_db_prefix=False):
     for row in csv_reader:
         if bHeader:
             genome_index = row.index('genome')
-            taxid_index = row.index('ncbi_taxid')
             assembly_level_index = row.index('ncbi_assembly_level')
             refseq_category_index = row.index('ncbi_refseq_category')
             bHeader = False
         else:
-            assembly_accession = row[genome_index]
-            if assembly_accession.startswith('RS_'):
-                if not keep_db_prefix:
-                    assembly_accession = assembly_accession.replace('RS_', '').replace('GB_', '')
-
-                accession_to_taxid[assembly_accession] = row[taxid_index]
+            genome_id = row[genome_index]
+            if genome_id.startswith('RS_'):
+                refseq_genomes.add(genome_id)
 
                 assembly_level = row[assembly_level_index].lower()
                 if assembly_level == 'complete genome':
-                    complete_genomes.add(assembly_accession)
+                    complete_genomes.add(genome_id)
 
                 refseq_category = row[refseq_category_index].lower()
                 if 'reference' in refseq_category or 'representative' in refseq_category:
-                    representative_genomes.add(assembly_accession)
+                    representative_genomes.add(genome_id)
 
-    return accession_to_taxid, complete_genomes, representative_genomes
+    return refseq_genomes, complete_genomes, representative_genomes
 
