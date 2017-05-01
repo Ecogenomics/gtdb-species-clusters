@@ -67,7 +67,7 @@ class PhylogeneticDiversity():
                 rep_id = line_split[0]
                 
                 if len(line_split) >= 2:
-                    for genome_id in line_split[1].split(';'):
+                    for genome_id in map(str.strip, line_split[1].split(',')):
                         genome_reps[genome_id] = rep_id
                 
         return genome_reps
@@ -166,6 +166,7 @@ class PhylogeneticDiversity():
         # get total branch length of tree
         self.logger.info('Calculating total PD.')
         total_pd, total_taxa = self._total_pd(tree)
+        self.logger.info('Total PD for %d taxa = %.2f' % (total_taxa, total_pd))
 
         # get PD of ingroup taxa
         self.logger.info('Calculating total PD for specified taxa.')

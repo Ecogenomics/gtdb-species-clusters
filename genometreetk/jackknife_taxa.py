@@ -134,10 +134,9 @@ class JackknifeTaxa(object):
         self.msa = seq_io.read(msa_file)
 
         # calculate replicates
-        self.logger.info('')
-        self.logger.info('  Calculating jackknife taxa replicates:')
-        #parallel = Parallel(self.cpus)
-        #parallel.run(self._producer, None, xrange(num_replicates), self._progress)
+        #***self.logger.info('Calculating jackknife taxa replicates:')
+        #***parallel = Parallel(self.cpus)
+        #***parallel.run(self._producer, None, xrange(num_replicates), self._progress)
 
         # calculate support
         rep_tree_files = []

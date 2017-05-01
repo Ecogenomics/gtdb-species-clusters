@@ -48,13 +48,15 @@ class TreeSupport():
             node.nontrivial_splits = 0
 
         for rep_tree_file in replicate_trees:
+            print rep_tree_file
             rep_tree = dendropy.Tree.get_from_path(rep_tree_file, schema='newick', rooting='force-unrooted', preserve_underscores=True)
 
             rep_tree_list = dendropy.TreeList([rep_tree])
 
             rep_tree_taxa_set = set([x.taxon.label for x in rep_tree.leaf_nodes()])
 
-            for node in tree.internal_nodes():
+            for i, node in enumerate(tree.internal_nodes()):
+                print i
                 taxa_labels = set([x.taxon.label for x in node.leaf_nodes()]).intersection(rep_tree_taxa_set)
 
                 split = rep_tree.taxon_namespace.taxa_bitmask(labels=taxa_labels)

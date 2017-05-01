@@ -266,7 +266,8 @@ class OptionsParser():
         jackknife_markers = JackknifeMarkers(options.cpus)
         output_tree = jackknife_markers.run(options.input_tree,
                                                 options.msa_file,
-                                                options.gene_length_file,
+                                                options.marker_info_file,
+                                                options.mask_file,
                                                 options.perc_markers,
                                                 options.num_replicates,
                                                 options.model,

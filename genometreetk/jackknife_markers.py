@@ -103,7 +103,14 @@ class JackknifeMarkers(object):
             fout.write(sub_seq + '\n')
         fout.close()
 
-    def run(self, input_tree, msa_file, marker_file, perc_markers_to_keep, num_replicates, model, output_dir):
+    def run(self, input_tree, 
+                    msa_file, 
+                    marker_info_file, 
+                    mask_file, 
+                    perc_markers_to_keep, 
+                    num_replicates, 
+                    model, 
+                    output_dir):
         """Jackknife marker genes.
 
         Marker file should have the format:
@@ -115,8 +122,10 @@ class JackknifeMarkers(object):
           Tree inferred with all data.
         msa_file : str
           File containing multiple sequence alignment for all taxa.
-        marker_file : str
+        marker_info_file : str
           File indicating database id, HMM name, description and length of each marker in the alignment.
+        mask_file : str
+          File indicating masking of multiple sequence alignment.
         perc_markers_to_keep : float [0, 1]
           Percentage of marker genes to keep in each replicate.
         num_replicates : int
@@ -133,16 +142,41 @@ class JackknifeMarkers(object):
         self.perc_markers_to_keep = perc_markers_to_keep
         self.replicate_dir = os.path.join(output_dir, 'replicates')
         make_sure_path_exists(self.replicate_dir)
+        
         # determine length of each marker gene in alignment
+        marker_lengths = []
+        total_len = 0
+        with open(marker_info_file) as f:
+            f.readline()
+            for line in f:
+                line_split = line.split('\t')
+                ml = int(line_split[3])
+                marker_lengths.append(ml)
+                total_len += ml
+                
+        self.logger.info('Concatenated length of markers: %d' % total_len)
+                
+        # read mask
+        mask = open(mask_file).readline().strip()
+        start = 0
         self.marker_lengths = []
-        with open(marker_file) as f:
-	    f.readline()
-	    for line in f:
-            	line_split = line.split('\t')
-            	self.marker_lengths.append(int(line_split[3]))
+        total_mask_len = 0
+        for ml in marker_lengths:
+            end = start + ml
+            zeros = mask[start:end].count('0')
+            start = end
+            
+            self.marker_lengths.append(ml - zeros)
+            total_mask_len += ml - zeros
+            
+        self.logger.info('Concatenated length of filtered MSA: %d' % total_mask_len)
 
         # read full multiple sequence alignment
         self.msa = seq_io.read(msa_file)
+        
+        if len(self.msa.values()[0]) != total_mask_len:
+            self.logger.error('Length of MSA does not meet length of mask.')
+            sys.exit()
 
         # calculate replicates
         self.logger.info('Calculating jackknife marker replicates:')
@@ -150,6 +184,7 @@ class JackknifeMarkers(object):
         parallel.run(self._producer, None, xrange(num_replicates), self._progress)
 
         # calculate support
+        self.logger.info('Calculating support for %d replicates.' % num_replicates)
         rep_tree_files = []
         for rep_index in xrange(num_replicates):
             rep_tree_files.append(os.path.join(self.replicate_dir, 'jk_markers.tree.' + str(rep_index) + '.tre'))
