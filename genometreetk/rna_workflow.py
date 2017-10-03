@@ -172,7 +172,7 @@ class RNA_Workflow(object):
         first_char.sort()
         last_char.sort(reverse=True)
 
-        trim_index = int((len(first_char) * min_per_taxa) + 1)
+        trim_index = int((len(seqs) * min_per_taxa))
 
         start = first_char[trim_index]
         end = last_char[trim_index]
@@ -252,7 +252,7 @@ class RNA_Workflow(object):
                 order_of_subject = taxonomy[subject_genome_id][order_index][3:].strip()
                 if order_of_query and order_of_subject and order_of_query != order_of_subject:
                     filter.add(hit.query_id)
-                    fout.write('%s\t%s\t%s\%.2f\t%d\n' % (hit.query_id, 
+                    fout.write('%s\t%s\t%s\t%.2f\t%d\n' % (hit.query_id, 
                                                             ';'.join(taxonomy[query_genome_id]),
                                                             ';'.join(taxonomy[subject_genome_id]),
                                                             hit.perc_identity,
@@ -271,8 +271,6 @@ class RNA_Workflow(object):
                     max_contigs,
                     min_N50,
                     tax_filter,
-                    #reps_only,
-                    #user_genomes,
                     genome_list,
                     output_dir):
         """Infer rRNA gene tree spanning select GTDB genomes.
@@ -297,10 +295,6 @@ class RNA_Workflow(object):
             Minimum N50 to include genome.
         tax_filter : boolean
             Filter sequences based on incongruent taxonomy classification.
-        reps_only : boolean
-            Restrict tree to representative genomes.
-        user_genomes : boolean
-            Include User genomes in tree.
         genome_list : str
             Explict list of genomes to use (ignores --ncbi_rep_only and --user_genomes).
         output_dir : str
@@ -309,10 +303,6 @@ class RNA_Workflow(object):
                 
         if rna_name not in ['ssu', 'lsu']:
             self.logger.error('Unrecognized rRNA gene type: %s' % rna_name)
-            sys.exit(-1)
-        
-        if genome_list: # and (reps_only or user_genomes):
-            self.logger.error("The 'genome_list' flag cannot be used with the 'reps_only' and 'user_genomes' flags.")
             sys.exit(-1)
 
         genome_metadata = read_gtdb_metadata(gtdb_metadata_file, ['checkm_completeness',
@@ -351,29 +341,25 @@ class RNA_Workflow(object):
         self.logger.info('Identified %d representative genomes.' % len(rep_genomes))
         
         # get genomes specified in genome list by user
-        genomes_in_list = set()
+        genomes_to_consider = set()
         if genome_list:
             for line in open(genome_list):
-                genomes_in_list.add(line.rstrip().split('\t')[0])
-            self.logger.info('Restricted genomes to the %d in the genome list.' % len(genomes_in_list))
-        
-        # filter genomes based on quality and database source        
-        self.logger.info('Filtering genomes based on specified critieria.')
-        self.logger.info('Filtering on minimum quality <%d.' % min_quality)
-        self.logger.info('Filtering on number of contigs >%d.' % max_contigs)
-        self.logger.info('Filtering on scaffold N50 <%d.' % min_N50)
-        
-        new_genomes_to_consider = []
-        filtered_genomes = 0
-        gt = 0
-        gq = 0
-        sc = 0
-        n50 = 0
-        for genome_id in genome_metadata:                
-            if genomes_in_list: 
-                if genome_id not in genomes_in_list:
-                    continue
-            else:
+                genomes_to_consider.add(line.rstrip().split('\t')[0])
+            self.logger.info('Restricting genomes to the %d in the genome list.' % len(genomes_to_consider))
+        else:
+            # filter genomes based on quality and database source
+            self.logger.info('Filtering genomes based on specified critieria.')
+            self.logger.info('Filtering on minimum quality <%d.' % min_quality)
+            self.logger.info('Filtering on number of contigs >%d.' % max_contigs)
+            self.logger.info('Filtering on scaffold N50 <%d.' % min_N50)
+            
+            new_genomes_to_consider = []
+            filtered_genomes = 0
+            gt = 0
+            gq = 0
+            sc = 0
+            n50 = 0
+            for genome_id in genome_metadata:                
                 if genome_id not in rep_genomes:
                     gt += 1
                     filtered_genomes += 1
@@ -384,31 +370,26 @@ class RNA_Workflow(object):
                     filtered_genomes += 1
                     continue
                     
-                #if not user_genomes and genome_id in user_genomes:
-                #    gt += 1
-                #    filtered_genomes += 1
-                #    continue
-
-            comp, cont, scaffold_count, n50_contigs, _org_name, _rep = genome_metadata[genome_id]
-            q = float(comp) - 5*float(cont)
-            if q < min_quality or int(scaffold_count) > max_contigs or int(n50_contigs) < min_N50:
-                if q < min_quality:
-                    gq += 1
-                    
-                if int(scaffold_count) > max_contigs:
-                    sc += 1
-                    
-                if int(n50_contigs) < min_N50:
-                    n50 += 1
-            
-                filtered_genomes += 1
-                continue
+                comp, cont, scaffold_count, n50_contigs, _org_name, _rep = genome_metadata[genome_id]
+                q = float(comp) - 5*float(cont)
+                if q < min_quality or int(scaffold_count) > max_contigs or int(n50_contigs) < min_N50:
+                    if q < min_quality:
+                        gq += 1
+                        
+                    if int(scaffold_count) > max_contigs:
+                        sc += 1
+                        
+                    if int(n50_contigs) < min_N50:
+                        n50 += 1
                 
-            new_genomes_to_consider.append(genome_id)
+                    filtered_genomes += 1
+                    continue
+                    
+                new_genomes_to_consider.append(genome_id)
 
-        genomes_to_consider = new_genomes_to_consider
-        self.logger.info('Filtered %d genomes (%d on genome type, %d on genome quality, %d on number of contigs, %d on N50).' % (filtered_genomes, gt, gq, sc, n50))
-        self.logger.info('Considering %d genomes after filtering.' % len(genomes_to_consider))
+            genomes_to_consider = new_genomes_to_consider
+            self.logger.info('Filtered %d genomes (%d on genome type, %d on genome quality, %d on number of contigs, %d on N50).' % (filtered_genomes, gt, gq, sc, n50))
+            self.logger.info('Considering %d genomes after filtering.' % len(genomes_to_consider))
 
         # get rRNA gene sequences for each genome
         rna_output_file = self._get_rna_seqs(rna_name,

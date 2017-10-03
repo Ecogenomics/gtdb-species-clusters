@@ -109,7 +109,8 @@ class JackknifeMarkers(object):
                     mask_file, 
                     perc_markers_to_keep, 
                     num_replicates, 
-                    model, 
+                    model,
+                    jk_dir,
                     output_dir):
         """Jackknife marker genes.
 
@@ -140,54 +141,62 @@ class JackknifeMarkers(object):
 
         self.model = model
         self.perc_markers_to_keep = perc_markers_to_keep
-        self.replicate_dir = os.path.join(output_dir, 'replicates')
-        make_sure_path_exists(self.replicate_dir)
+        
         
         # determine length of each marker gene in alignment
-        marker_lengths = []
-        total_len = 0
-        with open(marker_info_file) as f:
-            f.readline()
-            for line in f:
-                line_split = line.split('\t')
-                ml = int(line_split[3])
-                marker_lengths.append(ml)
-                total_len += ml
-                
-        self.logger.info('Concatenated length of markers: %d' % total_len)
-                
-        # read mask
-        mask = open(mask_file).readline().strip()
-        start = 0
-        self.marker_lengths = []
-        total_mask_len = 0
-        for ml in marker_lengths:
-            end = start + ml
-            zeros = mask[start:end].count('0')
-            start = end
-            
-            self.marker_lengths.append(ml - zeros)
-            total_mask_len += ml - zeros
-            
-        self.logger.info('Concatenated length of filtered MSA: %d' % total_mask_len)
-
-        # read full multiple sequence alignment
-        self.msa = seq_io.read(msa_file)
-        
-        if len(self.msa.values()[0]) != total_mask_len:
-            self.logger.error('Length of MSA does not meet length of mask.')
-            sys.exit()
-
-        # calculate replicates
-        self.logger.info('Calculating jackknife marker replicates:')
-        parallel = Parallel(self.cpus)
-        parallel.run(self._producer, None, xrange(num_replicates), self._progress)
-
-        # calculate support
-        self.logger.info('Calculating support for %d replicates.' % num_replicates)
         rep_tree_files = []
-        for rep_index in xrange(num_replicates):
-            rep_tree_files.append(os.path.join(self.replicate_dir, 'jk_markers.tree.' + str(rep_index) + '.tre'))
+        if not jk_dir:
+            self.replicate_dir = os.path.join(output_dir, 'replicates')
+            make_sure_path_exists(self.replicate_dir)
+            
+            marker_lengths = []
+            total_len = 0
+            with open(marker_info_file) as f:
+                f.readline()
+                for line in f:
+                    line_split = line.split('\t')
+                    ml = int(line_split[3])
+                    marker_lengths.append(ml)
+                    total_len += ml
+                    
+            self.logger.info('Concatenated length of markers: %d' % total_len)
+                    
+            # read mask
+            mask = open(mask_file).readline().strip()
+            start = 0
+            self.marker_lengths = []
+            total_mask_len = 0
+            for ml in marker_lengths:
+                end = start + ml
+                zeros = mask[start:end].count('0')
+                start = end
+                
+                self.marker_lengths.append(ml - zeros)
+                total_mask_len += ml - zeros
+                
+            self.logger.info('Concatenated length of filtered MSA: %d' % total_mask_len)
+
+            # read full multiple sequence alignment
+            self.msa = seq_io.read(msa_file)
+            
+            if len(self.msa.values()[0]) != total_mask_len:
+                self.logger.error('Length of MSA does not meet length of mask.')
+                sys.exit()
+
+            # calculate replicates
+            self.logger.info('Calculating jackknife marker replicates:')
+            parallel = Parallel(self.cpus)
+            parallel.run(self._producer, None, xrange(num_replicates), self._progress)
+
+            # calculate support
+            self.logger.info('Calculating support for %d replicates.' % num_replicates)
+            for rep_index in xrange(num_replicates):
+                rep_tree_files.append(os.path.join(self.replicate_dir, 'jk_markers.tree.' + str(rep_index) + '.tre'))
+        else:
+            for f in os.listdir(jk_dir):
+                if f.endswith('.tree') or f.endswith('.tre'):
+                    rep_tree_files.append(os.path.join(jk_dir, f))
+            self.logger.info('Read %d jackknife replicates.' % len(rep_tree_files))
 
         output_tree = os.path.join(output_dir, remove_extension(input_tree) + '.jk_markers.tree')
         bootstrap_support(input_tree, rep_tree_files, output_tree)

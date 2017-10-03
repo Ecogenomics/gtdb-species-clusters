@@ -168,8 +168,6 @@ class OptionsParser():
                             options.max_contigs,
                             options.min_N50,
                             not options.disable_tax_filter,
-                            #options.reps_only,
-                            #options.user_genomes,
                             options.genome_list,
                             options.output_dir)
 
@@ -226,6 +224,7 @@ class OptionsParser():
         
         check_file_exists(options.input_tree)
         check_file_exists(options.gtdb_metadata)
+        check_file_exists(options.msa_file)
         make_sure_path_exists(options.output_dir)
         
         derep_tree = DereplicateTree()
@@ -242,7 +241,8 @@ class OptionsParser():
         """Bootstrap multiple sequence alignment."""
 
         check_file_exists(options.input_tree)
-        check_file_exists(options.msa_file)
+        if options.msa_file != 'NONE':
+            check_file_exists(options.msa_file)
         make_sure_path_exists(options.output_dir)
 
         bootstrap = Bootstrap(options.cpus)
@@ -252,6 +252,7 @@ class OptionsParser():
                                     options.model,
                                     options.base_type,
                                     options.fraction,
+                                    options.boot_dir,
                                     options.output_dir)
 
         self.logger.info('Bootstrapped tree written to: %s' % output_tree)
@@ -260,7 +261,8 @@ class OptionsParser():
         """Jackknife marker genes."""
 
         check_file_exists(options.input_tree)
-        check_file_exists(options.msa_file)
+        if options.msa_file != 'NONE':
+            check_file_exists(options.msa_file)
         make_sure_path_exists(options.output_dir)
 
         jackknife_markers = JackknifeMarkers(options.cpus)
@@ -271,6 +273,7 @@ class OptionsParser():
                                                 options.perc_markers,
                                                 options.num_replicates,
                                                 options.model,
+                                                options.jk_dir,
                                                 options.output_dir)
 
         self.logger.info('Jackknifed marker tree written to: %s' % output_tree)
@@ -670,7 +673,29 @@ class OptionsParser():
 
         check_file_exists(options.input_tree)
 
-        taxonomy = Taxonomy().read_from_tree(options.input_tree)
+        if options.no_validation:
+            tree = dendropy.Tree.get_from_path(options.input_tree, 
+                                                schema='newick', 
+                                                rooting="force-rooted", 
+                                                preserve_underscores=True)
+
+            taxonomy = {}
+            for leaf in tree.leaf_node_iter():
+                taxon_id = leaf.taxon.label
+                
+                node = leaf.parent_node
+                taxa = []
+                while node:
+                    support, taxon, aux_info = parse_label(node.label)
+                    if taxon:
+                        for t in map(str.strip, taxon.split(';'))[::-1]:
+                            taxa.append(t)
+                    node = node.parent_node
+                    
+                taxonomy[taxon_id] = taxa[::-1]
+        else:
+            taxonomy = Taxonomy().read_from_tree(options.input_tree)
+                                                
         Taxonomy().write(taxonomy, options.output_taxonomy)
             
         self.logger.info('Stripped tree written to: %s' % options.output_taxonomy)
@@ -695,6 +720,7 @@ class OptionsParser():
                     print 'Missing in taxonomy 2: %s' % taxon_id
 
             if taxon_id in taxonomy1 and taxon_id in taxonomy2:
+                print taxon_id, taxonomy1[taxon_id]
                 taxon1 = taxonomy1[taxon_id][rank_index]
                 taxon2 = taxonomy2[taxon_id][rank_index]
 

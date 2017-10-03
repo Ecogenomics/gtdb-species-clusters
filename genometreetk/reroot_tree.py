@@ -41,7 +41,7 @@ class RerootTree(object):
             if nd.is_leaf():
                 support_values[nd.bipartition] = max_support
             else:
-                if support:
+                if support is not None:
                     support_values[nd.bipartition] = int(support)
                 else:
                     support_values[nd.bipartition] = None

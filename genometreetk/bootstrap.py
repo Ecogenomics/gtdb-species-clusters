@@ -65,7 +65,15 @@ class Bootstrap(object):
 
         return '    Processed %d of %d replicates.' % (processed_items, total_items)
 
-    def run(self, input_tree, msa_file, num_replicates, model, base_type, frac, output_dir):
+    def run(self, 
+                input_tree, 
+                msa_file, 
+                num_replicates, 
+                model, 
+                base_type, 
+                frac,
+                boot_dir,
+                output_dir):
         """Bootstrap multiple sequence alignment.
 
         Parameters
@@ -93,22 +101,29 @@ class Bootstrap(object):
         self.base_type = base_type
         self.frac = frac
 
-        self.replicate_dir = os.path.join(output_dir, 'replicates')
-        make_sure_path_exists(self.replicate_dir)
-
-        # read full multiple sequence alignment
-        self.msa = seq_io.read(msa_file)
-
-        # calculate replicates
-        self.logger.info('Calculating bootstrap replicates:')
-        parallel = Parallel(self.cpus)
-        parallel.run(self._producer, None, xrange(num_replicates), self._progress)
-
-        # calculate support values
         rep_tree_files = []
-        for rep_index in xrange(num_replicates):
-            rep_tree_files.append(os.path.join(self.replicate_dir, 'bootstrap_tree.r_' + str(rep_index) + '.tree'))
+        if not boot_dir:
+            self.replicate_dir = os.path.join(output_dir, 'replicates')
+            make_sure_path_exists(self.replicate_dir)
 
+            # read full multiple sequence alignment
+            self.msa = seq_io.read(msa_file)
+
+            # calculate replicates
+            self.logger.info('Calculating bootstrap replicates:')
+            parallel = Parallel(self.cpus)
+            parallel.run(self._producer, None, xrange(num_replicates), self._progress)
+
+            for rep_index in xrange(num_replicates):
+                rep_tree_files.append(os.path.join(self.replicate_dir, 'bootstrap_tree.r_' + str(rep_index) + '.tree'))
+        else:
+            for f in os.listdir(boot_dir):
+                if f.endswith('.tree') or f.endswith('.tre'):
+                    rep_tree_files.append(os.path.join(boot_dir, f))
+            self.logger.info('Read %d bootstrap replicates.' % len(rep_tree_files))
+          
+        # calculate support values
+        self.logger.info('Calculating bootstrap support values.')
         output_tree = os.path.join(output_dir, remove_extension(input_tree) + '.bootstrap.tree')
         bootstrap_support(input_tree, rep_tree_files, output_tree)
 
