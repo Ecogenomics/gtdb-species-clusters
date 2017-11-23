@@ -66,19 +66,13 @@ def print_help():
       midpoint -> Reroot tree at midpoint
       outgroup -> Reroot tree with outgroup
 
-    Taxonomy verification and manipulation:
-      validate   -> Check taxonomy file is formatted as expected
-      check_tree -> Validate taxonomy of decorated tree and check for polyphyletic groups
+    Taxonomy manipulation:
       fill_ranks -> Ensure all taxonomy strings contain all 7 canonical ranks
-      binomial   -> Ensure species are designated using binomial nomenclature
       propagate  -> Propagate labels from representatives to all genomes in a cluster
       strip      -> Remove taxonomic labels from a tree (useful for re-decorating)
       pull       -> Create taxonomy file from a decorated tree
-      diff       -> Determine differences between two taxonomy files
+      append     -> Append taxonomy to extant tree labels
       
-    Species verification and exploration:
-      ani -> Calculate the ANI value of named species
-
     Phylogenetic diversity:
       pd       -> Calculate phylogenetic diversity of specified taxa
       pd_clade -> Calculate phylogenetic diversity of all named groups
@@ -87,6 +81,7 @@ def print_help():
       dereplicate -> Select representative genomes in named species
       reps        -> Determine additional representatives genomes
       cluster     -> Cluster remaining genomes based on Mash distances
+      rep_compare -> Compare current and previous representatives
       
     Others:
       arb_records -> Create an ARB records file from GTDB metadata
@@ -216,6 +211,7 @@ if __name__ == '__main__':
     ssu_tree_parser.add_argument('--min_quality', help='minimum quality (completeness - 5*contamination) for a genome to be included in tree [0, 100]', type=float, default=50)
     ssu_tree_parser.add_argument('--max_contigs', help='maximum contigs comprising a genome for it to be included in tree', type=int, default=500)
     ssu_tree_parser.add_argument('--min_N50', help='minimum N50 of contigs for a genome to be include in tree', type=int, default=5000)
+    ssu_tree_parser.add_argument('--align_method', help='method to use for creating multiple sequence alignment', choices=['ssu_align', 'mothur'], default='ssu_align')
     ssu_tree_parser.add_argument('--disable_tax_filter', help="disable filtering of sequences with incongruent taxonomy", action='store_true')
     ssu_tree_parser.add_argument('-c', '--cpus', help='number of cpus', type=int, default=1)
     ssu_tree_parser.add_argument('--silent', help="suppress output", action='store_true')
@@ -388,22 +384,16 @@ if __name__ == '__main__':
     cluster_parser.add_argument('mash_pairwise_file', help="file with pairwise Mash distances between all GTDB genomes")
     cluster_parser.add_argument('cluster_file', help='output file indicating genome clusters')
     cluster_parser.add_argument('--silent', help="suppress output", action='store_true')
-
-    # validate taxonomy file
-    validate_parser = subparsers.add_parser('validate',
-                                        formatter_class=CustomHelpFormatter,
-                                        description='Check taxonomy file is formatted as expected.')
-    validate_parser.add_argument('input_taxonomy', help='input taxonomy file')
-    validate_parser.add_argument('--silent', help="suppress output", action='store_true')
     
-    # validate taxonomy file
-    check_tree_parser = subparsers.add_parser('check_tree',
-                                        formatter_class=CustomHelpFormatter,
-                                        description='Validate taxonomy of decorated tree and check for polyphyletic groups.')
-    check_tree_parser.add_argument('decorated_tree', help='decorated tree to validate')
-    check_tree_parser.add_argument('--taxonomy_file', help='alternative taxonomy to validate with respect to the input tree')
-    check_tree_parser.add_argument('--silent', help="suppress output", action='store_true')
+    # compare current and previous representatives
+    rep_compare_parser = subparsers.add_parser('rep_compare',
+                                        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+                                        description='Compare current and previous representatives.')
+    rep_compare_parser.add_argument('cur_metadata_file', help="metadata file for all genomes in current GTDB release")
+    rep_compare_parser.add_argument('prev_metadata_file', help="metadata file for all genomes in previous GTDB release")
+    rep_compare_parser.add_argument('--silent', help="suppress output", action='store_true')
 
+  
     # fill all 7 taxonomic ranks
     fill_ranks_parser = subparsers.add_parser('fill_ranks',
                                         formatter_class=CustomHelpFormatter,
@@ -411,14 +401,6 @@ if __name__ == '__main__':
     fill_ranks_parser.add_argument('input_taxonomy', help='input taxonomy file')
     fill_ranks_parser.add_argument('output_taxonomy', help='output taxonomy file')
     fill_ranks_parser.add_argument('--silent', help="suppress output", action='store_true')
-
-    # ensure species names use binomial nomenclature
-    binomial_parser = subparsers.add_parser('binomial',
-                                        formatter_class=CustomHelpFormatter,
-                                        description='Ensure species are designated using binomial nomenclature.')
-    binomial_parser.add_argument('input_taxonomy', help='input taxonomy file')
-    binomial_parser.add_argument('output_taxonomy', help='output taxonomy file')
-    binomial_parser.add_argument('--silent', help="suppress output", action='store_true')
 
     # ensure species names use binomial nomenclature
     propagate_parser = subparsers.add_parser('propagate',
@@ -445,36 +427,15 @@ if __name__ == '__main__':
     pull_parser.add_argument('output_taxonomy', help='output taxonomy file')
     pull_parser.add_argument('--no_validation', help="do not assume decorated nodes adhear to standard taxonomy", action='store_true')
     pull_parser.add_argument('--silent', help="suppress output", action='store_true')
-
-    # difference between two taxonomy files
-    diff_parser = subparsers.add_parser('diff',
-                                        formatter_class=CustomHelpFormatter,
-                                        description='Determine differences between two taxonomy files.')
-    diff_parser.add_argument('input_taxonomy1', help='first taxonomy file')
-    diff_parser.add_argument('input_taxonomy2', help='second taxonomy file')
-    diff_parser.add_argument('rank', help='taxonomic rank to compare', choices=Taxonomy.rank_labels, default='genus')
-    diff_parser.add_argument('--report_missing_taxa', help="report taxa not present in both files", action='store_true')
-    diff_parser.add_argument('--report_missing_ranks', help="report taxa with empty ranks", action='store_true')
-    diff_parser.add_argument('--silent', help="suppress output", action='store_true')
     
-    # calculate ANI of named species
-    ani_parser = subparsers.add_parser('ani',
-                                        formatter_class=CustomHelpFormatter,
-                                        description='Calculate the ANI value of named species.')
-    ani_parser.add_argument('input_taxonomy', help='input taxonomy spanning all genomes in GTDB')
-    ani_parser.add_argument('genome_path_file', help="file indicating path to each GTDB genome")
-    ani_parser.add_argument('metadata_file', help="metadata file for all genomes in the GTDB")
-    ani_parser.add_argument('output_dir', help="output directory") 
-    ani_parser.add_argument('--max_genomes', help='maximum number of genomes to consider per species', type=int, default=20)
-    ani_parser.add_argument('--min_comp', help='minimum completeness for a genome to be considered [0, 100]', type=float, default=50)
-    ani_parser.add_argument('--max_cont', help='maximum contamination for a genome to be considered [0, 100]', type=float, default=10)
-    ani_parser.add_argument('--min_quality', help='minimum genome quality (comp - 5*cont) for a genome to be considered', type=float, default=50)
-    ani_parser.add_argument('--max_contigs', help='maximum number of contigs for a genome to be considered', type=int, default=500)
-    ani_parser.add_argument('--min_N50', help='minimum N50 of scaffolds for a genome to be considered', type=int, default=10000)
-    ani_parser.add_argument('--max_ambiguous', help='maximum number of ambiguous bases within contigs for a genome to be considered', type=int, default=100000)
-    ani_parser.add_argument('--max_gap_length', help='maximum number of ambiguous bases between contigs for a genome to be considered', type=int, default=1e6)  
-    ani_parser.add_argument('-c', '--cpus', help='number of cpus', type=int, default=1)
-    ani_parser.add_argument('--silent', help="suppress output", action='store_true')
+    # append taxonomy to extant tree labels
+    append_parser = subparsers.add_parser('append',
+                                            formatter_class=CustomHelpFormatter,
+                                            description='Append taxonomy to extant tree labels.')
+
+    append_parser.add_argument('input_tree', help="input tree to decorate")
+    append_parser.add_argument('input_taxonomy', help='input taxonomy file'
+    append_parser.add_argument('output_tree', help="output tree with taxonomy appended to extant taxon labels")
     
     # calculate phylogenetic diversity
     pd_parser = subparsers.add_parser('pd',

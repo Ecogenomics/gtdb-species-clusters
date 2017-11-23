@@ -59,7 +59,7 @@ def read_refseq_metadata(metadata_file):
     bHeader = True
     for row in csv_reader:
         if bHeader:
-            genome_index = row.index('genome')
+            genome_index = row.index('accession')
             assembly_level_index = row.index('ncbi_assembly_level')
             refseq_category_index = row.index('ncbi_refseq_category')
             bHeader = False

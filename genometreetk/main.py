@@ -17,6 +17,7 @@
 
 import os
 import sys
+import csv
 import logging
 
 import dendropy
@@ -42,8 +43,9 @@ from genometreetk.common import read_gtdb_metadata
 from genometreetk.phylogenetic_diversity import PhylogeneticDiversity
 from genometreetk.arb import Arb
 from genometreetk.derep_tree import DereplicateTree
-from genometreetk.ani import ANI
 
+
+csv.field_size_limit(sys.maxsize)
 
 class OptionsParser():
     def __init__(self):
@@ -152,7 +154,7 @@ class OptionsParser():
     def ssu_tree(self, options):
         """Infer 16S tree spanning GTDB genomes."""
 
-        check_dependencies(['ssu-align', 'ssu-mask', 'FastTreeMP', 'blastn'])
+        check_dependencies(['mothur', 'ssu-align', 'ssu-mask', 'FastTreeMP', 'blastn'])
 
         check_file_exists(options.gtdb_metadata_file)
         check_file_exists(options.gtdb_ssu_file)
@@ -169,7 +171,8 @@ class OptionsParser():
                             options.min_N50,
                             not options.disable_tax_filter,
                             options.genome_list,
-                            options.output_dir)
+                            options.output_dir,
+                            options.align_method)
 
         self.logger.info('Results written to: %s' % options.output_dir)
         
@@ -415,89 +418,102 @@ class OptionsParser():
             print e.message
             raise SystemExit
             
-    def validate(self, options):
-        """Check taxonomy file is formatted as expected."""
+    def rep_compare(self, options):
+        """Compare current and previous representatives."""
 
-        check_file_exists(options.input_taxonomy)
-
-        taxonomy = Taxonomy()
-        t = taxonomy.read(options.input_taxonomy)
-
-        taxonomy.validate(t,
-                          check_prefixes=True,
-                          check_ranks=True,
-                          check_hierarchy=True,
-                          check_species=True,
-                          check_group_names=True,
-                          check_duplicate_names=True,
-                          report_errors=True)
-
-        self.logger.info('Finished performing validation tests.')
+        check_file_exists(options.cur_metadata_file)
+        check_file_exists(options.prev_metadata_file)
         
-    def check_tree(self, options):
-        """Validate taxonomy of decorated tree and check for polyphyletic groups."""
-        
-        check_file_exists(options.decorated_tree)
+        # get representatives in current taxonomy
+        cur_gids = set()
+        cur_species = set()
+        cur_genera = set()
+        cur_reps_taxa = {}
+        cur_rep_species = set()
+        cur_rep_genera = set()
+        header = True
+        for row in csv.reader(open(options.cur_metadata_file)):
+            if header:
+                header = False
+                gtdb_rep_index = row.index('gtdb_representative')
+                gtdb_taxonomy_index = row.index('gtdb_taxonomy')
+            else:
+                gid = row[0]
+                cur_gids.add(gid)
+                
+                gtdb_taxonomy = row[gtdb_taxonomy_index]
+                if gtdb_taxonomy:
+                    gtdb_taxa = [t.strip() for t in row[gtdb_taxonomy_index].split(';')]
+                    if gtdb_taxa[6] != 's__':
+                        cur_species.add(gtdb_taxa[6])
+                    if gtdb_taxa[5] != 'g__':
+                        cur_genera.add(gtdb_taxa[5])
 
-        # validate taxonomy
-        taxonomy = Taxonomy()
-        if options.taxonomy_file:
-            t = taxonomy.read(options.taxonomy_file)
-        else:
-            t = taxonomy.read_from_tree(options.decorated_tree)
-        
-        taxonomy.validate(t,
-                          check_prefixes=True,
-                          check_ranks=True,
-                          check_hierarchy=True,
-                          check_species=True,
-                          check_group_names=True,
-                          check_duplicate_names=True,
-                          report_errors=True)
-                          
-        # check for polyphyletic groups
-        polyphyletic_groups = set()
-        tree = dendropy.Tree.get_from_path(options.decorated_tree, 
-                                                schema='newick', 
-                                                rooting="force-rooted", 
-                                                preserve_underscores=True)
-                                                
-        if options.taxonomy_file:
-            # reduce taxonomy to taxa in tree and map taxon labels to Taxon objects
-            reduced_taxonomy = {}
-            taxon_map = {}
-            for leaf in tree.leaf_node_iter():
-                reduced_taxonomy[leaf.taxon.label] = t[leaf.taxon.label]
-                taxon_map[leaf.taxon.label] = leaf.taxon
- 
-            # find taxa with an MRCA spanning additional taxa
-            for rank_label in Taxonomy.rank_labels[1:]:
-                extant_taxa = taxonomy.extant_taxa_for_rank(rank_label, reduced_taxonomy)
-                for taxon, taxa_ids in extant_taxa.iteritems():
-                    mrca = tree.mrca(taxa=[taxon_map[t] for t in taxa_ids])
-                    mrca_leaf_count = sum([1 for leaf in mrca.leaf_iter()])
-                    if mrca_leaf_count != len(taxa_ids):
-                        polyphyletic_groups.add(taxon)
-        else:
-            # find duplicate taxon labels in tree
-            taxa = set()
-            
-            for node in tree.preorder_node_iter(lambda n: not n.is_leaf()):
-                _support, taxon_label, _aux_info = parse_label(node.label)
-                if taxon_label:
-                    for taxon in [t.strip() for t in taxon_label.split(';')]:
-                        if taxon in taxa:
-                            polyphyletic_groups.add(taxon)
+                if row[gtdb_rep_index] == 't':
+                    cur_reps_taxa[gid] = gtdb_taxa
+                    
+                    if gtdb_taxa[6] != 's__':
+                        cur_rep_species.add(gtdb_taxa[6])
                         
-                        taxa.add(taxon)
-
-        if len(polyphyletic_groups):
-            print ''
-            print 'Tree contains polyphyletic groups:'
-            for taxon in polyphyletic_groups:
-                print '%s' % (taxon)
-                          
-        self.logger.info('Finished performing validation tests.')
+                    if gtdb_taxa[5] != 'g__':
+                        cur_rep_genera.add(gtdb_taxa[5])
+                    
+        # get representatives in previous taxonomy
+        prev_reps_taxa = {}
+        prev_rep_species = set()
+        prev_rep_genera = set()
+        header = True
+        for row in csv.reader(open(options.prev_metadata_file)):
+            if header:
+                header = False
+                gtdb_rep_index = row.index('gtdb_representative')
+                gtdb_taxonomy_index = row.index('gtdb_taxonomy')
+            else:
+                if row[gtdb_rep_index] == 't':
+                    gid = row[0]
+                    gtdb_taxonomy = row[gtdb_taxonomy_index]
+                    if gtdb_taxonomy:
+                        gtdb_taxa = [t.strip() for t in row[gtdb_taxonomy_index].split(';')]
+                            
+                        prev_reps_taxa[gid] = gtdb_taxa
+                        
+                        if gtdb_taxa[6] != 's__':
+                            prev_rep_species.add(gtdb_taxa[6])
+                            
+                        if gtdb_taxa[5] != 'g__':
+                            prev_rep_genera.add(gtdb_taxa[5])
+                    
+        # summarize differences
+        print('No. current representatives: %d' % len(cur_reps_taxa))
+        print('No. previous representatives: %d' % len(prev_reps_taxa))
+        
+        print('')
+        print('No. current species with representatives: %d' % len(cur_rep_species))
+        print('No. previous species with representatives: %d' % len(prev_rep_species))
+        
+        print('')
+        print('No. new representatives: %d' % len(set(cur_reps_taxa) - set(prev_reps_taxa)))
+        print('No. retired representatives: %d' % len(set(prev_reps_taxa) - set(cur_reps_taxa)))
+        
+        print('')
+        print('No. new species with representative: %d' % len(cur_rep_species - prev_rep_species))
+        print('No. new genera with representative: %d' % len(cur_rep_genera - prev_rep_genera))
+        
+        print('')
+        missing_sp_reps = prev_rep_species.intersection(cur_species) - cur_rep_species
+        print('No. species that no longer have a representative: %d' % len(missing_sp_reps))
+        for sp in missing_sp_reps:
+            print('  ' + sp)
+        
+        print('')
+        missing_genera_reps = prev_rep_genera.intersection(cur_genera) - cur_rep_genera
+        print('No. genera that no longer have a representative: %d' % len(missing_genera_reps))
+        for g in missing_genera_reps:
+            print('  ' + g)
+        
+        print('')
+        deprecated_reps = set(prev_reps_taxa).intersection(cur_gids) - set(cur_reps_taxa)
+        print('No. deprecated previous representatives: %d' % len(deprecated_reps))
 
     def fill_ranks(self, options):
         """Ensure taxonomy strings contain all 7 canonical ranks."""
@@ -518,33 +534,6 @@ class OptionsParser():
             fout.write('%s\t%s\n' % (genome_id, taxonomy_str))
 
         fout.close()
-
-        self.logger.info('Revised taxonomy written to: %s' % options.output_taxonomy)
-
-    def binomial(self, options):
-        """Ensure species are designated using binomial nomenclature."""
-
-        check_file_exists(options.input_taxonomy)
-
-        fout = open(options.output_taxonomy, 'w')
-        taxonomy = Taxonomy()
-        t = taxonomy.read(options.input_taxonomy)
-
-        for genome_id, taxon_list in t.iteritems():
-            taxonomy_str = ';'.join(taxon_list)
-            if not taxonomy.check_full(taxonomy_str):
-                sys.exit(-1)
-
-            genus = taxon_list[5][3:]
-            species = taxon_list[6][3:]
-            if species and genus not in species:
-                taxon_list[6] = 's__' + genus + ' ' + species
-                taxonomy_str = ';'.join(taxon_list)
-
-            fout.write('%s\t%s\n' % (genome_id, taxonomy_str))
-
-        fout.close()
-
 
         self.logger.info('Revised taxonomy written to: %s' % options.output_taxonomy)
 
@@ -699,36 +688,33 @@ class OptionsParser():
         Taxonomy().write(taxonomy, options.output_taxonomy)
             
         self.logger.info('Stripped tree written to: %s' % options.output_taxonomy)
+        
+    def append(self, options):
+        """Append command"""
+        
+        check_file_exists(options.input_tree)
+        check_file_exists(options.input_taxonomy)
 
-    def diff(self, options):
-        """Compare two taxonomy files."""
+        taxonomy = Taxonomy().read(options.input_taxonomy)
 
-        check_file_exists(options.input_taxonomy1)
-        check_file_exists(options.input_taxonomy2)
+        tree = dendropy.Tree.get_from_path(options.input_tree, 
+                                            schema='newick', 
+                                            rooting='force-rooted', 
+                                            preserve_underscores=True)
+        
+        for n in tree.leaf_node_iter():
+            taxa_str = taxonomy.get(n.label, None)
+            if taxa_str == None:
+                self.logger.error('Taxonomy file does not contain an entry for %s.' % n.label)
+                sys.exit(-1)
+            n.label = n.label + '|' + ';'.join(taxonomy[n.label])
 
-        taxonomy1 = Taxonomy().read(options.input_taxonomy1)
-        taxonomy2 = Taxonomy().read(options.input_taxonomy2)
+        tree.write_to_path(options.output_tree, 
+                            schema='newick', 
+                            suppress_rooting=True, 
+                            unquoted_underscores=True)
 
-        all_taxon_ids = set(taxonomy1.keys()).union(taxonomy2.keys())
-
-        rank_index = Taxonomy.rank_labels.index(options.rank)
-        for taxon_id in all_taxon_ids:
-            if options.report_missing_taxa:
-                if taxon_id not in taxonomy1:
-                    print 'Missing in taxonomy 1: %s' % taxon_id
-                elif taxon_id not in taxonomy2:
-                    print 'Missing in taxonomy 2: %s' % taxon_id
-
-            if taxon_id in taxonomy1 and taxon_id in taxonomy2:
-                print taxon_id, taxonomy1[taxon_id]
-                taxon1 = taxonomy1[taxon_id][rank_index]
-                taxon2 = taxonomy2[taxon_id][rank_index]
-
-                if taxon1 != taxon2:
-                    if options.report_missing_ranks or (taxon1[3:] and taxon2[3:]):
-                        print 'Different taxon for %s: %s %s' % (taxon_id, taxon1, taxon2)
-
-        print 'Done.'
+        self.logger.info('Decorated tree written to: %s' % options.output_tree)
         
     def phylogenetic_diversity(self, options):
         """Calculate phylogenetic diversity of extant taxa."""
@@ -767,28 +753,7 @@ class OptionsParser():
                                             in_taxa_derep,
                                             in_pg, 
                                             in_pg * 100 / total_pd)
-              
-    def ani(self, options):
-        """Calculate the ANI value of named species."""
-
-        check_file_exists(options.input_taxonomy)
-        check_file_exists(options.metadata_file)
-        make_sure_path_exists(options.output_dir)
-        
-        ani = ANI(options.cpus)
-        ani.run(options.input_taxonomy,
-                options.genome_path_file,
-                options.metadata_file, 
-                options.max_genomes,
-                options.min_comp,
-                options.max_cont,
-                options.min_quality, 
-                options.max_contigs, 
-                options.min_N50, 
-                options.max_ambiguous, 
-                options.max_gap_length, 
-                options.output_dir)
-    
+                  
     def phylogenetic_diversity_clade(self, options):
         """Calculate phylogenetic diversity of named groups."""
 
@@ -839,12 +804,8 @@ class OptionsParser():
             self.representatives(options)
         elif options.subparser_name == 'cluster':
             self.cluster(options)
-        elif options.subparser_name == 'validate':
-            self.validate(options)
-        elif(options.subparser_name == 'check_tree'):
-            self.check_tree(options)
-        elif options.subparser_name == 'binomial':
-            self.binomial(options)
+        elif options.subparser_name == 'rep_compare':
+            self.rep_compare(options)
         elif options.subparser_name == 'propagate':
             self.propagate(options)
         elif options.subparser_name == 'fill_ranks':
@@ -853,10 +814,8 @@ class OptionsParser():
             self.strip(options)
         elif options.subparser_name == 'pull':
             self.pull(options)
-        elif options.subparser_name == 'diff':
-            self.diff(options)
-        elif options.subparser_name == 'ani':
-            self.ani(options)
+        elif options.subparser_name == 'append':
+            self.append(options)
         elif options.subparser_name == 'pd':
             self.phylogenetic_diversity(options)
         elif options.subparser_name == 'pd_clade':

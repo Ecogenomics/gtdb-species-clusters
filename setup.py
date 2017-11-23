@@ -19,9 +19,8 @@ setup(
     url='http://pypi.python.org/pypi/genometreetk/',
     license='GPL3',
     description='A toolbox for working with genome trees.',
-    long_description=open('README.md').read(),
     install_requires=[
         "numpy >= 1.8.0",
-        "biolib >= 0.0.11",
+        "biolib >= 0.0.45",
         "dendropy >= 4.0.0"],
 )

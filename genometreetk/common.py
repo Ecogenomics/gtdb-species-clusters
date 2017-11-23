@@ -49,7 +49,7 @@ def filter_genomes(metadata_file,
         if bHeader:
             bHeader = False
 
-            genome_index = row.index('genome')
+            genome_index = row.index('accession')
             comp_index = row.index('checkm_completeness')
             cont_index = row.index('checkm_contamination')
             contig_count_index = row.index('contig_count')
@@ -330,7 +330,7 @@ def read_gtdb_metadata(metadata_file, fields):
         if bHeader:
             headers = row
 
-            genome_index = headers.index('genome')
+            genome_index = headers.index('accession')
 
             indices = []
             for field in fields:
@@ -372,7 +372,7 @@ def read_gtdb_phylum(metadata_file):
     for row in csv_reader:
         if bHeader:
             headers = row
-            genome_index = headers.index('genome')
+            genome_index = headers.index('accession')
             phylum_index = headers.index('gtdb_phylum')
             bHeader = False
         else:
@@ -402,7 +402,7 @@ def read_gtdb_taxonomy(metadata_file):
     for row in csv_reader:
         if bHeader:
             headers = row
-            genome_index = headers.index('genome')
+            genome_index = headers.index('accession')
             taxonomy_index = headers.index('gtdb_taxonomy')
             bHeader = False
         else:
@@ -436,7 +436,7 @@ def read_gtdb_representative(metadata_file):
     for row in csv_reader:
         if bHeader:
             headers = row
-            genome_index = headers.index('genome')
+            genome_index = headers.index('accession')
             gtdb_representative_index = headers.index('gtdb_representative')
             bHeader = False
         else:
@@ -467,7 +467,7 @@ def read_gtdb_ncbi_taxonomy(metadata_file):
     for row in csv_reader:
         if bHeader:
             headers = row
-            genome_index = headers.index('genome')
+            genome_index = headers.index('accession')
             taxonomy_index = headers.index('ncbi_taxonomy')
             bHeader = False
         else:
@@ -503,7 +503,7 @@ def read_gtdb_ncbi_organism_name(metadata_file):
     for row in csv_reader:
         if bHeader:
             headers = row
-            genome_index = headers.index('genome')
+            genome_index = headers.index('accession')
             organism_name_index = headers.index('ncbi_organism_name')
             bHeader = False
         else:
@@ -537,7 +537,7 @@ def read_gtdb_ncbi_type_strain(metadata_file):
     for row in csv_reader:
         if bHeader:
             headers = row
-            genome_index = headers.index('genome')
+            genome_index = headers.index('accession')
             type_strain_index = headers.index('ncbi_type_strain')
             bHeader = False
         else:
