@@ -2,6 +2,8 @@
 
 <b>[This project is in active development and not currently recommended for public use.]</b>
 
+[![version status](https://img.shields.io/pypi/v/genometreetk.svg)](https://pypi.python.org/pypi/genometreetk)
+
 The genome tree toolkit is a collection of methods for working with genome trees. It currently functionality for:
 
 <i>Measures of tree stability:</i>
