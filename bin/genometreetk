@@ -432,10 +432,10 @@ if __name__ == '__main__':
     append_parser = subparsers.add_parser('append',
                                             formatter_class=CustomHelpFormatter,
                                             description='Append taxonomy to extant tree labels.')
-
     append_parser.add_argument('input_tree', help="input tree to decorate")
-    append_parser.add_argument('input_taxonomy', help='input taxonomy file'
+    append_parser.add_argument('input_taxonomy', help="input taxonomy file")
     append_parser.add_argument('output_tree', help="output tree with taxonomy appended to extant taxon labels")
+    append_parser.add_argument('--silent', help="suppress output", action='store_true')
     
     # calculate phylogenetic diversity
     pd_parser = subparsers.add_parser('pd',

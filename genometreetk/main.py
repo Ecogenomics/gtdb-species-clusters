@@ -703,11 +703,11 @@ class OptionsParser():
                                             preserve_underscores=True)
         
         for n in tree.leaf_node_iter():
-            taxa_str = taxonomy.get(n.label, None)
+            taxa_str = taxonomy.get(n.taxon.label, None)
             if taxa_str == None:
                 self.logger.error('Taxonomy file does not contain an entry for %s.' % n.label)
                 sys.exit(-1)
-            n.label = n.label + '|' + ';'.join(taxonomy[n.label])
+            n.taxon.label = n.taxon.label + '|' + '; '.join(taxonomy[n.taxon.label])
 
         tree.write_to_path(options.output_tree, 
                             schema='newick', 
