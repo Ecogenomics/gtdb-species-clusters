@@ -647,12 +647,9 @@ class Representatives(object):
                 ref_gtdb_sp = gtdb_taxonomy[ref_id][6]
 
                 d = query_dists.get(ref_id, 1.0)
-                if (d <= self.mash_strict_threshold
-                        and (query_gtdb_sp == 's__' 
-                        or ref_gtdb_sp == query_gtdb_sp)):
-                        # genomes meet the strict threshold for
-                        # clustering and don't conflict in their
-                        # assigned species names
+                if d <= self.mash_strict_threshold and query_gtdb_sp == 's__':
+                        # genome meets the strict threshold for
+                        # clustering and has no assigned species
                         assigned_rep = True
                         break
                         
@@ -660,14 +657,14 @@ class Representatives(object):
                     continue
                         
                 if d <= self.mash_gtdb_species_threshold:
-                        # genomes are from same named species and 
+                        # genomes are from same named GTDB species and 
                         # meet the threshold for clustering
                         assigned_rep = True
                         break
                 elif (d <= self.mash_ncbi_species_threshold 
                         and self._canonical_species_name(ref_gtdb_sp) == query_ncbi_sp):
-                        # genomes are from same named species and 
-                        # meet the threshold for clustering
+                        # NCBI species of query genome is the same as the GTDB representative
+                        # and they meet the threshold for clustering
                         assigned_rep = True
                         break
 
@@ -902,12 +899,9 @@ class Representatives(object):
                 
                 ref_gtdb_sp = gtdb_taxonomy[ref_id][6]
                 
-                if (d <= self.mash_strict_threshold
-                        and (query_gtdb_sp == 's__' 
-                        or ref_gtdb_sp == query_gtdb_sp)):
-                        # genomes meet the strict threshold for
-                        # clustering and don't conflict in their
-                        # assigned species names
+                if d <= self.mash_strict_threshold and query_gtdb_sp == 's__':
+                        # genome meets the strict threshold for
+                        # clustering and has no assigned species
                         assigned_rep = ref_id
                         min_d = d
                         continue
@@ -916,14 +910,14 @@ class Representatives(object):
                     continue
                         
                 if d <= self.mash_gtdb_species_threshold:
-                        # genomes are from same named species and 
+                        # genomes are from same named GTDB species and 
                         # meet the threshold for clustering
                         assigned_rep = ref_id
                         min_d = d
                 elif (d <= self.mash_ncbi_species_threshold 
                         and self._canonical_species_name(ref_gtdb_sp) == query_ncbi_sp):
-                        # genomes are from same named species and 
-                        # meet the threshold for clustering
+                        # NCBI species of query genome is the same as the GTDB representative
+                        # and they meet the threshold for clustering
                         assigned_rep = ref_id
                         min_d = d
             

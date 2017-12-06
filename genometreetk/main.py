@@ -81,26 +81,6 @@ class OptionsParser():
 
         self.logger.info('Trusted genome list written to: %s' % options.trusted_genomes_file)
 
-    def dereplicate(self, options):
-        """Dereplicate genomes based on taxonomy."""
-
-        if options.trusted_genomes_file:
-            check_file_exists(options.trusted_genomes_file)
-
-        try:
-            dereplication_workflow = DereplicationWorkflow()
-
-            dereplication_workflow.run(options.max_species,
-                                       options.trusted_genomes_file,
-                                       None,
-                                       None,
-                                       options.derep_genome_file)
-        except GenomeTreeTkError as e:
-            print e.message
-            raise SystemExit
-
-        self.logger.info('Dereplicated genome list written to: %s' % options.derep_genome_file)
-
     def markers(self, options):
         """Determine marker genes."""
 
