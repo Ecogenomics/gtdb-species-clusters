@@ -42,7 +42,7 @@ class RerootTree(object):
                 support_values[nd.bipartition] = max_support
             else:
                 if support is not None:
-                     support_values[nd.bipartition] = int(support)
+                    support_values[nd.bipartition] = float(support)
                 else:
                     support_values[nd.bipartition] = None
      

@@ -31,6 +31,31 @@ from genometreetk.aai import aai_thresholds
 csv.field_size_limit(sys.maxsize)
 
 
+def canonical_species_name(species_name):
+    """Get canonical species name from GTDB or NCBI species name."""
+    
+    if species_name == 's__':
+        return species_name
+    
+    species_name = species_name.replace('Candidatus ', '')
+    prefix = species_name[0:3]
+    full_name = species_name[3:]
+    genus, species = full_name.split(' ')[0:2]
+    
+    underscore_pos = genus.rfind('_')
+    if underscore_pos != -1:
+        genus = genus[0:underscore_pos]
+        
+    underscore_pos = species.rfind('_')
+    if underscore_pos != -1:
+        species = species[0:underscore_pos]
+        
+    genus = genus.replace('[','').replace(']','')
+    species = species.replace('[','').replace(']','')
+        
+    return prefix + genus + ' ' + species
+    
+    
 def filter_genomes(metadata_file,
                     min_comp,
                     max_cont,
@@ -343,10 +368,14 @@ def read_gtdb_metadata(metadata_file, fields):
             values = []
             for i in indices:
                 # save values as floats or strings
+                v = row[i]
                 try:
-                    values.append(float(row[i]))
+                    values.append(float(v))
                 except ValueError:
-                    values.append(row[i])
+                    if v is None or v == '' or v == 'none':
+                        values.append(None)
+                    else:
+                        values.append(v)
             m[genome_id] = gtdb_metadata._make(values)
 
     return m

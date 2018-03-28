@@ -331,6 +331,7 @@ class OptionsParser():
                             options.prev_rep_file,
                             options.exceptions_file,
                             options.trusted_user_file,
+                            #options.ncbi_assembly_file,
                             options.max_species,
                             options.min_rep_comp,
                             options.max_rep_cont,
@@ -355,6 +356,7 @@ class OptionsParser():
         check_file_exists(options.prev_rep_file)
         check_file_exists(options.trusted_user_file)
         check_file_exists(options.mash_pairwise_file)
+        check_file_exists(options.genome_dir_file)
 
         try:
             rep = Representatives()
@@ -362,6 +364,7 @@ class OptionsParser():
                                 options.metadata_file,
                                 options.prev_rep_file,
                                 options.mash_pairwise_file,
+                                options.genome_dir_file,
                                 options.trusted_user_file,
                                 options.min_rep_comp,
                                 options.max_rep_cont,
@@ -384,12 +387,14 @@ class OptionsParser():
         check_file_exists(options.rep_genome_file)
         check_file_exists(options.metadata_file)
         check_file_exists(options.mash_pairwise_file)
+        check_file_exists(options.genome_dir_file)
 
         try:
             rep = Representatives()
             rep.cluster(options.rep_genome_file,
                         options.metadata_file,
                         options.mash_pairwise_file,
+                        options.genome_dir_file,
                         options.cluster_file)
 
             self.logger.info('Clustering information written to: %s' % options.cluster_file)

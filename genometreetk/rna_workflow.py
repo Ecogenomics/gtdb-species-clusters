@@ -247,39 +247,6 @@ class RNA_Workflow(object):
                 subject_genome_id = hit.subject_id.split('~', 1)[0]
                     
                 # require a (very lenient) percent identity of threshold from Yarza et al., 2014
-                
-                if hit.perc_identity >= 75: # phylum
-                    rank_index = Taxonomy.rank_labels.index('phylum')
-                    query_taxa = taxonomy[query_genome_id][rank_index][3:].strip()
-                    subject_taxa = taxonomy[subject_genome_id][rank_index][3:].strip()
-                    if query_taxa and subject_taxa and query_taxa != subject_taxa:
-                        filter.add(hit.query_id)
-                        fout.write('%s\t%s\t%s\t%s\t%.2f\t%d\t%s\t%d\t%d\n' % (hit.query_id, 
-                                                                ';'.join(taxonomy[query_genome_id]),
-                                                                hit.subject_id,
-                                                                ';'.join(taxonomy[subject_genome_id]),
-                                                                hit.perc_identity,
-                                                                hit.alignment_len,
-                                                                'Phylum',
-                                                                len(extant_taxa['p__' + query_taxa]),
-                                                                len(extant_taxa['p__' + subject_taxa])))
-                                                                
-                if hit.perc_identity >= 78.5: # class
-                    rank_index = Taxonomy.rank_labels.index('class')
-                    query_taxa = taxonomy[query_genome_id][rank_index][3:].strip()
-                    subject_taxa = taxonomy[subject_genome_id][rank_index][3:].strip()
-                    if query_taxa and subject_taxa and query_taxa != subject_taxa:
-                        filter.add(hit.query_id)
-                        fout.write('%s\t%s\t%s\t%s\t%.2f\t%d\t%s\t%d\t%d\n' % (hit.query_id, 
-                                                                ';'.join(taxonomy[query_genome_id]),
-                                                                hit.subject_id,
-                                                                ';'.join(taxonomy[subject_genome_id]),
-                                                                hit.perc_identity,
-                                                                hit.alignment_len,
-                                                                'Class',
-                                                                len(extant_taxa['c__' + query_taxa]),
-                                                                len(extant_taxa['c__' + subject_taxa])))
-                
                 if hit.query_id not in filter and hit.perc_identity >= 82: # order
                     rank_index = Taxonomy.rank_labels.index('order')
                     query_taxa = taxonomy[query_genome_id][rank_index][3:].strip()
@@ -295,54 +262,103 @@ class RNA_Workflow(object):
                                                                 'Order',
                                                                 len(extant_taxa['o__' + query_taxa]),
                                                                 len(extant_taxa['o__' + subject_taxa])))
-                                                                
-                if hit.query_id not in filter and hit.perc_identity >= 86.5: # family
-                    rank_index = Taxonomy.rank_labels.index('family')
-                    query_taxa = taxonomy[query_genome_id][rank_index][3:].strip()
-                    subject_taxa = taxonomy[subject_genome_id][rank_index][3:].strip()
-                    if query_taxa and subject_taxa and query_taxa != subject_taxa:
-                        filter.add(hit.query_id)
-                        fout.write('%s\t%s\t%s\t%s\t%.2f\t%d\t%s\t%d\t%d\n' % (hit.query_id, 
-                                                                ';'.join(taxonomy[query_genome_id]),
-                                                                hit.subject_id,
-                                                                ';'.join(taxonomy[subject_genome_id]),
-                                                                hit.perc_identity,
-                                                                hit.alignment_len,
-                                                                'Family',
-                                                                len(extant_taxa['f__' + query_taxa]),
-                                                                len(extant_taxa['f__' + subject_taxa])))
-                                                                
-                if hit.query_id not in filter and hit.perc_identity >= 94.5: # genus
-                    rank_index = Taxonomy.rank_labels.index('genus')
-                    query_taxa = taxonomy[query_genome_id][rank_index][3:].strip()
-                    subject_taxa = taxonomy[subject_genome_id][rank_index][3:].strip()
-                    if query_taxa and subject_taxa and query_taxa != subject_taxa:
-                        filter.add(hit.query_id)
-                        fout.write('%s\t%s\t%s\t%s\t%.2f\t%d\t%s\t%d\t%d\n' % (hit.query_id, 
-                                                                ';'.join(taxonomy[query_genome_id]),
-                                                                hit.subject_id,
-                                                                ';'.join(taxonomy[subject_genome_id]),
-                                                                hit.perc_identity,
-                                                                hit.alignment_len,
-                                                                'Genus',
-                                                                len(extant_taxa['g__' + query_taxa]),
-                                                                len(extant_taxa['g__' + subject_taxa])))
+                
+                if False:
+                    if hit.perc_identity >= 75: # phylum
+                        rank_index = Taxonomy.rank_labels.index('phylum')
+                        query_taxa = taxonomy[query_genome_id][rank_index][3:].strip()
+                        subject_taxa = taxonomy[subject_genome_id][rank_index][3:].strip()
+                        if query_taxa and subject_taxa and query_taxa != subject_taxa:
+                            filter.add(hit.query_id)
+                            fout.write('%s\t%s\t%s\t%s\t%.2f\t%d\t%s\t%d\t%d\n' % (hit.query_id, 
+                                                                    ';'.join(taxonomy[query_genome_id]),
+                                                                    hit.subject_id,
+                                                                    ';'.join(taxonomy[subject_genome_id]),
+                                                                    hit.perc_identity,
+                                                                    hit.alignment_len,
+                                                                    'Phylum',
+                                                                    len(extant_taxa['p__' + query_taxa]),
+                                                                    len(extant_taxa['p__' + subject_taxa])))
+                                                                    
+                    if hit.perc_identity >= 78.5: # class
+                        rank_index = Taxonomy.rank_labels.index('class')
+                        query_taxa = taxonomy[query_genome_id][rank_index][3:].strip()
+                        subject_taxa = taxonomy[subject_genome_id][rank_index][3:].strip()
+                        if query_taxa and subject_taxa and query_taxa != subject_taxa:
+                            filter.add(hit.query_id)
+                            fout.write('%s\t%s\t%s\t%s\t%.2f\t%d\t%s\t%d\t%d\n' % (hit.query_id, 
+                                                                    ';'.join(taxonomy[query_genome_id]),
+                                                                    hit.subject_id,
+                                                                    ';'.join(taxonomy[subject_genome_id]),
+                                                                    hit.perc_identity,
+                                                                    hit.alignment_len,
+                                                                    'Class',
+                                                                    len(extant_taxa['c__' + query_taxa]),
+                                                                    len(extant_taxa['c__' + subject_taxa])))
+                    
+                    if hit.query_id not in filter and hit.perc_identity >= 82: # order
+                        rank_index = Taxonomy.rank_labels.index('order')
+                        query_taxa = taxonomy[query_genome_id][rank_index][3:].strip()
+                        subject_taxa = taxonomy[subject_genome_id][rank_index][3:].strip()
+                        if query_taxa and subject_taxa and query_taxa != subject_taxa:
+                            filter.add(hit.query_id)
+                            fout.write('%s\t%s\t%s\t%s\t%.2f\t%d\t%s\t%d\t%d\n' % (hit.query_id, 
+                                                                    ';'.join(taxonomy[query_genome_id]),
+                                                                    hit.subject_id,
+                                                                    ';'.join(taxonomy[subject_genome_id]),
+                                                                    hit.perc_identity,
+                                                                    hit.alignment_len,
+                                                                    'Order',
+                                                                    len(extant_taxa['o__' + query_taxa]),
+                                                                    len(extant_taxa['o__' + subject_taxa])))
+                                                                    
+                    if hit.query_id not in filter and hit.perc_identity >= 86.5: # family
+                        rank_index = Taxonomy.rank_labels.index('family')
+                        query_taxa = taxonomy[query_genome_id][rank_index][3:].strip()
+                        subject_taxa = taxonomy[subject_genome_id][rank_index][3:].strip()
+                        if query_taxa and subject_taxa and query_taxa != subject_taxa:
+                            filter.add(hit.query_id)
+                            fout.write('%s\t%s\t%s\t%s\t%.2f\t%d\t%s\t%d\t%d\n' % (hit.query_id, 
+                                                                    ';'.join(taxonomy[query_genome_id]),
+                                                                    hit.subject_id,
+                                                                    ';'.join(taxonomy[subject_genome_id]),
+                                                                    hit.perc_identity,
+                                                                    hit.alignment_len,
+                                                                    'Family',
+                                                                    len(extant_taxa['f__' + query_taxa]),
+                                                                    len(extant_taxa['f__' + subject_taxa])))
+                                                                    
+                    if hit.query_id not in filter and hit.perc_identity >= 94.5: # genus
+                        rank_index = Taxonomy.rank_labels.index('genus')
+                        query_taxa = taxonomy[query_genome_id][rank_index][3:].strip()
+                        subject_taxa = taxonomy[subject_genome_id][rank_index][3:].strip()
+                        if query_taxa and subject_taxa and query_taxa != subject_taxa:
+                            filter.add(hit.query_id)
+                            fout.write('%s\t%s\t%s\t%s\t%.2f\t%d\t%s\t%d\t%d\n' % (hit.query_id, 
+                                                                    ';'.join(taxonomy[query_genome_id]),
+                                                                    hit.subject_id,
+                                                                    ';'.join(taxonomy[subject_genome_id]),
+                                                                    hit.perc_identity,
+                                                                    hit.alignment_len,
+                                                                    'Genus',
+                                                                    len(extant_taxa['g__' + query_taxa]),
+                                                                    len(extant_taxa['g__' + subject_taxa])))
 
-                if hit.query_id not in filter and hit.perc_identity >= 99: # species
-                    rank_index = Taxonomy.rank_labels.index('species')
-                    query_taxa = taxonomy[query_genome_id][rank_index][3:].strip()
-                    subject_taxa = taxonomy[subject_genome_id][rank_index][3:].strip()
-                    if query_taxa and subject_taxa and query_taxa != subject_taxa:
-                        filter.add(hit.query_id)
-                        fout.write('%s\t%s\t%s\t%s\t%.2f\t%d\t%s\t%d\t%d\n' % (hit.query_id, 
-                                                                ';'.join(taxonomy[query_genome_id]),
-                                                                hit.subject_id,
-                                                                ';'.join(taxonomy[subject_genome_id]),
-                                                                hit.perc_identity,
-                                                                hit.alignment_len,
-                                                                'Species',
-                                                                len(extant_taxa['s__' + query_taxa]),
-                                                                len(extant_taxa['s__' + subject_taxa])))
+                    if hit.query_id not in filter and hit.perc_identity >= 99: # species
+                        rank_index = Taxonomy.rank_labels.index('species')
+                        query_taxa = taxonomy[query_genome_id][rank_index][3:].strip()
+                        subject_taxa = taxonomy[subject_genome_id][rank_index][3:].strip()
+                        if query_taxa and subject_taxa and query_taxa != subject_taxa:
+                            filter.add(hit.query_id)
+                            fout.write('%s\t%s\t%s\t%s\t%.2f\t%d\t%s\t%d\t%d\n' % (hit.query_id, 
+                                                                    ';'.join(taxonomy[query_genome_id]),
+                                                                    hit.subject_id,
+                                                                    ';'.join(taxonomy[subject_genome_id]),
+                                                                    hit.perc_identity,
+                                                                    hit.alignment_len,
+                                                                    'Species',
+                                                                    len(extant_taxa['s__' + query_taxa]),
+                                                                    len(extant_taxa['s__' + subject_taxa])))
 
         fout.close()
         
@@ -383,7 +399,7 @@ class RNA_Workflow(object):
         tax_filter : boolean
             Filter sequences based on incongruent taxonomy classification.
         genome_list : str
-            Explict list of genomes to use (ignores --ncbi_rep_only and --user_genomes).
+            Explicit list of genomes to use (ignores --ncbi_rep_only and --user_genomes).
         output_dir : str
             Directory to store results
         """
@@ -431,7 +447,9 @@ class RNA_Workflow(object):
         genomes_to_consider = set()
         if genome_list:
             for line in open(genome_list):
-                genomes_to_consider.add(line.rstrip().split('\t')[0])
+                gid = line.rstrip().split('\t')[0]
+                if gid.startswith('RS_') or gid.startswith('GB_') or gid.startswith('U_'):
+                    genomes_to_consider.add(gid)
             self.logger.info('Restricting genomes to the %d in the genome list.' % len(genomes_to_consider))
         else:
             # filter genomes based on quality and database source
@@ -607,7 +625,7 @@ class RNA_Workflow(object):
                 # infer tree
                 self.logger.info('Inferring tree for %s genes.' % domain)
                 output_tree = os.path.join(output_dir, domain + '.tree')
-                os.system('FastTreeMP -nosupport -nt -gamma %s > %s' % (trimmed_msa, output_tree))
+                os.system('FastTreeMP -nosupport -nt -gtr -gamma %s > %s' % (trimmed_msa, output_tree))
         elif align_method == 'mothur':
             trimmed_msa = os.path.join(output_dir, input_prefix + '.trimmed.fna')
             self._trim_seqs(input_msa, trimmed_msa)
@@ -615,7 +633,7 @@ class RNA_Workflow(object):
             # infer tree
             self.logger.info('Inferring tree for %s genes.')
             output_tree = os.path.join(output_dir, input_prefix + '.tree')
-            os.system('FastTreeMP -nosupport -nt -gamma %s > %s' % (trimmed_msa, output_tree))
+            os.system('FastTreeMP -nosupport -nt -gtr -gamma %s > %s' % (trimmed_msa, output_tree))
             
     def combine(self, ssu_msa, ssu_tree, lsu_msa, lsu_tree, output_dir):
         """Infer 16S + 23S tree spanning GTDB genomes."""
@@ -669,4 +687,4 @@ class RNA_Workflow(object):
         
         # infer tree
         output_tree = os.path.join(output_dir, 'ssu_lsu_concatenated.tree')
-        os.system('FastTreeMP -nosupport -nt -gamma %s > %s' % (concatenated_msa, output_tree))
+        os.system('FastTreeMP -nosupport -nt -gtr -gamma %s > %s' % (concatenated_msa, output_tree))

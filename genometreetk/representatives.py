@@ -19,6 +19,7 @@ import os
 import sys
 import logging
 import operator
+import shutil
 import tempfile
 from collections import defaultdict
 
@@ -26,71 +27,46 @@ import biolib.seq_io as seq_io
 from biolib.taxonomy import Taxonomy
 from biolib.external.execute import check_on_path
 
-from genometreetk.common import (read_gtdb_metadata,
+from genometreetk.common import (canonical_species_name,
+                                    read_gtdb_metadata,
                                     read_gtdb_taxonomy,
-                                    read_gtdb_ncbi_taxonomy,
-                                    read_gtdb_ncbi_type_strain)
+                                    read_gtdb_ncbi_taxonomy)
 import genometreetk.ncbi as ncbi
 
 class Representatives(object):
-    """Identify representative genomes.
-
-    Representative genomes are identified in a
-    greedy manner using an amino acid identity (AAI)
-    criteria.
-
-    To ensure good representatives are selected, genomes
-    are order before processing. Genomes are order first
-    based on their source: RefSeq, GenBank, User. Within
-    each source, genomes are order by genome quality
-    (completeness - contamination). A threshold is used
-    to limit representative to genomes of sufficient
-    quality. Furthermore, a genome is not clustered
-    to an existing representative if they have different
-    species names. NCBI genomes are also never assigned
-    to User representatives.
-    """
+    """Identify GTDB representative genomes."""
 
     def __init__(self):
         """Initialization."""
+        
+        check_on_path('ani_calculator')
 
         self.logger = logging.getLogger('timestamp')
         
-        self.prev_rep_quality_boost = 5.0
+        self.true_str = ['t', 'T', 'true', 'True']
         
         # strict threshold for clustering a 
         # query genome that may not have an
         # assigned species name
-        self.mash_strict_threshold = 0.035         
+        self.strict_ani_threshold = 96.5
         
         # clustering for genomes marked 
         # as being from the same GTDB species
-        self.mash_gtdb_species_threshold = 0.05
+        self.gtdb_species_ani_threshold = 95.0
         
         # clustering for genomes marked 
         # as being from the same GTDB species
         # and the same NCBI species
-        self.mash_ncbi_species_threshold = 0.1
-
-    def _canonical_species_name(self, gtdb_species_name):
-        """Get canonical species name from GTDB species name."""
+        self.ncbi_species_ani_threshold = 90.0
         
-        if gtdb_species_name == 's__':
-            return gtdb_species_name
+        # alignment fraction threshold for 
+        # assigning genomes to the same species
+        self._af_threshold = 0.6
         
-        prefix = gtdb_species_name[0:3]
-        full_name = gtdb_species_name[3:]
-        genus, species = full_name.split(' ')
-        
-        underscore_pos = genus.rfind('_')
-        if underscore_pos != -1:
-            genus = genus[0:underscore_pos]
-            
-        underscore_pos = species.rfind('_')
-        if underscore_pos != -1:
-            species = species[0:underscore_pos]
-            
-        return prefix + genus + ' ' + species
+        # Mash distance threshold for determining
+        # genome pairs from which to calculate
+        # true ANI values
+        self.mash_dist_threshold = 0.1
         
     def _read_genome_list(self, genome_list_file):
         """Read genomes IDs in file."""
@@ -106,6 +82,33 @@ class Representatives(object):
            
         return genome_ids
         
+    def _read_ncbi_frameshift_errors(self, ncbi_assembly_file):
+        """Read error status of genomes from NCBI assembly file."""
+        
+        ncbi_frameshift_errors = set()
+             
+        for line in open(ncbi_assembly_file):
+            line_split = line.strip().split('\t')
+            
+            if line[0] == '#':
+                try:
+                    error_index = line_split.index('excluded_from_refseq')
+                except:
+                    pass
+            else:
+                gid = line_split[0]
+                if gid.startswith('GCA_'):
+                    gid = 'GB_' + gid
+                else:
+                    gid = 'RS_' + gid
+
+                if len(line_split) > error_index:
+                    errors = line_split[error_index]
+                    if 'many frameshifted proteins' in errors:
+                        ncbi_frameshift_errors.add(gid)
+
+        return ncbi_frameshift_errors
+        
     def _genome_stats(self, metadata_file):
         """Genome genome and assembly quality metadata."""
         
@@ -117,6 +120,7 @@ class Representatives(object):
                                                     'total_gap_length',
                                                     'scaffold_count',
                                                     'ssu_count',
+                                                    'ssu_length',
                                                     'gtdb_taxonomy',
                                                     'ncbi_molecule_count',
                                                     'ncbi_unspanned_gaps',
@@ -125,42 +129,53 @@ class Representatives(object):
                                                     'ncbi_assembly_level',
                                                     'ncbi_taxonomy',
                                                     'ncbi_organism_name',
-                                                    'lpsn_strain'])
+                                                    'ncbi_refseq_category',
+                                                    'gtdb_type_material',
+                                                    'gtdb_type_material_sources',
+                                                    'mimag_high_quality'])
  
         return stats
 
-    def _select_lpsn_type_strains(self, 
-                                    lpsn_type_strains, 
-                                    genomes_to_retain,
-                                    genome_quality,
-                                    prev_gtdb_reps):
-        """Ensure a LPSN type strain has been selected for each species."""
+    def _select_highest_quality(self, genome_quality, cur_genomes, genomes_to_select):
+        """Select highest quality genomes."""
+                    
+        q = {k:genome_quality[k] for k in cur_genomes}
+        q_sorted = sorted(q.items(), key=operator.itemgetter(1), reverse=True)
+        return [x[0] for x in q_sorted[0:genomes_to_select]]
         
-        lpsn_genomes = 0
-        for sp, genome_ids in lpsn_type_strains.iteritems():
-            if len(genome_ids.intersection(genomes_to_retain)) >= 1:
-                # an LPSN type strain has already been selected for this species
-                continue
-                
-            # select genome with the highest quality
-            q = {k:genome_quality[k]+ self.prev_rep_quality_boost*(k in prev_gtdb_reps) 
-                    for k in genome_ids}
-            q_sorted = sorted(q.items(), key=operator.itemgetter(1), reverse=True)
-            genomes_to_retain.add(q_sorted[0][0])
-            lpsn_genomes += 1
+    def _genome_quality(self, genome_metadata, prev_rep):
+        """Calculate quality of genome."""
+        
+        q = genome_metadata.checkm_completeness - 5*genome_metadata.checkm_contamination
+        q -= 5*float(genome_metadata.contig_count)/100
+        q += 100*(genome_metadata.ncbi_assembly_level is not None 
+                    and genome_metadata.ncbi_assembly_level.lower() == 'complete genome')
+        q += 10*(genome_metadata.ncbi_refseq_category is not None 
+                    and 'representative' in genome_metadata.ncbi_refseq_category.lower())
+        q += 5*(1 if genome_metadata.gtdb_type_material in self.true_str else 0)
+        q += 5*prev_rep
+        
+        # check for near-complete 16S rRNA gene
+        gtdb_domain = genome_metadata.gtdb_taxonomy[0]
+        min_ssu_len = 1200
+        if gtdb_domain == 'd__Archaea':
+            min_ssu_len = 900
+            
+        if genome_metadata.ssu_length and genome_metadata.ssu_length >= min_ssu_len:
+            q += 5
 
-        self.logger.info('Retained %d additional genomes to ensure a LPSN type strain in each species.' % lpsn_genomes)
-   
+        return q
+        
     def _dereplicate_species(self, 
                                 genomes_to_consider,
                                 max_species,
-                                species_labels,
-                                representative_genomes,
+                                genome_stats,
+                                gtdb_taxonomy,
+                                ncbi_taxonomy,
+                                ncbi_reference_genomes,
+                                ncbi_representative_genomes,
                                 complete_genomes,
-                                ncbi_type_strains,
-                                lpsn_type_strains,
-                                prev_gtdb_reps,
-                                genome_quality):
+                                prev_gtdb_reps):
         """Dereplicate named species.
 
         Parameters
@@ -169,115 +184,123 @@ class Representatives(object):
             All assemble accessions to consider.
         max_species : int
             Maximum number of genomes of the same species to retain.
-        species_labels : d[assembly_accession] -> species
-            Species label for each genome.
-        representative_genomes : set
-            Set of representative genomes to prioritize.
+        gtdb_taxonomy : d[genome_id] -> taxa
+            GTDB taxonomy of each genome.
+        ncbi_reference_genomes : set
+            Set of NCBI reference genomes to prioritize.
+        ncbi_representative_genomes : set
+            Set of NCBI representative genomes to prioritize.
         complete_genomes : set
             Set of complete genomes to prioritize.
-        ncbi_type_strains : set
-            Set of genomes marked as type strains at NCBI.
-        lpsn_type_strains : d[ncbi_species] -> set of genome IDs
-            Genomes marked as type strains at LPSN.
         prev_gtdb_reps : set
             Previous GTDB representative.
-        genome_quality : d[genome_id] -> comp - cont
-            Quality of each genome.
-
+            
         Returns
         -------
         set
             Dereplicate set of assemblies.
         """
         
-        self.logger.info('Boosting quality of previous representatives by %.1f%%.' % self.prev_rep_quality_boost)
-        
+        # determine type material and genome quality
+        type_material = defaultdict(set)
+        ssu_near_complete = defaultdict(set)
+        genome_quality = {}
+        mimag_hq_genomes = set()
+        for gid, stats in genome_stats.iteritems():
+            gtdb_species = gtdb_taxonomy[gid][6]
+            if stats.gtdb_type_material in self.true_str and gtdb_species != 's__':
+                type_material[gtdb_species].add(gid)
+
+            if stats.ssu_length and stats.ssu_length >= 900:
+                ssu_near_complete[gtdb_species].add(gid)
+                
+            if stats.mimag_high_quality in self.true_str:
+                mimag_hq_genomes.add(gid)
+                
+            genome_quality[gid] = self._genome_quality(stats, gid in prev_gtdb_reps)
+
+        self.logger.info('Identified %d genomes with a GTDB species designation identified as type material.' % len(type_material))
+        self.logger.info('Identified %d MIMAG high-quality genomes.' % len(mimag_hq_genomes))
+
         # determine genomes belonging to each named species
         species = defaultdict(set)
         genomes_without_species = set()
         genomes_to_retain = set()
         for genome_id in genomes_to_consider:
-            sp = species_labels.get(genome_id, None)
+            sp = gtdb_taxonomy[genome_id][6]
 
-            if not sp:
-                if genome_id in representative_genomes:
+            if sp == 's__':
+                if (genome_id in ncbi_reference_genomes 
+                    or genome_id in ncbi_representative_genomes
+                    or genome_stats[genome_id].gtdb_type_material in self.true_str):
                     genomes_to_retain.add(genome_id)
                 else:
                     genomes_without_species.add(genome_id)
             else:
                 species[sp].add(genome_id)
 
-        self.logger.info('Retaining %d RefSeq representative genomes without a species designation.' % len(genomes_to_retain))
+        self.logger.info('Retaining %d RefSeq reference, representative, or type material genomes without a GTDB species designation.' % len(genomes_to_retain))
         self.logger.info('Identified %d non-representative genomes without a species designation.' % len(genomes_without_species))
-
+        
         # dereplicate species
         retained_reps = len(genomes_to_retain)
         additional_reps = 0
         for sp, genome_ids in species.iteritems():
-            representatives = genome_ids.intersection(representative_genomes)
-
             if len(genome_ids) > max_species:
                 selected_genomes = set()
                 
-                # select all representative genomes
-                if representatives:
-                    selected_genomes.update(representatives)
-                    genome_ids.difference_update(representatives)
-
-                # get different classes of genomes
-                complete = genome_ids.intersection(complete_genomes)
-                type_strains = genome_ids.intersection(ncbi_type_strains)
-                complete_type_strains = type_strains.intersection(complete)
-                complete = complete - complete_type_strains
-
-                # try to select a complete type strain, otherwise just take
-                # any type strain if one exists
-                if len(selected_genomes) < max_species:
-                    if complete_type_strains:
-                        q = {k:genome_quality[k] + self.prev_rep_quality_boost*(k in prev_gtdb_reps) 
-                                for k in complete_type_strains}
-                        q_sorted = sorted(q.items(), key=operator.itemgetter(1), reverse=True)
-                        selected_genomes.add(q_sorted[0][0])
-                    elif type_strains:
-                        q = {k:genome_quality[k] + self.prev_rep_quality_boost*(k in prev_gtdb_reps) 
-                                for k in type_strains}
-                        q_sorted = sorted(q.items(), key=operator.itemgetter(1), reverse=True)
-                        selected_genomes.add(q_sorted[0][0])
-
-                # grab as many complete genomes as possible
-                if len(selected_genomes) < max_species and complete:
-                    q = {k:genome_quality[k] + self.prev_rep_quality_boost*(k in prev_gtdb_reps) 
-                            for k in complete}
-                    q_sorted = sorted(q.items(), key=operator.itemgetter(1), reverse=True)
-
-                    genomes_to_select = min(len(complete), max_species - len(selected_genomes))
-                    selected_complete_genomes = [x[0] for x in q_sorted[0:genomes_to_select]] 
-                    selected_genomes.update(selected_complete_genomes)
-
-                # grab incomplete genomes to get to the desired number of genomes
-                if len(selected_genomes) < max_species and genome_ids:
-                    genome_ids.difference_update(selected_genomes)
-                    genome_ids_quality = {k:genome_quality[k] + self.prev_rep_quality_boost*(k in prev_gtdb_reps) for k in genome_ids}
-                    genome_ids_quality_sorted = sorted(genome_ids_quality.items(), key=operator.itemgetter(1), reverse=True)
+                # select all genomes marked as 'reference' at NCBI
+                cur_reference_genomes = genome_ids.intersection(ncbi_reference_genomes)
+                if cur_reference_genomes:
+                    selected_genomes.update(cur_reference_genomes)
+                    genome_ids.difference_update(cur_reference_genomes)
                     
+                # select highest quality genomes meeting MIMAG "high-quality" criteria
+                if len(selected_genomes) < max_species:
+                    cur_mimag_hq_genomes = genome_ids.intersection(mimag_hq_genomes)
                     genomes_to_select = min(len(genome_ids), max_species - len(selected_genomes))
-                    additional_genomes = [x[0] for x in genome_ids_quality_sorted[0:genomes_to_select]] 
-                    selected_genomes.update(additional_genomes)
+                    s = self._select_highest_quality(genome_quality,
+                                                        cur_mimag_hq_genomes,
+                                                        genomes_to_select)
+                    selected_genomes.update(s)
+                    genome_ids.difference_update(s)
+                    
+                # select highest quality genomes if maximum for species hasn't been reached
+                if len(selected_genomes) < max_species:
+                    genomes_to_select = min(len(genome_ids), max_species - len(selected_genomes))
+                    s = self._select_highest_quality(genome_quality,
+                                                        genome_ids,
+                                                        genomes_to_select)
+                    selected_genomes.update(s)
+                    genome_ids.difference_update(s)
+                    
+                # select a single genome from avaliable type material if avaliable and one hasn't already been selected
+                if sp in type_material and selected_genomes.intersection(type_material[sp]) == 0: 
+                    cur_type_strains = genome_ids.intersection(type_material[sp])
+                    s = self._select_highest_quality(genome_quality,
+                                                        cur_type_strains,
+                                                        1)
+                    selected_genomes.update(s)
+                    genome_ids.difference_update(s)
+                    
+                # select a single genome with a near complete 16S rRNA gene if avaliable, and one hasn't already been selected
+                if sp in ssu_near_complete and selected_genomes.intersection(ssu_near_complete[sp]) == 0: 
+                    cur_ssu_near_complete = genome_ids.intersection(ssu_near_complete[sp])
+                    s = self._select_highest_quality(genome_quality,
+                                                        cur_ssu_near_complete,
+                                                        1)
+                    selected_genomes.update(s)
+                    genome_ids.difference_update(s)
             else:
                 selected_genomes = genome_ids
                 
             genomes_to_retain.update(selected_genomes)
-            retained_reps += len(representatives)
-            additional_reps += len(selected_genomes) - len(representatives)
+            ncbi_refs_or_reps = selected_genomes.intersection(ncbi_reference_genomes.union(ncbi_representative_genomes))
+            retained_reps += len(ncbi_refs_or_reps)
+            additional_reps += len(selected_genomes) - len(ncbi_refs_or_reps)
                  
         self.logger.info('Retained %d RefSeq representatives.' % retained_reps)
         self.logger.info('Retained %d additional genomes in order to establish %s genomes per species.' % (additional_reps, max_species))
-      
-        # make sure to select at least one LPSN type strain for each species
-        self._select_lpsn_type_strains(lpsn_type_strains, 
-                                        genomes_to_retain,
-                                        genome_quality,
-                                        prev_gtdb_reps)
         
         return genomes_to_retain
 
@@ -285,6 +308,7 @@ class Representatives(object):
                     prev_rep_file,
                     exceptions_file,
                     trusted_user_file,
+                    #ncbi_assembly_file,
                     max_species,
                     min_rep_comp,
                     max_rep_cont,
@@ -298,10 +322,23 @@ class Representatives(object):
         """Select representative genomes from named species.
         
         Each named species is dereplicated to a fixed number of
-        reprsentatives, taking care to retain all genomes marked as a
-        'reference' or 'representative' at NCBI. Preference
-        is then given to genomes marked as type strains at
-        NCBI. Finally, genomes are selected based on estimated quality.
+        reprsentatives. Genomes are selected as follows:
+        
+        - select all genomes marked as 'reference' at NCBI
+        - select highest quality genomes meeting MIMAG "high-quality" criteria
+          - 16S, 23S, and 5S
+          - 18 of 20 amino acids
+        - select highest quality genomes
+        - select 1 (and only 1) genome from the type strain if avaliable, and one hasn't already been selected
+        - select 1 (and only 1) genome with a near complete 16S rRNA gene if avaliable, and one hasn't alraedy been selected
+
+        quality = comp - 5*cont
+                    - 5*(number of contigs/100) 
+                    + 100*('NCBI complete genome') 
+                    + 10*('NCBI representative') 
+                    + 5*('type strain') 
+                    + 5*(near-complete 16S rRNA gene)
+                    + 5*(GTDB representative in previous release)
 
         Parameters
         ----------
@@ -340,16 +377,21 @@ class Representatives(object):
         prev_gtdb_reps = self._read_genome_list(prev_rep_file)
         exception_genomes = self._read_genome_list(exceptions_file)
         trusted_user_genomes = self._read_genome_list(trusted_user_file)
+        #ncbi_frameshift_errors = self._read_ncbi_frameshift_errors(ncbi_assembly_file)
+        #gtdb_ssu_errors = self.... # should excluded genomes identified as having erroneous 16S sequences
 
         (refseq_genomes, 
-            complete_genomes, 
-            representative_genomes) = ncbi.read_refseq_metadata(metadata_file)
+            complete_genomes,
+            ncbi_reference_genomes,
+            ncbi_representative_genomes) = ncbi.read_refseq_metadata(metadata_file)
         self.logger.info('Identified %d RefSeq genomes.' % len(refseq_genomes))
-        self.logger.info('Identified %d representative or reference genomes.' % len(representative_genomes))
+        self.logger.info('Identified %d reference genomes.' % len(ncbi_reference_genomes))
+        self.logger.info('Identified %d representative genomes.' % len(ncbi_representative_genomes))
         self.logger.info('Identified %d complete genomes.' % len(complete_genomes))
         self.logger.info('Identified %d genomes in exception list.' % len(exception_genomes))
         self.logger.info('Identified %d trusted user genomes.' % len(trusted_user_genomes))
         self.logger.info('Identified %d previous GTDB representatives.' % len(prev_gtdb_reps))
+        #self.logger.info('Identified %d genomes indicated as having frameshift errors.' % len(ncbi_frameshift_errors))
         
         # get genome and assembly quality
         genome_stats = self._genome_stats(metadata_file)
@@ -357,15 +399,6 @@ class Representatives(object):
         # get genomes in each named GTDB species
         gtdb_taxonomy = read_gtdb_taxonomy(metadata_file)
         ncbi_taxonomy = read_gtdb_ncbi_taxonomy(metadata_file)
-        
-        species = {}
-        species_index = Taxonomy.rank_index['s__']
-        for genome_id, taxa in gtdb_taxonomy.iteritems():
-            sp = taxa[species_index]
-            if sp != 's__':
-                species[genome_id] = sp
-
-        self.logger.info('Identified %d genomes with a GTDB species names.' % len(species))
 
         # identify genomes passing filtering criteria
         filtered_reps_file = output_file + '.filtered_reps'
@@ -374,9 +407,7 @@ class Representatives(object):
         fout.write('\tContig Count\tN50\tAmbiguous Bases\tTotal Gap Length')
         fout.write('\tNote\tNCBI Organism Name\n')
 
-        lpsn_type_strains = defaultdict(set)
         genomes_to_consider = []
-        genome_quality = {}
         filtered_reps = 0
         lack_ncbi_taxonomy = 0
         for genome_id in genome_stats.keys():
@@ -396,7 +427,7 @@ class Representatives(object):
                     and stats.contig_count <= max_contigs
                     and stats.n50_scaffolds >= min_N50
                     and stats.ambiguous_bases <= max_ambiguous
-                    and stats.total_gap_length <= max_gap_length):
+                    and stats.total_gap_length <= max_gap_length): #and genome_id not in ncbi_frameshift_errors):
                         keep = True
             elif not strict_filtering:
                 # check if genome appears to consist of only an unspanned
@@ -409,7 +440,7 @@ class Representatives(object):
                     and stats.ncbi_spanned_gaps <= 10
                     and stats.ambiguous_bases <= max_ambiguous
                     and stats.total_gap_length <= max_gap_length
-                    and stats.ssu_count >= 1):
+                    and stats.ssu_count >= 1): #and genome_id not in ncbi_frameshift_errors):
                     
                     # apply lenient quality check that should pick
                     # up the vast majority (if not all) even highly
@@ -420,14 +451,9 @@ class Representatives(object):
                         
             if keep:
                 genomes_to_consider.append(genome_id)
-                genome_quality[genome_id] = comp - 5*cont
-                if stats.lpsn_strain:
-                    gtdb_species = gtdb_taxonomy[genome_id][species_index]
-                    if gtdb_species != 's__':
-                        lpsn_type_strains[gtdb_species].add(genome_id)
-            
+
             # check if a representative at NCBI is being filtered
-            if genome_id in representative_genomes:
+            if genome_id in ncbi_reference_genomes or genome_id in ncbi_representative_genomes:
                 if genome_id not in genomes_to_consider:
                     if comp < min_rep_comp:
                         note = 'failed completeness criteria'
@@ -458,7 +484,10 @@ class Representatives(object):
 
                     warning = ('Filtered RefSeq rep %s with comp=%.2f, cont=%.2f, contigs=%d, N50=%d'
                                     % (genome_id, comp, cont, stats.contig_count, stats.n50_scaffolds))
-                    self.logger.warning(warning)
+                    #self.logger.warning(warning)
+                    if genome_id in ncbi_reference_genomes:
+                        self.logger.warning(warning)
+                        self.logger.warning('******Filtered genome is marked as a reference at NCBI.')
                     
                     filtered_reps += 1
                     
@@ -472,27 +501,56 @@ class Representatives(object):
         fout.close()
 
         self.logger.info('Identified %d RefSeq representatives without an assigned NCBI taxonomy.' % lack_ncbi_taxonomy)
-        self.logger.info('Filtered %d RefSeq representatives based on genome or assembly quality.' % filtered_reps)
+        self.logger.warning('Filtered %d RefSeq representatives based on genome or assembly quality.' % filtered_reps)
         self.logger.info('Filtered RefSeq representatives written to %s' % filtered_reps_file)
         self.logger.info('Considering %d genomes after filtering for genome quality.' % (len(genomes_to_consider)))
-
-        ncbi_type_strains = read_gtdb_ncbi_type_strain(metadata_file)
-        self.logger.info('Identified %d genomes marked as type strains at NCBI.' % len(ncbi_type_strains))
-        self.logger.info('Identified %d genomes marked as type strains at LPSN.' % sum([len(x) for x in lpsn_type_strains.values()]))
 
         # dereplicate named species
         genomes_to_retain = self._dereplicate_species(genomes_to_consider,
                                                         max_species,
-                                                        species,
-                                                        representative_genomes,
+                                                        genome_stats,
+                                                        gtdb_taxonomy,
+                                                        ncbi_taxonomy,
+                                                        ncbi_reference_genomes,
+                                                        ncbi_representative_genomes,
                                                         complete_genomes,
-                                                        ncbi_type_strains,
-                                                        lpsn_type_strains,
-                                                        prev_gtdb_reps,
-                                                        genome_quality)
+                                                        prev_gtdb_reps)
 
         self.logger.info('Retained %d genomes.' % len(genomes_to_retain))
-
+        
+        # validate type strain information for retained representatives
+        type_material_outfile = output_file + '.type_material_mismatch'
+        fout = open(type_material_outfile, 'w')
+        fout.write('Accession\tGTDB species\tNCBI species\tNCBI organism name\tType material sources\n')
+        type_material_incongruence = 0
+        for gid in genomes_to_retain:
+            stats = genome_stats[gid]
+            if stats.gtdb_type_material in self.true_str:
+                gtdb_species = gtdb_taxonomy[gid][6]
+                ncbi_species = ncbi_taxonomy[gid][6]
+                
+                if len(ncbi_species.split(' ')) > 2: # ***HACK to avoid corrupt NCBI species names
+                    continue
+                if (canonical_species_name(ncbi_species) != canonical_species_name(gtdb_species)
+                        and canonical_species_name(gtdb_species)[3:] not in stats.ncbi_organism_name):
+                    #self.logger.error("GTDB and NCBI disagree on species of type material: %s, %s, %s, %s" % (gid, 
+                    #                                                                                            gtdb_species, 
+                    #                                                                                            ncbi_species, 
+                    #                                                                                            stats.ncbi_organism_name))
+                    
+                    type_material_incongruence += 1
+                    fout.write('%s\t%s\t%s\t%s\t%s\t%s\n' % (gid, 
+                                                                gtdb_species, 
+                                                                ncbi_species, 
+                                                                stats.ncbi_organism_name, 
+                                                                stats.ncbi_organism_name,
+                                                                stats.gtdb_type_material_sources))
+        fout.close()
+        
+        if type_material_incongruence > 0:
+            self.logger.warning('Identified %d type material genomes with different GTDB and NCBI species designations.' % type_material_incongruence)
+            self.logger.info('Type material with incongruent species assignments written to %s' % type_material_outfile)
+            
         # write results
         if not exceptions_file:
             exceptions_file = ''
@@ -506,40 +564,34 @@ class Representatives(object):
         fout.write('# Min. representative completeness: %s\n' % str(min_rep_comp))
         fout.write('# Max. representative contamination: %s\n' % str(max_rep_cont))
         fout.write('#\n')
-        fout.write('# Genome Id\tGTDB Taxonomy\tNCBI Taxonomy\tNCBI Organism Name\tNCBI Type strain\tComplete\tRepresentative\n')
-        for genome_id in genomes_to_retain:
-            representative = 'yes' if genome_id in representative_genomes else 'no'
-            complete = 'yes' if genome_id in complete_genomes else 'no'
-            ts = 'yes' if genome_id in ncbi_type_strains else 'no'
-            gtdb_taxa_str = ';'.join(gtdb_taxonomy.get(genome_id, Taxonomy.rank_prefixes))
-            ncbi_taxa_str = ';'.join(ncbi_taxonomy.get(genome_id, Taxonomy.rank_prefixes))
+        fout.write('# Genome Id\tGTDB Taxonomy\tNCBI Taxonomy\tNCBI Organism Name\tType strain\tType sources\tComplete\tNCBI reference genome\tNCBI representative genome\n')
+        for gid in genomes_to_retain:
+            reference = 'yes' if gid in ncbi_reference_genomes else 'no'
+            representative = 'yes' if gid in ncbi_representative_genomes else 'no'
+            complete = 'yes' if gid in complete_genomes else 'no'
+            ts = 'yes' if genome_stats[gid].gtdb_type_material in self.true_str else 'no'
 
-            fout.write('%s\t%s\t%s\t%s\t%s\t%s\t%s\n' % (genome_id,
+            gtdb_taxa_str = ';'.join(gtdb_taxonomy.get(gid, Taxonomy.rank_prefixes))
+            ncbi_taxa_str = ';'.join(ncbi_taxonomy.get(gid, Taxonomy.rank_prefixes))
+
+            fout.write('%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' % (gid,
                                                             gtdb_taxa_str,
                                                             ncbi_taxa_str,
-                                                            genome_stats[genome_id].ncbi_organism_name,
+                                                            genome_stats[gid].ncbi_organism_name,
                                                             ts,
+                                                            genome_stats[gid].gtdb_type_material_sources,
                                                             complete,
+                                                            reference,
                                                             representative))
         fout.close()
 
-    def _order_genomes(self, 
-                        genomes_to_consider, 
-                        genome_quality, 
-                        trusted_user_genomes, 
-                        prev_gtdb_reps):
+    def _order_genomes(self, genome_quality):
         """Order genomes by source and genome quality.
 
         Parameters
         ----------
-        genomes_to_consider : iterable
-          Genomes to order.
         genome_quality : d[genome_id] -> genome quality
-          Estimate quality (completeness - 5*contamination) of each genome.
-        trusted_user_genomes : set
-          Trusted User genomes to treat as if they were in GenBank.
-        prev_gtdb_reps : set
-          Previous GTDB representative.
+          Estimate quality of each genome.
 
         Returns
         -------
@@ -548,13 +600,6 @@ class Representatives(object):
         """
         
         # sort genomes by source repository followed by genome quality
-        # giving a slight boost to genomes that were previously a representative
-        
-        self.logger.info('Boosting quality of previous representatives by %.1f%%.' % self.prev_rep_quality_boost)
-        for genome_id, quality in  genome_quality.iteritems():
-            if genome_id in prev_gtdb_reps:
-                genome_quality[genome_id] = quality + self.prev_rep_quality_boost
-
         sorted_refseq_rep_genomes = []
         sorted_genbank_rep_genomes = []
         sorted_trusted_user_rep_genomes = []
@@ -562,19 +607,12 @@ class Representatives(object):
                                     key=operator.itemgetter(1), 
                                     reverse=True)
         for genome_id, _quality in sorted_by_quality:
-            if genome_id not in genomes_to_consider:
-                continue
-
             if genome_id.startswith('RS_'):
                 sorted_refseq_rep_genomes.append(genome_id)
             elif genome_id.startswith('GB_'):
                 sorted_genbank_rep_genomes.append(genome_id)
-            elif genome_id in trusted_user_genomes:
-                sorted_trusted_user_rep_genomes.append(genome_id)
             elif genome_id.startswith('U_'):
-                # User genomes should not be selected as representatives
-                # since these are not publicly available
-                pass
+                sorted_trusted_user_rep_genomes.append(genome_id)
             else:
                 self.logger.error('Unrecognized genome prefix: %s' % genome_id)
                 sys.exit(-1)
@@ -598,13 +636,69 @@ class Representatives(object):
             dists[query_genome][ref_genome] = float(line_split[2])
 
         return dists
+        
+    def _calculate_ani(self, gene_file1, gene_file2):
+        """Calculate ANI between genomes."""
+        
+        outdir = tempfile.mkdtemp()
+        outfile = os.path.join(outdir, 'ani_calculator')
+        cmd = 'ani_calculator -genome1fna %s -genome2fna %s -outfile %s -outdir %s > /dev/null 2>&1' % (gene_file1, 
+                                                                                                        gene_file2, 
+                                                                                                        outfile, 
+                                                                                                        outdir)
+        os.system(cmd)
+        
+        with open(outfile) as f:
+            f.readline()
+            results = f.readline().strip().split('\t')
+            ani = 0.5*(float(results[2]) + float(results[3]))
+            af = 0.5*(float(results[4]) + float(results[5]))
+        shutil.rmtree(outdir)
+        
+        return ani, af
+        
+    def _cluster_species(self, gene_file_rep, gene_file_query, rep_gtdb_sp, query_gtdb_sp, query_ncbi_sp):
+        """Determine if genomes should be clustered based on their ANI and species assignments."""
+
+        if query_gtdb_sp != 's__' and rep_gtdb_sp != query_gtdb_sp:
+            # genomes belong to different GTDB species so
+            # should not be clustered together
+            return False
+            
+        ani, af = self._calculate_ani(gene_file_rep, gene_file_query)
+        
+        if af < self._af_threshold:
+            # insufficient alignment fraction for genomes to
+            # be considered from the same species
+            return False
+
+        if ani >= self.strict_ani_threshold and query_gtdb_sp == 's__' and query_ncbi_sp == 's__':
+                # genome meets the strict threshold for
+                # clustering and has no assigned species
+                return True
+                
+        if rep_gtdb_sp == 's__' or rep_gtdb_sp != query_gtdb_sp:
+            return False
+                
+        if ani >= self.gtdb_species_ani_threshold:
+                # genomes are from same named GTDB species and 
+                # meet the threshold for clustering
+                return True
+        elif (ani >= self.ncbi_species_ani_threshold 
+                and canonical_species_name(rep_gtdb_sp) == query_ncbi_sp):
+                # NCBI species of query genome is the same as the GTDB representative
+                # and they meet the threshold for clustering
+                return True
+                
+        return False
 
     def _greedy_representatives(self,
                                 representatives,
                                 ordered_genomes,
                                 gtdb_taxonomy,
                                 ncbi_taxonomy,
-                                mash_pairwise_file):
+                                mash_pairwise_file,
+                                gene_files):
         """Identify additional representative genomes in a greedy fashion.
 
         Parameters
@@ -627,7 +721,7 @@ class Representatives(object):
         mash_dists = self._read_mash_dists(mash_pairwise_file)
     
         # perform greedy clustering
-        self.logger.info('Preforming greedy clustering.')
+        self.logger.info('Performing greedy clustering.')
         total_genomes = len(ordered_genomes)
         processed_genomes = 0
         while len(ordered_genomes):
@@ -636,42 +730,61 @@ class Representatives(object):
                 sys.stdout.write('==> Processed %d of %d genomes.\r' % (processed_genomes, total_genomes))
                 sys.stdout.flush()
 
-            genome_id = ordered_genomes.pop(0)
-            query_dists = mash_dists[genome_id]
+            gid = ordered_genomes.pop(0)
+            query_dists = mash_dists[gid]
             
-            query_gtdb_sp = gtdb_taxonomy[genome_id][6]
-            query_ncbi_sp = ncbi_taxonomy[genome_id][6]
+            query_gtdb_sp = gtdb_taxonomy[gid][6]
+            query_ncbi_sp = ncbi_taxonomy[gid][6]
             
-            assigned_rep = False
-            for ref_id in representatives:
-                ref_gtdb_sp = gtdb_taxonomy[ref_id][6]
+            query_rep_dists = []
+            for rep_id in representatives:
+                mash_dist = query_dists.get(rep_id, 1.0)
+                if mash_dist <= self.mash_dist_threshold:
+                    # estimated ANI value is sufficently small that it should be verified
+                    query_rep_dists.append([rep_id, mash_dist])
 
-                d = query_dists.get(ref_id, 1.0)
-                if d <= self.mash_strict_threshold and query_gtdb_sp == 's__':
+            assigned_rep = False
+            for rep_id, mash_dist in sorted(query_rep_dists, key = lambda x: x[1]):
+                rep_gtdb_sp = gtdb_taxonomy[rep_id][6]
+                if query_gtdb_sp != 's__' and rep_gtdb_sp != query_gtdb_sp:
+                    continue
+  
+                if mash_dist < 0.035 and query_gtdb_sp == 's__':
                         # genome meets the strict threshold for
                         # clustering and has no assigned species
                         assigned_rep = True
                         break
                         
-                if ref_gtdb_sp == 's__' or ref_gtdb_sp != query_gtdb_sp:
+                if rep_gtdb_sp == 's__' or rep_gtdb_sp != query_gtdb_sp:
                     continue
                         
-                if d <= self.mash_gtdb_species_threshold:
+                if mash_dist < 0.05:
                         # genomes are from same named GTDB species and 
                         # meet the threshold for clustering
                         assigned_rep = True
                         break
-                elif (d <= self.mash_ncbi_species_threshold 
-                        and self._canonical_species_name(ref_gtdb_sp) == query_ncbi_sp):
+                elif (mash_dist < 0.1
+                        and canonical_species_name(rep_gtdb_sp) == canonical_species_name(query_ncbi_sp)):
                         # NCBI species of query genome is the same as the GTDB representative
                         # and they meet the threshold for clustering
+                        assigned_rep = True
+                        break
+                
+                if False:
+                    rep_gtdb_sp = gtdb_taxonomy[rep_id][6]
+                    cluster = self._cluster_species(gene_files[rep_id], 
+                                                    gene_files[gid], 
+                                                    rep_gtdb_sp, 
+                                                    query_gtdb_sp, 
+                                                    query_ncbi_sp)
+                    if cluster:
                         assigned_rep = True
                         break
 
             if not assigned_rep:
                 # genome was not assigned to an existing representative,
                 # so make it a new representative genome
-                representatives.add(genome_id)
+                representatives.add(gid)
 
         sys.stdout.write('==> Processed %d of %d genomes.\r' % (processed_genomes, total_genomes))
         sys.stdout.flush()
@@ -684,6 +797,7 @@ class Representatives(object):
                         metadata_file,
                         prev_rep_file,
                         mash_pairwise_file,
+                        genome_dir_file,
                         trusted_user_file,
                         min_rep_comp,
                         max_rep_cont,
@@ -701,8 +815,8 @@ class Representatives(object):
         were previously selected as a representative in order to try and
         retain more stability between releases. Genomes only added as a new 
         representative if they cannot be clustered with an existing representative. 
-        Clustering is based on a conservative Mash distance threshold that
-        reflects the 95% ANI species criteria.
+        Clustering is based on conservative Mash distance threshold followed by
+        ANI values calculated with ANI Calculator (Varghese et al, 2015).
 
         Parameters
         ----------
@@ -734,6 +848,18 @@ class Representatives(object):
             Output file containing all genomes identified as representatives.
         """
         
+        # get path to all nucleotide gene files of all genomes
+        gene_files = {}
+        for line in open(genome_dir_file):
+            line_split = line.strip().split('\t')
+            
+            gtdb_genome_id = line_split[0]
+            genome_id = gtdb_genome_id.replace('GB_', '').replace('RS_', '')
+            genome_path = line_split[1]
+            gene_files[gtdb_genome_id] = os.path.join(genome_path, 'prodigal', genome_id + '_protein.fna')
+            
+        self.logger.info('Read genome path for %d genomes.' % len(gene_files))
+        
         # read previous representatives and trusted user genomes
         prev_gtdb_reps = self._read_genome_list(prev_rep_file)
         trusted_user_genomes = self._read_genome_list(trusted_user_file)
@@ -758,12 +884,11 @@ class Representatives(object):
         # remove existing representative genomes and genomes
         # of insufficient quality to be a representative
         genome_quality = {}
-        potential_reps = set()
-        for genome_id, stats in genome_stats.iteritems():
-            if genome_id in init_rep_genomes:
+        for gid, stats in genome_stats.iteritems():
+            if gid in init_rep_genomes:
                 continue
                 
-            if genome_id.startswith('U_') and genome_id not in trusted_user_genomes:
+            if gid.startswith('U_') and gid not in trusted_user_genomes:
                 continue
                 
             if (stats.checkm_completeness >= min_rep_comp 
@@ -773,16 +898,12 @@ class Representatives(object):
                 and stats.n50_scaffolds >= min_N50
                 and stats.ambiguous_bases <= max_ambiguous
                 and stats.total_gap_length <= max_gap_length):
-                    potential_reps.add(genome_id)
-                    genome_quality[genome_id] = stats.checkm_completeness - 5*stats.checkm_contamination
+                    genome_quality[gid] = self._genome_quality(stats, gid in prev_gtdb_reps)
 
         # perform greedy identification of new representatives
-        ordered_genomes = self._order_genomes(potential_reps, 
-                                                genome_quality, 
-                                                trusted_user_genomes, 
-                                                prev_gtdb_reps)
-        info = (('Comparing %d genomes to %d initial representatives.') % (len(ordered_genomes),
-                                                                            len(init_rep_genomes)))
+        ordered_genomes = self._order_genomes(genome_quality)
+        info = 'Comparing %d genomes to %d initial representatives.' % (len(ordered_genomes),
+                                                                            len(init_rep_genomes))
         self.logger.info(info)
         gtdb_taxonomy = read_gtdb_taxonomy(metadata_file)
         ncbi_taxonomy = read_gtdb_ncbi_taxonomy(metadata_file)
@@ -790,17 +911,17 @@ class Representatives(object):
                                                         ordered_genomes,
                                                         gtdb_taxonomy,
                                                         ncbi_taxonomy,
-                                                        mash_pairwise_file)
+                                                        mash_pairwise_file,
+                                                        gene_files)
 
         self.logger.info('Identified %d representatives.' % len(representatives))
 
         # read metadata for genomes
         (refseq_genomes, 
             complete_genomes, 
-            representative_genomes) = ncbi.read_refseq_metadata(metadata_file)
-        ncbi_type_strains = read_gtdb_ncbi_type_strain(metadata_file)
-        
-            
+            ncbi_reference_genomes,
+            ncbi_representative_genomes) = ncbi.read_refseq_metadata(metadata_file)
+
         # write out information for representative genomes
         fout = open(output_file, 'w')
 
@@ -811,26 +932,29 @@ class Representatives(object):
         fout.write('# Genome quality metadata file: %s\n' % str(metadata_file))
         fout.write('# Min. representative completeness: %.2f\n' % min_rep_comp)
         fout.write('# Max. representative contamination: %.2f\n' % max_rep_cont)
-        fout.write('# Mash strict threshold: %.3f\n' % self.mash_strict_threshold)
-        fout.write('# Mash GTDB species threshold: %.3f\n' % self.mash_gtdb_species_threshold)
-        fout.write('# Mash NCBI species threshold: %.3f\n' % self.mash_ncbi_species_threshold)
+        fout.write('# Strict ANI threshold: %.3f\n' % self.strict_ani_threshold)
+        fout.write('# GTDB species ANI threshold: %.3f\n' % self.gtdb_species_ani_threshold)
+        fout.write('# NCBI species ANI threshold: %.3f\n' % self.ncbi_species_ani_threshold)
         fout.write('#\n')
 
-        fout.write('# Genome Id\tGTDB Taxonomy\tNCBI Taxonomy\tNCBI Organism Name\tNCBI Type strain\tComplete\tRepresentative\n')
-        for genome_id in representatives:
-            representative = 'yes' if genome_id in representative_genomes else 'no'
-            complete = 'yes' if genome_id in complete_genomes else 'no'
-            ts = 'yes' if genome_id in ncbi_type_strains else 'no'
-            gtdb_taxa_str = ';'.join(gtdb_taxonomy.get(genome_id, Taxonomy.rank_prefixes))
-            ncbi_taxa_str = ';'.join(ncbi_taxonomy.get(genome_id, Taxonomy.rank_prefixes))
+        fout.write('# Genome Id\tGTDB Taxonomy\tNCBI Taxonomy\tNCBI Organism Name\tType strain\tType sources\tComplete\tNCBI reference genome\tNCBI representative genome\n')
+        for gid in representatives:
+            reference = 'yes' if gid in ncbi_reference_genomes else 'no'
+            representative = 'yes' if gid in ncbi_representative_genomes else 'no'
+            complete = 'yes' if gid in complete_genomes else 'no'
+            ts = 'yes' if genome_stats[gid].gtdb_type_material in self.true_str else 'no'
+            gtdb_taxa_str = ';'.join(gtdb_taxonomy.get(gid, Taxonomy.rank_prefixes))
+            ncbi_taxa_str = ';'.join(ncbi_taxonomy.get(gid, Taxonomy.rank_prefixes))
 
-            fout.write('%s\t%s\t%s\t%s\t%s\t%s\t%s\n' % (genome_id,
-                                                            gtdb_taxa_str,
-                                                            ncbi_taxa_str,
-                                                            genome_stats[genome_id].ncbi_organism_name,
-                                                            ts,
-                                                            complete,
-                                                            representative))
+            fout.write('%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' % (gid,
+                                                                gtdb_taxa_str,
+                                                                ncbi_taxa_str,
+                                                                genome_stats[gid].ncbi_organism_name,
+                                                                ts,
+                                                                genome_stats[gid].gtdb_type_material_sources,
+                                                                complete,
+                                                                reference,
+                                                                representative))
 
         fout.close()
         
@@ -838,6 +962,7 @@ class Representatives(object):
                 rep_genome_file,
                 metadata_file,
                 mash_pairwise_file,
+                genome_dir_file,
                 output_file):
         """Cluster genomes based on Mash distances.
         
@@ -860,6 +985,18 @@ class Representatives(object):
           Output file indicating genome clusters.
         """
         
+        # get path to all nucleotide gene files of all genomes
+        gene_files = {}
+        for line in open(genome_dir_file):
+            line_split = line.strip().split('\t')
+            
+            gtdb_genome_id = line_split[0]
+            genome_id = gtdb_genome_id.replace('GB_', '').replace('RS_', '')
+            genome_path = line_split[1]
+            gene_files[gtdb_genome_id] = os.path.join(genome_path, 'prodigal', genome_id + '_protein.fna')
+            
+        self.logger.info('Read genome path for %d genomes.' % len(gene_files))
+        
         # read previous representatives and trusted user genomes
         representatives = self._read_genome_list(rep_genome_file)
         self.logger.info('Identified %d representative genomes.' % len(representatives))
@@ -880,49 +1017,59 @@ class Representatives(object):
             clusters[rep_id] = []
         
         remaining_genomes = set(genome_stats) - representatives
-        for i, genome_id in enumerate(remaining_genomes):
+        for i, gid in enumerate(remaining_genomes):
             if i % 100 == 0:
                 sys.stdout.write('==> Processed %d of %d genomes.\r' % (i+1, len(remaining_genomes)))
                 sys.stdout.flush()
                 
-            query_dists = mash_dists[genome_id]
+            query_dists = mash_dists[gid]
             
-            query_gtdb_sp = gtdb_taxonomy[genome_id][6]
-            query_ncbi_sp = ncbi_taxonomy[genome_id][6]
+            query_gtdb_sp = gtdb_taxonomy[gid][6]
+            query_ncbi_sp = ncbi_taxonomy[gid][6]
             
-            assigned_rep = None
-            min_d = 1.0
-            for ref_id in representatives:
-                d = query_dists.get(ref_id, 1.0)
-                if d >= min_d:
+            assigned_rep = False
+            for rep_id, mash_dist in sorted(query_dists.items(), key=operator.itemgetter(1)):
+                if mash_dist > self.mash_dist_threshold:
+                    # estimated ANI value is sufficently large
+                    # that it is almost certainly not of interest
+                    break
+                    
+                rep_gtdb_sp = gtdb_taxonomy[rep_id][6]
+                if query_gtdb_sp != 's__' and rep_gtdb_sp != query_gtdb_sp:
                     continue
-                
-                ref_gtdb_sp = gtdb_taxonomy[ref_id][6]
-                
-                if d <= self.mash_strict_threshold and query_gtdb_sp == 's__':
+  
+                if mash_dist < 0.035 and query_gtdb_sp == 's__':
                         # genome meets the strict threshold for
                         # clustering and has no assigned species
-                        assigned_rep = ref_id
-                        min_d = d
-                        continue
+                        assigned_rep = True
+                        break
                         
-                if ref_gtdb_sp == 's__' or ref_gtdb_sp != query_gtdb_sp:
+                if rep_gtdb_sp == 's__' or rep_gtdb_sp != query_gtdb_sp:
                     continue
                         
-                if d <= self.mash_gtdb_species_threshold:
+                if mash_dist < 0.05:
                         # genomes are from same named GTDB species and 
                         # meet the threshold for clustering
-                        assigned_rep = ref_id
-                        min_d = d
-                elif (d <= self.mash_ncbi_species_threshold 
-                        and self._canonical_species_name(ref_gtdb_sp) == query_ncbi_sp):
+                        assigned_rep = True
+                        break
+                elif (mash_dist < 0.1
+                        and canonical_species_name(rep_gtdb_sp) == canonical_species_name(query_ncbi_sp)):
                         # NCBI species of query genome is the same as the GTDB representative
                         # and they meet the threshold for clustering
-                        assigned_rep = ref_id
-                        min_d = d
-            
+                        assigned_rep = True
+                        break
+                
+                if False:
+                    cluster = self._cluster_species(gene_files[rep_id], 
+                                                    gene_files[gid], 
+                                                    rep_gtdb_sp, 
+                                                    query_gtdb_sp, 
+                                                    query_ncbi_sp)
+                    if cluster:
+                        assigned_rep = rep_id
+           
             if assigned_rep:
-                clusters[assigned_rep].append(genome_id)
+                clusters[assigned_rep].append(gid)
                 
         sys.stdout.write('==> Processed %d of %d genomes.\r' % (len(remaining_genomes), 
                                                                 len(remaining_genomes)))

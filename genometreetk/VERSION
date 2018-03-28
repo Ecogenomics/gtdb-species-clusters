@@ -1,1 +1,10 @@
+0.0.40
+- fixed issue with rerooting trees with bootstraps between [0, 1]
+
+0.0.39
+- added GTR model when inferring SSU or LSU trees
+
+0.0.38
+- new method for selecting GTDB representatives
+
 0.0.37

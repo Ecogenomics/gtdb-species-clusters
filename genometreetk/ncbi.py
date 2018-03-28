@@ -48,11 +48,14 @@ def read_refseq_metadata(metadata_file):
     set
         Set of complete genomes based on NCBI assembly level.
     set
-        Set of reference or representative genomes based on NCBI RefSeq category.
+        Set of reference genomes based on NCBI RefSeq category.
+    set
+        Set of representative genomes based on NCBI RefSeq category.
     """
 
     refseq_genomes = set()
     complete_genomes = set()
+    reference_genomes = set()
     representative_genomes = set()
 
     csv_reader = csv.reader(open(metadata_file, 'rt'))
@@ -73,8 +76,10 @@ def read_refseq_metadata(metadata_file):
                     complete_genomes.add(genome_id)
 
                 refseq_category = row[refseq_category_index].lower()
-                if 'reference' in refseq_category or 'representative' in refseq_category:
+                if 'reference' in refseq_category:
+                    reference_genomes.add(genome_id)
+                elif 'representative' in refseq_category:
                     representative_genomes.add(genome_id)
 
-    return refseq_genomes, complete_genomes, representative_genomes
+    return refseq_genomes, complete_genomes, reference_genomes, representative_genomes
 
