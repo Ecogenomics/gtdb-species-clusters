@@ -1027,8 +1027,15 @@ class Representatives(object):
             query_gtdb_sp = gtdb_taxonomy[gid][6]
             query_ncbi_sp = ncbi_taxonomy[gid][6]
             
-            assigned_rep = False
-            for rep_id, mash_dist in sorted(query_dists.items(), key=operator.itemgetter(1)):
+            query_rep_dists = []
+            for rep_id in representatives:
+                mash_dist = query_dists.get(rep_id, 1.0)
+                if mash_dist <= self.mash_dist_threshold:
+                    # estimated ANI value is sufficently small that it should be verified
+                    query_rep_dists.append([rep_id, mash_dist])
+
+            assigned_rep = None
+            for rep_id, mash_dist in sorted(query_rep_dists, key = lambda x: x[1]):
                 if mash_dist > self.mash_dist_threshold:
                     # estimated ANI value is sufficently large
                     # that it is almost certainly not of interest
@@ -1041,7 +1048,7 @@ class Representatives(object):
                 if mash_dist < 0.035 and query_gtdb_sp == 's__':
                         # genome meets the strict threshold for
                         # clustering and has no assigned species
-                        assigned_rep = True
+                        assigned_rep = rep_id
                         break
                         
                 if rep_gtdb_sp == 's__' or rep_gtdb_sp != query_gtdb_sp:
@@ -1050,13 +1057,13 @@ class Representatives(object):
                 if mash_dist < 0.05:
                         # genomes are from same named GTDB species and 
                         # meet the threshold for clustering
-                        assigned_rep = True
+                        assigned_rep = rep_id
                         break
                 elif (mash_dist < 0.1
                         and canonical_species_name(rep_gtdb_sp) == canonical_species_name(query_ncbi_sp)):
                         # NCBI species of query genome is the same as the GTDB representative
                         # and they meet the threshold for clustering
-                        assigned_rep = True
+                        assigned_rep = rep_id
                         break
                 
                 if False:
