@@ -1,3 +1,6 @@
+0.0.41
+- fixed bug with parsing contig length from SSU file
+
 0.0.40
 - fixed issue with rerooting trees with bootstraps between [0, 1]
 

@@ -95,8 +95,8 @@ class RNA_Workflow(object):
             if len(seq) < min_rna_length:
                 filtered_rna_len += 1
                 continue
-               
-            scaffold_len = int(annotation.split(' ')[2].strip())
+
+            scaffold_len = int(annotation.split(' ')[-1].strip())
             if scaffold_len < min_scaffold_length:
                 filtered_scaffold_len += 1
                 continue
