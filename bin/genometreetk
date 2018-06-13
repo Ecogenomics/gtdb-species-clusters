@@ -83,6 +83,9 @@ def print_help():
       cluster     -> Cluster remaining genomes based on Mash distances
       rep_compare -> Compare current and previous representatives
       
+    Assign genomes to canonical genome set:
+      assign -> Assign genomes to canonical genomes comprising GTDB reference tree
+      
     Others:
       arb_records -> Create an ARB records file from GTDB metadata
 
@@ -387,6 +390,19 @@ if __name__ == '__main__':
     cluster_parser.add_argument('genome_dir_file', help="file indicating path to GTDB genome files")
     cluster_parser.add_argument('cluster_file', help='output file indicating genome clusters')
     cluster_parser.add_argument('--silent', help="suppress output", action='store_true')
+    
+    # cluster remaining genomes
+    assign_parser = subparsers.add_parser('assign',
+                                        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+                                        description='Assign genomes to canonical genomes comprising GTDB reference tree.')
+    assign_parser.add_argument('canonical_taxonomy_file', help="file indicating taxonomy of only canonical genomes")
+    assign_parser.add_argument('full_taxonomy_file', help="file indicating taxonomy of all genomes to at least the rank of genus")
+    assign_parser.add_argument('metadata_file', help="metadata file for all genomes in the GTDB (TSV file)")
+    assign_parser.add_argument('genome_path_file', help="file indicating path to genome files")
+    assign_parser.add_argument('output_dir', help="output directory")
+    assign_parser.add_argument('--user_genomes', help="assign user genomes", action='store_true')
+    assign_parser.add_argument('-c', '--cpus', help='number of cpus', type=int, default=1)
+    assign_parser.add_argument('--silent', help="suppress output", action='store_true')
     
     # compare current and previous representatives
     rep_compare_parser = subparsers.add_parser('rep_compare',

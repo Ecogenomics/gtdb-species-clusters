@@ -1,3 +1,6 @@
+0.0.42
+- initial implementation of code to assign genomes to canonical genome set 
+
 0.0.41
 - fixed bug with parsing contig length from SSU file
 

@@ -43,6 +43,7 @@ from genometreetk.common import read_gtdb_metadata
 from genometreetk.phylogenetic_diversity import PhylogeneticDiversity
 from genometreetk.arb import Arb
 from genometreetk.derep_tree import DereplicateTree
+from genometreetk.assign_genomes import AssignGenomes
 
 
 csv.field_size_limit(sys.maxsize)
@@ -398,6 +399,28 @@ class OptionsParser():
                         options.cluster_file)
 
             self.logger.info('Clustering information written to: %s' % options.cluster_file)
+
+        except GenomeTreeTkError as e:
+            print e.message
+            raise SystemExit
+            
+    def assign(self, options):
+        """Assign genomes to canonical genomes comprising GTDB reference tree."""
+
+        check_file_exists(options.canonical_taxonomy_file)
+        check_file_exists(options.full_taxonomy_file)
+        check_file_exists(options.metadata_file)
+        check_file_exists(options.genome_path_file)
+        
+        make_sure_path_exists(options.output_dir)
+
+        try:
+            assign = AssignGenomes(options.cpus, options.output_dir)
+            assign.run(options.canonical_taxonomy_file,
+                        options.full_taxonomy_file,
+                        options.metadata_file,
+                        options.genome_path_file,
+                        options.user_genomes)
 
         except GenomeTreeTkError as e:
             print e.message
@@ -789,6 +812,8 @@ class OptionsParser():
             self.representatives(options)
         elif options.subparser_name == 'cluster':
             self.cluster(options)
+        elif options.subparser_name == 'assign':
+            self.assign(options)
         elif options.subparser_name == 'rep_compare':
             self.rep_compare(options)
         elif options.subparser_name == 'propagate':
