@@ -96,46 +96,7 @@ class AssignGenomes(object):
             genome_id = '_'.join(genome_id.split('_')[0:2])
             
         return genome_id
-        
-    def _fastani(self, gids, rep_ids, genomic_files):
-        """Calculate ANI between genomes and representatives genomes using FastANI."""
-        
-        # create file pointing to representative genome files
-        tmp_rep_file = os.path.join(tempfile.gettempdir(), str(uuid.uuid4()))
-        fout = open(tmp_rep_file, 'w')
-        for gid in rep_ids:
-            fout.write('%s\n' % genomic_files[gid])
-        fout.close()
-        
-        # ANI must be calculated between each genome and each representative
-        tmp_fastani_file = os.path.join(tempfile.gettempdir(), str(uuid.uuid4()))
-        ani_af = {}
-        for query_gid in gids:
-            cmd = 'fastANI -q %s --rl %s -o %s 2> /dev/null' % (
-                        genomic_files[query_gid], 
-                        tmp_rep_file, 
-                        tmp_fastani_file)
-            os.system(cmd)
 
-            if os.path.exists(tmp_fastani_file) and os.stat(tmp_fastani_file).st_size > 0:
-                for line in open(tmp_fastani_file):
-                    line_split = line.strip().split()
-
-                    query_genome = self._get_genome_id(line_split[0])
-                    ref_genome = self._get_genome_id(line_split[1])
-                    if query_genome not in ani_af:
-                        ani_af[query_genome] = {}
-                        
-                    ani = float(line_split[2])
-                    af = float(line_split[3])/int(line_split[4])
-                    ani_af[query_genome][ref_genome] = (ani, af)
-            
-                os.remove(tmp_fastani_file)
-            
-        os.remove(tmp_rep_file)
-        
-        return ani_af
-        
     def _mash_ani(self, gids, rep_ids, genomic_files):
         """Calculate ANI between genomes and representatives using Mash."""
         
@@ -234,14 +195,16 @@ class AssignGenomes(object):
                 self.logger.error('Representative %d also found in genome set: %s' % gid)
                 sys.exit(-1)
                 
-            if not gid in ani_af:
-                continue
-                
             # find highest Mash ANI value
             max_ani = 0
             max_rep_id = None
             for rep_id in rep_ids:
-                ani, af = ani_af[gid].get(rep_id, [0, 0])
+                try:
+                    ani, af = ani_af[gid][rep_id]
+                except:
+                    self.logger.info('No ANI value calculated between %s and representative %s.' % (gid, rep_id))
+                    sys.exit(-1)
+                
                 if ani >= self.ani_threshold and af >= self.af_threshold and ani > max_ani:
                     max_ani = ani
                     max_af = af
@@ -297,7 +260,8 @@ class AssignGenomes(object):
             if gid == None:
                 break
 
-            ani_af = self._fastani([gid], rep_ids, genomic_files)
+            ani_af = self._fastani(gid, rep_ids, genomic_files)
+
             queue_out.put(ani_af)
 
     def __fastani_writer(self, all_ani_af, queue_writer):
@@ -307,9 +271,54 @@ class AssignGenomes(object):
             ani_af = queue_writer.get(block=True, timeout=None)
             if ani_af == None:
                 break
-   
+
             for gid in ani_af:
+                if gid in all_ani_af:
+                    self.logger.error('Genome accession already processed: %s' % gid)
+                    sys.exit(-1)
+                
                 all_ani_af[gid] = ani_af[gid]
+                
+    def _fastani(self, query_gid, rep_ids, genomic_files):
+        """Calculate ANI between genomes and representatives genomes using FastANI."""
+        
+        # create file pointing to representative genome files
+        tmp_rep_file = os.path.join(tempfile.gettempdir(), str(uuid.uuid4()))
+        fout = open(tmp_rep_file, 'w')
+        for gid in rep_ids:
+            fout.write('%s\n' % genomic_files[gid])
+        fout.close()
+        
+        # ANI must be calculated between each genome and each representative
+        tmp_fastani_file = os.path.join(tempfile.gettempdir(), str(uuid.uuid4()))
+        cmd = 'fastANI --minFrag 0 -q %s --rl %s -o %s 2> /dev/null' % (
+                    genomic_files[query_gid], 
+                    tmp_rep_file, 
+                    tmp_fastani_file)
+        os.system(cmd)
+
+        ani_af = {}
+        if os.path.exists(tmp_fastani_file) and os.stat(tmp_fastani_file).st_size > 0:
+            for line in open(tmp_fastani_file):
+                line_split = line.strip().split()
+
+                query_genome = self._get_genome_id(line_split[0])
+                ref_genome = self._get_genome_id(line_split[1])
+                if query_genome not in ani_af:
+                    ani_af[query_genome] = {}
+                    
+                ani = float(line_split[2])
+                af = float(line_split[3])/int(line_split[4])
+                ani_af[query_genome][ref_genome] = (ani, af)
+        
+            os.remove(tmp_fastani_file)
+        else:
+            self.logger.error('FastANI results file not created: %s' % query_gid)
+            sys.exit(-1)
+            
+        os.remove(tmp_rep_file)
+        
+        return ani_af
 
     def _genome_genus_clusters(self, genomes_to_process, full_gtdb_taxonomy):
         """Create clusters of genomes in the same genus."""
@@ -319,7 +328,7 @@ class AssignGenomes(object):
             taxa = full_gtdb_taxonomy[gid]
             
             # *** [DEBUG] Useful case for debugging.
-            #if taxa[5] != 'g__Methanobrevibacter': #'g__Lactobacillus':
+            #if taxa[5] != 'g__Pyrobaculum': #'g__Lactobacillus':
             #    continue
 
             if taxa[5] == 'g__':
