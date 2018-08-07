@@ -29,7 +29,7 @@ import genometreetk.ncbi as ncbi
 from genometreetk.common import (read_gtdb_metadata,
                                     read_genome_dir_file,
                                     read_gtdb_taxonomy)
-
+                                    
 
 class RNA_Workflow(object):
     """Infer RNA gene trees."""
@@ -45,6 +45,152 @@ class RNA_Workflow(object):
 
         self.logger = logging.getLogger()
         self.cpus = cpus
+        
+    def _dump_seqs(self, 
+                    genomic_file, 
+                    gtdb_taxonomy,
+                    genomes_of_interest,
+                    prefix,
+                    min_ar_gene_len,
+                    min_bac_gene_len,
+                    min_contig_len,
+                    output_prefix,
+                    output_dir):
+            
+        fout_ar_summary = open(os.path.join(output_dir, output_prefix + '_ar.tsv'), 'w')
+        fout_ar_fna = open(os.path.join(output_dir, output_prefix + '_ar.fna'), 'w')
+        fout_ar_taxonmy = open(os.path.join(output_dir, output_prefix + '_ar_taxonomy.tsv'), 'w')
+        
+        fout_bac_summary = open(os.path.join(output_dir, output_prefix + '_bac.tsv'), 'w')
+        fout_bac_fna = open(os.path.join(output_dir, output_prefix + '_bac.fna'), 'w')
+        fout_bac_taxonmy = open(os.path.join(output_dir, output_prefix + '_bac_taxonomy.tsv'), 'w')
+        
+        write_header = True
+        total_seq = 0
+        for line in open(genomic_file):
+            gid, genome_path = [t.strip() for t in line.split()]
+            if gid.startswith('GCA_'):
+                gid = 'GB_' + gid
+            elif gid.startswith('GCF_'):
+                gid = 'RS_' + gid
+            
+            if genomes_of_interest and gid not in genomes_of_interest:
+                continue
+
+            if 'd__Archaea' in gtdb_taxonomy[gid]:
+                fout_summary = fout_ar_summary
+                fout_fna = fout_ar_fna
+                fout_taxonomy = fout_ar_taxonmy
+                min_gene_len = min_ar_gene_len
+            else:
+                fout_summary = fout_bac_summary
+                fout_fna = fout_bac_fna
+                fout_taxonomy = fout_bac_taxonmy
+                min_gene_len = min_bac_gene_len
+
+            # extract sequences
+            hmm_summary = os.path.join(genome_path, prefix + '.hmm_summary.tsv')
+            if not os.path.exists(hmm_summary):
+                continue
+                
+            seqs = seq_io.read(os.path.join(genome_path, prefix + '.fna'))
+            gene_count = 0
+            with open(hmm_summary) as f:
+                header = f.readline()
+                if write_header:
+                    write_header = False
+                    fout_summary.write('%s\t%s' % ('Gene ID', header))
+                
+                for line in f:
+                    line_split = line.strip().split('\t')
+                    gene_id = line_split[0]
+                    gene_len = int(line_split[5])
+                    contig_len = int(line_split[-1])
+                    
+                    if gene_len >= min_gene_len and contig_len >= min_contig_len:
+                        unique_gene_id = '%s~gene_%s' % (gid, gene_count)
+                        fout_summary.write('%s\t%s' % (unique_gene_id, line))
+                        fout_fna.write('>%s [%s]\n' % (unique_gene_id, gene_id))
+                        fout_fna.write(seqs[gene_id] + '\n')
+                        fout_taxonomy.write('%s\t%s\n' % (unique_gene_id, '; '.join(gtdb_taxonomy[gid])))
+                        
+                        gene_count += 1
+                        total_seq += 1
+                
+        fout_ar_summary.close()
+        fout_ar_fna.close()
+        fout_ar_taxonmy.close()
+        
+        fout_bac_summary.close()
+        fout_bac_fna.close()
+        fout_bac_taxonmy.close()
+
+        self.logger.info('Wrote %d sequences.' % total_seq)
+        
+    def dump(self, 
+                genomic_file,
+                gtdb_taxonomy,
+                min_5S_len,
+                min_16S_ar_len,
+                min_16S_bac_len,
+                min_23S_len,
+                min_contig_len,
+                include_user,
+                genome_list,
+                output_dir):
+        """Dump 5S, 16S, and 23S sequences to files."""
+        
+        if include_user:
+            self.logger.warning('User genomes not currently supported.')
+            sys.exit(-1)
+            
+        gtdb_taxonomy = Taxonomy().read(gtdb_taxonomy)
+            
+        genomes_of_interest = set()
+        if genome_list:
+            for line in open(genome_list):
+                line_split = line.strip().split('\t')
+                gid = line_split[0]
+                if gid.startswith('GCA_'):
+                    gid = 'GB_' + gid
+                elif gid.startswith('GCF_'):
+                    gid = 'RS_' + gid
+                genomes_of_interest.add(gid)
+
+            self.logger.info('Restricting gene dump to %d genomes.' % len(genomes_of_interest))
+            
+        self.logger.info('Dumping 5S sequences.')
+        self._dump_seqs(genomic_file,
+                        gtdb_taxonomy,
+                        genomes_of_interest,
+                        'lsu_5S/lsu_5S', 
+                        min_5S_len, 
+                        min_5S_len,
+                        min_contig_len,
+                        'lsu_5s',
+                        output_dir)
+        
+        self.logger.info('Dumping 16S sequences.')
+        self._dump_seqs(genomic_file,
+                        gtdb_taxonomy,
+                        genomes_of_interest,
+                        'rna_silva/ssu', 
+                        min_16S_ar_len, 
+                        min_16S_bac_len,
+                        min_contig_len,
+                        'ssu',
+                        output_dir)
+        
+        self.logger.info('Dumping 23S sequences.')
+        self._dump_seqs(genomic_file,
+                        gtdb_taxonomy,
+                        genomes_of_interest,
+                        'rna_silva/lsu_23S', 
+                        min_23S_len, 
+                        min_23S_len,
+                        min_contig_len,
+                        'lsu_23s',
+                        output_dir)
 
     def _get_rna_seqs(self,
                         rna_name,

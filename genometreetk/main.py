@@ -203,6 +203,26 @@ class OptionsParser():
 
         self.logger.info('Results written to: %s' % options.output_dir)
         
+    def rna_dump(self, options):
+        """Dump all 5S, 16S, and 23S sequences to files."""
+        
+        check_file_exists(options.genomic_file)
+        make_sure_path_exists(options.output_dir)
+        
+        rna_workflow = RNA_Workflow(1)
+        rna_workflow.dump(options.genomic_file,
+                            options.gtdb_taxonomy,
+                            options.min_5S_len,
+                            options.min_16S_ar_len,
+                            options.min_16S_bac_len,
+                            options.min_23S_len,
+                            options.min_contig_len,
+                            options.include_user,
+                            options.genome_list,
+                            options.output_dir)
+                            
+        self.logger.info('Results written to: %s' % options.output_dir)
+        
     def derep_tree(self, options):
         """Dereplicate tree."""
         
@@ -777,7 +797,11 @@ class OptionsParser():
         check_file_exists(options.metadata_file)
         
         arb = Arb()
-        arb.create_records(options.metadata_file, options.msa_file, options.genome_list, options.output_file)
+        arb.create_records(options.metadata_file, 
+                            options.msa_file, 
+                            options.taxonomy_file, 
+                            options.genome_list, 
+                            options.output_file)
 
     def parse_options(self, options):
         """Parse user options and call the correct pipeline(s)"""
@@ -792,6 +816,8 @@ class OptionsParser():
             self.lsu_tree(options)
         elif options.subparser_name == 'rna_tree':
             self.rna_tree(options)
+        elif options.subparser_name == 'rna_dump':
+            self.rna_dump(options)
         elif options.subparser_name == 'derep_tree':
             self.derep_tree(options)
         elif options.subparser_name == 'bootstrap':
@@ -833,7 +859,7 @@ class OptionsParser():
         elif options.subparser_name == 'arb_records':
             self.arb_records(options)
         else:
-            self.logger.error('  [Error] Unknown GenomeTreeTk command: ' + options.subparser_name + '\n')
+            self.logger.error('Unknown GenomeTreeTk command: ' + options.subparser_name + '\n')
             sys.exit()
 
         return 0

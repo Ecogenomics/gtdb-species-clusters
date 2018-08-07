@@ -54,6 +54,7 @@ def print_help():
       ssu_tree -> Infer a 16S tree spanning GTDB genomes
       lsu_tree -> Infer a 23S tree spanning GTDB genomes
       rna_tree -> Infer a concatenated 16S + 23S tree spanning GTDB genomes
+      rna_dump -> Dump all 5S, 16S, and 23S sequences to files
 
     Assess stability of tree:
       derep_tree -> Dereplicate tree to taxa of interest
@@ -251,6 +252,22 @@ if __name__ == '__main__':
     rna_tree_parser.add_argument('-c', '--cpus', help='number of cpus', type=int, default=1)
     rna_tree_parser.add_argument('--silent', help="suppress output", action='store_true')
     
+    # dump all 5S, 16S, and 23S sequence to files
+    rna_dump_parser = subparsers.add_parser('rna_dump',
+                                        formatter_class=CustomHelpFormatter,
+                                        description='Dump all 5S, 16S, and 23S sequences to files.')
+    rna_dump_parser.add_argument('genomic_file', help='file indicating path to GTDB genomes')
+    rna_dump_parser.add_argument('gtdb_taxonomy', help='file indicating taxonomy of each genome')
+    rna_dump_parser.add_argument('output_dir', help="output directory")
+    rna_dump_parser.add_argument('--min_5S_len', help='minimum length of 5S rRNA gene to include', type=int, default=80)
+    rna_dump_parser.add_argument('--min_16S_ar_len', help='minimum length of archaeal 16S rRNA gene to include', type=int, default=900)
+    rna_dump_parser.add_argument('--min_16S_bac_len', help='minimum length of bacterial 16S rRNA gene to include', type=int, default=1200)
+    rna_dump_parser.add_argument('--min_23S_len', help='minimum length of 23S rRNA gene to include', type=int, default=1900)
+    rna_dump_parser.add_argument('--min_contig_len', help="minimum contig length", type=int, default=0)
+    rna_dump_parser.add_argument('--include_user', help="include user genomes", action='store_true')
+    rna_dump_parser.add_argument('--genome_list', help="restrict selection to genomes in list")
+    rna_dump_parser.add_argument('--silent', help="suppress output", action='store_true')
+
     # assess robustness of genome tree using classic bootstrapping
     derep_tree_parser = subparsers.add_parser('derep_tree',
                                         formatter_class=CustomHelpFormatter,
@@ -483,6 +500,7 @@ if __name__ == '__main__':
     arb_records_parser.add_argument('metadata_file', help="metadata file for all genomes in the GTDB")
     arb_records_parser.add_argument('output_file', help='output file with ARB records')
     arb_records_parser.add_argument('--msa_file', help='aligned sequences to include in ARB records')
+    arb_records_parser.add_argument('--taxonomy_file', help='taxonomy information to include in ARB records')
     arb_records_parser.add_argument('--genome_list', help='create ARB records only for genome IDs in file')
     arb_records_parser.add_argument('--silent', help="suppress output", action='store_true')
 

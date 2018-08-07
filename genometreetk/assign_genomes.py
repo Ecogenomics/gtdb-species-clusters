@@ -202,8 +202,8 @@ class AssignGenomes(object):
                 try:
                     ani, af = ani_af[gid][rep_id]
                 except:
-                    self.logger.info('No ANI value calculated between %s and representative %s.' % (gid, rep_id))
-                    sys.exit(-1)
+                    ani, af = 0, 0
+                    self.logger.warning('No ANI value calculated between %s and representative %s.' % (gid, rep_id))
                 
                 if ani >= self.ani_threshold and af >= self.af_threshold and ani > max_ani:
                     max_ani = ani
@@ -223,8 +223,13 @@ class AssignGenomes(object):
         worker_queue = mp.Queue()
         writer_queue = mp.Queue()
         
-        for gid in gids:
-            worker_queue.put((gid, rep_ids))
+        rep_ids = list(rep_ids)
+        for query_gid in gids:
+            # process representatives in batches of 100 to keep
+            # memory requirements in check
+            for start_pos in range(0, len(rep_ids), 100):
+                end_pos = min(start_pos + 100, len(rep_ids))
+                worker_queue.put((query_gid, rep_ids[start_pos:end_pos]))
 
         for _ in range(self.cpus):
             worker_queue.put((None, None))
@@ -267,17 +272,20 @@ class AssignGenomes(object):
     def __fastani_writer(self, all_ani_af, queue_writer):
         """Store or write results of worker threads in a single thread."""
         
+        full_results = {}
         while True:
             ani_af = queue_writer.get(block=True, timeout=None)
             if ani_af == None:
+                for qid in full_results:
+                    all_ani_af[qid] = full_results[qid]
+                    
                 break
 
-            for gid in ani_af:
-                if gid in all_ani_af:
-                    self.logger.error('Genome accession already processed: %s' % gid)
-                    sys.exit(-1)
-                
-                all_ani_af[gid] = ani_af[gid]
+            for qid in ani_af:
+                if qid not in full_results:
+                    full_results[qid] = ani_af[qid]
+                else:
+                    full_results[qid].update(ani_af[qid])
                 
     def _fastani(self, query_gid, rep_ids, genomic_files):
         """Calculate ANI between genomes and representatives genomes using FastANI."""
@@ -291,7 +299,7 @@ class AssignGenomes(object):
         
         # ANI must be calculated between each genome and each representative
         tmp_fastani_file = os.path.join(tempfile.gettempdir(), str(uuid.uuid4()))
-        cmd = 'fastANI --minFrag 0 -q %s --rl %s -o %s 2> /dev/null' % (
+        cmd = 'fastANI --minFrag -1 -q %s --rl %s -o %s 2> /dev/null' % (
                     genomic_files[query_gid], 
                     tmp_rep_file, 
                     tmp_fastani_file)
@@ -310,12 +318,12 @@ class AssignGenomes(object):
                 ani = float(line_split[2])
                 af = float(line_split[3])/int(line_split[4])
                 ani_af[query_genome][ref_genome] = (ani, af)
-        
-            os.remove(tmp_fastani_file)
         else:
-            self.logger.error('FastANI results file not created: %s' % query_gid)
-            sys.exit(-1)
-            
+            self.logger.warning('FastANI results file not created: %s' % query_gid)
+            os.remove(tmp_rep_file)
+            return ani_af
+        
+        os.remove(tmp_fastani_file)
         os.remove(tmp_rep_file)
         
         return ani_af
