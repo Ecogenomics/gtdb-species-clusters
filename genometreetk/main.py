@@ -19,6 +19,8 @@ import os
 import sys
 import csv
 import logging
+import random
+from collections import defaultdict
 
 import dendropy
 
@@ -26,6 +28,12 @@ from biolib.common import check_file_exists, make_sure_path_exists, is_float
 from biolib.external.execute import check_dependencies
 from biolib.taxonomy import Taxonomy
 from biolib.newick import parse_label
+
+from genometreetk.qc_type_genomes import QcTypeGenomes
+from genometreetk.select_type_genomes import SelectTypeGenomes
+from genometreetk.cluster_named_types import ClusterNamedTypes
+from genometreetk.cluster_de_novo import ClusterDeNovo
+from genometreetk.type_genome_utils import read_clusters, read_quality_metadata, pass_qc
 
 from genometreetk.exceptions import GenomeTreeTkError
 from genometreetk.trusted_genome_workflow import TrustedGenomeWorkflow
@@ -39,7 +47,7 @@ from genometreetk.jackknife_taxa import JackknifeTaxa
 from genometreetk.combine_support import CombineSupport
 from genometreetk.reroot_tree import RerootTree
 from genometreetk.representatives import Representatives
-from genometreetk.common import read_gtdb_metadata
+from genometreetk.common import read_gtdb_metadata, read_gtdb_taxonomy
 from genometreetk.phylogenetic_diversity import PhylogeneticDiversity
 from genometreetk.arb import Arb
 from genometreetk.derep_tree import DereplicateTree
@@ -338,36 +346,203 @@ class OptionsParser():
 
         reroot = RerootTree()
         reroot.root_with_outgroup(options.input_tree, options.output_tree, outgroup)
-
-    def dereplicate(self, options):
-        """Select representative genomes for named species."""
-
-        check_file_exists(options.metadata_file)
-        check_file_exists(options.prev_rep_file)
-        check_file_exists(options.trusted_user_file)
+        
+    def qc_type_genomes(self, options):
+        """Quality check potential type genomes."""
+        
+        check_file_exists(options.gtdb_metadata_file)
+        check_file_exists(options.ncbi_refseq_assembly_file)
+        check_file_exists(options.ncbi_genbank_assembly_file)
+        make_sure_path_exists(options.output_dir)
 
         try:
-            rep = Representatives()
-            rep.dereplicate(options.metadata_file,
-                            options.prev_rep_file,
-                            options.exceptions_file,
-                            options.trusted_user_file,
-                            #options.ncbi_assembly_file,
-                            options.max_species,
-                            options.min_rep_comp,
-                            options.max_rep_cont,
-                            options.min_quality,
-                            options.max_contigs,
-                            options.min_N50,
-                            options.max_ambiguous,
-                            options.max_gap_length,
-                            options.strict_filtering,
-                            options.species_derep_file)
+            p = QcTypeGenomes()
+            p.run(options.gtdb_metadata_file,
+                        options.ncbi_refseq_assembly_file,
+                        options.ncbi_genbank_assembly_file,
+                        options.min_comp,
+                        options.max_cont,
+                        options.min_quality,
+                        options.sh_exception,
+                        options.max_contigs,
+                        options.min_N50,
+                        options.max_ambiguous,
+                        options.output_dir)
         except GenomeTreeTkError as e:
             print e.message
             raise SystemExit
 
-        self.logger.info('RefSeq representative genomes written to: %s' % options.species_derep_file)
+        self.logger.info('Quality checking information written to: %s' % options.output_dir)
+
+    def select_type_genomes(self, options):
+        """Select representative genomes for named species."""
+
+        check_file_exists(options.gtdb_metadata_file)
+        check_file_exists(options.genome_path_file)
+        check_file_exists(options.prev_rep_file)
+        check_file_exists(options.ncbi_refseq_assembly_file)
+        check_file_exists(options.ncbi_genbank_assembly_file)
+        make_sure_path_exists(options.output_dir)
+
+        try:
+            p = SelectTypeGenomes(options.ani_cache_file, options.cpus, options.output_dir)
+            p.run(options.gtdb_metadata_file,
+                        options.ltp_blast_file,
+                        options.genome_path_file,
+                        options.prev_rep_file,
+                        options.exceptions_file,
+                        options.ncbi_refseq_assembly_file,
+                        options.ncbi_genbank_assembly_file,
+                        options.min_comp,
+                        options.max_cont,
+                        options.min_quality,
+                        options.sh_exception,
+                        options.max_contigs,
+                        options.min_N50,
+                        options.max_ambiguous)
+        except GenomeTreeTkError as e:
+            print e.message
+            raise SystemExit
+
+        self.logger.info('GTDB type genomes written to: %s' % options.output_dir)
+
+    def cluster_named_types(self, options):
+        """Cluster genomes to selected GTDB type genomes."""
+
+        check_file_exists(options.gtdb_metadata_file)
+        check_file_exists(options.genome_path_file)
+        check_file_exists(options.named_type_genome_file)
+        check_file_exists(options.type_genome_ani_file)
+        make_sure_path_exists(options.output_dir)
+
+        try:
+            p = ClusterNamedTypes(options.ani_sp,
+                                    options.af_sp,
+                                    options.ani_cache_file, 
+                                    options.cpus,
+                                    options.output_dir)
+            p.run(options.gtdb_metadata_file,
+                        options.genome_path_file,
+                        options.named_type_genome_file,
+                        options.type_genome_ani_file,
+                        options.mash_sketch_file)
+        except GenomeTreeTkError as e:
+            print e.message
+            raise SystemExit
+
+        self.logger.info('Clustering results written to: %s' % options.output_dir)
+        
+    def cluster_de_novo(self, options):
+        """Infer de novo species clusters and type genomes for remaining genomes."""
+
+        check_file_exists(options.gtdb_metadata_file)
+        check_file_exists(options.genome_path_file)
+        check_file_exists(options.type_genome_cluster_file)
+        check_file_exists(options.type_genome_synonym_file)
+        check_file_exists(options.gtdb_user_genomes_file)
+        check_file_exists(options.ncbi_refseq_assembly_file)
+        check_file_exists(options.ncbi_genbank_assembly_file)
+        check_file_exists(options.ani_af_nontype_vs_type)
+        make_sure_path_exists(options.output_dir)
+
+        try:
+            p = ClusterDeNovo(options.ani_sp,
+                                    options.af_sp,
+                                    options.ani_cache_file, 
+                                    options.cpus,
+                                    options.output_dir)
+            p.run(options.gtdb_metadata_file,
+                        options.genome_path_file,
+                        options.type_genome_cluster_file,
+                        options.type_genome_synonym_file,
+                        options.gtdb_user_genomes_file,
+                        options.ncbi_refseq_assembly_file,
+                        options.ncbi_genbank_assembly_file,
+                        options.ani_af_nontype_vs_type,
+                        options.min_comp,
+                        options.max_cont,
+                        options.min_quality,
+                        options.sh_exception,
+                        options.max_contigs,
+                        options.min_N50,
+                        options.max_ambiguous)
+        except GenomeTreeTkError as e:
+            print e.message
+            raise SystemExit
+
+        self.logger.info('Clustering results written to: %s' % options.output_dir)
+        
+    def test_tree_gids(self, options):
+        """Determine genome IDs for test/validation tree."""
+
+        check_file_exists(options.gtdb_metadata_file)
+        check_file_exists(options.gtdb_type_genome_clusters)
+        check_file_exists(options.gtdb_rep_genome_clusters)
+        check_file_exists(options.prev_gtdb_reps)
+
+        try:
+            type_clusters, type_species = read_clusters(options.gtdb_type_genome_clusters)
+            self.logger.info('Read %d type clusters.' % len(type_clusters))
+            rep_clusters, rep_species = read_clusters(options.gtdb_rep_genome_clusters)
+            self.logger.info('Reda %d representative clusters.' % len(rep_clusters))
+            
+            prev_reps = set()
+            for line in open(options.prev_gtdb_reps):
+                prev_reps.add(line.strip().split('\t')[0])
+            self.logger.info('Read %d previous GTDB canonical genomes.' % len(prev_reps))
+            
+            self.logger.info('Reading GTDB taxonomy for genomes.')
+            gtdb_taxonomy = read_gtdb_taxonomy(options.gtdb_metadata_file)
+                
+            fout_bac = open(os.path.join(options.output_dir, 'test_gids_bac.lst'), 'w')
+            fout_ar = open(os.path.join(options.output_dir, 'test_gids_ar.lst'), 'w')
+            fout_bac.write('#Accession\tSpecies\tNote\n')
+            fout_ar.write('#Accession\tSpecies\tNote\n')
+            for clusters, species in [(type_clusters, type_species), (rep_clusters, rep_species)]:
+                quality_metadata = read_quality_metadata(options.gtdb_metadata_file)
+                                                                
+                for rid in clusters:
+                    domain = gtdb_taxonomy[rid][0]
+                    if domain == 'd__Bacteria':
+                        fout = fout_bac
+                    elif domain == 'd__Archaea':
+                        fout = fout_ar
+                    else:
+                        self.logger.error('Genome %s has no GTDB domain assignment.' % rid)
+                        sys.exit(-1)
+                    
+                    sp = species[rid]
+                    fout.write('%s\t%s\t%s\n' % (rid, sp, 'GTDB type or representative genome'))
+                    
+                    cluster_gids = set(clusters[rid])
+                    
+                    failed_tests = defaultdict(int)
+                    failed_qc = set()
+                    for gid in cluster_gids:
+                        if not pass_qc(quality_metadata[gid], 
+                            options.min_comp, options.max_cont, 
+                            options.min_quality, options.sh_exception,
+                            options.max_contigs, options.min_N50, options.max_ambiguous,
+                            failed_tests):
+                            failed_qc.add(gid)
+                            
+                    cluster_qc_gids = cluster_gids - failed_qc
+                    if len(cluster_qc_gids) > 0:
+                        prev_rids = prev_reps.intersection(cluster_qc_gids)
+                        if prev_rids:
+                            prev_rid = random.sample(prev_rids, 1)[0]
+                            fout.write('%s\t%s\t%s\n' % (prev_rid, sp, 'previous GTDB representative'))
+                        else:
+                            gid = random.sample(cluster_qc_gids, 1)[0]
+                            fout.write('%s\t%s\t%s\n' % (prev_rid, sp, 'randomly selected'))
+            fout_bac.close()
+            fout_ar.close()
+            
+        except GenomeTreeTkError as e:
+            print e.message
+            raise SystemExit
+
+        self.logger.info('Results written to: %s' % options.output_dir)
 
     def representatives(self, options):
         """Determine additional representatives genomes."""
@@ -832,8 +1007,16 @@ class OptionsParser():
             self.midpoint(options)
         elif options.subparser_name == 'outgroup':
             self.outgroup(options)
-        elif options.subparser_name == 'dereplicate':
-            self.dereplicate(options)
+        elif options.subparser_name == 'qc_type_genomes':
+            self.qc_type_genomes(options)
+        elif options.subparser_name == 'select_type_genomes':
+            self.select_type_genomes(options)
+        elif options.subparser_name == 'cluster_named_types':
+            self.cluster_named_types(options)
+        elif options.subparser_name == 'cluster_de_novo':
+            self.cluster_de_novo(options)
+        elif options.subparser_name == 'test_tree_gids':
+            self.test_tree_gids(options)
         elif options.subparser_name == 'reps':
             self.representatives(options)
         elif options.subparser_name == 'cluster':

@@ -1,3 +1,9 @@
+0.0.46
+- initial type genome workflow for GTDB r89
+
+0.0.45
+- improved dereplication workflow for GTDB r89
+
 0.0.44
 - add method to dump 5S, 16S, and 23S sequences to file
 

@@ -31,6 +31,63 @@ from genometreetk.aai import aai_thresholds
 csv.field_size_limit(sys.maxsize)
 
 
+def parse_genome_path(genome_path_file):
+    """Determine path to genomic FASTA file for each genome."""
+    # get path to genome FASTA files
+        
+    genome_files = {}
+    for line in open(genome_path_file):
+        gid, genome_path = line.strip().split('\t')
+        accession = os.path.basename(os.path.normpath(genome_path))
+        genome_files[gid] = os.path.join(genome_path, accession + '_genomic.fna')
+        
+    return genome_files
+        
+
+def binomial_species(taxonomy):
+    """Get binomial, including Candidatus, species names in NCBI taxonomy."""
+    
+    binomial_names = defaultdict(set)
+    for gid, taxa in taxonomy.items():
+        species = taxa[6]
+        if species == 's__':
+            continue
+            
+        if any(c.isdigit() for c in species):
+            continue
+        
+        is_candidatus = False
+        if 'Candidatus ' in species:
+            species = species.replace('Candidatus ', '')
+            is_candidatus = True
+            
+        tokens = species[3:].split()
+        if len(tokens) != 2:
+            continue
+            
+        genus, specific = tokens
+
+        if is_candidatus:
+            species = species.replace('s__', 's__Candidatus ')
+            
+        if genus.istitle() and all(c.islower() for c in specific):
+            binomial_names[species].add(gid)
+        
+    return binomial_names
+
+    
+def genome_species_assignments(ncbi_taxonomy):
+    """Get species assignment for each genome."""
+    
+    ncbi_species = binomial_species(ncbi_taxonomy)
+    gid_to_species = {}
+    for sp in ncbi_species:
+        for gid in ncbi_species[sp]:
+            gid_to_species[gid] = sp
+            
+    return gid_to_species
+        
+    
 def canonical_species_name(species_name):
     """Get canonical species name from GTDB or NCBI species name."""
     
@@ -349,31 +406,32 @@ def read_gtdb_metadata(metadata_file, fields):
     gtdb_metadata = namedtuple('gtdb_metadata', ' '.join(fields))
     m = {}
 
-    csv_reader = csv.reader(open(metadata_file, 'rb'))
-    bHeader = True
-    for row in csv_reader:
-        if bHeader:
-            headers = row
+    with open(metadata_file) as f:
+        headers = f.readline().strip().split('\t')
 
-            genome_index = headers.index('accession')
+        genome_index = headers.index('accession')
 
-            indices = []
-            for field in fields:
-                indices.append(headers.index(field))
+        indices = []
+        for field in fields:
+            indices.append(headers.index(field))
 
-            bHeader = False
-        else:
-            genome_id = row[genome_index]
+        for line in f:
+            line_split = line.strip().split('\t')
+            genome_id = line_split[genome_index]
 
             values = []
             for i in indices:
                 # save values as floats or strings
-                v = row[i]
+                v = line_split[i]
                 try:
                     values.append(float(v))
                 except ValueError:
                     if v is None or v == '' or v == 'none':
                         values.append(None)
+                    elif v == 'f' or v.lower() == 'false':
+                        values.append(False)
+                    elif v == 't' or v.lower() == 'true':
+                        values.append(True)
                     else:
                         values.append(v)
             m[genome_id] = gtdb_metadata._make(values)
@@ -396,17 +454,15 @@ def read_gtdb_phylum(metadata_file):
 
     genome_phyla = {}
 
-    csv_reader = csv.reader(open(metadata_file, 'rt'))
-    bHeader = True
-    for row in csv_reader:
-        if bHeader:
-            headers = row
-            genome_index = headers.index('accession')
-            phylum_index = headers.index('gtdb_phylum')
-            bHeader = False
-        else:
-            genome_id = row[genome_index]
-            genome_phyla[genome_id] = row[phylum_index]
+    with open(metadata_file) as f:
+        headers = f.readline().strip().split('\t')
+        genome_index = headers.index('accession')
+        phylum_index = headers.index('gtdb_phylum')
+
+        for line in f:
+            line_split = line.strip().split('\t')
+            genome_id = line_split[genome_index]
+            genome_phyla[genome_id] = line_split[phylum_index]
 
     return genome_phyla
 
@@ -426,19 +482,16 @@ def read_gtdb_taxonomy(metadata_file):
 
     taxonomy = {}
 
-    csv_reader = csv.reader(open(metadata_file, 'rt'))
-    bHeader = True
-    for row in csv_reader:
-        if bHeader:
-            headers = row
-            genome_index = headers.index('accession')
-            taxonomy_index = headers.index('gtdb_taxonomy')
-            bHeader = False
-        else:
-            genome_id = row[genome_index]
-            taxa_str = row[taxonomy_index].strip()
+    with open(metadata_file) as f:
+        headers = f.readline().strip().split('\t')
+        genome_index = headers.index('accession')
+        taxonomy_index = headers.index('gtdb_taxonomy')
+        for line in f:
+            line_split = line.strip().split('\t')
+            genome_id = line_split[genome_index]
+            taxa_str = line_split[taxonomy_index].strip()
 
-            if taxa_str:
+            if taxa_str and taxa_str != 'none':
                 taxonomy[genome_id] = map(str.strip, taxa_str.split(';'))
             else:
                 taxonomy[genome_id] = list(Taxonomy.rank_prefixes)
@@ -460,17 +513,15 @@ def read_gtdb_representative(metadata_file):
 
     gtdb_reps = {}
 
-    csv_reader = csv.reader(open(metadata_file, 'rt'))
-    bHeader = True
-    for row in csv_reader:
-        if bHeader:
-            headers = row
-            genome_index = headers.index('accession')
-            gtdb_representative_index = headers.index('gtdb_representative')
-            bHeader = False
-        else:
-            genome_id = row[genome_index]
-            is_rep = (row[gtdb_representative_index] == 't')
+    with open(metadata_file) as f:
+        headers = f.readline().strip().split('\t')
+        genome_index = headers.index('accession')
+        gtdb_representative_index = headers.index('gtdb_representative')
+
+        for line in f:
+            line_split = line.strip().split('\t')
+            genome_id = line_split[genome_index]
+            is_rep = (line_split[gtdb_representative_index] == 't')
             gtdb_reps[genome_id] = is_rep
 
     return gtdb_reps
@@ -491,20 +542,18 @@ def read_gtdb_ncbi_taxonomy(metadata_file):
 
     taxonomy = {}
 
-    csv_reader = csv.reader(open(metadata_file, 'rt'))
-    bHeader = True
-    for row in csv_reader:
-        if bHeader:
-            headers = row
-            genome_index = headers.index('accession')
-            taxonomy_index = headers.index('ncbi_taxonomy')
-            bHeader = False
-        else:
-            genome_id = row[genome_index]
-            taxa_str = row[taxonomy_index].strip()
+    with open(metadata_file) as f:
+        headers = f.readline().strip().split('\t')
+        genome_index = headers.index('accession')
+        taxonomy_index = headers.index('ncbi_taxonomy')
+        
+        for line in f:
+            line_split = line.strip().split('\t')
+            genome_id = line_split[genome_index]
+            taxa_str = line_split[taxonomy_index].strip()
 
-            if taxa_str:
-                taxonomy[genome_id] = taxa_str.split(';')
+            if taxa_str and taxa_str != 'none':
+                taxonomy[genome_id] = map(str.strip, taxa_str.split(';'))
             else:
                 taxonomy[genome_id] = list(Taxonomy.rank_prefixes)
 
@@ -527,17 +576,15 @@ def read_gtdb_ncbi_organism_name(metadata_file):
 
     d = {}
 
-    csv_reader = csv.reader(open(metadata_file, 'rt'))
-    bHeader = True
-    for row in csv_reader:
-        if bHeader:
-            headers = row
-            genome_index = headers.index('accession')
-            organism_name_index = headers.index('ncbi_organism_name')
-            bHeader = False
-        else:
-            genome_id = row[genome_index]
-            organism_name = row[organism_name_index].strip()
+    with open(metadata_file) as f:
+        headers = f.readline().strip().split('\t')
+        genome_index = headers.index('accession')
+        organism_name_index = headers.index('ncbi_organism_name')
+
+        for line in f:
+            line_split = line.strip().split('\t')
+            genome_id = line_split[genome_index]
+            organism_name = line_split[organism_name_index].strip()
 
             if organism_name:
                 d[genome_id] = organism_name
@@ -561,17 +608,15 @@ def read_gtdb_ncbi_type_strain(metadata_file):
 
     type_strains = set()
 
-    csv_reader = csv.reader(open(metadata_file, 'rt'))
-    bHeader = True
-    for row in csv_reader:
-        if bHeader:
-            headers = row
-            genome_index = headers.index('accession')
-            type_strain_index = headers.index('ncbi_type_strain')
-            bHeader = False
-        else:
-            genome_id = row[genome_index]
-            if bool(row[type_strain_index]):
+    with open(metadata_file) as f:
+        headers = f.readline().strip().split('\t')
+        genome_index = headers.index('accession')
+        type_strain_index = headers.index('ncbi_type_strain')
+
+        for line in f:
+            line_split = line.strip().split('\t')
+            genome_id = line_split[genome_index]
+            if bool(line_split[type_strain_index]):
                 type_strains.add(genome_id)
 
     return type_strains
