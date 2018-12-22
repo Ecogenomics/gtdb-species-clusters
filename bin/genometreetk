@@ -83,11 +83,8 @@ def print_help():
       select_type_genomes -> Select type genomes for named species
       cluster_named_types -> Cluster genomes to selected GTDB type genomes
       cluster_de_novo     -> Infer de novo species clusters and type genomes for remaining genomes
-      test_tree_gids      -> Determine genome IDs for test/validation tree
-      
-      reps        -> Determine additional representatives genomes
-      cluster     -> Cluster remaining genomes based on Mash distances
-      rep_compare -> Compare current and previous representatives
+      tree_gids           -> Determine bacterial and archaeal genomes for canonical and validation trees
+      rep_compare         -> Compare current and previous representatives
       
     Assign genomes to canonical genome set:
       assign -> Assign genomes to canonical genomes comprising GTDB reference tree
@@ -100,17 +97,6 @@ def print_help():
   Feature requests or bug reports can be sent to Donovan Parks (donovan.parks@gmail.com)
     or posted on GitHub (https://github.com/dparks1134/GenomeTreeTk).
     '''
-    
-'''
-  Deprecated functionality for determining phylogenetically informative marker genes.
-  
-    Infer lineage-specific genome trees:
-      trusted     -> Determine trusted genomes to use for marker gene inference
-      dereplicate -> Dereplicate genomes based on taxonomy
-      markers     -> Determine phylogenetically informative marker genes
-      infer       -> Infer genome tree
-'''
-
 
 def logger_setup(output_dir, silent):
     """Set logging for application.
@@ -394,54 +380,23 @@ if __name__ == '__main__':
     cluster_de_novo_parser.add_argument('--silent', help="suppress output", action='store_true')
     
     # infer de novo species clusters and type genomes for remaining genomes
-    test_tree_gids_parser = subparsers.add_parser('test_tree_gids',
+    tree_gids = subparsers.add_parser('tree_gids',
                                         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
-                                        description='Determine genome IDs for test/validation tree.')
-    test_tree_gids_parser.add_argument('gtdb_metadata_file', help="metadata file from GTDB with CheckM estimates for all genomes (TSV file)")
-    test_tree_gids_parser.add_argument('gtdb_type_genome_clusters', help="genome clusters for type species")
-    test_tree_gids_parser.add_argument('gtdb_rep_genome_clusters', help="genome clusters for de novo species clusters")
-    test_tree_gids_parser.add_argument('prev_gtdb_reps', help="previous GTDB representatives to preferentially select")
-    test_tree_gids_parser.add_argument('output_dir', help='output directory')
-    test_tree_gids_parser.add_argument('--min_comp', help='minimum completeness for a genome to be a type genome [0, 100]', type=float, default=50)
-    test_tree_gids_parser.add_argument('--max_cont', help='maximum contamination for a genome to be a type genome [0, 100]', type=float, default=10)
-    test_tree_gids_parser.add_argument('--min_quality', help='minimum genome quality (comp - 5*cont) to be a type genome [0, 100]', type=float, default=50)
-    test_tree_gids_parser.add_argument('--sh_exception', help='minimum strain heterogenity to retain genomes with upto 20%% contamination [0, 100]', type=float, default=101)
-    test_tree_gids_parser.add_argument('--max_contigs', help='maximum number of contigs for a genome to be a type genome', type=int, default=1000)
-    test_tree_gids_parser.add_argument('--min_N50', help='minimum N50 of scaffolds for a genome to be a type genome', type=int, default=5000)
-    test_tree_gids_parser.add_argument('--max_ambiguous', help='maximum number of ambiguous bases within contigs for a genome to be a type genome', type=int, default=100000)
-    test_tree_gids_parser.add_argument('--silent', help="suppress output", action='store_true')
+                                        description='Determine bacterial and archaeal genomes for canonical and validation trees.')
+    tree_gids.add_argument('gtdb_metadata_file', help="metadata file from GTDB with CheckM estimates for all genomes (TSV file)")
+    tree_gids.add_argument('gtdb_type_genome_clusters', help="genome clusters for type species")
+    tree_gids.add_argument('gtdb_rep_genome_clusters', help="genome clusters for de novo species clusters")
+    tree_gids.add_argument('prev_gtdb_reps', help="previous GTDB representatives to preferentially select")
+    tree_gids.add_argument('output_dir', help='output directory')
+    tree_gids.add_argument('--min_comp', help='minimum completeness for a genome to be a type genome [0, 100]', type=float, default=50)
+    tree_gids.add_argument('--max_cont', help='maximum contamination for a genome to be a type genome [0, 100]', type=float, default=10)
+    tree_gids.add_argument('--min_quality', help='minimum genome quality (comp - 5*cont) to be a type genome [0, 100]', type=float, default=50)
+    tree_gids.add_argument('--sh_exception', help='minimum strain heterogenity to retain genomes with upto 20%% contamination [0, 100]', type=float, default=101)
+    tree_gids.add_argument('--max_contigs', help='maximum number of contigs for a genome to be a type genome', type=int, default=1000)
+    tree_gids.add_argument('--min_N50', help='minimum N50 of scaffolds for a genome to be a type genome', type=int, default=5000)
+    tree_gids.add_argument('--max_ambiguous', help='maximum number of ambiguous bases within contigs for a genome to be a type genome', type=int, default=100000)
+    tree_gids.add_argument('--silent', help="suppress output", action='store_true')
 
-    # representative genomes
-    rep_parser = subparsers.add_parser('reps',
-                                        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
-                                        description='Determine additional representatives genomes.')
-    rep_parser.add_argument('species_derep_file', help="file listing dereplicated genomes from named species")
-    rep_parser.add_argument('metadata_file', help="metadata file from GTDB with CheckM estimates for all genomes in RefSeq")
-    rep_parser.add_argument('prev_rep_file', help="list of previous representative genomes to favour during selection")
-    rep_parser.add_argument('trusted_user_file', help='file specifying trusted User genomes that should be treated as being in GenBank')
-    rep_parser.add_argument('mash_pairwise_file', help="file with pairwise Mash distances between all GTDB genomes")
-    rep_parser.add_argument('genome_dir_file', help="file indicating path to GTDB genome files")
-    rep_parser.add_argument('rep_genome_file', help="output file listing representative genomes")
-    rep_parser.add_argument('--min_rep_comp', help='minimum completeness for a genome to be a representative [0, 100]', type=float, default=90)
-    rep_parser.add_argument('--max_rep_cont', help='maximum contamination for a genome to be a representative [0, 100]', type=float, default=10)
-    rep_parser.add_argument('--min_quality', help='minimum genome quality (comp - 5*cont) to be a representative [0, 100]', type=float, default=50)
-    rep_parser.add_argument('--max_contigs', help='maximum number of contigs for a genome to be a representative', type=int, default=500)
-    rep_parser.add_argument('--min_N50', help='minimum N50 of scaffolds for a genome to be a representative', type=int, default=20000)
-    rep_parser.add_argument('--max_ambiguous', help='maximum number of ambiguous bases within contigs for a genome to be a representative', type=int, default=100000)
-    rep_parser.add_argument('--max_gap_length', help='maximum number of ambiguous bases between contigs for a genome to be a representative', type=int, default=1000000)  
-    rep_parser.add_argument('--silent', help="suppress output", action='store_true')
-
-    # cluster remaining genomes
-    cluster_parser = subparsers.add_parser('cluster',
-                                        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
-                                        description='Cluster remaining genomes based on Mash distances.')
-    cluster_parser.add_argument('rep_genome_file', help="file listing representative genomes")
-    cluster_parser.add_argument('metadata_file', help="metadata file for all genomes in the GTDB")
-    cluster_parser.add_argument('mash_pairwise_file', help="file with pairwise Mash distances between all GTDB genomes")
-    cluster_parser.add_argument('genome_dir_file', help="file indicating path to GTDB genome files")
-    cluster_parser.add_argument('cluster_file', help='output file indicating genome clusters')
-    cluster_parser.add_argument('--silent', help="suppress output", action='store_true')
-    
     # cluster remaining genomes
     assign_parser = subparsers.add_parser('assign',
                                         formatter_class=argparse.ArgumentDefaultsHelpFormatter,

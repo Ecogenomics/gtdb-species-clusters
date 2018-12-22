@@ -36,17 +36,12 @@ from genometreetk.cluster_de_novo import ClusterDeNovo
 from genometreetk.type_genome_utils import read_clusters, read_quality_metadata, pass_qc
 
 from genometreetk.exceptions import GenomeTreeTkError
-from genometreetk.trusted_genome_workflow import TrustedGenomeWorkflow
-from genometreetk.dereplication_workflow import DereplicationWorkflow
-from genometreetk.marker_workflow import MarkerWorkflow
-from genometreetk.infer_workflow import InferWorkflow
 from genometreetk.rna_workflow import RNA_Workflow
 from genometreetk.bootstrap import Bootstrap
 from genometreetk.jackknife_markers import JackknifeMarkers
 from genometreetk.jackknife_taxa import JackknifeTaxa
 from genometreetk.combine_support import CombineSupport
 from genometreetk.reroot_tree import RerootTree
-from genometreetk.representatives import Representatives
 from genometreetk.common import read_gtdb_metadata, read_gtdb_taxonomy
 from genometreetk.phylogenetic_diversity import PhylogeneticDiversity
 from genometreetk.arb import Arb
@@ -72,73 +67,6 @@ class OptionsParser():
             d[key] = value.strip()
 
         return d
-
-    def trusted(self, options):
-        """Determine trusted genomes."""
-
-        check_file_exists(options.metadata_file)
-
-        trusted_genome_workflow = TrustedGenomeWorkflow()
-
-        trusted_genome_workflow.run(options.metadata_file,
-                                        options.trusted_comp,
-                                        options.trusted_cont,
-                                        options.max_contigs,
-                                        options.min_N50,
-                                        options.refseq_rep,
-                                        options.trusted_genomes_file)
-
-        self.logger.info('Trusted genome list written to: %s' % options.trusted_genomes_file)
-
-    def markers(self, options):
-        """Determine marker genes."""
-
-        make_sure_path_exists(options.output_dir)
-
-        config_data = self._read_config_file()
-
-        self.logger.error('NEED TO FIX ISSUE WITH GENOME DIR FILES!')
-        sys.exit(-1)
-
-        marker_workflow = MarkerWorkflow(config_data['genome_dir_file'],
-                                            config_data['pfam_model_file'],
-                                            config_data['tigrfams_model_dir'],
-                                            options.cpus)
-
-        phylo_hmm_out = marker_workflow.run(options.ingroup_file,
-                                                options.ubiquity,
-                                                options.single_copy,
-                                                options.redundancy,
-                                                options.min_support,
-                                                options.min_per_taxa,
-                                                options.perc_markers,
-                                                options.restict_marker_list,
-                                                options.output_dir)
-
-        self.logger.info('Marker genes written to: %s' % phylo_hmm_out)
-
-    def infer(self, options):
-        """Infer genome tree."""
-
-        check_file_exists(options.genome_id_file)
-        check_file_exists(options.marker_id_file)
-        make_sure_path_exists(options.output_dir)
-
-        self.logger.error('NEED TO FIX ISSUE WITH GENOME DIR FILES!')
-        sys.exit(-1)
-
-        config_data = self._read_config_file()
-        infer_workflow = InferWorkflow(config_data['genome_dir_file'],
-                                            config_data['pfam_model_file'],
-                                            config_data['tigrfams_model_dir'],
-                                            options.cpus)
-
-        infer_workflow.run(options.genome_id_file,
-                                options.marker_id_file,
-                                options.model,
-                                options.output_dir)
-
-        self.logger.info('Results written to: %s' % options.output_dir)
 
     def ssu_tree(self, options):
         """Infer 16S tree spanning GTDB genomes."""
@@ -472,7 +400,7 @@ class OptionsParser():
 
         self.logger.info('Clustering results written to: %s' % options.output_dir)
         
-    def test_tree_gids(self, options):
+    def tree_gids(self, options):
         """Determine genome IDs for test/validation tree."""
 
         check_file_exists(options.gtdb_metadata_file)
@@ -494,25 +422,32 @@ class OptionsParser():
             self.logger.info('Reading GTDB taxonomy for genomes.')
             gtdb_taxonomy = read_gtdb_taxonomy(options.gtdb_metadata_file)
                 
-            fout_bac = open(os.path.join(options.output_dir, 'test_gids_bac.lst'), 'w')
-            fout_ar = open(os.path.join(options.output_dir, 'test_gids_ar.lst'), 'w')
-            fout_bac.write('#Accession\tSpecies\tNote\n')
-            fout_ar.write('#Accession\tSpecies\tNote\n')
+            fout_bac_val = open(os.path.join(options.output_dir, 'gids_bac_validation.lst'), 'w')
+            fout_ar_val = open(os.path.join(options.output_dir, 'gids_ar_validation.lst'), 'w')
+            fout_bac_can = open(os.path.join(options.output_dir, 'gids_bac_canonical.lst'), 'w')
+            fout_ar_can = open(os.path.join(options.output_dir, 'gids_ar_canonical.lst'), 'w')
+            fout_bac_val.write('#Accession\tSpecies\tNote\n')
+            fout_ar_val.write('#Accession\tSpecies\tNote\n')
+            fout_bac_can.write('#Accession\tSpecies\tNote\n')
+            fout_ar_can.write('#Accession\tSpecies\tNote\n')
             for clusters, species in [(type_clusters, type_species), (rep_clusters, rep_species)]:
                 quality_metadata = read_quality_metadata(options.gtdb_metadata_file)
                                                                 
                 for rid in clusters:
                     domain = gtdb_taxonomy[rid][0]
                     if domain == 'd__Bacteria':
-                        fout = fout_bac
+                        fout_val = fout_bac_val
+                        fout_can = fout_bac_can
                     elif domain == 'd__Archaea':
-                        fout = fout_ar
+                        fout_val = fout_ar_val
+                        fout_can = fout_ar_can
                     else:
                         self.logger.error('Genome %s has no GTDB domain assignment.' % rid)
                         sys.exit(-1)
                     
                     sp = species[rid]
-                    fout.write('%s\t%s\t%s\n' % (rid, sp, 'GTDB type or representative genome'))
+                    fout_val.write('%s\t%s\t%s\n' % (rid, sp, 'GTDB type or representative genome'))
+                    fout_can.write('%s\t%s\t%s\n' % (rid, sp, 'GTDB type or representative genome'))
                     
                     cluster_gids = set(clusters[rid])
                     
@@ -531,12 +466,14 @@ class OptionsParser():
                         prev_rids = prev_reps.intersection(cluster_qc_gids)
                         if prev_rids:
                             prev_rid = random.sample(prev_rids, 1)[0]
-                            fout.write('%s\t%s\t%s\n' % (prev_rid, sp, 'previous GTDB representative'))
+                            fout_val.write('%s\t%s\t%s\n' % (prev_rid, sp, 'previous GTDB representative'))
                         else:
                             gid = random.sample(cluster_qc_gids, 1)[0]
-                            fout.write('%s\t%s\t%s\n' % (prev_rid, sp, 'randomly selected'))
-            fout_bac.close()
-            fout_ar.close()
+                            fout_val.write('%s\t%s\t%s\n' % (gid, sp, 'randomly selected'))
+            fout_bac_val.close()
+            fout_ar_val.close()
+            fout_bac_can.close()
+            fout_ar_can.close()
             
         except GenomeTreeTkError as e:
             print e.message
@@ -544,61 +481,6 @@ class OptionsParser():
 
         self.logger.info('Results written to: %s' % options.output_dir)
 
-    def representatives(self, options):
-        """Determine additional representatives genomes."""
-
-        check_file_exists(options.species_derep_file)
-        check_file_exists(options.metadata_file)
-        check_file_exists(options.prev_rep_file)
-        check_file_exists(options.trusted_user_file)
-        check_file_exists(options.mash_pairwise_file)
-        check_file_exists(options.genome_dir_file)
-
-        try:
-            rep = Representatives()
-            rep.representatives(options.species_derep_file,
-                                options.metadata_file,
-                                options.prev_rep_file,
-                                options.mash_pairwise_file,
-                                options.genome_dir_file,
-                                options.trusted_user_file,
-                                options.min_rep_comp,
-                                options.max_rep_cont,
-                                options.min_quality,
-                                options.max_contigs,
-                                options.min_N50,
-                                options.max_ambiguous,
-                                options.max_gap_length,
-                                options.rep_genome_file)
-
-            self.logger.info('Representative genomes written to: %s' % options.rep_genome_file)
-
-        except GenomeTreeTkError as e:
-            print e.message
-            raise SystemExit
-
-    def cluster(self, options):
-        """Cluster remaining genomes based on Mash distances."""
-
-        check_file_exists(options.rep_genome_file)
-        check_file_exists(options.metadata_file)
-        check_file_exists(options.mash_pairwise_file)
-        check_file_exists(options.genome_dir_file)
-
-        try:
-            rep = Representatives()
-            rep.cluster(options.rep_genome_file,
-                        options.metadata_file,
-                        options.mash_pairwise_file,
-                        options.genome_dir_file,
-                        options.cluster_file)
-
-            self.logger.info('Clustering information written to: %s' % options.cluster_file)
-
-        except GenomeTreeTkError as e:
-            print e.message
-            raise SystemExit
-            
     def assign(self, options):
         """Assign genomes to canonical genomes comprising GTDB reference tree."""
 
@@ -1015,12 +897,8 @@ class OptionsParser():
             self.cluster_named_types(options)
         elif options.subparser_name == 'cluster_de_novo':
             self.cluster_de_novo(options)
-        elif options.subparser_name == 'test_tree_gids':
-            self.test_tree_gids(options)
-        elif options.subparser_name == 'reps':
-            self.representatives(options)
-        elif options.subparser_name == 'cluster':
-            self.cluster(options)
+        elif options.subparser_name == 'tree_gids':
+            self.tree_gids(options)
         elif options.subparser_name == 'assign':
             self.assign(options)
         elif options.subparser_name == 'rep_compare':
