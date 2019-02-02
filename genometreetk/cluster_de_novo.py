@@ -39,7 +39,7 @@ from genometreetk.common import (parse_genome_path,
                                     read_gtdb_ncbi_taxonomy)
                                     
 from genometreetk.type_genome_utils import (quality_score,
-                                            pass_qc,
+                                            read_qc_file,
                                             read_quality_metadata,
                                             exclude_from_refseq,
                                             symmetric_ani,
@@ -360,7 +360,12 @@ class ClusterDeNovo(object):
                 
                 acc = rid
                 if rid.startswith('U_'):
-                    acc = gtdb_user_to_genbank[rid]
+                    if rid in gtdb_user_to_genbank:
+                        acc = gtdb_user_to_genbank[rid]
+                    else:
+                        # create accession from GTDB User ID of the form:
+                        # U_<number>u.0 which will give 'sp<number>u'
+                        acc = 'U_' + rid.replace('U_', '') + 'u.0'
 
                 derived_sp = 's__' + '%s sp%s' % (taxon, acc[acc.rfind('_')+1:acc.rfind('.')])
                 if derived_sp in names_in_use:
@@ -454,45 +459,60 @@ class ClusterDeNovo(object):
                     user_to_genbank[gid] = uba_to_genbank[uba_id]
 
         return user_to_genbank
+        
+    def _concat_cluster_files(self, 
+                                type_genome_cluster_file,
+                                rep_genome_cluster_file,
+                                concat_cluster_file):
+        """Concatenate results for two cluster files."""
+        
+        fout = open(concat_cluster_file, 'w')
+        for idx, cluster_file in enumerate([type_genome_cluster_file, rep_genome_cluster_file]):
+            with open(cluster_file) as f:
+                header = f.readline()
+                if idx == 0:
+                    fout.write(header)
+                    
+                for line in f:
+                    fout.write(line)
+        fout.close()
 
-    def run(self, metadata_file,
+    def run(self, qc_file,
+                metadata_file,
+                gtdb_user_genomes_file,
                 genome_path_file,
                 type_genome_cluster_file,
                 type_genome_synonym_file,
-                gtdb_user_genomes_file,
                 ncbi_refseq_assembly_file,
                 ncbi_genbank_assembly_file,
-                ani_af_nontype_vs_type,
-                min_comp,
-                max_cont,
-                min_quality,
-                sh_exception,
-                max_contigs,
-                min_N50,
-                max_ambiguous):
+                ani_af_nontype_vs_type):
         """Infer de novo species clusters and type genomes for remaining genomes."""
+        
+        # identify genomes failing quality criteria
+        self.logger.info('Reading QC file.')
+        passed_qc = read_qc_file(qc_file)
+        self.logger.info('Identified %d genomes passing QC.' % len(passed_qc))
         
         # get NCBI taxonomy strings for each genome
         self.logger.info('Reading NCBI taxonomy from GTDB metadata file.')
         ncbi_taxonomy = read_gtdb_ncbi_taxonomy(metadata_file)
         gtdb_taxonomy = read_gtdb_taxonomy(metadata_file)
+        self.logger.info('Read NCBI taxonomy for %d genomes.' % len(ncbi_taxonomy))
+        self.logger.info('Read GTDB taxonomy for %d genomes.' % len(gtdb_taxonomy))
         
         # parse NCBI assembly files
         self.logger.info('Parsing NCBI assembly files.')
         excluded_from_refseq_note = exclude_from_refseq(ncbi_refseq_assembly_file, ncbi_genbank_assembly_file)
-        
-        # determine User genomes to retain for consideration
-        gtdb_user_to_genbank = self._gtdb_user_genomes(gtdb_user_genomes_file, metadata_file)
-        self.logger.info('Identified %d GTDB User genomes to retain as potential representatives.' % len(gtdb_user_to_genbank))
-        
+
         # get path to genome FASTA files
         self.logger.info('Reading path to genome FASTA files.')
         genome_files = parse_genome_path(genome_path_file)
         self.logger.info('Read path for %d genomes.' % len(genome_files))
-        for gid in set(genome_files) - set(gtdb_user_to_genbank):
-            if gid.startswith('U_'):
+        for gid in set(genome_files):
+            if gid not in passed_qc:
                 genome_files.pop(gid)
         self.logger.info('Considering %d genomes as potential representatives after removing unwanted User genomes.' % len(genome_files))
+        assert(len(genome_files) == len(passed_qc))
         
         # determine type genomes and genomes clustered to type genomes
         type_species, species_type_gid, type_gids, type_clustered_gids = self._parse_type_clusters(type_genome_cluster_file)
@@ -507,43 +527,34 @@ class ClusterDeNovo(object):
         # calculate genome quality score
         self.logger.info('Calculating genome quality score.')
         genome_quality = quality_score(quality_metadata.keys(), quality_metadata)
-        
-        # identify genomes failing quality criteria
-        unclustered_gids = set(genome_files) - type_gids - type_clustered_gids
-        failed_tests = defaultdict(int)
-        failed_qc = set()
-        for gid in unclustered_gids:
-            if not pass_qc(quality_metadata[gid], 
-                            min_comp, max_cont, min_quality,
-                            sh_exception,
-                            max_contigs, min_N50, max_ambiguous,
-                            failed_tests):
-                failed_qc.add(gid)
-        self.logger.info('Identified %d unclustered, non-type genomes that failed quality filtering.' % len(failed_qc))
 
         # determine genomes left to be clustered
-        unclustered_qc_gids = set(genome_files) - type_gids - type_clustered_gids - failed_qc
-        #***unclustered_qc_gids = set(list(unclustered_qc_gids)[0:2000]) #***DEBUG
-        self.logger.info('Identified %d unclustered genomes passing QC.' % len(unclustered_qc_gids))
+        unclustered_gids = passed_qc - type_gids - type_clustered_gids
+        #***unclustered_gids = set(list(unclustered_gids)[0:2000]) #***DEBUG
+        self.logger.info('Identified %d unclustered genomes passing QC.' % len(unclustered_gids))
 
         # establish closest type genome for each unclustered genome
-        self.logger.info('Determining ANI circumscription for %d unclustered genomes.' % len(unclustered_qc_gids))
-        nontype_radius = self._nontype_radius(unclustered_qc_gids, type_gids, ani_af_nontype_vs_type)
+        self.logger.info('Determining ANI circumscription for %d unclustered genomes.' % len(unclustered_gids))
+        nontype_radius = self._nontype_radius(unclustered_gids, type_gids, ani_af_nontype_vs_type)
         
         # calculate Mash ANI estimates between unclustered genomes
         self.logger.info('Calculating Mash ANI estimates between unclustered genomes.')
-        mash_anis = self._mash_ani_unclustered(genome_files, unclustered_qc_gids)
+        mash_anis = self._mash_ani_unclustered(genome_files, unclustered_gids)
 
         # de novo cluster genomes in a greedy fashion based on genome quality
         clusters, ani_af = self._cluster_de_novo(genome_files,
                                                     nontype_radius, 
-                                                    unclustered_qc_gids, 
+                                                    unclustered_gids, 
                                                     mash_anis,
                                                     quality_metadata)
 
         # get list of synonyms in order to restrict usage of species names
         synonyms = self._parse_synonyms(type_genome_synonym_file)
         self.logger.info('Identified %d synonyms.' % len(synonyms))
+        
+        # determine User genomes with NCBI accession number that may form species names
+        gtdb_user_to_genbank = self._gtdb_user_genomes(gtdb_user_genomes_file, metadata_file)
+        self.logger.info('Identified %d GTDB User genomes with NCBI accessions.' % len(gtdb_user_to_genbank))
         
         # assign species names to de novo species clusters
         names_in_use = synonyms.union(type_species)
@@ -576,4 +587,9 @@ class ClusterDeNovo(object):
         write_type_radius(nontype_radius, 
                             all_species, 
                             os.path.join(self.output_dir, 'gtdb_rep_genome_ani_radius.tsv'))
+        
+        # create single file specifying all GTDB clusters
+        self._concat_cluster_files(type_genome_cluster_file,
+                                    os.path.join(self.output_dir, 'gtdb_rep_genome_clusters.tsv'),
+                                    os.path.join(self.output_dir, 'gtdb_clusters_final.tsv'))
         

@@ -38,7 +38,8 @@ from genometreetk.common import (parse_genome_path,
                                     read_gtdb_taxonomy,
                                     read_gtdb_ncbi_taxonomy)
                                     
-from genometreetk.type_genome_utils import (symmetric_ani,
+from genometreetk.type_genome_utils import (read_qc_file,
+                                            symmetric_ani,
                                             write_clusters,
                                             write_type_radius)
                                     
@@ -220,12 +221,18 @@ class ClusterNamedTypes(object):
         
         return clusters
 
-    def run(self, metadata_file,
-                genome_path_file,
-                named_type_genome_file,
-                type_genome_ani_file,
-                mash_sketch_file):
+    def run(self, qc_file,
+                    metadata_file,
+                    genome_path_file,
+                    named_type_genome_file,
+                    type_genome_ani_file,
+                    mash_sketch_file):
         """Cluster genomes to selected GTDB type genomes."""
+        
+        # identify genomes failing quality criteria
+        self.logger.info('Reading QC file.')
+        passed_qc = read_qc_file(qc_file)
+        self.logger.info('Identified %d genomes passing QC.' % len(passed_qc))
 
         # get type genomes
         type_gids = set()
@@ -252,6 +259,11 @@ class ClusterNamedTypes(object):
         self.logger.info('Reading path to genome FASTA files.')
         genome_files = parse_genome_path(genome_path_file)
         self.logger.info('Read path for %d genomes.' % len(genome_files))
+        for gid in set(genome_files):
+            if gid not in passed_qc:
+                genome_files.pop(gid)
+        self.logger.info('Considering %d genomes after removing unwanted User genomes.' % len(genome_files))
+        assert(len(genome_files) == len(passed_qc))
         
         # get GTDB and NCBI taxonomy strings for each genome
         self.logger.info('Reading NCBI taxonomy from GTDB metadata file.')

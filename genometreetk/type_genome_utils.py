@@ -37,6 +37,15 @@ GTDB_TYPE_SUBSPECIES = set(['type strain of subspecies', 'type strain of heterot
 GTDB_NOT_TYPE_MATERIAL = set(['not type material'])
 
 
+def parse_canonical_sp(sp):
+    """Get canonical binomial species name."""
+    
+    sp = sp.replace('Candidatus ', '')
+    sp = ' '.join(sp.split()[0:2]).strip()
+    
+    return sp
+        
+
 def symmetric_ani(ani_af, gid1, gid2):
     """Calculate symmetric ANI statistics between genomes."""
     
@@ -115,12 +124,40 @@ def quality_score(gids, quality_metadata):
         score[gid] = q
         
     return score
+    
+    
+def parse_marker_percentages(gtdb_domain_report):
+    """Parse percentage of marker genes for each genome."""
+    
+    marker_perc = {}
+    with open(gtdb_domain_report) as f:
+        header = f.readline().rstrip().split('\t')
+        
+        domain_index = header.index('Predicted domain')
+        bac_marker_perc_index = header.index('Bacterial Marker Percentage')
+        ar_marker_perc_index = header.index('Archaeal Marker Percentage')
+        
+        for line in f:
+            line_split = line.strip().split('\t')
+            
+            gid = line_split[0]
+            domain = line_split[domain_index]
+            
+            if domain == 'd__Bacteria':
+                marker_perc[gid] = float(line_split[bac_marker_perc_index])
+            else:
+                marker_perc[gid] = float(line_split[ar_marker_perc_index])
+
+    return marker_perc
+    
 
 def pass_qc(qc, 
+            marker_perc,
             min_comp,
             max_cont,
             min_quality,
             sh_exception,
+            min_perc_markers,
             max_contigs,
             min_N50,
             max_ambiguous,
@@ -132,11 +169,11 @@ def pass_qc(qc,
         failed_tests['comp'] += 1
         failed = True
     
-    if qc.checkm_strain_heterogeneity >= 90:
+    if qc.checkm_strain_heterogeneity_100 >= sh_exception:
         if qc.checkm_contamination > 20:
             failed_tests['cont'] += 1
             failed = True
-        q = qc.checkm_completeness - 5*qc.checkm_contamination*(1.0 - qc.checkm_strain_heterogeneity/100)
+        q = qc.checkm_completeness - 5*qc.checkm_contamination*(1.0 - qc.checkm_strain_heterogeneity_100/100.0)
         if q < min_quality:
             failed_tests['qual'] += 1
             failed = True
@@ -148,6 +185,10 @@ def pass_qc(qc,
         if q < min_quality:
             failed_tests['qual'] += 1
             failed = True
+            
+    if marker_perc < min_perc_markers:
+        failed_tests['marker_perc'] += 1
+        failed = True
             
     if qc.contig_count > max_contigs:
         failed_tests['contig_count'] += 1
@@ -224,13 +265,26 @@ def write_clusters(clusters, species, out_file):
     fout.close()
     
     
+def read_qc_file(qc_file):
+    """Read genomes passing QC from file."""
+    
+    passed_qc = set()
+    with open(qc_file) as f:
+        f.readline()
+        
+        for line in f:
+            line_split = line.strip().split('\t')
+            passed_qc.add(line_split[0])
+            
+    return passed_qc
+    
 def read_quality_metadata(metadata_file):
     """Read statistics needed to determine genome quality."""
     
     return read_gtdb_metadata(metadata_file, ['gtdb_taxonomy',
                                                 'checkm_completeness',
                                                 'checkm_contamination',
-                                                'checkm_strain_heterogeneity',
+                                                'checkm_strain_heterogeneity_100',
                                                 'genome_size',
                                                 'contig_count',
                                                 'n50_contigs',
@@ -249,7 +303,7 @@ def read_quality_metadata(metadata_file):
                                                 'ncbi_spanned_gaps',
                                                 'ncbi_genome_category'])
                                                 
-    
+
 def read_clusters(cluster_file):
     """Read cluster file."""
         

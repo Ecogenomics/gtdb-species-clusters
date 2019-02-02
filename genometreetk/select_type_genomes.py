@@ -50,7 +50,8 @@ from genometreetk.type_genome_utils import (NCBI_TYPE_SPECIES,
                                             exclude_from_refseq,
                                             symmetric_ani,
                                             quality_score,
-                                            pass_qc)
+                                            read_qc_file,
+                                            parse_marker_percentages)
                                     
 from genometreetk.ani_cache import ANI_Cache
 from genometreetk.mash import Mash
@@ -178,7 +179,7 @@ class SelectTypeGenomes(object):
 
         quality_metadata = read_gtdb_metadata(metadata_file, ['checkm_completeness',
                                                                 'checkm_contamination',
-                                                                'checkm_strain_heterogeneity',
+                                                                'checkm_strain_heterogeneity_100',
                                                                 'contig_count',
                                                                 'scaffold_count',
                                                                 'n50_contigs',
@@ -289,7 +290,7 @@ class SelectTypeGenomes(object):
 
         return ncbi_frameshift_errors
 
-    def _get_type_designations(self, ncbi_taxonomy, type_metadata, failed_qc):
+    def _get_type_designations(self, ncbi_taxonomy, type_metadata, passed_qc):
         """Get type material designations for each genome."""
 
         gtdb_type_sp = defaultdict(set)      # type strain of species
@@ -299,7 +300,7 @@ class SelectTypeGenomes(object):
         ncbi_type_subsp = defaultdict(set)
         ncbi_reps = defaultdict(set)
         for gid, metadata in type_metadata.items():
-            if gid in failed_qc:
+            if gid not in passed_qc:
                 continue
                 
             ncbi_taxa = ncbi_taxonomy[gid]
@@ -460,12 +461,11 @@ class SelectTypeGenomes(object):
         self.logger.info('Identified %d species with a GTDB designated type strain of species that are not designated as assembled from type material at NCBI.' % not_ncbi_type_sp)
         
     def _select_type_genomes(self,
-                                failed_qc,
+                                passed_qc,
                                 genome_files,
                                 genome_quality,
                                 quality_metadata,
                                 type_metadata,
-                                ncbi_taxonomy, 
                                 gtdb_type_sp, 
                                 gtdb_type_subsp,
                                 ncbi_type_sp,
@@ -473,6 +473,8 @@ class SelectTypeGenomes(object):
                                 ncbi_type_subsp,
                                 ncbi_reps,
                                 ltp_top_blast_hit,
+                                ncbi_taxonomy,
+                                gtdb_taxonomy,
                                 excluded_from_refseq_note):
         """Select type genome for each species."""
 
@@ -486,10 +488,10 @@ class SelectTypeGenomes(object):
         fout.write('NCBI species\tType genome\tStrain IDs\tType status\tType sources\tNCBI assembly types\tNCBI representative\tNCBI assembly level')
         fout.write('\tNCBI genome category\tGenome size (bp)\tQuality score\tCompleteness (%)\tContamination (%)\tNo. scaffolds\tNo. contigs\tN50 contigs\tAmbiguous bases\tSSU count\tSSU length (bp)')
         fout.write('\tLTP species\tBLAST alignment length (bp)\tBLAST percent identity\tBLAST bitscore\tBLAST e-value')
-        fout.write('\tNo. type genomes\tNo. species genomes\tMean ANI\tMean AF\tMin ANI\tMin AF\tNCBI exclude from RefSeq\tNote\n')
+        fout.write('\tNo. type genomes\tNo. species genomes\tMean ANI\tMean AF\tMin ANI\tMin AF\tNCBI exclude from RefSeq\tSelection note\n')
         
         fout_manual = open(os.path.join(self.output_dir, 'gtdb_type_genomes.manual.tsv'), 'w')
-        fout_manual.write('NCBI species\tAccession\tGTDB type genome\tType status\tANI to type genome\tAF to type genome')
+        fout_manual.write('NCBI species\tAccession\tGTDB taxonomy\tNCBI taxonomy\tGTDB type genome\tType status\tANI to type genome\tAF to type genome\tSelection note')
         fout_manual.write('\tNCBI genome category\tGenome size (bp)\tQuality score\tCompleteness (%)\tContamination (%)\tNo. scaffolds\tNo. contigs\tN50 contigs\tAmbiguous bases\tSSU count\tSSU length (bp)')
         fout_manual.write('\tLTP species\tBLAST alignment length (bp)\tBLAST percent identity\tBLAST bitscore\tBLAST e-value')
         fout_manual.write('\tNo. type genomes\tNo. species genomes\tMean ANI\tMean AF\tMin ANI\tMin AF\tNCBI exclude from RefSeq\tType accessions\tSpecies accessions\n')
@@ -511,7 +513,7 @@ class SelectTypeGenomes(object):
         type_genomes = {}
         multi_gids = 0
         for idx, sp in enumerate(ncbi_species):
-            species_gids = ncbi_species[sp] - failed_qc
+            species_gids = ncbi_species[sp].intersection(passed_qc)
             if len(species_gids) == 0:
                 continue
             
@@ -536,6 +538,8 @@ class SelectTypeGenomes(object):
                                                 excluded_from_refseq_note,
                                                 genome_files,
                                                 species_gids,
+                                                ncbi_taxonomy,
+                                                gtdb_taxonomy,
                                                 fout,
                                                 fout_manual)
                                                 
@@ -559,6 +563,8 @@ class SelectTypeGenomes(object):
                                                 excluded_from_refseq_note,
                                                 genome_files,
                                                 species_gids,
+                                                ncbi_taxonomy,
+                                                gtdb_taxonomy,
                                                 fout,
                                                 fout_manual)
                                                 
@@ -582,6 +588,8 @@ class SelectTypeGenomes(object):
                                                 excluded_from_refseq_note,
                                                 genome_files,
                                                 species_gids,
+                                                ncbi_taxonomy,
+                                                gtdb_taxonomy,
                                                 fout,
                                                 fout_manual)
                                                 
@@ -605,6 +613,8 @@ class SelectTypeGenomes(object):
                                                 excluded_from_refseq_note,
                                                 genome_files,
                                                 species_gids,
+                                                ncbi_taxonomy,
+                                                gtdb_taxonomy,
                                                 fout,
                                                 fout_manual)
                 
@@ -629,6 +639,8 @@ class SelectTypeGenomes(object):
                                                 excluded_from_refseq_note,
                                                 genome_files,
                                                 species_gids,
+                                                ncbi_taxonomy,
+                                                gtdb_taxonomy,
                                                 fout,
                                                 fout_manual)
                                                 
@@ -652,6 +664,8 @@ class SelectTypeGenomes(object):
                                                 excluded_from_refseq_note,
                                                 genome_files,
                                                 species_gids,
+                                                ncbi_taxonomy,
+                                                gtdb_taxonomy,
                                                 fout,
                                                 fout_manual)
                 if len(species_gids) > 1:
@@ -705,6 +719,8 @@ class SelectTypeGenomes(object):
                             excluded_from_refseq_note,
                             genome_files,
                             species_gids,
+                            ncbi_taxonomy,
+                            gtdb_taxonomy,
                             fout, 
                             fout_manual):
         """Select type genome."""
@@ -766,7 +782,13 @@ class SelectTypeGenomes(object):
                         note = 'selected highest-quality genome with sufficient ANI neighbours'
                         
                         for cur_gid in [gid] + list(gids.difference([gid])): # write results with selected genome first
-                            fout_manual.write('%s\t%s\t%s\t%s' % (species, cur_gid, cur_gid==gid, type_status))
+                            fout_manual.write('%s\t%s\t%s\t%s\t%s\t%s' % (
+                                                species, 
+                                                cur_gid,
+                                                '; '.join(gtdb_taxonomy[cur_gid]),
+                                                '; '.join(ncbi_taxonomy[cur_gid]),
+                                                cur_gid==gid, 
+                                                type_status))
                             if cur_gid != gid:
                                 if cur_gid in ani_af and gid in ani_af[cur_gid]:
                                     cur_ani, cur_af = ani_af[cur_gid][gid]
@@ -775,7 +797,8 @@ class SelectTypeGenomes(object):
                                 fout_manual.write('\t%.1f\t%.2f' % (cur_ani, cur_af))
                             else:
                                 fout_manual.write('\t%.1f\t%.2f' % (100.0, 1.0))
-                            fout_manual.write('\t%s\t%d\t%.2f\t%.2f\t%.2f\t%d\t%d\t%.1f\t%d\t%d\t%d' % (
+                            fout_manual.write('\t%s\t%s\t%d\t%.2f\t%.2f\t%.2f\t%d\t%d\t%.1f\t%d\t%d\t%d' % (
+                                                    note,
                                                     quality_metadata[cur_gid].ncbi_genome_category,
                                                     quality_metadata[cur_gid].genome_size,
                                                     genome_quality[cur_gid], 
@@ -787,13 +810,13 @@ class SelectTypeGenomes(object):
                                                     quality_metadata[cur_gid].ambiguous_bases,
                                                     quality_metadata[cur_gid].ssu_count,
                                                     quality_metadata[cur_gid].ssu_length if quality_metadata[cur_gid].ssu_length else 0))
-                            if gid in ltp_top_blast_hit:
+                            if cur_gid in ltp_top_blast_hit:
                                 fout_manual.write('\t%s\t%d\t%.2f\t%.2g\t%.2g' % (
-                                                        ltp_top_blast_hit[gid].ltp_species,
-                                                        ltp_top_blast_hit[gid].align_len,
-                                                        ltp_top_blast_hit[gid].perc_identity,
-                                                        ltp_top_blast_hit[gid].bitscore,
-                                                        ltp_top_blast_hit[gid].evalue))
+                                                        ltp_top_blast_hit[cur_gid].ltp_species,
+                                                        ltp_top_blast_hit[cur_gid].align_len,
+                                                        ltp_top_blast_hit[cur_gid].perc_identity,
+                                                        ltp_top_blast_hit[cur_gid].bitscore,
+                                                        ltp_top_blast_hit[cur_gid].evalue))
                             else:
                                 fout_manual.write('\t%s\t%d\t%.2f\t%.2g\t%s' % ('N/A', 0, 0, 0, 'N/A'))
                             fout_manual.write('\t%d\t%d\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' % (
@@ -1183,25 +1206,27 @@ class SelectTypeGenomes(object):
                                         type_metadata[neighbour_gid].ncbi_type_material_designation))
                             fout.write('\t%.2f\t%.2f\n' % (ani, af))
  
-    def run(self, metadata_file,
-                    ltp_blast_file,
-                    genome_path_file,
-                    prev_rep_file,
-                    exceptions_file,
-                    ncbi_refseq_assembly_file,
-                    ncbi_genbank_assembly_file,
-                    min_comp,
-                    max_cont,
-                    min_quality,
-                    sh_exception,
-                    max_contigs,
-                    min_N50,
-                    max_ambiguous):
+    def run(self, qc_file,
+                metadata_file,
+                ltp_blast_file,
+                genome_path_file,
+                prev_rep_file,
+                ncbi_refseq_assembly_file,
+                ncbi_genbank_assembly_file,
+                gtdb_domain_report):
         """Select GTDB type genomes for named species."""
+        
+        # identify genomes failing quality criteria
+        self.logger.info('Reading QC file.')
+        passed_qc = read_qc_file(qc_file)
+        self.logger.info('Identified %d genomes passing QC.' % len(passed_qc))
 
         # get GTDB and NCBI taxonomy strings for each genome
         self.logger.info('Reading NCBI taxonomy from GTDB metadata file.')
         ncbi_taxonomy = read_gtdb_ncbi_taxonomy(metadata_file)
+        gtdb_taxonomy = read_gtdb_taxonomy(metadata_file)
+        self.logger.info('Read NCBI taxonomy for %d genomes.' % len(ncbi_taxonomy))
+        self.logger.info('Read GTDB taxonomy for %d genomes.' % len(gtdb_taxonomy))
 
         # get path to genome FASTA files
         self.logger.info('Reading path to genome FASTA files.')
@@ -1215,28 +1240,9 @@ class SelectTypeGenomes(object):
         # calculate quality score for genomes
         self.logger.info('Calculate quality score for all genomes.')
         genome_quality, quality_metadata = self._genome_quality(metadata_file)
+        marker_perc = parse_marker_percentages(gtdb_domain_report)
+        self.logger.info('Read genome quality for %d genomes.' % len(genome_quality))
         
-        # identify genomes failing quality criteria
-        exclusion_gids = set()
-        for line in open(exceptions_file):
-            gid = line.strip().split('\t')[0]
-            if gid:
-                exclusion_gids.add(line.strip().split('\t')[0])
-        self.logger.info('Identified %d genomes to exclude from quality filtering.' % len(exclusion_gids))
-        
-        failed_tests = defaultdict(int)
-        failed_qc = set()
-        for gid in quality_metadata:
-            if gid in exclusion_gids:
-                continue
-                
-            if not pass_qc(quality_metadata[gid], 
-                            min_comp, max_cont, min_quality, sh_exception,
-                            max_contigs, min_N50,max_ambiguous,
-                            failed_tests):
-                failed_qc.add(gid)
-        self.logger.info('Identified %d genomes that failed quality filtering.' % len(failed_qc))
-            
         # parse LTP blast results to identify potential type genomes based on their 16S rRNA
         fout = open(os.path.join(self.output_dir, 'type_material_stats.tsv'), 'w')
         fout.write('Type\tNo. taxa\tNo. genomes\n')
@@ -1262,7 +1268,7 @@ class SelectTypeGenomes(object):
         self.logger.info('Reading type material designations for genomes from GTDB metadata file.')
         type_metadata = self._type_metadata(metadata_file)
                                                                 
-        d = self._get_type_designations(ncbi_taxonomy, type_metadata, failed_qc)
+        d = self._get_type_designations(ncbi_taxonomy, type_metadata, passed_qc)
         gtdb_type_sp, gtdb_type_subsp, ncbi_type_sp, ncbi_proxy, ncbi_type_subsp, ncbi_reps = d
 
         self.logger.info('Identified %d species spanning %d genomes designated as type strain of species by GTDB.' % (
@@ -1302,12 +1308,11 @@ class SelectTypeGenomes(object):
                                             ncbi_reps)
         
         if True: #***
-            type_genomes = self._select_type_genomes(failed_qc,
+            type_genomes = self._select_type_genomes(passed_qc,
                                                         genome_files,
                                                         genome_quality,
                                                         quality_metadata,
                                                         type_metadata,
-                                                        ncbi_taxonomy, 
                                                         gtdb_type_sp, 
                                                         gtdb_type_subsp,
                                                         ncbi_type_sp,
@@ -1315,6 +1320,8 @@ class SelectTypeGenomes(object):
                                                         ncbi_type_subsp,
                                                         ncbi_reps,
                                                         ltp_top_blast_hit,
+                                                        ncbi_taxonomy,
+                                                        gtdb_taxonomy,
                                                         excluded_from_refseq_note)
                                                         
             pickle.dump(type_genomes, open(os.path.join(self.output_dir, 'type_genomes.pkl'), 'wb'))

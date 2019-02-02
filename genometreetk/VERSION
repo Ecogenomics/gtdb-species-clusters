@@ -1,3 +1,6 @@
+0.0.47
+- initial implementation of filtering of percentage of bac120 or ar122 marker genes
+
 0.0.46
 - initial type genome workflow for GTDB r89
 
