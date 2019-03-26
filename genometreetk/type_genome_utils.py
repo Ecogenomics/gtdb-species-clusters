@@ -37,6 +37,46 @@ GTDB_TYPE_SUBSPECIES = set(['type strain of subspecies', 'type strain of heterot
 GTDB_NOT_TYPE_MATERIAL = set(['not type material'])
 
 
+def ncbi_species(unfiltered_ncbi_taxonomy):
+    """Get species designation for unfiltered NCBI taxonomy string."""
+    
+    ncbi_unfiltered_taxa = [t.strip() for t in unfiltered_ncbi_taxonomy.split(';')]
+    ncbi_species = None
+    ncbi_subspecies = None
+    for taxon in ncbi_unfiltered_taxa:
+        if taxon.startswith('s__'):
+            ncbi_species = taxon[3:]
+        elif taxon.startswith('sb__'):
+            ncbi_subspecies = taxon[4:]
+            
+            # fix odd designation impacting less than a dozen genomes 
+            ncbi_subspecies = ncbi_subspecies.replace(' pv. ', ' subsp. ') 
+
+    if ncbi_subspecies:
+        if 'subsp.' not in ncbi_subspecies:
+            print("NCBI subspecies name without 'subsp.' definition: %s" % ncbi_subspecies)
+            
+        return ncbi_subspecies
+    
+    if ncbi_species:
+        return ncbi_species
+        
+    return None
+    
+def check_ncbi_subsp(unfiltered_ncbi_taxonomy):
+    """Determine if genome is the 'type strain of species' or 'type strain of subspecies'."""
+    
+    sp_name = ncbi_species(unfiltered_ncbi_taxonomy)
+    if 'subsp.' not in sp_name:
+        return False
+    else:
+        tokens = sp_name.split()
+        subsp_index = tokens.index('subsp.')
+        if tokens[subsp_index - 1] == tokens[subsp_index + 1]:
+            return False
+
+    return True
+
 def parse_canonical_sp(sp):
     """Get canonical binomial species name."""
     

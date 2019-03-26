@@ -324,39 +324,59 @@ class ClusterDeNovo(object):
 
         return clusters, ani_af
         
-    def _assign_species_names(self, clusters, names_in_use, ncbi_taxonomy, gtdb_taxonomy, gtdb_user_to_genbank):
+    def _assign_species_names(self, clusters, names_in_use, gtdb_taxonomy, gtdb_user_to_genbank):
         """Assign a species name to each species cluster."""
         
         orig_names_in_use = set(names_in_use)
 
         fout = open(os.path.join(self.output_dir, 'gtdb_assigned_sp.tsv'), 'w')
-        fout.write('Representative genome\tAssigned species\tGTDB taxonomy\tNo. clustered genomes\tClustered GTDB species\tSpecies name in use\tMost common name in use\tClustered genomes\n')
+        fout.write('Representative genome\tAssigned species\tGTDB taxonomy\tNo. clustered genomes\tClustered GTDB genera\tClustered GTDB species\tSpecies name in use\tMost common name in use\tClustered genomes\n')
         cluster_sp_names = {}
         for rid in sorted(clusters, key=lambda x: len(clusters[x]), reverse=True):
             clustered_gids = [c.gid for c in clusters[rid]]
             
+            # find most common genus name in cluster
+            gtdb_genera = [gtdb_taxonomy[gid][5] for gid in clustered_gids] + [gtdb_taxonomy[rid][5]]
+            gtdb_genus_counter = Counter(gtdb_genera)
+            gtdb_common_genus = None 
+            gtdb_common_genus_count = 0
+            for genus, count in gtdb_genus_counter.most_common(): 
+                if genus != 'g__':
+                    gtdb_common_genus = genus
+                    gtdb_common_genus_count = count
+                    break
+                    
+            # in case of ties involving genus of representative genome, 
+            # defer to classification of representative
+            rep_genus = gtdb_taxonomy[rid][5]
+            if gtdb_genus_counter[rep_genus] == gtdb_common_genus_count and rep_genus != 'g__':
+                gtdb_common_genus = rep_genus
+            
             # get most common GTDB species name 
             gtdb_sp = [gtdb_taxonomy[gid][6] for gid in clustered_gids] + [gtdb_taxonomy[rid][6]]
-            gtdb_counter = Counter(gtdb_sp)
-            gtdb_common_count = 0
+            gtdb_sp_counter = Counter(gtdb_sp)
             gtdb_common_sp = None
-            for sp, count in gtdb_counter.most_common(): 
-                if sp != 's__' and not re.match("sp\d+$", sp):
+            gtdb_common_sp_count = 0
+            for sp, count in gtdb_sp_counter.most_common(): 
+                if sp != 's__':
                     gtdb_common_sp = sp
-                    gtdb_common_count = count
+                    gtdb_common_sp_count = count
                     break
                     
             most_common_in_use = gtdb_common_sp in names_in_use
 
-            min_req_genomes = 0.5*(sum(gtdb_counter.values()) - gtdb_counter.get('s__', 0))
-            if gtdb_common_count and gtdb_common_count >= min_req_genomes and gtdb_common_sp not in names_in_use:
+            min_req_genomes = 0.5*(sum(gtdb_sp_counter.values()) - gtdb_sp_counter.get('s__', 0))
+            if gtdb_common_sp_count >= min_req_genomes and not most_common_in_use:
+                # assign common species if it occurs in >=50% of the clustered genomes,
+                # excluding genomes with no species assignment
                 names_in_use.add(gtdb_common_sp)
                 cluster_sp_names[rid] = gtdb_common_sp
             else:
-                # derive species name from genus, if possible, and accession number
-                taxon = '{manual_curation}'
-                if gtdb_taxonomy[rid][5] != 'g__':
-                    taxon = gtdb_taxonomy[rid][5][3:]
+                # derive new species name from genus, if possible, 
+                # and accession number of representative genome
+                genus = '{unresolved}'
+                if gtdb_common_genus and gtdb_common_genus != 'g__':
+                    genus = gtdb_common_genus[3:]
                 
                 acc = rid
                 if rid.startswith('U_'):
@@ -367,21 +387,23 @@ class ClusterDeNovo(object):
                         # U_<number>u.0 which will give 'sp<number>u'
                         acc = 'U_' + rid.replace('U_', '') + 'u.0'
 
-                derived_sp = 's__' + '%s sp%s' % (taxon, acc[acc.rfind('_')+1:acc.rfind('.')])
+                derived_sp = 's__' + '%s sp%s' % (genus, acc[acc.rfind('_')+1:acc.rfind('.')])
                 if derived_sp in names_in_use:
                     self.logger.error('Derived species name already in use: %s, %s' % (derived_sp, acc))
+                    sys.exit(-1)
 
                 names_in_use.add(derived_sp)
                 cluster_sp_names[rid] = derived_sp
                 
-            fout.write('%s\t%s\t%s\t%d\t%s\t%s\t%s\t%s\n' % (
+            fout.write('%s\t%s\t%s\t%d\t%s\t%s\t%s\t%s\t%s\n' % (
                         acc, 
                         cluster_sp_names[rid],
                         '; '.join(gtdb_taxonomy[rid]),
                         len(clustered_gids),
-                        ', '.join("%s=%r" % (sp, count) for (sp, count) in gtdb_counter.most_common()),
-                        ', '.join("%s=%s" % (sp, sp in names_in_use) for sp, _count in gtdb_counter.most_common()),
-                        '%s=%d' % (gtdb_common_sp, gtdb_common_count) if most_common_in_use else 'n/a',
+                        ', '.join("%s=%r" % (genus, count) for (genus, count) in gtdb_genus_counter.most_common()),
+                        ', '.join("%s=%r" % (sp, count) for (sp, count) in gtdb_sp_counter.most_common()),
+                        ', '.join("%s=%s" % (sp, sp in names_in_use) for sp, _count in gtdb_sp_counter.most_common()),
+                        '%s=%d' % (gtdb_common_sp, gtdb_common_sp_count) if most_common_in_use else 'n/a',
                         ', '.join(clustered_gids)))
                 
         fout.close()
@@ -562,7 +584,6 @@ class ClusterDeNovo(object):
         self.logger.info('Assigning species name to each species cluster.')
         cluster_sp_names = self._assign_species_names(clusters, 
                                                         names_in_use, 
-                                                        ncbi_taxonomy, 
                                                         gtdb_taxonomy,
                                                         gtdb_user_to_genbank)
         

@@ -131,6 +131,8 @@ class TreeGIDs(object):
         self.logger.info('Read NCBI taxonomy for %d genomes.' % len(ncbi_taxonomy))
         self.logger.info('Read GTDB taxonomy for %d genomes.' % len(prev_gtdb_taxonomy))
         
+        print('RS_GCF_900098655.1',prev_gtdb_taxonomy['RS_GCF_900098655.1'])
+        
         # get GTDB metadata
         type_metadata = read_gtdb_metadata(gtdb_metadata_file, ['gtdb_type_designation',
                                                                     'gtdb_type_designation_sources',
@@ -200,6 +202,7 @@ class TreeGIDs(object):
             canonical_sp = parse_canonical_sp(sp)
             taxa = prev_gtdb_taxonomy[rid][0:6] + [canonical_sp]
             new_gtdb_str = '; '.join(taxa)
+            taxa = prev_gtdb_taxonomy[rid][0:6] + [canonical_sp]
             fout_can_gtdb.write('%s\t%s\n' % (rid, new_gtdb_str))
             fout_val_gtdb.write('%s\t%s\n' % (rid, new_gtdb_str))
             
@@ -216,7 +219,10 @@ class TreeGIDs(object):
                 # select highest-quality genome
                 q = quality_score(cluster_gids, quality_metadata)
                 gid = max(q.items(), key=operator.itemgetter(1))[0]
-
+                
+                taxa = prev_gtdb_taxonomy[gid][0:6] + [canonical_sp]
+                new_gtdb_str = '; '.join(taxa)
+    
                 fout_val.write('%s\t%s\t%s\n' % (gid, sp, 'selected highest-quality genome (Q=%.2f)' % q[gid]))
                 fout_val_gtdb.write('%s\t%s\n' % (gid, new_gtdb_str))
                     

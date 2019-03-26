@@ -1,3 +1,9 @@
+0.0.48
+- added type species of genus information for resolving priority of species with same publication date
+- changed {manual_curation} to {unresolved}
+- changed determination of genus name for de novo species clusters to consider most common genus name in cluster
+- added checks to ensure genomes marked as assembled from type material or NCBI representative genomes as not actually a subspecies
+
 0.0.47
 - initial implementation of filtering of percentage of bac120 or ar122 marker genes
 

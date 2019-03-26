@@ -46,6 +46,7 @@ from genometreetk.type_genome_utils import (NCBI_TYPE_SPECIES,
                                             GTDB_TYPE_SPECIES,
                                             GTDB_TYPE_SUBSPECIES,
                                             GTDB_NOT_TYPE_MATERIAL,
+                                            check_ncbi_subsp,
                                             gtdb_type_strain_of_species,
                                             exclude_from_refseq,
                                             symmetric_ani,
@@ -81,11 +82,13 @@ class SelectTypeGenomes(object):
     def  _type_metadata(self, metadata_file):
         """Read and parse type material metadata."""
         
-        type_metadata = read_gtdb_metadata(metadata_file, ['ncbi_refseq_category',
+        type_metadata = read_gtdb_metadata(metadata_file, ['ncbi_taxonomy_unfiltered',
+                                                                'ncbi_refseq_category',
                                                                 'ncbi_strain_identifiers',
                                                                 'ncbi_type_material_designation',
                                                                 'gtdb_type_designation',
-                                                                'gtdb_type_designation_sources'])
+                                                                'gtdb_type_designation_sources',
+                                                                'gtdb_type_species_of_genus'])
                                                                 
         for gid in type_metadata:
             strain_ids = set()
@@ -293,12 +296,14 @@ class SelectTypeGenomes(object):
     def _get_type_designations(self, ncbi_taxonomy, type_metadata, passed_qc):
         """Get type material designations for each genome."""
 
-        gtdb_type_sp = defaultdict(set)      # type strain of species
-        gtdb_type_subsp = defaultdict(set)   # type strain of subspecies
+        gtdb_type_genus = defaultdict(set)  # type species of genus
+        gtdb_type_sp = defaultdict(set)     # type strain of species
+        gtdb_type_subsp = defaultdict(set)  # type strain of subspecies
         ncbi_type_sp = defaultdict(set)
         ncbi_proxy = defaultdict(set)
         ncbi_type_subsp = defaultdict(set)
         ncbi_reps = defaultdict(set)
+        
         for gid, metadata in type_metadata.items():
             if gid not in passed_qc:
                 continue
@@ -316,6 +321,9 @@ class SelectTypeGenomes(object):
                 sys.exit(-1)
 
             # determine type status of genome
+            if metadata.gtdb_type_species_of_genus:
+                gtdb_type_genus[ncbi_species].add(gid)
+                
             if metadata.gtdb_type_designation:
                 if metadata.gtdb_type_designation in GTDB_TYPE_SPECIES:
                     gtdb_type_sp[ncbi_species].add(gid)
@@ -331,7 +339,12 @@ class SelectTypeGenomes(object):
                     
             if metadata.ncbi_type_material_designation:
                 if metadata.ncbi_type_material_designation in NCBI_TYPE_SPECIES:
-                    ncbi_type_sp[ncbi_species].add(gid)
+                    if check_ncbi_subsp(metadata.ncbi_taxonomy_unfiltered):
+                        # genome is marked as 'assembled from type material', but
+                        # is a subspecies according to the NCBI taxonomy
+                        ncbi_type_subsp[ncbi_species].add(gid)
+                    else:
+                        ncbi_type_sp[ncbi_species].add(gid)
                 elif metadata.ncbi_type_material_designation in NCBI_PROXYTYPE:
                     ncbi_proxy[ncbi_species].add(gid)
                 elif metadata.ncbi_type_material_designation in NCBI_TYPE_SUBSP:
@@ -345,8 +358,18 @@ class SelectTypeGenomes(object):
             if metadata.ncbi_refseq_category and metadata.ncbi_refseq_category != 'na':
                 ncbi_reps[ncbi_species].add(gid)
                 assert('reference' in metadata.ncbi_refseq_category or 'representative' in metadata.ncbi_refseq_category)
+                
+        # clean up NCBI representative genomes so only the representative of 
+        # a species and not subspecies is retained in multiple representatives exist
+        for sp, gids in ncbi_reps.items():
+            sp_gids = set()
+            for gid in gids:
+                if not check_ncbi_subsp(type_metadata[gid].ncbi_taxonomy_unfiltered):
+                    sp_gids.add(gid)
+                    
+            if len(sp_gids) > 0:
+                ncbi_reps[sp] = sp_gids
             
-
         # sanity check
         if 's__' in gtdb_type_sp:
             self.logger.error('Type strain of species has no NCBI species assignment:')
@@ -355,7 +378,8 @@ class SelectTypeGenomes(object):
             self.logger.error('Type strain of subspecies has no NCBI species assignment:')
             self.logger.error('%s' % ','.join([t[0] for t in gtdb_type_subsp['s__']]))
             
-        return (gtdb_type_sp, 
+        return (gtdb_type_genus,
+                gtdb_type_sp, 
                 gtdb_type_subsp, 
                 ncbi_type_sp,
                 ncbi_proxy,
@@ -914,7 +938,7 @@ class SelectTypeGenomes(object):
         # calculate ANI between pairs
         gid_pairs = mash_ani_pairs + genus_ani_pairs
         self.logger.info('Calculating ANI between %d genome pairs:' % len(gid_pairs))
-        if True: #***
+        if False: #***
             ani_af = self.ani_cache.fastani_pairs(gid_pairs, genome_files)
             pickle.dump(ani_af, open(os.path.join(self.output_dir, 'type_genomes_ani_af.pkl'), 'wb'))
         else:
@@ -1018,7 +1042,8 @@ class SelectTypeGenomes(object):
         return year_of_priority
         
     def _resolve_close_ani_neighbours(self, 
-                                        ani_neighbours, 
+                                        ani_neighbours,
+                                        gtdb_type_genus,
                                         gtdb_type_sp, 
                                         gtdb_type_subsp,
                                         ncbi_type_sp,
@@ -1035,6 +1060,12 @@ class SelectTypeGenomes(object):
         # get priority dates
         year_of_priority = self._year_of_priority(metadata_file, ncbi_taxonomy)
         
+        # sanity check that unspecified years are set to a large number (i.e. low priority)
+        for sp, year in year_of_priority.items():
+            if year is None: 
+                self.logger.error('Year of priority found to be None: %s' % sp)
+                sys.exit(-1)
+        
         # sanity check ANI neighbours
         for cur_gid in ani_neighbours:
             for neighbour_gid in ani_neighbours[cur_gid]:
@@ -1044,6 +1075,11 @@ class SelectTypeGenomes(object):
         
         # get species for each genome
         gid_to_species = genome_species_assignments(ncbi_taxonomy)
+        
+        # get genomes that are the type species of genus
+        type_species_of_genus = set()
+        for gids in gtdb_type_genus.values():
+            type_species_of_genus.update(gids)
 
         # get type status of each genome
         type_status = defaultdict(lambda: [])
@@ -1069,19 +1105,25 @@ class SelectTypeGenomes(object):
                                                                                 len(type_status['NR']),
                                                                                 len(type_status['TSS']),
                                                                                 len(type_status['DN'])))
-        
+
         # select type genomes to exclude, processing conflicts in 
         # order from least to most official in terms of type status
         fout = open(os.path.join(self.output_dir, 'gtdb_excluded_ani_neighbours.tsv'), 'w')
-        fout.write('Species\tType genome\tType status\tPriority year\tGenome quality\tNo. ANI neighbours\tNeighbour species\tNeighbour priority years\tNeighbour accessions\n')
-        
+        fout.write('Species\tType genome\tType status\tGenome quality\tPriority year\tNo. ANI neighbours\tNeighbour species\tNeighbour priority years\tNeighbour accessions\n')
+
         excluded_gids = set()
         for cur_type_status in ['DN', 'TSS', 'NR', 'NP', 'NT', 'TS']:
             if cur_type_status == 'TS':
-                # greedily exclude genomes by sorting by year of priority
-                # and inversely by genome quality
-                cur_gids = [(gid, year_of_priority[gid_to_species[gid]], genome_quality[gid]) for gid in type_status[cur_type_status]]
-                sorted_gids = sorted(cur_gids, key=lambda x: (x[1], -x[2]), reverse=True)
+                # greedily exclude genomes by sorting by inversely by type species of genus status,
+                # year of priority, and inversely by genome quality
+                cur_gids = []
+                for gid in type_status[cur_type_status]:
+                    type_genus = 1 if gid in type_species_of_genus else 0
+                    cur_gids.append((gid, 
+                                        type_genus,
+                                        year_of_priority[gid_to_species[gid]], 
+                                        genome_quality[gid]))
+                sorted_gids = sorted(cur_gids, key=lambda x: (-x[1], x[2], -x[3]), reverse=True)
             else:
                 # greedily exclude genomes by sorting by number of neighbours
                 # and inversely by genome quality
@@ -1269,8 +1311,11 @@ class SelectTypeGenomes(object):
         type_metadata = self._type_metadata(metadata_file)
                                                                 
         d = self._get_type_designations(ncbi_taxonomy, type_metadata, passed_qc)
-        gtdb_type_sp, gtdb_type_subsp, ncbi_type_sp, ncbi_proxy, ncbi_type_subsp, ncbi_reps = d
+        gtdb_type_genus, gtdb_type_sp, gtdb_type_subsp, ncbi_type_sp, ncbi_proxy, ncbi_type_subsp, ncbi_reps = d
 
+        self.logger.info('Identified %d species spanning %d genomes designated as type species of genus by GTDB.' % (
+                            len(gtdb_type_genus),
+                            sum([len(gids) for gids in gtdb_type_genus.values()])))
         self.logger.info('Identified %d species spanning %d genomes designated as type strain of species by GTDB.' % (
                             len(gtdb_type_sp),
                             sum([len(gids) for gids in gtdb_type_sp.values()])))
@@ -1290,6 +1335,7 @@ class SelectTypeGenomes(object):
                             len(ncbi_reps),
                             sum([len(gids) for gids in ncbi_reps.values()])))
         
+        fout.write('%s\t%d\t%d\n' % ('GTDB type species of genus', len(gtdb_type_genus), sum([len(gids) for gids in gtdb_type_genus.values()])))
         fout.write('%s\t%d\t%d\n' % ('GTDB type strain of species', len(gtdb_type_sp), sum([len(gids) for gids in gtdb_type_sp.values()])))
         fout.write('%s\t%d\t%d\n' % ('GTDB type strain of subspecies', len(gtdb_type_subsp), sum([len(gids) for gids in gtdb_type_subsp.values()])))
         fout.write('%s\t%d\t%d\n' % ('NCBI assembled from type material', len(ncbi_type_sp), sum([len(gids) for gids in ncbi_type_sp.values()])))
@@ -1331,7 +1377,8 @@ class SelectTypeGenomes(object):
         # calculate ANI between type genomes and resolve cases where type genomes have close ANI neighbours
         ani_af = self._ani_type_genomes(genome_files, type_genomes, ncbi_taxonomy)
         ani_neighbours = self._ani_neighbours(ani_af, type_genomes, ncbi_taxonomy)
-        excluded_gids = self._resolve_close_ani_neighbours(ani_neighbours, 
+        excluded_gids = self._resolve_close_ani_neighbours(ani_neighbours,
+                                                            gtdb_type_genus,
                                                             gtdb_type_sp, 
                                                             gtdb_type_subsp,
                                                             ncbi_type_sp,
