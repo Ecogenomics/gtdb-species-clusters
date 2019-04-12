@@ -116,6 +116,7 @@ class TreeGIDs(object):
                 qc_file,
                 gtdb_metadata_file,
                 gtdb_final_clusters,
+                species_exception_file,
                 output_dir):
         """Quality check all potential GTDB genomes."""
         
@@ -126,12 +127,10 @@ class TreeGIDs(object):
         
         # get GTDB and NCBI taxonomy strings for each genome
         self.logger.info('Reading NCBI and GTDB taxonomy from GTDB metadata file.')
-        ncbi_taxonomy = read_gtdb_ncbi_taxonomy(gtdb_metadata_file)
+        ncbi_taxonomy, ncbi_update_count = read_gtdb_ncbi_taxonomy(gtdb_metadata_file, species_exception_file)
         prev_gtdb_taxonomy = read_gtdb_taxonomy(gtdb_metadata_file)
-        self.logger.info('Read NCBI taxonomy for %d genomes.' % len(ncbi_taxonomy))
+        self.logger.info('Read NCBI taxonomy for %d genomes with %d manually defined updates.' % (len(ncbi_taxonomy), ncbi_update_count))
         self.logger.info('Read GTDB taxonomy for %d genomes.' % len(prev_gtdb_taxonomy))
-        
-        print('RS_GCF_900098655.1',prev_gtdb_taxonomy['RS_GCF_900098655.1'])
         
         # get GTDB metadata
         type_metadata = read_gtdb_metadata(gtdb_metadata_file, ['gtdb_type_designation',
@@ -141,7 +140,7 @@ class TreeGIDs(object):
         quality_metadata = read_quality_metadata(gtdb_metadata_file)
 
         # read species clusters
-        sp_clusters, species = read_clusters(gtdb_final_clusters)
+        sp_clusters, species, _rep_radius = read_clusters(gtdb_final_clusters)
         self.logger.info('Read %d species clusters.' % len(sp_clusters))
         
         # sanity check species clusters all defined by genomes passing QC
@@ -150,7 +149,7 @@ class TreeGIDs(object):
                 self.logger.error('Genome %s defines a species cluster, but fails QC.' % gid)
                 sys.exit(-1)
                 
-        # modify GTDB taxonomy to reflect new species clustering a report incongruencies
+        # modify GTDB taxonomy to reflect new species clustering and report incongruencies
         self.logger.info('Identifying species with incongruent specific names.')
         self._incongruent_specific_names(species, 
                                             ncbi_taxonomy,
@@ -202,7 +201,6 @@ class TreeGIDs(object):
             canonical_sp = parse_canonical_sp(sp)
             taxa = prev_gtdb_taxonomy[rid][0:6] + [canonical_sp]
             new_gtdb_str = '; '.join(taxa)
-            taxa = prev_gtdb_taxonomy[rid][0:6] + [canonical_sp]
             fout_can_gtdb.write('%s\t%s\n' % (rid, new_gtdb_str))
             fout_val_gtdb.write('%s\t%s\n' % (rid, new_gtdb_str))
             
@@ -235,3 +233,4 @@ class TreeGIDs(object):
         fout_bac_val_gtdb.close()
         fout_ar_can_gtdb.close()
         fout_ar_val_gtdb.close()
+        

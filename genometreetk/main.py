@@ -191,6 +191,7 @@ class OptionsParser():
                                     options.msa_file,
                                     options.num_replicates,
                                     options.model,
+                                    options.gamma,
                                     options.base_type,
                                     options.fraction,
                                     options.boot_dir,
@@ -285,6 +286,8 @@ class OptionsParser():
         check_file_exists(options.ncbi_refseq_assembly_file)
         check_file_exists(options.ncbi_genbank_assembly_file)
         check_file_exists(options.gtdb_domain_report)
+        check_file_exists(options.qc_exception_file)
+        check_file_exists(options.species_exception_file)
         make_sure_path_exists(options.output_dir)
 
         try:
@@ -295,6 +298,8 @@ class OptionsParser():
                         options.ncbi_refseq_assembly_file,
                         options.ncbi_genbank_assembly_file,
                         options.gtdb_domain_report,
+                        options.qc_exception_file,
+                        options.species_exception_file,
                         options.min_comp,
                         options.max_cont,
                         options.min_quality,
@@ -320,6 +325,8 @@ class OptionsParser():
         check_file_exists(options.ncbi_refseq_assembly_file)
         check_file_exists(options.ncbi_genbank_assembly_file)
         check_file_exists(options.gtdb_domain_report)
+        check_file_exists(options.species_exception_file)
+        check_file_exists(options.gtdb_type_genome_file)
         make_sure_path_exists(options.output_dir)
 
         try:
@@ -331,7 +338,9 @@ class OptionsParser():
                         options.prev_rep_file,
                         options.ncbi_refseq_assembly_file,
                         options.ncbi_genbank_assembly_file,
-                        options.gtdb_domain_report)
+                        options.gtdb_domain_report,
+                        options.species_exception_file,
+                        options.gtdb_type_genome_file)
         except GenomeTreeTkError as e:
             print e.message
             raise SystemExit
@@ -346,6 +355,7 @@ class OptionsParser():
         check_file_exists(options.genome_path_file)
         check_file_exists(options.named_type_genome_file)
         check_file_exists(options.type_genome_ani_file)
+        check_file_exists(options.species_exception_file)
         make_sure_path_exists(options.output_dir)
 
         try:
@@ -359,7 +369,8 @@ class OptionsParser():
                     options.genome_path_file,
                     options.named_type_genome_file,
                     options.type_genome_ani_file,
-                    options.mash_sketch_file)
+                    options.mash_sketch_file,
+                    options.species_exception_file)
         except GenomeTreeTkError as e:
             print e.message
             raise SystemExit
@@ -378,6 +389,7 @@ class OptionsParser():
         check_file_exists(options.ncbi_refseq_assembly_file)
         check_file_exists(options.ncbi_genbank_assembly_file)
         check_file_exists(options.ani_af_nontype_vs_type)
+        check_file_exists(options.species_exception_file)
         make_sure_path_exists(options.output_dir)
 
         try:
@@ -394,7 +406,9 @@ class OptionsParser():
                         options.type_genome_synonym_file,
                         options.ncbi_refseq_assembly_file,
                         options.ncbi_genbank_assembly_file,
-                        options.ani_af_nontype_vs_type)
+                        options.ani_af_nontype_vs_type,
+                        options.species_exception_file,
+                        options.rnd_type_genome)
         except GenomeTreeTkError as e:
             print e.message
             raise SystemExit
@@ -407,8 +421,6 @@ class OptionsParser():
         check_file_exists(options.gtdb_metadata_file)
         check_file_exists(options.genome_path_file)
         check_file_exists(options.final_cluster_file)
-        check_file_exists(options.type_radius_file)
-        check_file_exists(options.nontype_radius_file)
         make_sure_path_exists(options.output_dir)
 
         try:
@@ -417,9 +429,7 @@ class OptionsParser():
                                 options.output_dir)
             p.run(options.gtdb_metadata_file,
                         options.genome_path_file,
-                        options.final_cluster_file,
-                        options.type_radius_file,
-                        options.nontype_radius_file)
+                        options.final_cluster_file)
         except GenomeTreeTkError as e:
             print e.message
             raise SystemExit
@@ -432,12 +442,14 @@ class OptionsParser():
         check_file_exists(options.qc_file)
         check_file_exists(options.gtdb_metadata_file)
         check_file_exists(options.gtdb_final_clusters)
+        check_file_exists(options.species_exception_file)
 
         try:
             p = TreeGIDs()
             p.run(options.qc_file,
                     options.gtdb_metadata_file,
                     options.gtdb_final_clusters,
+                    options.species_exception_file,
                     options.output_dir)
         except GenomeTreeTkError as e:
             print e.message
@@ -698,6 +710,8 @@ class OptionsParser():
                 if ':' in node.label:
                     support, _taxa = node.label.split(':')
                     node.label = support
+                else:
+                    node.label = None
 
         tree.write_to_path(options.output_tree,
                             schema='newick',

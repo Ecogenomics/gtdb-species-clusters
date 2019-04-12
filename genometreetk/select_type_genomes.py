@@ -499,7 +499,8 @@ class SelectTypeGenomes(object):
                                 ltp_top_blast_hit,
                                 ncbi_taxonomy,
                                 gtdb_taxonomy,
-                                excluded_from_refseq_note):
+                                excluded_from_refseq_note,
+                                manual_type_genomes):
         """Select type genome for each species."""
 
         # determine all NCBI species names
@@ -564,6 +565,7 @@ class SelectTypeGenomes(object):
                                                 species_gids,
                                                 ncbi_taxonomy,
                                                 gtdb_taxonomy,
+                                                manual_type_genomes,
                                                 fout,
                                                 fout_manual)
                                                 
@@ -589,6 +591,7 @@ class SelectTypeGenomes(object):
                                                 species_gids,
                                                 ncbi_taxonomy,
                                                 gtdb_taxonomy,
+                                                manual_type_genomes,
                                                 fout,
                                                 fout_manual)
                                                 
@@ -614,6 +617,7 @@ class SelectTypeGenomes(object):
                                                 species_gids,
                                                 ncbi_taxonomy,
                                                 gtdb_taxonomy,
+                                                manual_type_genomes,
                                                 fout,
                                                 fout_manual)
                                                 
@@ -639,6 +643,7 @@ class SelectTypeGenomes(object):
                                                 species_gids,
                                                 ncbi_taxonomy,
                                                 gtdb_taxonomy,
+                                                manual_type_genomes,
                                                 fout,
                                                 fout_manual)
                 
@@ -665,6 +670,7 @@ class SelectTypeGenomes(object):
                                                 species_gids,
                                                 ncbi_taxonomy,
                                                 gtdb_taxonomy,
+                                                manual_type_genomes,
                                                 fout,
                                                 fout_manual)
                                                 
@@ -690,6 +696,7 @@ class SelectTypeGenomes(object):
                                                 species_gids,
                                                 ncbi_taxonomy,
                                                 gtdb_taxonomy,
+                                                manual_type_genomes,
                                                 fout,
                                                 fout_manual)
                 if len(species_gids) > 1:
@@ -745,6 +752,7 @@ class SelectTypeGenomes(object):
                             species_gids,
                             ncbi_taxonomy,
                             gtdb_taxonomy,
+                            manual_type_genomes,
                             fout, 
                             fout_manual):
         """Select type genome."""
@@ -775,82 +783,89 @@ class SelectTypeGenomes(object):
                 gid = ncbi_type_gids.pop()
                 note = 'select single genome annotated as assembled from type material at NCBI'
             else:
-                # calculate ANI between genomes
-                ani_af = self.ani_cache.fastani_pairwise(gids, genome_files)
-                anis = []
-                afs = []
-                for q in ani_af:
-                    anis += [d[0] for d in ani_af[q].values()]
-                    afs += [d[1] for d in ani_af[q].values()]
-                
-                if anis:
-                    mean_ani = '%.1f' % np_mean(anis)
-                    mean_af = '%.2f' % np_mean(afs)
-                    min_ani = '%.1f' % min(anis)
-                    min_af = '%.2f' % min(afs)
+                # check for manually selected type genomes
+                if species in manual_type_genomes:
+                    gid = manual_type_genomes[species]
+                    if gid not in gids:
+                        self.logger.error('Manually selected type genome specified for %s, but genome %s not in genome list.' % (species, gid))
+                    note = 'manually selected type genome'
                 else:
-                    mean_ani = mean_af = min_ani = min_af = 'n/a'
-
-                gid = self._select_highest_quality(gids, genome_quality)
-                note = 'selected highest-quality genome'
-                
-                if float(min_ani) < self.min_intra_strain_ani:
-                    # check if NCBI has designated a reference or representative genome
-                    ncbi_rep_gids = gids.intersection(ncbi_reps[species])
-                    if len(ncbi_rep_gids) == 1:
-                        gid = ncbi_rep_gids.pop()
-                        note = 'selected single NCBI representative genome'
+                    # calculate ANI between genomes
+                    ani_af = self.ani_cache.fastani_pairwise(gids, genome_files)
+                    anis = []
+                    afs = []
+                    for q in ani_af:
+                        anis += [d[0] for d in ani_af[q].values()]
+                        afs += [d[1] for d in ani_af[q].values()]
+                    
+                    if anis:
+                        mean_ani = '%.1f' % np_mean(anis)
+                        mean_af = '%.2f' % np_mean(afs)
+                        min_ani = '%.1f' % min(anis)
+                        min_af = '%.2f' % min(afs)
                     else:
-                        require_manual_inspection = True
-                        gid = self._select_ani_neighbours(species, gids, genome_quality, ani_af)
-                        note = 'selected highest-quality genome with sufficient ANI neighbours'
-                        
-                        for cur_gid in [gid] + list(gids.difference([gid])): # write results with selected genome first
-                            fout_manual.write('%s\t%s\t%s\t%s\t%s\t%s' % (
-                                                species, 
-                                                cur_gid,
-                                                '; '.join(gtdb_taxonomy[cur_gid]),
-                                                '; '.join(ncbi_taxonomy[cur_gid]),
-                                                cur_gid==gid, 
-                                                type_status))
-                            if cur_gid != gid:
-                                if cur_gid in ani_af and gid in ani_af[cur_gid]:
-                                    cur_ani, cur_af = ani_af[cur_gid][gid]
+                        mean_ani = mean_af = min_ani = min_af = 'n/a'
+
+                    gid = self._select_highest_quality(gids, genome_quality)
+                    note = 'selected highest-quality genome'
+                    
+                    if float(min_ani) < self.min_intra_strain_ani:
+                        # check if NCBI has designated a reference or representative genome
+                        ncbi_rep_gids = gids.intersection(ncbi_reps[species])
+                        if len(ncbi_rep_gids) == 1:
+                            gid = ncbi_rep_gids.pop()
+                            note = 'selected single NCBI representative genome'
+                        else:
+                            require_manual_inspection = True
+                            gid = self._select_ani_neighbours(species, gids, genome_quality, ani_af)
+                            note = 'selected highest-quality genome with sufficient ANI neighbours'
+                            
+                            for cur_gid in [gid] + list(gids.difference([gid])): # write results with selected genome first
+                                fout_manual.write('%s\t%s\t%s\t%s\t%s\t%s' % (
+                                                    species, 
+                                                    cur_gid,
+                                                    '; '.join(gtdb_taxonomy[cur_gid]),
+                                                    '; '.join(ncbi_taxonomy[cur_gid]),
+                                                    cur_gid==gid, 
+                                                    type_status))
+                                if cur_gid != gid:
+                                    if cur_gid in ani_af and gid in ani_af[cur_gid]:
+                                        cur_ani, cur_af = ani_af[cur_gid][gid]
+                                    else:
+                                        cur_ani, cur_af = 0.0, 0.0
+                                    fout_manual.write('\t%.1f\t%.2f' % (cur_ani, cur_af))
                                 else:
-                                    cur_ani, cur_af = 0.0, 0.0
-                                fout_manual.write('\t%.1f\t%.2f' % (cur_ani, cur_af))
-                            else:
-                                fout_manual.write('\t%.1f\t%.2f' % (100.0, 1.0))
-                            fout_manual.write('\t%s\t%s\t%d\t%.2f\t%.2f\t%.2f\t%d\t%d\t%.1f\t%d\t%d\t%d' % (
-                                                    note,
-                                                    quality_metadata[cur_gid].ncbi_genome_category,
-                                                    quality_metadata[cur_gid].genome_size,
-                                                    genome_quality[cur_gid], 
-                                                    quality_metadata[cur_gid].checkm_completeness,
-                                                    quality_metadata[cur_gid].checkm_contamination,
-                                                    quality_metadata[cur_gid].scaffold_count,
-                                                    quality_metadata[cur_gid].contig_count,
-                                                    quality_metadata[cur_gid].n50_contigs,
-                                                    quality_metadata[cur_gid].ambiguous_bases,
-                                                    quality_metadata[cur_gid].ssu_count,
-                                                    quality_metadata[cur_gid].ssu_length if quality_metadata[cur_gid].ssu_length else 0))
-                            if cur_gid in ltp_top_blast_hit:
-                                fout_manual.write('\t%s\t%d\t%.2f\t%.2g\t%.2g' % (
-                                                        ltp_top_blast_hit[cur_gid].ltp_species,
-                                                        ltp_top_blast_hit[cur_gid].align_len,
-                                                        ltp_top_blast_hit[cur_gid].perc_identity,
-                                                        ltp_top_blast_hit[cur_gid].bitscore,
-                                                        ltp_top_blast_hit[cur_gid].evalue))
-                            else:
-                                fout_manual.write('\t%s\t%d\t%.2f\t%.2g\t%s' % ('N/A', 0, 0, 0, 'N/A'))
-                            fout_manual.write('\t%d\t%d\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' % (
-                                                    len(gids),
-                                                    len(species_gids),
-                                                    mean_ani, mean_af,
-                                                    min_ani, min_af,
-                                                    excluded_from_refseq_note[cur_gid],
-                                                    ','.join(gids),
-                                                    ','.join(species_gids)))
+                                    fout_manual.write('\t%.1f\t%.2f' % (100.0, 1.0))
+                                fout_manual.write('\t%s\t%s\t%d\t%.2f\t%.2f\t%.2f\t%d\t%d\t%.1f\t%d\t%d\t%d' % (
+                                                        note,
+                                                        quality_metadata[cur_gid].ncbi_genome_category,
+                                                        quality_metadata[cur_gid].genome_size,
+                                                        genome_quality[cur_gid], 
+                                                        quality_metadata[cur_gid].checkm_completeness,
+                                                        quality_metadata[cur_gid].checkm_contamination,
+                                                        quality_metadata[cur_gid].scaffold_count,
+                                                        quality_metadata[cur_gid].contig_count,
+                                                        quality_metadata[cur_gid].n50_contigs,
+                                                        quality_metadata[cur_gid].ambiguous_bases,
+                                                        quality_metadata[cur_gid].ssu_count,
+                                                        quality_metadata[cur_gid].ssu_length if quality_metadata[cur_gid].ssu_length else 0))
+                                if cur_gid in ltp_top_blast_hit:
+                                    fout_manual.write('\t%s\t%d\t%.2f\t%.2g\t%.2g' % (
+                                                            ltp_top_blast_hit[cur_gid].ltp_species,
+                                                            ltp_top_blast_hit[cur_gid].align_len,
+                                                            ltp_top_blast_hit[cur_gid].perc_identity,
+                                                            ltp_top_blast_hit[cur_gid].bitscore,
+                                                            ltp_top_blast_hit[cur_gid].evalue))
+                                else:
+                                    fout_manual.write('\t%s\t%d\t%.2f\t%.2g\t%s' % ('N/A', 0, 0, 0, 'N/A'))
+                                fout_manual.write('\t%d\t%d\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' % (
+                                                        len(gids),
+                                                        len(species_gids),
+                                                        mean_ani, mean_af,
+                                                        min_ani, min_af,
+                                                        excluded_from_refseq_note[cur_gid],
+                                                        ','.join(gids),
+                                                        ','.join(species_gids)))
 
         # report selection
         type_sources, strain_ids = self._type_sources(type_metadata, [gid])
@@ -938,7 +953,7 @@ class SelectTypeGenomes(object):
         # calculate ANI between pairs
         gid_pairs = mash_ani_pairs + genus_ani_pairs
         self.logger.info('Calculating ANI between %d genome pairs:' % len(gid_pairs))
-        if False: #***
+        if True: #***
             ani_af = self.ani_cache.fastani_pairs(gid_pairs, genome_files)
             pickle.dump(ani_af, open(os.path.join(self.output_dir, 'type_genomes_ani_af.pkl'), 'wb'))
         else:
@@ -1226,27 +1241,23 @@ class SelectTypeGenomes(object):
                     if neighbour_gid in excluded_gids:
                         neighbour_sp = gid_to_species[neighbour_gid]
 
-                        if neighbour_gid in gtdb_type_sp[neighbour_sp] or neighbour_gid in ncbi_type_sp[neighbour_sp]:
-                            # neighbour genome is type strain of species or assembled from effective type material
-                            # and was filtered so should be considered a synonym
-                            
-                            ani, af = symmetric_ani(ani_af, cur_gid, neighbour_gid)
+                        ani, af = symmetric_ani(ani_af, cur_gid, neighbour_gid)
 
-                            fout.write('%s\t%s\t%s\t%s\t%s\t%s' % (
-                                        cur_sp,
-                                        cur_gid,
-                                        ','.join(sorted(type_metadata[cur_gid].ncbi_strain_identifiers)),
-                                        ','.join(sorted(type_metadata[cur_gid].gtdb_type_designation_sources)).upper().replace('STRAININFO', 'StrainInfo'),
-                                        str(year_of_priority.get(cur_sp, 'n/a')),
-                                        type_metadata[cur_gid].ncbi_type_material_designation))
-                            fout.write('\t%s\t%s\t%s\t%s\t%s\t%s' % (
-                                        neighbour_sp,
-                                        neighbour_gid,
-                                        ','.join(sorted(type_metadata[neighbour_gid].ncbi_strain_identifiers)),
-                                        ','.join(sorted(type_metadata[neighbour_gid].gtdb_type_designation_sources)).upper().replace('STRAININFO', 'StrainInfo'),
-                                        str(year_of_priority.get(neighbour_sp, 'n/a')),
-                                        type_metadata[neighbour_gid].ncbi_type_material_designation))
-                            fout.write('\t%.2f\t%.2f\n' % (ani, af))
+                        fout.write('%s\t%s\t%s\t%s\t%s\t%s' % (
+                                    cur_sp,
+                                    cur_gid,
+                                    ','.join(sorted(type_metadata[cur_gid].ncbi_strain_identifiers)),
+                                    ','.join(sorted(type_metadata[cur_gid].gtdb_type_designation_sources)).upper().replace('STRAININFO', 'StrainInfo'),
+                                    str(year_of_priority.get(cur_sp, 'n/a')),
+                                    type_metadata[cur_gid].ncbi_type_material_designation))
+                        fout.write('\t%s\t%s\t%s\t%s\t%s\t%s' % (
+                                    neighbour_sp,
+                                    neighbour_gid,
+                                    ','.join(sorted(type_metadata[neighbour_gid].ncbi_strain_identifiers)),
+                                    ','.join(sorted(type_metadata[neighbour_gid].gtdb_type_designation_sources)).upper().replace('STRAININFO', 'StrainInfo'),
+                                    str(year_of_priority.get(neighbour_sp, 'n/a')),
+                                    type_metadata[neighbour_gid].ncbi_type_material_designation))
+                        fout.write('\t%.2f\t%.2f\n' % (ani, af))
  
     def run(self, qc_file,
                 metadata_file,
@@ -1255,7 +1266,9 @@ class SelectTypeGenomes(object):
                 prev_rep_file,
                 ncbi_refseq_assembly_file,
                 ncbi_genbank_assembly_file,
-                gtdb_domain_report):
+                gtdb_domain_report,
+                species_exception_file,
+                gtdb_type_genome_file):
         """Select GTDB type genomes for named species."""
         
         # identify genomes failing quality criteria
@@ -1265,10 +1278,33 @@ class SelectTypeGenomes(object):
 
         # get GTDB and NCBI taxonomy strings for each genome
         self.logger.info('Reading NCBI taxonomy from GTDB metadata file.')
-        ncbi_taxonomy = read_gtdb_ncbi_taxonomy(metadata_file)
+        ncbi_taxonomy, ncbi_update_count = read_gtdb_ncbi_taxonomy(metadata_file, species_exception_file)
         gtdb_taxonomy = read_gtdb_taxonomy(metadata_file)
-        self.logger.info('Read NCBI taxonomy for %d genomes.' % len(ncbi_taxonomy))
+        self.logger.info('Read NCBI taxonomy for %d genomes with %d manually defined updates.' % (len(ncbi_taxonomy), ncbi_update_count))
         self.logger.info('Read GTDB taxonomy for %d genomes.' % len(gtdb_taxonomy))
+        
+        # read manually selected type genomes
+        manual_type_genomes = {}
+        with open(gtdb_type_genome_file) as f:
+            header = f.readline().strip().split('\t')
+            
+            sp_index = header.index('NCBI species')
+            gid_index = header.index('Accession')
+            manual_selection_index = header.index('Manual selection')
+            
+            for line in f:
+                line_split = line.strip().split('\t')
+
+                manual_selection = line_split[manual_selection_index].lower()
+                if manual_selection.startswith('true') or manual_selection.startswith('ok'):
+                    sp = line_split[sp_index].replace('Candidatus ', '')
+                    gid = line_split[gid_index]
+                    
+                    ncbi_sp = [t.strip() for t in ncbi_taxonomy[gid]][6]
+                    if ncbi_sp != sp:
+                        self.logger.warning('NCBI species %s does not match species %s in manual type genome file: %s' % (ncbi_sp, sp, gid))
+                    manual_type_genomes[ncbi_sp] = gid
+        self.logger.info('Identified %d species with manually selected type genomes.' % len(manual_type_genomes))
 
         # get path to genome FASTA files
         self.logger.info('Reading path to genome FASTA files.')
@@ -1368,7 +1404,8 @@ class SelectTypeGenomes(object):
                                                         ltp_top_blast_hit,
                                                         ncbi_taxonomy,
                                                         gtdb_taxonomy,
-                                                        excluded_from_refseq_note)
+                                                        excluded_from_refseq_note,
+                                                        manual_type_genomes)
                                                         
             pickle.dump(type_genomes, open(os.path.join(self.output_dir, 'type_genomes.pkl'), 'wb'))
         else:

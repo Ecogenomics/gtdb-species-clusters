@@ -527,7 +527,7 @@ def read_gtdb_representative(metadata_file):
     return gtdb_reps
 
 
-def read_gtdb_ncbi_taxonomy(metadata_file):
+def read_gtdb_ncbi_taxonomy(metadata_file, species_exception_file):
     """Parse NCBI taxonomy from GTDB metadata.
 
     Parameters
@@ -551,13 +551,29 @@ def read_gtdb_ncbi_taxonomy(metadata_file):
             line_split = line.strip().split('\t')
             genome_id = line_split[genome_index]
             taxa_str = line_split[taxonomy_index].strip()
+            taxa_str = taxa_str.replace('Candidatus ', '')
 
             if taxa_str and taxa_str != 'none':
                 taxonomy[genome_id] = map(str.strip, taxa_str.split(';'))
             else:
                 taxonomy[genome_id] = list(Taxonomy.rank_prefixes)
+                
+    ncbi_update_count = 0
+    for line in open(species_exception_file):
+        line_split = line.strip().split('\t')
+        gid = line_split[0]
+        sp = line_split[1].replace('Candidatus ', '')
+        if gid not in taxonomy:
+            print('Genome in species exception list not defined at NCBI: %s' % gid)
+            sys.exit(-1)
+            
+        if not sp.startswith('s__'):
+            sp = 's__' + sp
+            
+        taxonomy[gid][6] = sp
+        ncbi_update_count += 1
 
-    return taxonomy
+    return taxonomy, ncbi_update_count
 
 
 def read_gtdb_ncbi_organism_name(metadata_file):

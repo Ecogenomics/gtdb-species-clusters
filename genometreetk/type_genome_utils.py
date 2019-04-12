@@ -36,6 +36,8 @@ GTDB_TYPE_SPECIES = set(['type strain of species', 'type strain of neotype'])
 GTDB_TYPE_SUBSPECIES = set(['type strain of subspecies', 'type strain of heterotypic synonym'])
 GTDB_NOT_TYPE_MATERIAL = set(['not type material'])
 
+GenomeRadius = namedtuple('GenomeRadius', 'ani af neighbour_gid')
+
 
 def ncbi_species(unfiltered_ncbi_taxonomy):
     """Get species designation for unfiltered NCBI taxonomy string."""
@@ -282,11 +284,13 @@ def exclude_from_refseq(refseq_assembly_file, genbank_assembly_file):
     
     return excluded_from_refseq_note
     
-def write_clusters(clusters, species, out_file):
+def write_clusters(clusters, type_radius, species, out_file):
     """Write out clustering information."""
 
     fout = open(out_file, 'w')
-    fout.write('NCBI species\tType genome\tNo. clustered genomes\tMean ANI\tMin ANI\tMean AF\tMin AF\tClustered genomes\n')
+    fout.write('NCBI species\tType genome')
+    fout.write('\tClosest species\tClosest type genome\tANI radius\tAF closest')
+    fout.write('\tNo. clustered genomes\tMean ANI\tMin ANI\tMean AF\tMin AF\tClustered genomes\n')
     for gid in sorted(clusters, key=lambda x: len(clusters[x]), reverse=True):
         if len(clusters[gid]):
             mean_ani = '%.2f' % np_mean([d.ani for d in clusters[gid]])
@@ -295,13 +299,56 @@ def write_clusters(clusters, species, out_file):
             min_af = '%.2f' % min([d.af for d in clusters[gid]])
         else:
             mean_ani = min_ani = mean_af = min_af = 'N/A'
-        fout.write('%s\t%s\t%d\t%s\t%s\t%s\t%s\t%s\n' % (
+        fout.write('%s\t%s' % (
                         species.get(gid, 'unclassified'), 
-                        gid, 
+                        gid))
+                        
+        ani, af, closest_gid = type_radius[gid]
+        if not af:
+            af = 0
+            
+        if not closest_gid:
+            closest_gid = 'N/A'
+            closest_sp = 'N/A'
+        else:
+            closest_sp = species[closest_gid]
+        
+        fout.write('\t%s\t%s\t%.2f\t%.2f' % (closest_sp,
+                                                closest_gid,
+                                                ani,
+                                                af))
+                        
+        fout.write('\t%d\t%s\t%s\t%s\t%s\t%s\n' % (
                         len(clusters[gid]),
                         mean_ani, min_ani,
                         mean_af, min_af,
                         ','.join([d.gid for d in clusters[gid]])))
+    fout.close()
+    
+    
+def write_type_radius(type_radius, species, out_file):
+    """Write out ANI radius for each type genomes."""
+
+    fout = open(out_file, 'w')
+    fout.write('NCBI species\tType genome\tANI\tAF\tClosest species\tClosest type genome\n')
+    
+    for gid in type_radius:
+        ani, af, neighbour_gid = type_radius[gid]
+        if not af:
+            af = 0
+            
+        if not neighbour_gid:
+            neighbour_gid = 'N/A'
+            neighbour_sp = 'N/A'
+        else:
+            neighbour_sp = species[neighbour_gid]
+        
+        fout.write('%s\t%s\t%.2f\t%.2f\t%s\t%s\n' % (species[gid],
+                                                        gid,
+                                                        ani,
+                                                        af,
+                                                        neighbour_sp,
+                                                        neighbour_gid))
     fout.close()
     
     
@@ -349,6 +396,7 @@ def read_clusters(cluster_file):
         
     clusters = defaultdict(list)
     species = {}
+    rep_radius = {}
     with open(cluster_file) as f:
         headers = f.readline().strip().split('\t')
         
@@ -356,6 +404,11 @@ def read_clusters(cluster_file):
         type_genome_index = headers.index('Type genome')
         num_clustered_index = headers.index('No. clustered genomes')
         clustered_genomes_index = headers.index('Clustered genomes')
+        
+        closest_sp_index = headers.index('Closest species')
+        closest_gid_index = headers.index('Closest type genome')
+        closest_ani_index = headers.index('ANI radius')
+        closest_af_index = headers.index('AF closest')
         
         for line in f:
             line_split = line.strip().split('\t')
@@ -369,31 +422,12 @@ def read_clusters(cluster_file):
                 clusters[rid] = [g.strip() for g in line_split[clustered_genomes_index].split(',')]
             else:
                 clusters[rid] = []
+                
+            closest_ani = float(line_split[closest_ani_index])
+            closest_af = float(line_split[closest_af_index])
+            closest_gid = line_split[closest_gid_index]
+            rep_radius[rid] = GenomeRadius(ani = closest_ani, 
+                                             af = closest_af,
+                                             neighbour_gid = closest_gid)
                     
-    return clusters, species
-    
-    
-def write_type_radius(type_radius, species, out_file):
-    """Write out ANI radius for each type genomes."""
-
-    fout = open(out_file, 'w')
-    fout.write('NCBI species\tType genome\tANI\tAF\tClosest species\tClosest type genome\n')
-    
-    for gid in type_radius:
-        ani, af, neighbour_gid = type_radius[gid]
-        if not af:
-            af = 0
-            
-        if not neighbour_gid:
-            neighbour_gid = 'N/A'
-            neighbour_sp = 'N/A'
-        else:
-            neighbour_sp = species[neighbour_gid]
-        
-        fout.write('%s\t%s\t%.2f\t%.2f\t%s\t%s\n' % (species[gid],
-                                                        gid,
-                                                        ani,
-                                                        af,
-                                                        neighbour_sp,
-                                                        neighbour_gid))
-    fout.close()
+    return clusters, species, rep_radius

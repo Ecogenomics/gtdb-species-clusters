@@ -56,7 +56,7 @@ class Bootstrap(object):
         fast_tree = FastTree(multithreaded=False)
         output_tree = os.path.join(self.replicate_dir, 'bootstrap_tree.r_' + str(replicated_num) + '.tree')
         fast_tree_output = os.path.join(self.replicate_dir, 'bootstrap_fasttree.r_' + str(replicated_num) + '.out')
-        fast_tree.run(output_msa, self.base_type, self.model, output_tree, fast_tree_output)
+        fast_tree.run(output_msa, self.base_type, self.model, self.gamma, output_tree, fast_tree_output)
 
         return True
 
@@ -70,6 +70,7 @@ class Bootstrap(object):
                 msa_file, 
                 num_replicates, 
                 model, 
+                gamma,
                 base_type, 
                 frac,
                 boot_dir,
@@ -98,6 +99,7 @@ class Bootstrap(object):
         assert(base_type in ['nt', 'prot'])
 
         self.model = model
+        self.gamma = gamma
         self.base_type = base_type
         self.frac = frac
 

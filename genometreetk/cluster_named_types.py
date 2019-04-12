@@ -38,7 +38,8 @@ from genometreetk.common import (parse_genome_path,
                                     read_gtdb_taxonomy,
                                     read_gtdb_ncbi_taxonomy)
                                     
-from genometreetk.type_genome_utils import (read_qc_file,
+from genometreetk.type_genome_utils import (GenomeRadius,
+                                            read_qc_file,
                                             symmetric_ani,
                                             write_clusters,
                                             write_type_radius)
@@ -65,7 +66,6 @@ class ClusterNamedTypes(object):
         self.max_ani_neighbour = 97.0
         self.min_mash_ani = 90.0
         
-        self.GenomeRadius = namedtuple('GenomeRadius', 'ani af neighbour_gid')
         self.ClusteredGenome = namedtuple('ClusteredGenome', 'ani af gid')
         
         self.ani_cache = ANI_Cache(ani_cache_file, cpus)
@@ -76,7 +76,7 @@ class ClusterNamedTypes(object):
         # set type radius for all type genomes to default values
         type_radius = {}
         for gid in type_gids:
-            type_radius[gid] = self.GenomeRadius(ani = self.ani_sp, 
+            type_radius[gid] = GenomeRadius(ani = self.ani_sp, 
                                                  af = None,
                                                  neighbour_gid = None)
         
@@ -113,7 +113,7 @@ class ClusterNamedTypes(object):
                     if ani > self.max_ani_neighbour:
                         self.logger.error('ANI neighbour %s is >%.2f for %s.' % (type_gid2, ani, type_gid1))
  
-                    type_radius[type_gid1] = self.GenomeRadius(ani = ani, 
+                    type_radius[type_gid1] = GenomeRadius(ani = ani, 
                                                                  af = af,
                                                                  neighbour_gid = type_gid2)
                     
@@ -168,7 +168,7 @@ class ClusterNamedTypes(object):
         
         # calculate ANI between pairs
         self.logger.info('Calculating ANI between %d genome pairs:' % len(mash_ani_pairs))
-        if True: #***
+        if False: #***
             ani_af = self.ani_cache.fastani_pairs(mash_ani_pairs, genome_files)
             pickle.dump(ani_af, open(os.path.join(self.output_dir, 'ani_af_type_vs_nontype.pkl'), 'wb'))
         else:
@@ -226,7 +226,8 @@ class ClusterNamedTypes(object):
                     genome_path_file,
                     named_type_genome_file,
                     type_genome_ani_file,
-                    mash_sketch_file):
+                    mash_sketch_file,
+                    species_exception_file):
         """Cluster genomes to selected GTDB type genomes."""
         
         # identify genomes failing quality criteria
@@ -267,7 +268,8 @@ class ClusterNamedTypes(object):
         
         # get GTDB and NCBI taxonomy strings for each genome
         self.logger.info('Reading NCBI taxonomy from GTDB metadata file.')
-        ncbi_taxonomy = read_gtdb_ncbi_taxonomy(metadata_file)
+        ncbi_taxonomy, ncbi_update_count = read_gtdb_ncbi_taxonomy(metadata_file, species_exception_file)
+        self.logger.info('Read NCBI taxonomy for %d genomes with %d manually defined updates.' % (len(ncbi_taxonomy), ncbi_update_count))
         
         # calculate ANI between type and non-type genomes
         self.logger.info('Calculating ANI between type and non-type genomes.')
@@ -279,4 +281,4 @@ class ClusterNamedTypes(object):
         clusters = self._cluster(ani_af, nontype_gids, type_radius)
         
         # write out clusters
-        write_clusters(clusters, species_type_gid, os.path.join(self.output_dir, 'gtdb_type_genome_clusters.tsv'))
+        write_clusters(clusters, type_radius, species_type_gid, os.path.join(self.output_dir, 'gtdb_type_genome_clusters.tsv'))

@@ -20,6 +20,7 @@ import sys
 import logging
 import operator
 import re
+import random
 import shutil
 import tempfile
 import ntpath
@@ -38,7 +39,8 @@ from genometreetk.common import (parse_genome_path,
                                     read_gtdb_taxonomy,
                                     read_gtdb_ncbi_taxonomy)
                                     
-from genometreetk.type_genome_utils import (quality_score,
+from genometreetk.type_genome_utils import (GenomeRadius,
+                                            quality_score,
                                             read_qc_file,
                                             read_quality_metadata,
                                             exclude_from_refseq,
@@ -69,7 +71,6 @@ class ClusterDeNovo(object):
 
         self.min_mash_ani = 90.0
         
-        self.GenomeRadius = namedtuple('GenomeRadius', 'ani af neighbour_gid')
         self.ClusteredGenome = namedtuple('ClusteredGenome', 'ani af gid')
         
         self.ani_cache = ANI_Cache(ani_cache_file, cpus)
@@ -130,7 +131,7 @@ class ClusterDeNovo(object):
         # set type radius for all type genomes to default values
         nontype_radius = {}
         for gid in unclustered_gids:
-            nontype_radius[gid] = self.GenomeRadius(ani = self.ani_sp, 
+            nontype_radius[gid] = GenomeRadius(ani = self.ani_sp, 
                                                      af = None,
                                                      neighbour_gid = None)
 
@@ -147,7 +148,7 @@ class ClusterDeNovo(object):
                 ani, af = symmetric_ani(ani_af, nontype_gid, type_gid)
 
                 if ani > nontype_radius[nontype_gid].ani and af >= self.af_sp:
-                    nontype_radius[nontype_gid] = self.GenomeRadius(ani = ani, 
+                    nontype_radius[nontype_gid] = GenomeRadius(ani = ani, 
                                                                  af = af,
                                                                  neighbour_gid = type_gid)
                     
@@ -193,21 +194,29 @@ class ClusterDeNovo(object):
                             nontype_radius, 
                             unclustered_qc_gids, 
                             mash_ani,
-                            quality_metadata):
+                            quality_metadata,
+                            rnd_type_genome):
         """Cluster genomes to QC'ed genomes in a greedy fashion using species-specific ANI thresholds."""
 
         # sort genomes by quality score
-        qscore = quality_score(unclustered_qc_gids, quality_metadata)
-        qscore_sorted_gids = sorted(qscore.items(), key=operator.itemgetter(1), reverse=True)
+        if rnd_type_genome:
+            self.logger.info('Selecting random de novo type genomes.')
+            sorted_gids = []
+            for gid in random.sample(unclustered_qc_gids, len(unclustered_qc_gids)):
+                sorted_gids.append((gid, 0))
+        else:
+            self.logger.info('Selecting de novo type genomes in a greedy manner based on quality.')
+            qscore = quality_score(unclustered_qc_gids, quality_metadata)
+            sorted_gids = sorted(qscore.items(), key=operator.itemgetter(1), reverse=True)
 
         # greedily determine representatives for new species clusters
         cluster_rep_file = os.path.join(self.output_dir, 'cluster_reps.tsv')
         clusters = {}
         if not os.path.exists(cluster_rep_file):
-            self.logger.info('Greedily clustering genomes to identify representatives.')
+            self.logger.info('Clustering genomes to identify representatives.')
             clustered_genomes = 0
             max_ani_pairs = 0
-            for idx, (cur_gid, _score) in enumerate(qscore_sorted_gids):
+            for idx, (cur_gid, _score) in enumerate(sorted_gids):
 
                 # determine reference genomes to calculate ANI between
                 ani_pairs = []
@@ -238,7 +247,7 @@ class ClusterDeNovo(object):
                                 closest_rep_af = af
 
                         if ani > nontype_radius[cur_gid].ani and af >= self.af_sp:
-                            nontype_radius[cur_gid] = self.GenomeRadius(ani = ani, 
+                            nontype_radius[cur_gid] = GenomeRadius(ani = ani, 
                                                                          af = af,
                                                                          neighbour_gid = rep_gid)
                                                                          
@@ -251,11 +260,11 @@ class ClusterDeNovo(object):
                 else:
                     clustered_genomes += 1
                 
-                if (idx+1) % 10 == 0 or idx+1 == len(qscore_sorted_gids):
+                if (idx+1) % 10 == 0 or idx+1 == len(sorted_gids):
                     statusStr = '-> Clustered %d of %d (%.2f%%) genomes [ANI pairs: %d; clustered genomes: %d; clusters: %d].'.ljust(96) % (
                                     idx+1, 
-                                    len(qscore_sorted_gids), 
-                                    float(idx+1)*100/len(qscore_sorted_gids),
+                                    len(sorted_gids), 
+                                    float(idx+1)*100/len(sorted_gids),
                                     max_ani_pairs,
                                     clustered_genomes,
                                     len(clusters))
@@ -507,7 +516,9 @@ class ClusterDeNovo(object):
                 type_genome_synonym_file,
                 ncbi_refseq_assembly_file,
                 ncbi_genbank_assembly_file,
-                ani_af_nontype_vs_type):
+                ani_af_nontype_vs_type,
+                species_exception_file,
+                rnd_type_genome):
         """Infer de novo species clusters and type genomes for remaining genomes."""
         
         # identify genomes failing quality criteria
@@ -517,9 +528,9 @@ class ClusterDeNovo(object):
         
         # get NCBI taxonomy strings for each genome
         self.logger.info('Reading NCBI taxonomy from GTDB metadata file.')
-        ncbi_taxonomy = read_gtdb_ncbi_taxonomy(metadata_file)
+        ncbi_taxonomy, ncbi_update_count = read_gtdb_ncbi_taxonomy(metadata_file, species_exception_file)
         gtdb_taxonomy = read_gtdb_taxonomy(metadata_file)
-        self.logger.info('Read NCBI taxonomy for %d genomes.' % len(ncbi_taxonomy))
+        self.logger.info('Read NCBI taxonomy for %d genomes with %d manually defined updates.' % (len(ncbi_taxonomy), ncbi_update_count))
         self.logger.info('Read GTDB taxonomy for %d genomes.' % len(gtdb_taxonomy))
         
         # parse NCBI assembly files
@@ -568,7 +579,8 @@ class ClusterDeNovo(object):
                                                     nontype_radius, 
                                                     unclustered_gids, 
                                                     mash_anis,
-                                                    quality_metadata)
+                                                    quality_metadata,
+                                                    rnd_type_genome)
 
         # get list of synonyms in order to restrict usage of species names
         synonyms = self._parse_synonyms(type_genome_synonym_file)
@@ -595,16 +607,16 @@ class ClusterDeNovo(object):
                                 excluded_from_refseq_note,
                                 ani_af,
                                 os.path.join(self.output_dir, 'gtdb_rep_genome_info.tsv'))
-                                            
-        # report clustering
-        write_clusters(clusters, cluster_sp_names, os.path.join(self.output_dir, 'gtdb_rep_genome_clusters.tsv'))
-        
+                                             
         # remove genomes that are not representatives of a species cluster and then write out representative ANI radius
         for gid in set(nontype_radius) - set(clusters):
             del nontype_radius[gid]
-        
+            
         all_species = cluster_sp_names
         all_species.update(species_type_gid)
+            
+        write_clusters(clusters, nontype_radius, all_species, os.path.join(self.output_dir, 'gtdb_rep_genome_clusters.tsv'))
+
         write_type_radius(nontype_radius, 
                             all_species, 
                             os.path.join(self.output_dir, 'gtdb_rep_genome_ani_radius.tsv'))

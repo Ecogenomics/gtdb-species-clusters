@@ -1,3 +1,20 @@
+0.0.51
+- added --rnd_type_genome option for evaluating impact of type genome selection on de novo clusters
+
+0.0.50
+- added --gamma option to bootstrap command so it isn't automatically used
+
+0.0.49
+- used for GTDB r89
+- added QC exception list to qc_genomes command
+- added species classification exception list to qc_genomes command
+- added species classification exception list to select_type_genomes command
+- added species classification exception list to cluster_named_types command
+- added GTDB type genomes exception list to select_type_genomes command
+- added species type genome radius information to file indicating species clusters
+- simplified interface to cluster_user as species ANI radius information is now in cluster file
+- stripped 'Candidatus' from all species names
+
 0.0.48
 - added type species of genus information for resolving priority of species with same publication date
 - changed {manual_curation} to {unresolved}

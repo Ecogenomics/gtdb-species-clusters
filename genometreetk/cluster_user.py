@@ -32,16 +32,12 @@ from biolib.external.execute import check_dependencies
 from numpy import (mean as np_mean,
                     std as np_std)
 
-from genometreetk.common import (parse_genome_path,
-                                    genome_species_assignments,
-                                    read_gtdb_metadata,
-                                    read_gtdb_taxonomy,
-                                    read_gtdb_ncbi_taxonomy)
+from genometreetk.common import parse_genome_path
                                     
-from genometreetk.type_genome_utils import (read_quality_metadata,
+from genometreetk.type_genome_utils import (GenomeRadius,
+                                            read_quality_metadata,
                                             read_clusters,
-                                            symmetric_ani,
-                                            write_clusters)
+                                            symmetric_ani)
                                     
 from genometreetk.ani_cache import ANI_Cache
 from genometreetk.mash import Mash
@@ -58,14 +54,10 @@ class ClusterUser(object):
         self.output_dir = output_dir
 
         self.logger = logging.getLogger('timestamp')
-        
-        self.true_str = ['t', 'T', 'true', 'True']
 
         self.min_mash_ani = 90.0
         
         self.af_sp = 0.65
-        
-        self.GenomeRadius = namedtuple('GenomeRadius', 'ani af neighbour_gid')
 
         self.ani_cache = ANI_Cache(ani_cache_file, cpus)
 
@@ -155,9 +147,7 @@ class ClusterUser(object):
     def run(self, 
                 metadata_file,
                 genome_path_file,
-                final_cluster_file,
-                type_radius_file,
-                nontype_radius_file):
+                final_cluster_file):
         """Cluster User genomes to GTDB species clusters."""
 
         # get path to genome FASTA files
@@ -166,7 +156,7 @@ class ClusterUser(object):
         
         # read existing cluster information
         self.logger.info('Reading already established species clusters.')
-        sp_clusters, species = read_clusters(final_cluster_file)
+        sp_clusters, species, rep_radius = read_clusters(final_cluster_file)
         
         clustered_genomes = set()
         for rep_id in sp_clusters:
@@ -174,28 +164,6 @@ class ClusterUser(object):
             clustered_genomes.update(sp_clusters[rep_id])
         
         self.logger.info('Identified %d species clusters spanning %d genomes.' % (len(sp_clusters), len(clustered_genomes)))
-        
-        # get radius of existing clusters
-        self.logger.info('Reading ANI radius of GTDB species clusters.')
-        rep_radius = {}
-        for rep_file in [type_radius_file, nontype_radius_file]:
-            with open(rep_file) as f:
-                header = f.readline().strip().split('\t')
-                
-                gid_index = header.index('Type genome')
-                ani_index = header.index('ANI')
-                
-                for line in f:
-                    line_split = line.strip().split('\t')
-                    
-                    gid = line_split[gid_index]
-                    ani = float(line_split[ani_index])
-                    rep_radius[gid] = self.GenomeRadius(ani = ani, 
-                                                         af = None,
-                                                         neighbour_gid = None)
-                                                         
-        assert(len(set(sp_clusters).symmetric_difference(set(rep_radius))) == 0)
-        self.logger.info('Identified %d species clusters.' % len(rep_radius))
 
         # get User genomes to cluster
         self.logger.info('Parse quality statistics for all genomes.')

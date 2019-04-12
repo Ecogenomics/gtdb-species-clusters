@@ -72,6 +72,8 @@ class QcGenomes(object):
                 ncbi_refseq_assembly_file,
                 ncbi_genbank_assembly_file,
                 gtdb_domain_report,
+                qc_exception_file,
+                species_exception_file,
                 min_comp,
                 max_cont,
                 min_quality,
@@ -85,10 +87,10 @@ class QcGenomes(object):
 
         # get GTDB and NCBI taxonomy strings for each genome
         self.logger.info('Reading NCBI taxonomy from GTDB metadata file.')
-        ncbi_taxonomy = read_gtdb_ncbi_taxonomy(metadata_file)
+        ncbi_taxonomy, ncbi_update_count = read_gtdb_ncbi_taxonomy(metadata_file, species_exception_file)
         ncbi_species = binomial_species(ncbi_taxonomy)
         gtdb_taxonomy = read_gtdb_taxonomy(metadata_file)
-        self.logger.info('Read NCBI taxonomy for %d genomes.' % len(ncbi_taxonomy))
+        self.logger.info('Read NCBI taxonomy for %d genomes with %d manually defined updates.' % (len(ncbi_taxonomy), ncbi_update_count))
         self.logger.info('Read GTDB taxonomy for %d genomes.' % len(gtdb_taxonomy))
         
         # determine User genomes to retain for consideration
@@ -107,6 +109,12 @@ class QcGenomes(object):
                     user_genomes += 1
         self.logger.info('Identified %d archaeal GTDB User genome WITHOUT GenBank accessions to retain for potential inclusion in GTDB.' % user_genomes)
 
+        # parse genomes flagged as exceptions from QC
+        qc_exceptions = set()
+        for line in open(qc_exception_file):
+            qc_exceptions.add(line.split('\t')[0].strip())
+        self.logger.info('Identified %d genomes flagged as exceptions from QC.' % len(qc_exceptions))
+        
         # calculate quality score for genomes
         self.logger.info('Parsing QC statistics for each genome.')
         quality_metadata = read_gtdb_metadata(metadata_file, ['checkm_completeness',
@@ -138,10 +146,10 @@ class QcGenomes(object):
         fout_failed = open(os.path.join(output_dir, 'qc_failed.tsv'), 'w')
         
         header = 'Accession\tNCBI species'
-        header += '\tCompleteness (%)\tContamination (%)\tQuality\tStrain heterogeneity at 100%%'
+        header += '\tCompleteness (%)\tContamination (%)\tQuality\tStrain heterogeneity at 100%'
         header += '\tMarkers (%)\tNo. contigs\tN50 contigs\tAmbiguous bases'
         
-        fout_retained.write(header +'\n')
+        fout_retained.write(header + '\tNote\n')
         fout_failed.write(header)
         fout_failed.write('\tFailed completeness\tFailed contamination\tFailed quality')
         fout_failed.write('\tFailed marker percentage\tFailed no. contigs\tFailed N50 contigs\tFailed ambiguous bases\n')
@@ -166,10 +174,10 @@ class QcGenomes(object):
                                     max_ambiguous,
                                     failed_tests)
 
-            if passed_qc:
+            if passed_qc or gid in qc_exceptions:
                 num_retained += 1
                 fout_retained.write('%s\t%s' % (gid, ncbi_taxonomy[gid][6]))
-                fout_retained.write('\t%.2f\t%.2f\t%.2f\t%s\t%.2f\t%d\t%d\t%d\n' % (
+                fout_retained.write('\t%.2f\t%.2f\t%.2f\t%s\t%.2f\t%d\t%d\t%d\t%s\n' % (
                                         quality_metadata[gid].checkm_completeness,
                                         quality_metadata[gid].checkm_contamination,
                                         quality_metadata[gid].checkm_completeness-5*quality_metadata[gid].checkm_contamination,
@@ -177,7 +185,8 @@ class QcGenomes(object):
                                         marker_perc[gid],
                                         quality_metadata[gid].contig_count,
                                         quality_metadata[gid].n50_contigs,
-                                        quality_metadata[gid].ambiguous_bases))
+                                        quality_metadata[gid].ambiguous_bases,
+                                        'Passed QC' if passed_qc else 'Flagged as exception'))
             else:
                 num_filtered += 1 
                 fout_failed.write('%s\t%s' % (gid, ncbi_taxonomy[gid][6]))
