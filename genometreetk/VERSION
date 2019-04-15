@@ -1,3 +1,7 @@
+0.0.52
+- modified cluster_de_novo to ensure all genomes as assigned to the closest type genome
+- fixed synonym table: species were being indicated as synonyms of multiple species (e.g. Shigella boydii)
+
 0.0.51
 - added --rnd_type_genome option for evaluating impact of type genome selection on de novo clusters
 

@@ -131,7 +131,6 @@ class ANI_Cache(object):
                 ani = float(line_split[2])
                 af = float(line_split[3])/int(line_split[4])
                 ani_af = (query_genome, ref_genome, ani, af)
-                
         else:
             ani_af = (qid, rid, 0.0, 0.0)
 
@@ -183,7 +182,7 @@ class ANI_Cache(object):
             sys.stdout.write('\n')
             
     def fastani_pairwise(self, gids, genome_files):
-        """Calculate FastANI between alll genome pairs in parallel."""
+        """Calculate FastANI between all genome pairs in parallel."""
         
         if not gids:
             return {}
@@ -191,10 +190,15 @@ class ANI_Cache(object):
         if len(gids) == 2: # skip overhead of setting up queues and processes
             d = defaultdict(lambda: {})
             gids = list(gids)
+            
             qid, rid, ani, af = self.fastani(gids[0], gids[1], genome_files)
             d[qid][rid] = (ani, af)
+            self.ani_cache[qid][rid] = (ani, af)
+            
             qid, rid, ani, af = self.fastani(gids[1], gids[0], genome_files)
             d[qid][rid] = (ani, af)
+            self.ani_cache[qid][rid] = (ani, af)
+
             return d
         
         ani_af = mp.Manager().dict()
@@ -247,6 +251,7 @@ class ANI_Cache(object):
             for idx in range(0, len(gid_pairs)):
                 qid, rid, ani, af = self.fastani(gid_pairs[idx][0], gid_pairs[idx][1], genome_files)
                 d[qid][rid] = (ani, af)
+                self.ani_cache[qid][rid] = (ani, af)
             return d
         
         ani_af = mp.Manager().dict()

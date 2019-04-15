@@ -30,11 +30,13 @@ from biolib.taxonomy import Taxonomy
 from biolib.newick import parse_label
 
 from genometreetk.qc_genomes import QcGenomes
+from genometreetk.mash import Mash
 from genometreetk.select_type_genomes import SelectTypeGenomes
 from genometreetk.cluster_named_types import ClusterNamedTypes
 from genometreetk.cluster_de_novo import ClusterDeNovo
 from genometreetk.cluster_user import ClusterUser
 from genometreetk.tree_gids import TreeGIDs
+from genometreetk.cluster_stats import ClusterStats
 
 from genometreetk.exceptions import GenomeTreeTkError
 from genometreetk.rna_workflow import RNA_Workflow
@@ -43,11 +45,13 @@ from genometreetk.jackknife_markers import JackknifeMarkers
 from genometreetk.jackknife_taxa import JackknifeTaxa
 from genometreetk.combine_support import CombineSupport
 from genometreetk.reroot_tree import RerootTree
-from genometreetk.common import read_gtdb_metadata, read_gtdb_taxonomy
+from genometreetk.common import parse_genome_path, read_gtdb_metadata, read_gtdb_taxonomy
 from genometreetk.phylogenetic_diversity import PhylogeneticDiversity
 from genometreetk.arb import Arb
 from genometreetk.derep_tree import DereplicateTree
 from genometreetk.assign_genomes import AssignGenomes
+
+from genometreetk.type_genome_utils import read_qc_file
 
 
 csv.field_size_limit(sys.maxsize)
@@ -314,7 +318,7 @@ class OptionsParser():
             raise SystemExit
 
         self.logger.info('Quality checking information written to: %s' % options.output_dir)
-
+        
     def select_type_genomes(self, options):
         """Select representative genomes for named species."""
 
@@ -575,6 +579,18 @@ class OptionsParser():
         print('')
         deprecated_reps = set(prev_reps_taxa).intersection(cur_gids) - set(cur_reps_taxa)
         print('No. deprecated previous representatives: %d' % len(deprecated_reps))
+        
+    def cluster_stats(self, options):
+        """Calculate statistics for species cluster."""
+
+        check_file_exists(options.cluster_file)
+        check_file_exists(options.genome_path_file)
+        
+        p = ClusterStats(options.ani_cache_file,
+                            options.cpus, 
+                            options.output_dir)
+        p.run(options.cluster_file, 
+                options.genome_path_file)
 
     def fill_ranks(self, options):
         """Ensure taxonomy strings contain all 7 canonical ranks."""
@@ -869,6 +885,8 @@ class OptionsParser():
             self.outgroup(options)
         elif options.subparser_name == 'qc_genomes':
             self.qc_genomes(options)
+        elif options.subparser_name == 'mash_dist':
+            self.mash_dist(options)
         elif options.subparser_name == 'select_type_genomes':
             self.select_type_genomes(options)
         elif options.subparser_name == 'cluster_named_types':
@@ -883,6 +901,8 @@ class OptionsParser():
             self.assign(options)
         elif options.subparser_name == 'rep_compare':
             self.rep_compare(options)
+        elif options.subparser_name == 'cluster_stats':
+            self.cluster_stats(options)
         elif options.subparser_name == 'propagate':
             self.propagate(options)
         elif options.subparser_name == 'fill_ranks':

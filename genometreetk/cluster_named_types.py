@@ -168,7 +168,7 @@ class ClusterNamedTypes(object):
         
         # calculate ANI between pairs
         self.logger.info('Calculating ANI between %d genome pairs:' % len(mash_ani_pairs))
-        if False: #***
+        if True: #***
             ani_af = self.ani_cache.fastani_pairs(mash_ani_pairs, genome_files)
             pickle.dump(ani_af, open(os.path.join(self.output_dir, 'ani_af_type_vs_nontype.pkl'), 'wb'))
         else:

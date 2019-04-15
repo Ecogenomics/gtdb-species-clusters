@@ -86,6 +86,7 @@ def print_help():
       cluster_user        -> Cluster User genomes to GTDB species clusters, no new representatives are selected
       tree_gids           -> Determine bacterial and archaeal genomes for canonical and validation trees
       rep_compare         -> Compare current and previous representatives
+      cluster_stats       -> Calculate statistics for species clusters
       
     Assign genomes to canonical genome set:
       assign -> Assign genomes to canonical genomes comprising GTDB reference tree
@@ -423,8 +424,18 @@ if __name__ == '__main__':
     rep_compare_parser.add_argument('cur_metadata_file', help="metadata file for all genomes in current GTDB release")
     rep_compare_parser.add_argument('prev_metadata_file', help="metadata file for all genomes in previous GTDB release")
     rep_compare_parser.add_argument('--silent', help="suppress output", action='store_true')
+    
+    # cluster genomes to selected GTDB type genomes
+    cluster_stats_parser = subparsers.add_parser('cluster_stats',
+                                        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+                                        description='Calculate statistics for species clusters.')
+    cluster_stats_parser.add_argument('cluster_file', help='file specifying species clusters')
+    cluster_stats_parser.add_argument('genome_path_file', help="file indicating path to genome files (TSV file)")
+    cluster_stats_parser.add_argument('output_dir', help="output directory")
+    cluster_stats_parser.add_argument('--ani_cache_file', help='file with precomputed ANI and AF values')
+    cluster_stats_parser.add_argument('-c', '--cpus', help='number of cpus', type=int, default=1)
+    cluster_stats_parser.add_argument('--silent', help="suppress output", action='store_true')
 
-  
     # fill all 7 taxonomic ranks
     fill_ranks_parser = subparsers.add_parser('fill_ranks',
                                         formatter_class=CustomHelpFormatter,

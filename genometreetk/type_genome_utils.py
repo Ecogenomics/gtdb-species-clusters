@@ -91,6 +91,9 @@ def parse_canonical_sp(sp):
 def symmetric_ani(ani_af, gid1, gid2):
     """Calculate symmetric ANI statistics between genomes."""
     
+    if gid1 == gid2:
+        return 100.0, 1.0
+    
     if (gid1 not in ani_af
         or gid2 not in ani_af 
         or gid1 not in ani_af[gid2]
@@ -307,7 +310,7 @@ def write_clusters(clusters, type_radius, species, out_file):
         if not af:
             af = 0
             
-        if not closest_gid:
+        if not closest_gid or closest_gid == 'N/A':
             closest_gid = 'N/A'
             closest_sp = 'N/A'
         else:
@@ -337,7 +340,7 @@ def write_type_radius(type_radius, species, out_file):
         if not af:
             af = 0
             
-        if not neighbour_gid:
+        if not neighbour_gid or neighbour_gid == 'N/A':
             neighbour_gid = 'N/A'
             neighbour_sp = 'N/A'
         else:
