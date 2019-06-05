@@ -431,8 +431,11 @@ if __name__ == '__main__':
                                         description='Calculate statistics for species clusters.')
     cluster_stats_parser.add_argument('cluster_file', help='file specifying species clusters')
     cluster_stats_parser.add_argument('genome_path_file', help="file indicating path to genome files (TSV file)")
+    cluster_stats_parser.add_argument('gtdb_metadata_file', help="metadata file from GTDB with NCBI taxonomy information (TSV file)")
     cluster_stats_parser.add_argument('output_dir', help="output directory")
     cluster_stats_parser.add_argument('--ani_cache_file', help='file with precomputed ANI and AF values')
+    cluster_stats_parser.add_argument('--max_genomes', help='maximum randomly selected genomes to consider in a species cluster', type=int, default=100)
+    cluster_stats_parser.add_argument('--af_sp', help='minimum AF for defining species clusters', type=float, default=0.65)
     cluster_stats_parser.add_argument('-c', '--cpus', help='number of cpus', type=int, default=1)
     cluster_stats_parser.add_argument('--silent', help="suppress output", action='store_true')
 

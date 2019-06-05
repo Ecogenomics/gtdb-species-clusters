@@ -1,3 +1,6 @@
+0.0.53
+- better handling of support values when 'stripping' a tree
+
 0.0.52
 - modified cluster_de_novo to ensure all genomes as assigned to the closest type genome
 - fixed synonym table: species were being indicated as synonyms of multiple species (e.g. Shigella boydii)

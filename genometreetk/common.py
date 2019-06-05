@@ -557,21 +557,22 @@ def read_gtdb_ncbi_taxonomy(metadata_file, species_exception_file):
                 taxonomy[genome_id] = map(str.strip, taxa_str.split(';'))
             else:
                 taxonomy[genome_id] = list(Taxonomy.rank_prefixes)
-                
+    
     ncbi_update_count = 0
-    for line in open(species_exception_file):
-        line_split = line.strip().split('\t')
-        gid = line_split[0]
-        sp = line_split[1].replace('Candidatus ', '')
-        if gid not in taxonomy:
-            print('Genome in species exception list not defined at NCBI: %s' % gid)
-            sys.exit(-1)
-            
-        if not sp.startswith('s__'):
-            sp = 's__' + sp
-            
-        taxonomy[gid][6] = sp
-        ncbi_update_count += 1
+    if species_exception_file:
+        for line in open(species_exception_file):
+            line_split = line.strip().split('\t')
+            gid = line_split[0]
+            sp = line_split[1].replace('Candidatus ', '')
+            if gid not in taxonomy:
+                print('Genome in species exception list not defined at NCBI: %s' % gid)
+                sys.exit(-1)
+                
+            if not sp.startswith('s__'):
+                sp = 's__' + sp
+                
+            taxonomy[gid][6] = sp
+            ncbi_update_count += 1
 
     return taxonomy, ncbi_update_count
 

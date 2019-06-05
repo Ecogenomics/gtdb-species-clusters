@@ -585,12 +585,16 @@ class OptionsParser():
 
         check_file_exists(options.cluster_file)
         check_file_exists(options.genome_path_file)
+        check_file_exists(options.gtdb_metadata_file)
         
-        p = ClusterStats(options.ani_cache_file,
+        p = ClusterStats(options.af_sp,
+                            options.max_genomes,
+                            options.ani_cache_file,
                             options.cpus, 
                             options.output_dir)
         p.run(options.cluster_file, 
-                options.genome_path_file)
+                options.genome_path_file,
+                options.gtdb_metadata_file)
 
     def fill_ranks(self, options):
         """Ensure taxonomy strings contain all 7 canonical ranks."""
@@ -727,7 +731,12 @@ class OptionsParser():
                     support, _taxa = node.label.split(':')
                     node.label = support
                 else:
-                    node.label = None
+                    try:
+                        # if number if a float (or int) treat
+                        # it as a support value
+                        f = float(node.label)
+                    except ValueError:
+                        node.label = None
 
         tree.write_to_path(options.output_tree,
                             schema='newick',
