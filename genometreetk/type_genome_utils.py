@@ -18,6 +18,7 @@
 import os
 import csv
 import sys
+import logging
 import ntpath
 from collections import defaultdict, namedtuple
 
@@ -181,17 +182,29 @@ def parse_marker_percentages(gtdb_domain_report):
         domain_index = header.index('Predicted domain')
         bac_marker_perc_index = header.index('Bacterial Marker Percentage')
         ar_marker_perc_index = header.index('Archaeal Marker Percentage')
+        ncbi_taxonomy_index = header.index('NCBI taxonomy')
+        gtdb_taxonomy_index = header.index('GTDB taxonomy')
         
         for line in f:
             line_split = line.strip().split('\t')
             
             gid = line_split[0]
             domain = line_split[domain_index]
+            bac_perc = float(line_split[bac_marker_perc_index])
+            ar_perc = float(line_split[ar_marker_perc_index])
+            ncbi_domain = [t.strip() for t in line_split[ncbi_taxonomy_index]][0]
+            gtdb_domain = [t.strip() for t in line_split[gtdb_taxonomy_index]][0]
+            if ncbi_domain != gtdb_domain:
+                print('[***WARNING***] NCBI and GTDB domains disagree in domain report: {}'.format(gid))
             
             if domain == 'd__Bacteria':
-                marker_perc[gid] = float(line_split[bac_marker_perc_index])
+                marker_perc[gid] = bac_perc
+                if ncbi_domain != 'd__Bacteria':
+                    print('[***WARNING***] NCBI domains disagrees with predicted domain: {}'.format(gid))
             else:
-                marker_perc[gid] = float(line_split[ar_marker_perc_index])
+                marker_perc[gid] = ar_perc
+                if ncbi_domain != 'd__Archaea':
+                    print('[***WARNING***] NCBI domains disagrees with predicted domain: {}'.format(gid))
 
     return marker_perc
     
