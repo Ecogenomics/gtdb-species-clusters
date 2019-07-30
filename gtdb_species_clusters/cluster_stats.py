@@ -36,14 +36,14 @@ from numpy import (mean as np_mean,
                     zeros as np_zeros,
                     argmin as np_argmin)
 
-from genometreetk.common import (parse_genome_path,
+from gtdb_species_clusters.common import (parse_genome_path,
                                     read_gtdb_ncbi_taxonomy)
                                     
-from genometreetk.type_genome_utils import (GenomeRadius,
+from gtdb_species_clusters.type_genome_utils import (GenomeRadius,
                                             symmetric_ani)
                                             
-from genometreetk.mash import Mash
-from genometreetk.ani_cache import ANI_Cache
+from gtdb_species_clusters.mash import Mash
+from gtdb_species_clusters.ani_cache import ANI_Cache
 
 class ClusterStats(object):
     """Calculate statistics for species cluster."""

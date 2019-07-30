@@ -32,15 +32,15 @@ from biolib.external.execute import check_dependencies
 from numpy import (mean as np_mean,
                     std as np_std)
 
-from genometreetk.common import parse_genome_path
+from gtdb_species_clusters.common import parse_genome_path
                                     
-from genometreetk.type_genome_utils import (GenomeRadius,
+from gtdb_species_clusters.type_genome_utils import (GenomeRadius,
                                             read_quality_metadata,
                                             read_clusters,
                                             symmetric_ani)
                                     
-from genometreetk.ani_cache import ANI_Cache
-from genometreetk.mash import Mash
+from gtdb_species_clusters.ani_cache import ANI_Cache
+from gtdb_species_clusters.mash import Mash
 
 class ClusterUser(object):
     """Cluster User genomes to GTDB species clusters."""

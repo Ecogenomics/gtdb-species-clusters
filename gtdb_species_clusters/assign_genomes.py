@@ -31,8 +31,6 @@ from collections import defaultdict
 from biolib.taxonomy import Taxonomy
 from biolib.external.execute import check_dependencies
 
-csv.field_size_limit(sys.maxsize)
-
 
 class AssignGenomes(object):
     """Assign genomes to canonical genomes comprising GTDB reference tree."""

@@ -22,12 +22,12 @@ import random
 import operator
 from collections import defaultdict
 
-from genometreetk.common import (binomial_species,
+from gtdb_species_clusters.common import (binomial_species,
                                     read_gtdb_metadata,
                                     read_gtdb_ncbi_taxonomy,
                                     read_gtdb_taxonomy)
                                     
-from genometreetk.type_genome_utils import (read_clusters, 
+from gtdb_species_clusters.type_genome_utils import (read_clusters, 
                                             read_quality_metadata, 
                                             read_qc_file,
                                             quality_score,

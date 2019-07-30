@@ -24,7 +24,7 @@ from collections import defaultdict, namedtuple
 
 from numpy import (mean as np_mean)
 
-from genometreetk.common import read_gtdb_metadata
+from gtdb_species_clusters.common import read_gtdb_metadata
 
 
 NCBI_TYPE_SPECIES = set(['assembly from type material', 

@@ -33,13 +33,13 @@ from biolib.external.execute import check_dependencies
 from numpy import (mean as np_mean,
                     std as np_std)
 
-from genometreetk.common import (parse_genome_path,
+from gtdb_species_clusters.common import (parse_genome_path,
                                     genome_species_assignments,
                                     read_gtdb_metadata,
                                     read_gtdb_taxonomy,
                                     read_gtdb_ncbi_taxonomy)
                                     
-from genometreetk.type_genome_utils import (GenomeRadius,
+from gtdb_species_clusters.type_genome_utils import (GenomeRadius,
                                             quality_score,
                                             read_qc_file,
                                             read_quality_metadata,
@@ -48,8 +48,8 @@ from genometreetk.type_genome_utils import (GenomeRadius,
                                             write_clusters,
                                             write_type_radius)
                                     
-from genometreetk.ani_cache import ANI_Cache
-from genometreetk.mash import Mash
+from gtdb_species_clusters.ani_cache import ANI_Cache
+from gtdb_species_clusters.mash import Mash
 
 class ClusterDeNovo(object):
     """Infer de novo species clusters and type genomes for remaining genomes."""

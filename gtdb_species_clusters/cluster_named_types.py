@@ -31,21 +31,21 @@ from biolib.external.execute import check_dependencies
 
 from numpy import (mean as np_mean)
 
-from genometreetk.common import (parse_genome_path,
+from gtdb_species_clusters.common import (parse_genome_path,
                                     binomial_species,
                                     canonical_species_name,
                                     read_gtdb_metadata,
                                     read_gtdb_taxonomy,
                                     read_gtdb_ncbi_taxonomy)
                                     
-from genometreetk.type_genome_utils import (GenomeRadius,
+from gtdb_species_clusters.type_genome_utils import (GenomeRadius,
                                             read_qc_file,
                                             symmetric_ani,
                                             write_clusters,
                                             write_type_radius)
                                     
-from genometreetk.ani_cache import ANI_Cache
-from genometreetk.mash import Mash
+from gtdb_species_clusters.ani_cache import ANI_Cache
+from gtdb_species_clusters.mash import Mash
 
 class ClusterNamedTypes(object):
     """Cluster genomes to selected GTDB type genomes."""

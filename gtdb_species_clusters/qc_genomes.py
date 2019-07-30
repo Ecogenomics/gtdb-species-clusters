@@ -20,12 +20,12 @@ import sys
 import logging
 from collections import defaultdict
 
-from genometreetk.common import (binomial_species,
+from gtdb_species_clusters.common import (binomial_species,
                                     read_gtdb_metadata,
                                     read_gtdb_ncbi_taxonomy,
                                     read_gtdb_taxonomy)
                                     
-from genometreetk.type_genome_utils import (exclude_from_refseq, 
+from gtdb_species_clusters.type_genome_utils import (exclude_from_refseq, 
                                             ncbi_type_strain_of_species,
                                             gtdb_type_strain_of_species,
                                             parse_marker_percentages,

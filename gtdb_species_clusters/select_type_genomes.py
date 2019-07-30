@@ -32,7 +32,7 @@ from biolib.external.execute import check_dependencies
 from numpy import (mean as np_mean,
                     std as np_std)
 
-from genometreetk.common import (parse_genome_path,
+from gtdb_species_clusters.common import (parse_genome_path,
                                     binomial_species,
                                     genome_species_assignments,
                                     canonical_species_name,
@@ -40,7 +40,7 @@ from genometreetk.common import (parse_genome_path,
                                     read_gtdb_taxonomy,
                                     read_gtdb_ncbi_taxonomy)
                                     
-from genometreetk.type_genome_utils import (NCBI_TYPE_SPECIES,
+from gtdb_species_clusters.type_genome_utils import (NCBI_TYPE_SPECIES,
                                             NCBI_PROXYTYPE,
                                             NCBI_TYPE_SUBSP,
                                             GTDB_TYPE_SPECIES,
@@ -54,8 +54,8 @@ from genometreetk.type_genome_utils import (NCBI_TYPE_SPECIES,
                                             read_qc_file,
                                             parse_marker_percentages)
                                     
-from genometreetk.ani_cache import ANI_Cache
-from genometreetk.mash import Mash
+from gtdb_species_clusters.ani_cache import ANI_Cache
+from gtdb_species_clusters.mash import Mash
 
 class SelectTypeGenomes(object):
     """Select GTDB type genomes for named species."""
