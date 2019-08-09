@@ -9,7 +9,7 @@ Species clusters were introduced in GTDB R04-RS89.
 
 If you find this package useful, please cite:
 
-Parks DH, et al. 2019. Bacterial and archaeal species clusters provide a complete genome-based taxonomy. <in preparation>
+Parks DH, et al. 2019. Bacterial and archaeal species clusters provide a complete genome-based taxonomy. In preparation.
 
 
 ## Copyright

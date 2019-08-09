@@ -1,0 +1,281 @@
+#!/srv/sw/python/2.7.4/bin/python
+
+###############################################################################
+#                                                                             #
+#    This program is free software: you can redistribute it and/or modify     #
+#    it under the terms of the GNU General Public License as published by     #
+#    the Free Software Foundation, either version 3 of the License, or        #
+#    (at your option) any later version.                                      #
+#                                                                             #
+#    This program is distributed in the hope that it will be useful,          #
+#    but WITHOUT ANY WARRANTY; without even the implied warranty of           #
+#    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the            #
+#    GNU General Public License for more details.                             #
+#                                                                             #
+#    You should have received a copy of the GNU General Public License        #
+#    along with this program. If not, see <http://www.gnu.org/licenses/>.     #
+#                                                                             #
+###############################################################################
+
+__author__ = "Donovan Parks"
+__copyright__ = "Copyright 2015"
+__credits__ = ["Donovan Parks"]
+__license__ = "GPL3"
+__maintainer__ = "Donovan Parks"
+__email__ = "donovan.parks@gmail.com"
+__status__ = "Development"
+
+import os
+import sys
+import ntpath
+import logging
+import argparse
+
+from gtdb_species_clusters.main import OptionsParser
+from biolib.misc.custom_help_formatter import CustomHelpFormatter
+from biolib.common import make_sure_path_exists
+from biolib.taxonomy import Taxonomy
+
+
+def version():
+    """Read program version from file."""
+    import gtdb_species_clusters
+    version_file = open(os.path.join(gtdb_species_clusters.__path__[0], 'VERSION'))
+    return version_file.readline().strip()
+
+
+def print_help():
+    """Help menu."""
+
+    print ''
+    print '                ...::: GTDB Species Clusters v' + version() + ' :::...'''
+    print '''\
+
+    qc_genomes          -> Quality check all potential GTDB genomes
+    select_type_genomes -> Select type genomes for named species
+    cluster_named_types -> Cluster genomes to selected GTDB type genomes
+    cluster_de_novo     -> Infer de novo species clusters and type genomes for remaining NCBI genomes
+    cluster_user        -> Cluster User genomes to GTDB species clusters, no new representatives are selected
+    tree_gids           -> Determine bacterial and archaeal genomes for canonical and validation trees
+    rep_compare         -> Compare current and previous representatives
+    cluster_stats       -> Calculate statistics for species clusters
+
+  Use: gtdb_species_clusters <command> -h for command specific help.
+
+  Feature requests or bug reports can be sent to Donovan Parks (donovan.parks@gmail.com)
+    or posted on GitHub (https://github.com/Ecogenomics/gtdb-species-clusters).
+    '''
+
+def logger_setup(output_dir, silent):
+    """Set logging for application.
+
+    Parameters
+    ----------
+    output_dir : str
+        Output directory for log file.
+    silent : boolean
+        Flag indicating if output to stdout should be suppressed.
+    """
+
+    # setup general properties of logger
+    logger = logging.getLogger('')
+    logger.setLevel(logging.DEBUG)
+    log_format = logging.Formatter(fmt="[%(asctime)s] %(levelname)s: %(message)s",
+                                   datefmt="%Y-%m-%d %H:%M:%S")
+
+    # setup logging to console
+    if not silent:
+        stream_logger = logging.StreamHandler(sys.stdout)
+        stream_logger.setFormatter(log_format)
+        stream_logger.setLevel(logging.DEBUG)
+        logger.addHandler(stream_logger)
+
+    if output_dir:
+        make_sure_path_exists(output_dir)
+        file_logger = logging.FileHandler(os.path.join(output_dir, 'gtdb_species_clusters.log'), 'a')
+        file_logger.setFormatter(log_format)
+        logger.addHandler(file_logger)
+
+    logger.info('GTDB Species Clusters v%s' % version())
+    logger.info(ntpath.basename(sys.argv[0]) + ' ' + ' '.join(sys.argv[1:]))
+
+
+if __name__ == '__main__':
+
+    # initialize the options parser
+    parser = argparse.ArgumentParser(add_help=False)
+    subparsers = parser.add_subparsers(help="--", dest='subparser_name')
+
+    # dereplicate genomes in named species
+    qc_genomes_parser = subparsers.add_parser('qc_genomes',
+                                        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+                                        description='Quality check all potential GTDB genomes.')
+    qc_genomes_parser.add_argument('gtdb_metadata_file', help="metadata file from GTDB with CheckM estimates for all genomes (TSV file)")
+    qc_genomes_parser.add_argument('gtdb_user_genomes_file', help="file with GTDB User genomes and GenBank accessions to consider for cluster representatives (genbank_uba_accessions.tsv)")
+    qc_genomes_parser.add_argument('gtdb_user_reps', help="file with GTDB User representative genomes from previous GTDB release (gtdb_r86_user_reps.tsv)")
+    qc_genomes_parser.add_argument('ncbi_refseq_assembly_file', help="NCBI RefSeq assembly file indicating potentially erroneous genomes")
+    qc_genomes_parser.add_argument('ncbi_genbank_assembly_file', help="NCBI GenBank assembly file indicating potentially erroneous genomes")
+    qc_genomes_parser.add_argument('gtdb_domain_report', help="GTDB report of number of bac120 and ar122 marker genes (gtdb power domain_report)")
+    qc_genomes_parser.add_argument('qc_exception_file', help="file listing genomes to retain regardless of quality")
+    qc_genomes_parser.add_argument('species_exception_file', help="file listing species names for select genomes to override NCBI names")
+    qc_genomes_parser.add_argument('output_dir', help="output directory")
+    qc_genomes_parser.add_argument('--min_comp', help='minimum completeness for a genome to be a type genome [0, 100]', type=float, default=50)
+    qc_genomes_parser.add_argument('--max_cont', help='maximum contamination for a genome to be a type genome  [0, 100]', type=float, default=10)
+    qc_genomes_parser.add_argument('--min_quality', help='minimum genome quality (comp - 5*cont) to be a type genome  [0, 100]', type=float, default=50)
+    qc_genomes_parser.add_argument('--sh_exception', help='minimum strain heterogenity to retain genomes with upto 20%% contamination [0, 100]', type=float, default=80)
+    qc_genomes_parser.add_argument('--min_perc_markers', help='minimum percentage of bac120 or ar122 marker genes', type=float, default=40)
+    qc_genomes_parser.add_argument('--max_contigs', help='maximum number of contigs for a genome to be a type genome', type=int, default=1000)
+    qc_genomes_parser.add_argument('--min_N50', help='minimum N50 of scaffolds for a genome to be a type genome', type=int, default=5000)
+    qc_genomes_parser.add_argument('--max_ambiguous', help='maximum number of ambiguous bases within contigs for a genome to be a type genome', type=int, default=100000)
+    qc_genomes_parser.add_argument('--silent', help="suppress output", action='store_true')
+
+    # dereplicate genomes in named species
+    select_type_genomes_parser = subparsers.add_parser('select_type_genomes',
+                                        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+                                        description='Select type genomes for named species.')
+    select_type_genomes_parser.add_argument('qc_file', help="file indicating genomes that have passed QC (qc_passed.tsv from qc_genomes)")
+    select_type_genomes_parser.add_argument('gtdb_metadata_file', help="metadata file from GTDB with CheckM estimates for all genomes (TSV file)")
+    select_type_genomes_parser.add_argument('ltp_blast_file', help="file with sequence similarity results between 16S rRNA genes and the LTP database")
+    select_type_genomes_parser.add_argument('genome_path_file', help="file indicating path to genome files (TSV file)")
+    select_type_genomes_parser.add_argument('prev_rep_file', help="list of previous type genomes to favour during selection")
+    select_type_genomes_parser.add_argument('ncbi_refseq_assembly_file', help="NCBI RefSeq assembly file indicating potentially erroneous genomes")
+    select_type_genomes_parser.add_argument('ncbi_genbank_assembly_file', help="NCBI GenBank assembly file indicating potentially erroneous genomes")
+    select_type_genomes_parser.add_argument('gtdb_domain_report', help="GTDB report of number of bac120 and ar122 marker genes (gtdb power domain_report)")
+    select_type_genomes_parser.add_argument('species_exception_file', help="file listing species names for select genomes to override NCBI names")
+    select_type_genomes_parser.add_argument('gtdb_type_genome_file', help="file listing manually selected type genomes")
+    select_type_genomes_parser.add_argument('output_dir', help="output directory")
+    select_type_genomes_parser.add_argument('--ani_cache_file', help='file with precomputed ANI and AF values')
+    select_type_genomes_parser.add_argument('-c', '--cpus', help='number of cpus', type=int, default=1)
+    select_type_genomes_parser.add_argument('--silent', help="suppress output", action='store_true')
+    
+    # cluster genomes to selected GTDB type genomes
+    cluster_named_types_parser = subparsers.add_parser('cluster_named_types',
+                                        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+                                        description='Cluster genomes to selected GTDB type genomes.')
+    cluster_named_types_parser.add_argument('qc_file', help="file indicating genomes that have passed QC (qc_passed.tsv from qc_genomes)")
+    cluster_named_types_parser.add_argument('gtdb_metadata_file', help="metadata file from GTDB with CheckM estimates for all genomes (TSV file)")
+    cluster_named_types_parser.add_argument('genome_path_file', help="file indicating path to genome files (TSV file)")
+    cluster_named_types_parser.add_argument('named_type_genome_file', help="file with type genomes selected for named species")
+    cluster_named_types_parser.add_argument('type_genome_ani_file', help="file with pairwise ANI values between type genomes of named species")
+    cluster_named_types_parser.add_argument('species_exception_file', help="file listing species names for select genomes to override NCBI names")
+    cluster_named_types_parser.add_argument('output_dir', help="output directory")
+    cluster_named_types_parser.add_argument('--ani_cache_file', help='file with precomputed ANI and AF values')
+    cluster_named_types_parser.add_argument('--mash_sketch_file', help='file with Mash sketches for all type genomes')
+    cluster_named_types_parser.add_argument('--ani_sp', help='minimum ANI for defining species clusters', type=float, default=95)
+    cluster_named_types_parser.add_argument('--af_sp', help='minimum AF for defining species clusters', type=float, default=0.65)
+    cluster_named_types_parser.add_argument('-c', '--cpus', help='number of cpus', type=int, default=1)
+    cluster_named_types_parser.add_argument('--silent', help="suppress output", action='store_true')
+    
+    # infer de novo species clusters and type genomes for remaining genomes
+    cluster_de_novo_parser = subparsers.add_parser('cluster_de_novo',
+                                        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+                                        description='Infer de novo species clusters and type genomes for remaining genomes.')
+    cluster_de_novo_parser.add_argument('qc_file', help="file indicating genomes that have passed QC (qc_passed.tsv from qc_genomes)")
+    cluster_de_novo_parser.add_argument('gtdb_metadata_file', help="metadata file from GTDB with CheckM estimates for all genomes (TSV file)")
+    cluster_de_novo_parser.add_argument('gtdb_user_genomes_file', help="file with GTDB User genomes and GenBank accessions to consider for cluster representatives (genbank_uba_accessions.tsv)")
+    cluster_de_novo_parser.add_argument('genome_path_file', help="file indicating path to genome files (TSV file)")
+    cluster_de_novo_parser.add_argument('type_genome_cluster_file', help="file with type genome clusters (output from cluster_named_types)")
+    cluster_de_novo_parser.add_argument('type_genome_synonym_file', help="file with species names marked as synonyms (output from select_type_genomes)")
+    cluster_de_novo_parser.add_argument('ncbi_refseq_assembly_file', help="NCBI RefSeq assembly file indicating potentially erroneous genomes")
+    cluster_de_novo_parser.add_argument('ncbi_genbank_assembly_file', help="NCBI GenBank assembly file indicating potentially erroneous genomes")
+    cluster_de_novo_parser.add_argument('ani_af_nontype_vs_type', help="file with pairwise ANI values between type and nontype genomes (output from cluster_named_types)")
+    cluster_de_novo_parser.add_argument('species_exception_file', help="file listing species names for select genomes to override NCBI names")
+    cluster_de_novo_parser.add_argument('output_dir', help="output directory")
+    cluster_de_novo_parser.add_argument('--ani_cache_file', help='file with precomputed ANI and AF values')
+    cluster_de_novo_parser.add_argument('--ani_sp', help='minimum ANI for defining species clusters', type=float, default=95)
+    cluster_de_novo_parser.add_argument('--af_sp', help='minimum AF for defining species clusters', type=float, default=0.65)
+    cluster_de_novo_parser.add_argument('--rnd_type_genome', help="select random type genomes instead of ordering by genome quality", action='store_true')
+    cluster_de_novo_parser.add_argument('-c', '--cpus', help='number of cpus', type=int, default=1)
+    cluster_de_novo_parser.add_argument('--silent', help="suppress output", action='store_true')
+    
+    # cluster GTDB User genomes to representatives
+    cluster_user_parser = subparsers.add_parser('cluster_user',
+                                        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+                                        description='Cluster User genomes to GTDB species clusters, no new representatives are selected.')
+    cluster_user_parser.add_argument('gtdb_metadata_file', help="metadata file from GTDB with CheckM estimates for all genomes (TSV file)")
+    cluster_user_parser.add_argument('genome_path_file', help="file indicating path to genome files (TSV file)")
+    cluster_user_parser.add_argument('final_cluster_file', help="file with final GTDB genome clusters (output from cluster_de_novo)")
+    cluster_user_parser.add_argument('output_dir', help="output directory")
+    cluster_user_parser.add_argument('--ani_cache_file', help='file with precomputed ANI and AF values')
+    cluster_user_parser.add_argument('-c', '--cpus', help='number of cpus', type=int, default=1)
+    cluster_user_parser.add_argument('--silent', help="suppress output", action='store_true')
+    
+    # infer de novo species clusters and type genomes for remaining genomes
+    tree_gids = subparsers.add_parser('tree_gids',
+                                        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+                                        description='Determine bacterial and archaeal genomes for canonical and validation trees.')
+    tree_gids.add_argument('qc_file', help="file indicating genomes that have passed QC (qc_passed.tsv from qc_genomes)")
+    tree_gids.add_argument('gtdb_metadata_file', help="metadata file from GTDB with CheckM estimates for all genomes (TSV file)")
+    tree_gids.add_argument('gtdb_final_clusters', help="species clusters for GTDB (gtdb_clusters_final.tsv from cluster_de_novo")
+    tree_gids.add_argument('species_exception_file', help="file listing species names for select genomes to override NCBI names")
+    tree_gids.add_argument('output_dir', help='output directory')
+    tree_gids.add_argument('--silent', help="suppress output", action='store_true')
+
+    # cluster remaining genomes
+    assign_parser = subparsers.add_parser('assign',
+                                        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+                                        description='Assign genomes to canonical genomes comprising GTDB reference tree.')
+    assign_parser.add_argument('canonical_taxonomy_file', help="file indicating taxonomy of only canonical genomes")
+    assign_parser.add_argument('full_taxonomy_file', help="file indicating taxonomy of all genomes to at least the rank of genus")
+    assign_parser.add_argument('metadata_file', help="metadata file for all genomes in the GTDB (TSV file)")
+    assign_parser.add_argument('genome_path_file', help="file indicating path to genome files")
+    assign_parser.add_argument('output_dir', help="output directory")
+    assign_parser.add_argument('--user_genomes', help="assign user genomes", action='store_true')
+    assign_parser.add_argument('-c', '--cpus', help='number of cpus', type=int, default=1)
+    assign_parser.add_argument('--silent', help="suppress output", action='store_true')
+    
+    # compare current and previous representatives
+    rep_compare_parser = subparsers.add_parser('rep_compare',
+                                        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+                                        description='Compare current and previous representatives.')
+    rep_compare_parser.add_argument('cur_metadata_file', help="metadata file for all genomes in current GTDB release")
+    rep_compare_parser.add_argument('prev_metadata_file', help="metadata file for all genomes in previous GTDB release")
+    rep_compare_parser.add_argument('--silent', help="suppress output", action='store_true')
+    
+    # cluster genomes to selected GTDB type genomes
+    cluster_stats_parser = subparsers.add_parser('cluster_stats',
+                                        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+                                        description='Calculate statistics for species clusters.')
+    cluster_stats_parser.add_argument('cluster_file', help='file specifying species clusters')
+    cluster_stats_parser.add_argument('genome_path_file', help="file indicating path to genome files (TSV file)")
+    cluster_stats_parser.add_argument('gtdb_metadata_file', help="metadata file from GTDB with NCBI taxonomy information (TSV file)")
+    cluster_stats_parser.add_argument('output_dir', help="output directory")
+    cluster_stats_parser.add_argument('--ani_cache_file', help='file with precomputed ANI and AF values')
+    cluster_stats_parser.add_argument('--max_genomes', help='maximum randomly selected genomes to consider in a species cluster', type=int, default=100)
+    cluster_stats_parser.add_argument('--af_sp', help='minimum AF for defining species clusters', type=float, default=0.65)
+    cluster_stats_parser.add_argument('-c', '--cpus', help='number of cpus', type=int, default=1)
+    cluster_stats_parser.add_argument('--silent', help="suppress output", action='store_true')
+
+    # get and check options
+    args = None
+    if(len(sys.argv) == 1 or sys.argv[1] == '-h' or sys.argv == '--help'):
+        print_help()
+        sys.exit(0)
+    else:
+        args = parser.parse_args()
+
+    try:
+        logger_setup(args.output_dir, args.silent)
+    except:
+        logger_setup(None, args.silent)
+
+    # do what we came here to do
+    try:
+        parser = OptionsParser()
+        if(False):
+            # import pstats
+            # p = pstats.Stats('prof')
+            # p.sort_stats('cumulative').print_stats(10)
+            # p.sort_stats('time').print_stats(10)
+            import cProfile
+            cProfile.run('parser.parse_options(args)', 'prof')
+        elif False:
+            import pdb
+            pdb.run(parser.parse_options(args))
+        else:
+            parser.parse_options(args)
+    except SystemExit:
+        print "\n  Controlled exit resulting from an unrecoverable error or warning."
+    except:
+        print "\nUnexpected error:", sys.exc_info()[0]
+        raise
