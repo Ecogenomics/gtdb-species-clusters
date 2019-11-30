@@ -32,13 +32,16 @@ from biolib.external.execute import check_dependencies
 from numpy import (mean as np_mean,
                     std as np_std)
 
-from gtdb_species_clusters.common import (parse_genome_path,
+from gtdb_species_clusters.common import (read_genome_path,
                                     binomial_species,
                                     genome_species_assignments,
                                     canonical_species_name,
                                     read_gtdb_metadata,
                                     read_gtdb_taxonomy,
-                                    read_gtdb_ncbi_taxonomy)
+                                    read_gtdb_ncbi_taxonomy,
+                                    read_marker_percentages,
+                                    exclude_from_refseq,
+                                    read_qc_file)
                                     
 from gtdb_species_clusters.type_genome_utils import (NCBI_TYPE_SPECIES,
                                             NCBI_PROXYTYPE,
@@ -48,11 +51,8 @@ from gtdb_species_clusters.type_genome_utils import (NCBI_TYPE_SPECIES,
                                             GTDB_NOT_TYPE_MATERIAL,
                                             check_ncbi_subsp,
                                             gtdb_type_strain_of_species,
-                                            exclude_from_refseq,
                                             symmetric_ani,
-                                            quality_score,
-                                            read_qc_file,
-                                            parse_marker_percentages)
+                                            quality_score)
                                     
 from gtdb_species_clusters.ani_cache import ANI_Cache
 from gtdb_species_clusters.mash import Mash
@@ -1333,7 +1333,7 @@ class SelectTypeGenomes(object):
 
         # get path to genome FASTA files
         self.logger.info('Reading path to genome FASTA files.')
-        genome_files = parse_genome_path(genome_path_file)
+        genome_files = read_genome_path(genome_path_file)
         self.logger.info('Read path for %d genomes.' % len(genome_files))
         
         # parse NCBI assembly files
@@ -1343,7 +1343,7 @@ class SelectTypeGenomes(object):
         # calculate quality score for genomes
         self.logger.info('Calculate quality score for all genomes.')
         genome_quality, quality_metadata = self._genome_quality(metadata_file)
-        marker_perc = parse_marker_percentages(gtdb_domain_report)
+        marker_perc = read_marker_percentages(gtdb_domain_report)
         self.logger.info('Read genome quality for %d genomes.' % len(genome_quality))
         
         # parse LTP blast results to identify potential type genomes based on their 16S rRNA

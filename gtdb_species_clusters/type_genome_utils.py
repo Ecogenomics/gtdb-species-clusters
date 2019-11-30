@@ -28,8 +28,8 @@ from gtdb_species_clusters.common import read_gtdb_metadata
 
 
 NCBI_TYPE_SPECIES = set(['assembly from type material', 
-                                        'assembly from neotype material',
-                                        'assembly designated as neotype'])
+                        'assembly from neotype material',
+                        'assembly designated as neotype'])
 NCBI_PROXYTYPE = set(['assembly from proxytype material'])
 NCBI_TYPE_SUBSP = set(['assembly from synonym type material'])
 
@@ -66,6 +66,7 @@ def ncbi_species(unfiltered_ncbi_taxonomy):
         
     return None
     
+    
 def check_ncbi_subsp(unfiltered_ncbi_taxonomy):
     """Determine if genome is the 'type strain of species' or 'type strain of subspecies'."""
     
@@ -79,6 +80,7 @@ def check_ncbi_subsp(unfiltered_ncbi_taxonomy):
             return False
 
     return True
+    
 
 def parse_canonical_sp(sp):
     """Get canonical binomial species name."""
@@ -114,6 +116,102 @@ def symmetric_ani(ani_af, gid1, gid2):
     af = max(rev_af, cur_af)
     
     return ani, af
+    
+    
+def is_isolate(gid, quality_metadata):
+    """Check if genome is an isolate."""
+    
+    m = quality_metadata[gid]
+    if m.ncbi_genome_category:
+        if ('metagenome' in m.ncbi_genome_category.lower()
+            or 'environmental' in m.ncbi_genome_category.lower()
+            or 'single cell' in m.ncbi_genome_category.lower()):
+            return False
+            
+    return True
+    
+    
+def is_type_strain(gid, quality_metadata):
+    return quality_metadata[gid].gtdb_type_designation in GTDB_TYPE_SPECIES
+    
+    
+def is_ncbi_type_strain(gid, quality_metadata):
+    m = quality_metadata[gid]
+    if m.ncbi_type_material_designation:
+        if m.ncbi_type_material_designation.lower() in NCBI_TYPE_SPECIES:
+            if not check_ncbi_subsp(m.ncbi_taxonomy_unfiltered):
+                return True
+            else:
+                # genome is marked as 'assembled from type material', but
+                # is a subspecies according to the NCBI taxonomy so is
+                # the type strain of a subspecies
+                # (e.g. Alpha beta subsp. gamma)
+                return False
+                
+    return False
+    
+    
+def is_complete_genome(gid, quality_metadata):
+    m = quality_metadata[gid]
+    return (m.ncbi_assembly_level 
+            and m.ncbi_assembly_level.lower() in ['complete genome', 'chromosome']
+            and m.ncbi_genome_representation
+            and m.ncbi_genome_representation.lower() == 'full'
+            and m.scaffold_count == m.ncbi_molecule_count
+            and m.ncbi_unspanned_gaps == 0
+            and m.ncbi_spanned_gaps <= 10
+            and m.ambiguous_bases <= 1e4
+            and m.total_gap_length <= 1e4
+            and m.ssu_count >= 1)
+
+
+def quality_score_update(gids, quality_metadata):
+    """"Calculate quality score of genomes for updating representatives."""
+
+    score = {}
+    for gid in gids:
+        metadata = quality_metadata[gid]
+        
+        # set base quality so genomes have the following priority order:
+        #  type strain genome
+        #  NCBI assembled from type material
+        #  NCBI reference or representative genome
+        #  type subspecies genome
+        q = 0
+        if is_type_strain(gid, quality_metadata):
+            q = 1e4
+        
+        if is_ncbi_type_strain(gid, quality_metadata):
+            q = 1e3
+
+        # check if genome appears to complete consist of only an unspanned
+        # chromosome and unspanned plasmids and thus should be considered
+        # very high quality
+        if is_complete_genome(gid, quality_metadata):
+            q += 100
+            
+        q += metadata.checkm_completeness - 5*metadata.checkm_contamination
+        q -= 5*float(metadata.contig_count)/100
+        q -= 5*float(metadata.ambiguous_bases)/1e5
+        
+        if not is_isolate(gid, quality_metadata):
+            if 'single cell' in metadata.ncbi_genome_category.lower():
+                q -= 100 # genome is a SAG
+            else: 
+                q -= 200 # genome is a MAG
+        
+        # check for near-complete 16S rRNA gene
+        gtdb_domain = metadata.gtdb_taxonomy[0]
+        min_ssu_len = 1200
+        if gtdb_domain == 'd__Archaea':
+            min_ssu_len = 900
+            
+        if metadata.ssu_length and metadata.ssu_length >= min_ssu_len:
+            q += 10
+            
+        score[gid] = q
+        
+    return score
     
     
 def quality_score(gids, quality_metadata):
@@ -153,7 +251,8 @@ def quality_score(gids, quality_metadata):
         q -= 5*float(metadata.ambiguous_bases)/1e5
         
         if metadata.ncbi_genome_category:
-            if 'metagenome' in metadata.ncbi_genome_category.lower():
+            if ('metagenome' in metadata.ncbi_genome_category.lower()
+                or 'environmental' in metadata.ncbi_genome_category.lower()): # environmental check added Nov. 4, 2019
                 q -= 200
             if 'single cell' in metadata.ncbi_genome_category.lower():
                 q -= 100
@@ -170,44 +269,7 @@ def quality_score(gids, quality_metadata):
         score[gid] = q
         
     return score
-    
-    
-def parse_marker_percentages(gtdb_domain_report):
-    """Parse percentage of marker genes for each genome."""
-    
-    marker_perc = {}
-    with open(gtdb_domain_report) as f:
-        header = f.readline().rstrip().split('\t')
-        
-        domain_index = header.index('Predicted domain')
-        bac_marker_perc_index = header.index('Bacterial Marker Percentage')
-        ar_marker_perc_index = header.index('Archaeal Marker Percentage')
-        ncbi_taxonomy_index = header.index('NCBI taxonomy')
-        gtdb_taxonomy_index = header.index('GTDB taxonomy')
-        
-        for line in f:
-            line_split = line.strip().split('\t')
-            
-            gid = line_split[0]
-            domain = line_split[domain_index]
-            bac_perc = float(line_split[bac_marker_perc_index])
-            ar_perc = float(line_split[ar_marker_perc_index])
-            ncbi_domain = [t.strip() for t in line_split[ncbi_taxonomy_index]][0]
-            gtdb_domain = [t.strip() for t in line_split[gtdb_taxonomy_index]][0]
-            if ncbi_domain != gtdb_domain:
-                print('[***WARNING***] NCBI and GTDB domains disagree in domain report: {}'.format(gid))
-            
-            if domain == 'd__Bacteria':
-                marker_perc[gid] = bac_perc
-                if ncbi_domain != 'd__Bacteria':
-                    print('[***WARNING***] NCBI domains disagrees with predicted domain: {}'.format(gid))
-            else:
-                marker_perc[gid] = ar_perc
-                if ncbi_domain != 'd__Archaea':
-                    print('[***WARNING***] NCBI domains disagrees with predicted domain: {}'.format(gid))
 
-    return marker_perc
-    
 
 def pass_qc(qc, 
             marker_perc,
@@ -260,6 +322,7 @@ def pass_qc(qc,
     
     return not failed
     
+    
 def ncbi_type_strain_of_species(type_metadata):
     """Determine genomes considered type strain of species at NCBI."""
     
@@ -281,25 +344,7 @@ def gtdb_type_strain_of_species(type_metadata):
             
     return type_gids
             
-    
-def exclude_from_refseq(refseq_assembly_file, genbank_assembly_file):
-    """Parse exclude from RefSeq field from NCBI assembly files."""
-    
-    excluded_from_refseq_note = {}
-    for assembly_file in [refseq_assembly_file, genbank_assembly_file]:
-            for line in open(assembly_file):
-                if line[0] == '#':
-                    if line.startswith('# assembly_accession'):
-                        header = line.strip().split('\t')
-                        exclude_index = header.index('excluded_from_refseq')
-                else:
-                    line_split = line.strip('\n\r').split('\t')
-                    gid = line_split[0]
-                    gid = gid.replace('GCA_','GB_GCA_').replace('GCF_', 'RS_GCF_')
-                    excluded_from_refseq_note[gid] = line_split[exclude_index]
-    
-    return excluded_from_refseq_note
-    
+
 def write_clusters(clusters, type_radius, species, out_file):
     """Write out clustering information."""
 
@@ -366,21 +411,8 @@ def write_type_radius(type_radius, species, out_file):
                                                         neighbour_sp,
                                                         neighbour_gid))
     fout.close()
-    
-    
-def read_qc_file(qc_file):
-    """Read genomes passing QC from file."""
-    
-    passed_qc = set()
-    with open(qc_file) as f:
-        f.readline()
-        
-        for line in f:
-            line_split = line.strip().split('\t')
-            passed_qc.add(line_split[0])
-            
-    return passed_qc
-    
+
+
 def read_quality_metadata(metadata_file):
     """Read statistics needed to determine genome quality."""
     
@@ -397,6 +429,7 @@ def read_quality_metadata(metadata_file):
                                                 'ssu_count',
                                                 'ssu_length',
                                                 'mimag_high_quality',
+                                                'gtdb_type_designation',
                                                 'ncbi_assembly_level',
                                                 'ncbi_genome_representation',
                                                 'ncbi_refseq_category',
@@ -418,9 +451,9 @@ def read_clusters(cluster_file):
         
         type_sp_index = headers.index('NCBI species')
         type_genome_index = headers.index('Type genome')
+            
         num_clustered_index = headers.index('No. clustered genomes')
         clustered_genomes_index = headers.index('Clustered genomes')
-        
         closest_sp_index = headers.index('Closest species')
         closest_gid_index = headers.index('Closest type genome')
         closest_ani_index = headers.index('ANI radius')
@@ -447,3 +480,6 @@ def read_clusters(cluster_file):
                                              neighbour_gid = closest_gid)
                     
     return clusters, species, rep_radius
+    
+    
+

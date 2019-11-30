@@ -22,8 +22,6 @@ import logging
 import random
 from collections import defaultdict
 
-import dendropy
-
 from biolib.common import check_file_exists, make_sure_path_exists, is_float
 from biolib.external.execute import check_dependencies
 from biolib.taxonomy import Taxonomy
@@ -38,8 +36,14 @@ from gtdb_species_clusters.cluster_user import ClusterUser
 from gtdb_species_clusters.tree_gids import TreeGIDs
 from gtdb_species_clusters.cluster_stats import ClusterStats
 
-from gtdb_species_clusters.common import parse_genome_path, read_gtdb_metadata, read_gtdb_taxonomy
-from gtdb_species_clusters.type_genome_utils import read_qc_file
+from gtdb_species_clusters.update_new_genomes import NewGenomes
+from gtdb_species_clusters.update_gtdbtk import GTDB_Tk
+from gtdb_species_clusters.update_rep_changes import RepChanges
+from gtdb_species_clusters.update_rep_actions import RepActions
+
+from gtdb_species_clusters.merge_test import MergeTest
+
+from gtdb_species_clusters.exceptions import GTDB_Error
 
 
 class OptionsParser():
@@ -79,8 +83,8 @@ class OptionsParser():
                         options.min_N50,
                         options.max_ambiguous,
                         options.output_dir)
-        except gtdb_species_clustersError as e:
-            print e.message
+        except GTDB_Error as e:
+            print(e.message)
             raise SystemExit
 
         self.logger.info('Quality checking information written to: %s' % options.output_dir)
@@ -111,8 +115,8 @@ class OptionsParser():
                         options.gtdb_domain_report,
                         options.species_exception_file,
                         options.gtdb_type_genome_file)
-        except gtdb_species_clustersError as e:
-            print e.message
+        except GTDB_Error as e:
+            print(e.message)
             raise SystemExit
 
         self.logger.info('GTDB type genomes written to: %s' % options.output_dir)
@@ -141,8 +145,8 @@ class OptionsParser():
                     options.type_genome_ani_file,
                     options.mash_sketch_file,
                     options.species_exception_file)
-        except gtdb_species_clustersError as e:
-            print e.message
+        except GTDB_Error as e:
+            print(e.message)
             raise SystemExit
 
         self.logger.info('Clustering results written to: %s' % options.output_dir)
@@ -179,8 +183,8 @@ class OptionsParser():
                         options.ani_af_nontype_vs_type,
                         options.species_exception_file,
                         options.rnd_type_genome)
-        except gtdb_species_clustersError as e:
-            print e.message
+        except GTDB_Error as e:
+            print(e.message)
             raise SystemExit
 
         self.logger.info('Clustering results written to: %s' % options.output_dir)
@@ -200,8 +204,8 @@ class OptionsParser():
             p.run(options.gtdb_metadata_file,
                         options.genome_path_file,
                         options.final_cluster_file)
-        except gtdb_species_clustersError as e:
-            print e.message
+        except GTDB_Error as e:
+            print(e.message)
             raise SystemExit
 
         self.logger.info('Clustering results written to: %s' % options.output_dir)
@@ -221,8 +225,8 @@ class OptionsParser():
                     options.gtdb_final_clusters,
                     options.species_exception_file,
                     options.output_dir)
-        except gtdb_species_clustersError as e:
-            print e.message
+        except GTDB_Error as e:
+            print(e.message)
             raise SystemExit
 
         self.logger.info('Results written to: %s' % options.output_dir)
@@ -245,10 +249,157 @@ class OptionsParser():
                         options.genome_path_file,
                         options.user_genomes)
 
-        except gtdb_species_clustersError as e:
-            print e.message
+        except GTDB_Error as e:
+            print(e.message)
             raise SystemExit
             
+    def u_new_genomes(self, options):
+        """Identify new and updated genomes."""
+
+        check_file_exists(options.prev_ar_metadata_file)
+        check_file_exists(options.prev_bac_metadata_file)
+        check_file_exists(options.cur_gtdb_metadata_file)
+        check_file_exists(options.cur_genome_paths)
+        check_file_exists(options.ncbi_assembly_summary_genbank)
+
+        make_sure_path_exists(options.output_dir)
+        
+        try:
+            p = NewGenomes(options.output_dir)
+            p.run(options.prev_ar_metadata_file,
+                    options.prev_bac_metadata_file,
+                    options.cur_gtdb_metadata_file,
+                    options.cur_genome_paths,
+                    options.ncbi_assembly_summary_genbank)
+        except GTDB_Error as e:
+            print(e.message)
+            raise SystemExit
+            
+        self.logger.info('Done.')
+        
+    def u_qc_genomes(self, options):
+        """Quality check new and updated genomes."""
+        
+        check_file_exists(options.cur_gtdb_metadata_file)
+        check_file_exists(options.cur_refseq_assembly_file)
+        check_file_exists(options.cur_genbank_assembly_file)
+        check_file_exists(options.cur_gtdb_domain_report)
+        check_file_exists(options.qc_exception_file)
+        check_file_exists(options.species_exception_file)
+        check_file_exists(options.genus_exception_file)
+        make_sure_path_exists(options.output_dir)
+
+        try:
+            p = QcGenomes()
+            p.run(options.cur_gtdb_metadata_file,
+                        None,
+                        None,
+                        options.cur_refseq_assembly_file,
+                        options.cur_genbank_assembly_file,
+                        options.cur_gtdb_domain_report,
+                        options.qc_exception_file,
+                        options.species_exception_file,
+                        options.genus_exception_file,
+                        options.min_comp,
+                        options.max_cont,
+                        options.min_quality,
+                        options.sh_exception,
+                        options.min_perc_markers,
+                        options.max_contigs,
+                        options.min_N50,
+                        options.max_ambiguous,
+                        options.output_dir)
+        except GTDB_Error as e:
+            print(e.message)
+            raise SystemExit
+
+        self.logger.info('Quality checking information written to: %s' % options.output_dir)
+        
+    def u_gtdbtk(self, options):
+        """Perform initial classification of new and updated genomes using GTDB-Tk."""
+        
+        check_file_exists(options.genomes_new_updated_file)
+        check_file_exists(options.qc_passed_file)
+        make_sure_path_exists(options.output_dir)
+        
+        p = GTDB_Tk(options.cpus, options.output_dir)
+        p.run(options.genomes_new_updated_file,
+                options.qc_passed_file,
+                options.batch_size)
+
+        self.logger.info('Done.')
+            
+    def u_rep_changes(self, options):
+        """Identify species representatives that have changed from previous release."""
+
+        check_file_exists(options.prev_gtdb_metadata_file)
+        check_file_exists(options.prev_sp_cluster_file)
+        check_file_exists(options.cur_gtdb_metadata_file)
+        check_file_exists(options.genomes_new_updated_file)
+        check_file_exists(options.qc_passed_file)
+        check_file_exists(options.gtdbtk_classify_file)
+        check_file_exists(options.species_exception_file)
+        check_file_exists(options.genus_exception_file)
+        make_sure_path_exists(options.output_dir)
+        
+        p = RepChanges(options.output_dir)
+        p.run(options.prev_gtdb_metadata_file,
+                options.prev_sp_cluster_file,
+                options.cur_gtdb_metadata_file,
+                options.genomes_new_updated_file,
+                options.qc_passed_file,
+                options.gtdbtk_classify_file,
+                options.species_exception_file,
+                options.genus_exception_file)
+        
+        self.logger.info('Done.')
+        
+    def u_rep_actions(self, options):
+        """Perform initial actions required for changed representatives."""
+        
+        check_file_exists(options.rep_change_summary_file)
+        check_file_exists(options.prev_genomic_path_file)
+        check_file_exists(options.cur_genomic_path_file)
+        check_file_exists(options.genomes_new_updated_file)
+        check_file_exists(options.qc_passed_file)
+        check_file_exists(options.gtdbtk_classify_file)
+        check_file_exists(options.species_exception_file)
+        check_file_exists(options.genus_exception_file)
+        make_sure_path_exists(options.output_dir)
+        
+        p = RepActions(options.ani_cache_file, options.output_dir)
+        p.run(options.rep_change_summary_file,
+                options.prev_genomic_path_file,
+                options.cur_genomic_path_file,
+                options.prev_gtdb_metadata_file,
+                options.prev_sp_cluster_file,
+                options.cur_gtdb_metadata_file,
+                options.genomes_new_updated_file,
+                options.qc_passed_file,
+                options.gtdbtk_classify_file,
+                options.species_exception_file,
+                options.genus_exception_file)
+        
+        self.logger.info('Done.')
+        
+    def merge_test(self, options):
+        """Produce information relevant to merging two sister species."""
+        
+        check_file_exists(options.sp_cluster_file)
+        check_file_exists(options.gtdb_metadata_file)
+        check_file_exists(options.genome_path_file)
+        
+        make_sure_path_exists(options.output_dir)
+        
+        p = MergeTest(options.ani_cache_file, options.cpus, options.output_dir)
+        p.run(options.sp_cluster_file,
+                options.gtdb_metadata_file,
+                options.genome_path_file,
+                options.species1,
+                options.species2)
+        
+        self.logger.info('Done.')
+
     def rep_compare(self, options):
         """Compare current and previous representatives."""
 
@@ -383,6 +534,18 @@ class OptionsParser():
             self.tree_gids(options)
         elif options.subparser_name == 'assign':
             self.assign(options)
+        elif options.subparser_name == 'u_new_genomes':
+            self.u_new_genomes(options)
+        elif options.subparser_name == 'u_qc_genomes':
+            self.u_qc_genomes(options)
+        elif options.subparser_name == 'u_gtdbtk':
+            self.u_gtdbtk(options)
+        elif options.subparser_name == 'u_rep_changes':
+            self.u_rep_changes(options)
+        elif options.subparser_name == 'u_rep_actions':
+            self.u_rep_actions(options)
+        elif options.subparser_name == 'merge_test':
+            self.merge_test(options)
         elif options.subparser_name == 'rep_compare':
             self.rep_compare(options)
         elif options.subparser_name == 'cluster_stats':

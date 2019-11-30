@@ -31,15 +31,15 @@ from biolib.external.execute import check_dependencies
 
 from numpy import (mean as np_mean)
 
-from gtdb_species_clusters.common import (parse_genome_path,
+from gtdb_species_clusters.common import (read_genome_path,
                                     binomial_species,
                                     canonical_species_name,
                                     read_gtdb_metadata,
                                     read_gtdb_taxonomy,
-                                    read_gtdb_ncbi_taxonomy)
+                                    read_gtdb_ncbi_taxonomy,
+                                    read_qc_file)
                                     
 from gtdb_species_clusters.type_genome_utils import (GenomeRadius,
-                                            read_qc_file,
                                             symmetric_ani,
                                             write_clusters,
                                             write_type_radius)
@@ -258,7 +258,7 @@ class ClusterNamedTypes(object):
         
         # get path to genome FASTA files
         self.logger.info('Reading path to genome FASTA files.')
-        genome_files = parse_genome_path(genome_path_file)
+        genome_files = read_genome_path(genome_path_file)
         self.logger.info('Read path for %d genomes.' % len(genome_files))
         for gid in set(genome_files):
             if gid not in passed_qc:

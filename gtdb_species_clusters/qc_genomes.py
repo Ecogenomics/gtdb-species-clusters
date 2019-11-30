@@ -23,13 +23,13 @@ from collections import defaultdict
 from gtdb_species_clusters.common import (binomial_species,
                                     read_gtdb_metadata,
                                     read_gtdb_ncbi_taxonomy,
-                                    read_gtdb_taxonomy)
+                                    read_gtdb_taxonomy,
+                                    read_marker_percentages,
+                                    exclude_from_refseq)
                                     
-from gtdb_species_clusters.type_genome_utils import (exclude_from_refseq, 
-                                            ncbi_type_strain_of_species,
-                                            gtdb_type_strain_of_species,
-                                            parse_marker_percentages,
-                                            pass_qc)
+from gtdb_species_clusters.type_genome_utils import (ncbi_type_strain_of_species,
+                                                        gtdb_type_strain_of_species,
+                                                        pass_qc)
 
 
 class QcGenomes(object):
@@ -74,6 +74,7 @@ class QcGenomes(object):
                 gtdb_domain_report,
                 qc_exception_file,
                 species_exception_file,
+                genus_exception_file,
                 min_comp,
                 max_cont,
                 min_quality,
@@ -87,33 +88,40 @@ class QcGenomes(object):
 
         # get GTDB and NCBI taxonomy strings for each genome
         self.logger.info('Reading NCBI taxonomy from GTDB metadata file.')
-        ncbi_taxonomy, ncbi_update_count = read_gtdb_ncbi_taxonomy(metadata_file, species_exception_file)
+        ncbi_taxonomy, ncbi_update_count = read_gtdb_ncbi_taxonomy(metadata_file, 
+                                                                    species_exception_file,
+                                                                    genus_exception_file)
         ncbi_species = binomial_species(ncbi_taxonomy)
         gtdb_taxonomy = read_gtdb_taxonomy(metadata_file)
-        self.logger.info('Read NCBI taxonomy for %d genomes with %d manually defined updates.' % (len(ncbi_taxonomy), ncbi_update_count))
-        self.logger.info('Read GTDB taxonomy for %d genomes.' % len(gtdb_taxonomy))
+        self.logger.info(f'Read NCBI taxonomy for {len(ncbi_taxonomy):,} genomes with {ncbi_update_count:,} manually defined updates.')
+        self.logger.info(f'Read GTDB taxonomy for {len(gtdb_taxonomy):,} genomes.')
         
         # determine User genomes to retain for consideration
-        gtdb_user_to_genbank = self._gtdb_user_genomes(gtdb_user_genomes_file, metadata_file)
-        self.logger.info('Identified %d GTDB User genomes with GenBank accessions to retain for potential inclusion in GTDB.' % len(gtdb_user_to_genbank))
+        gtdb_user_to_genbank = {}
+        if gtdb_user_genomes_file:
+            gtdb_user_to_genbank = self._gtdb_user_genomes(gtdb_user_genomes_file, 
+                                                            metadata_file)
+            self.logger.info(f'Identified {len(gtdb_user_to_genbank):,} GTDB User genomes with GenBank accessions to retain for potential inclusion in GTDB.')
         
-        user_genomes = 0
-        for line in open(gtdb_user_reps):
-            line_split = line.strip().split('\t')
-            gid, taxonomy = line_split
-            if gid not in gtdb_user_to_genbank:
-                if 'd__Bacteria' in taxonomy:
-                    self.logger.warning('Bacterial genome %s has no NCBI accession and is being skipped.' % gid)
-                else:
-                    gtdb_user_to_genbank[gid] = gid
-                    user_genomes += 1
-        self.logger.info('Identified %d archaeal GTDB User genome WITHOUT GenBank accessions to retain for potential inclusion in GTDB.' % user_genomes)
+            user_genomes = 0
+            for line in open(gtdb_user_reps):
+                line_split = line.strip().split('\t')
+                gid, taxonomy = line_split
+                if gid not in gtdb_user_to_genbank:
+                    if 'd__Bacteria' in taxonomy:
+                        self.logger.warning('Bacterial genome %s has no NCBI accession and is being skipped.' % gid)
+                    else:
+                        gtdb_user_to_genbank[gid] = gid
+                        user_genomes += 1
+            self.logger.info(f'Identified {user_genomes:,} archaeal GTDB User genome WITHOUT GenBank accessions to retain for potential inclusion in GTDB.')
 
         # parse genomes flagged as exceptions from QC
         qc_exceptions = set()
-        for line in open(qc_exception_file):
-            qc_exceptions.add(line.split('\t')[0].strip())
-        self.logger.info('Identified %d genomes flagged as exceptions from QC.' % len(qc_exceptions))
+        with open(qc_exception_file, encoding='utf-8') as f:
+            f.readline()
+            for line in f:
+                qc_exceptions.add(line.split('\t')[0].strip())
+        self.logger.info(f'Identified {len(qc_exceptions):,} genomes flagged as exceptions from QC.')
         
         # calculate quality score for genomes
         self.logger.info('Parsing QC statistics for each genome.')
@@ -125,7 +133,7 @@ class QcGenomes(object):
                                                                 'ambiguous_bases',
                                                                 'genome_size'])
                                                                 
-        marker_perc = parse_marker_percentages(gtdb_domain_report)
+        marker_perc = read_marker_percentages(gtdb_domain_report)
                                                                 
         # parse NCBI assembly files
         self.logger.info('Parsing NCBI assembly files.')
@@ -210,10 +218,10 @@ class QcGenomes(object):
         fout_retained.close()
         fout_failed.close()
         
-        self.logger.info('Retained %d genomes and filtered %d genomes.' % (num_retained, num_filtered))
+        self.logger.info(f'Retained {num_retained:,} genomes and filtered {num_filtered:,} genomes.')
                                                                 
         # QC genomes in each named species
-        self.logger.info('Performing QC of type genome for each of the %d NCBI species.' % len(ncbi_species))
+        self.logger.info(f'Performing QC of type genome for each of the {len(ncbi_species):,} NCBI species.')
         
         fout_type_fail = open(os.path.join(output_dir, 'type_genomes_fail_qc.tsv'), 'w')
         fout_type_fail.write('Species\tAccession\tGTDB taxonomy\tNCBI taxonomy\tType sources\tNCBI assembly type\tGenome size (bp)')
@@ -273,9 +281,9 @@ class QcGenomes(object):
                         other_fail.add(gid)
                         filtered_genomes += 1
                         
-            # tally failed species
-            for test, count in failed_tests.items():
-                failed_tests_cumulative[test] += count
+                # tally failed species
+                for test, count in failed_tests.items():
+                    failed_tests_cumulative[test] += count
 
             if len(type_pass) >= 1:
                 # great: one or more type genomes pass QC and will be selected as the type genome
@@ -347,9 +355,9 @@ class QcGenomes(object):
         fout_fail_sp.close()
         fout_sp_lost.close()
         
-        self.logger.info('Genomes filtered for each criterion:')
+        self.logger.info('Genomes from NCBI species filtered by each criterion:')
         for test in sorted(failed_tests_cumulative):
-            self.logger.info('%s: %d' % (test, failed_tests_cumulative[test]))
+            self.logger.info(f'{test}: {failed_tests_cumulative[test]:,}')
 
-        self.logger.info('Filtered %d genomes assigned to NCBI species.' % filtered_genomes)
-        self.logger.info('Identified %d species with type genomes failing QC and %d total species failing QC.' % (lost_type, lost_sp))
+        self.logger.info(f'Filtered {filtered_genomes:,} genomes assigned to NCBI species.')
+        self.logger.info(f'Identified {lost_type:,} species with type genomes failing QC and {lost_sp:,} total species failing QC.')

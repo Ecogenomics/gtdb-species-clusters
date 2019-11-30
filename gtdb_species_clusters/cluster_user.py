@@ -32,7 +32,7 @@ from biolib.external.execute import check_dependencies
 from numpy import (mean as np_mean,
                     std as np_std)
 
-from gtdb_species_clusters.common import parse_genome_path
+from gtdb_species_clusters.common import read_genome_path
                                     
 from gtdb_species_clusters.type_genome_utils import (GenomeRadius,
                                             read_quality_metadata,
@@ -152,7 +152,7 @@ class ClusterUser(object):
 
         # get path to genome FASTA files
         self.logger.info('Reading path to genome FASTA files.')
-        genome_files = parse_genome_path(genome_path_file)
+        genome_files = read_genome_path(genome_path_file)
         
         # read existing cluster information
         self.logger.info('Reading already established species clusters.')

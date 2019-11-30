@@ -25,14 +25,13 @@ from collections import defaultdict
 from gtdb_species_clusters.common import (binomial_species,
                                     read_gtdb_metadata,
                                     read_gtdb_ncbi_taxonomy,
-                                    read_gtdb_taxonomy)
+                                    read_gtdb_taxonomy,
+                                    read_qc_file)
                                     
 from gtdb_species_clusters.type_genome_utils import (read_clusters, 
-                                            read_quality_metadata, 
-                                            read_qc_file,
-                                            quality_score,
-                                            parse_marker_percentages,
-                                            parse_canonical_sp)
+                                                        read_quality_metadata, 
+                                                        quality_score,
+                                                        parse_canonical_sp)
 
 
 class TreeGIDs(object):

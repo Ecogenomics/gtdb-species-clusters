@@ -33,17 +33,17 @@ from biolib.external.execute import check_dependencies
 from numpy import (mean as np_mean,
                     std as np_std)
 
-from gtdb_species_clusters.common import (parse_genome_path,
+from gtdb_species_clusters.common import (read_genome_path,
                                     genome_species_assignments,
                                     read_gtdb_metadata,
                                     read_gtdb_taxonomy,
-                                    read_gtdb_ncbi_taxonomy)
+                                    read_gtdb_ncbi_taxonomy,
+                                    exclude_from_refseq,
+                                    read_qc_file)
                                     
 from gtdb_species_clusters.type_genome_utils import (GenomeRadius,
                                             quality_score,
-                                            read_qc_file,
                                             read_quality_metadata,
-                                            exclude_from_refseq,
                                             symmetric_ani,
                                             write_clusters,
                                             write_type_radius)
@@ -573,7 +573,7 @@ class ClusterDeNovo(object):
 
         # get path to genome FASTA files
         self.logger.info('Reading path to genome FASTA files.')
-        genome_files = parse_genome_path(genome_path_file)
+        genome_files = read_genome_path(genome_path_file)
         self.logger.info('Read path for %d genomes.' % len(genome_files))
         for gid in set(genome_files):
             if gid not in passed_qc:

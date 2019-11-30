@@ -31,6 +31,10 @@ from collections import defaultdict
 
 from biolib.external.execute import check_dependencies, run
 
+from gtdb_species_clusters.common import canonical_gid
+from gtdb_species_clusters.type_genome_utils import symmetric_ani
+
+
 class ANI_Cache(object):
     """Calculate average nucleotide identity between genomes using a precomputed cache where possible."""
 
@@ -49,7 +53,7 @@ class ANI_Cache(object):
     def __del__(self):
         """Destructor."""
         
-        self._write_cache()
+        self.write_cache()
         
     def _read_cache(self):
         """Read previously calculated ANI values."""
@@ -72,7 +76,7 @@ class ANI_Cache(object):
             else:
                 self.logger.warning('ANI cache file does not exist: %s' % self.ani_cache_file)
             
-    def _write_cache(self):
+    def write_cache(self):
         """Write cache to file."""
         
         if self.ani_cache_file:
@@ -100,11 +104,11 @@ class ANI_Cache(object):
         else:
             genome_id = '_'.join(genome_id.split('_')[0:2])
             
-        return genome_id
+        return canonical_gid(genome_id)
         
-    def fastani(self, qid, rid, genomic_files):
-        """Calculate ANI between a pair of genomes using FastANI."""
-        
+    def fastani(self, qid, rid, q_gf, r_gf):
+        """CalculateANI between a pair of genomes."""
+
         # check cache
         if qid in self.ani_cache:
             if rid in self.ani_cache[qid]:
@@ -115,8 +119,8 @@ class ANI_Cache(object):
         # create file pointing to representative genome files
         tmp_fastani_file = os.path.join(tempfile.gettempdir(), str(uuid.uuid4()))
         cmd = 'fastANI -q %s -r %s -o %s 2> /dev/null' % (
-                    genomic_files[qid], 
-                    genomic_files[rid], 
+                    q_gf, 
+                    r_gf, 
                     tmp_fastani_file)
             
         run(cmd)
@@ -147,7 +151,9 @@ class ANI_Cache(object):
             if qid == None:
                 break
 
-            ani_af = self.fastani(qid, rid, genomic_files)
+            ani_af = self.fastani(qid, rid, 
+                                    genomic_files[qid], 
+                                    genomic_files[rid])
 
             queue_out.put(ani_af)
 
@@ -191,11 +197,15 @@ class ANI_Cache(object):
             d = defaultdict(lambda: {})
             gids = list(gids)
             
-            qid, rid, ani, af = self.fastani(gids[0], gids[1], genome_files)
+            qid, rid, ani, af = self.fastani(gids[0], gids[1],
+                                                genome_files[gids[0]],
+                                                genome_files[gids[1]])
             d[qid][rid] = (ani, af)
             self.ani_cache[qid][rid] = (ani, af)
             
-            qid, rid, ani, af = self.fastani(gids[1], gids[0], genome_files)
+            qid, rid, ani, af = self.fastani(gids[1], gids[0],
+                                                genome_files[gids[1]],
+                                                genome_files[gids[0]])
             d[qid][rid] = (ani, af)
             self.ani_cache[qid][rid] = (ani, af)
 
@@ -249,7 +259,11 @@ class ANI_Cache(object):
         if len(gid_pairs) <= 6: # skip overhead of setting up queues and processes
             d = defaultdict(lambda: {})
             for idx in range(0, len(gid_pairs)):
-                qid, rid, ani, af = self.fastani(gid_pairs[idx][0], gid_pairs[idx][1], genome_files)
+                qid = gid_pairs[idx][0]
+                rid = gid_pairs[idx][1]
+                qid, rid, ani, af = self.fastani(qid, rid, 
+                                                    genome_files[qid],
+                                                    genome_files[rid])
                 d[qid][rid] = (ani, af)
                 self.ani_cache[qid][rid] = (ani, af)
             return d
@@ -292,3 +306,26 @@ class ANI_Cache(object):
                 self.ani_cache[qid][rid] = ani_af[qid][rid]
         
         return ani_af
+        
+    def symmetric_ani(self, genome_file1, genome_file2):
+        """Calculate symmetric ANI and AF between two genomes."""
+        
+        ani_af12 = self.fastani('g1', 'g2', genome_file1, genome_file2)
+        ani_af21 = self.fastani('g2', 'g1', genome_file2, genome_file1)
+        
+        ani_af = defaultdict(lambda: {})
+        ani_af['g1']['g2'] = ani_af12[2:]
+        ani_af['g2']['g1'] = ani_af21[2:]
+        
+        return symmetric_ani(ani_af, 'g1', 'g2')
+        
+    def symmetric_ani_cached(self, gid1, gid2, genome_file1, genome_file2):
+        """Calculate symmetric ANI and AF between two genomes."""
+        
+        ani_af12 = self.fastani(gid1, gid2, genome_file1, genome_file2)
+        ani_af21 = self.fastani(gid2, gid1, genome_file2, genome_file1)
+
+        self.ani_cache[gid1][gid2] = ani_af12[2:]
+        self.ani_cache[gid2][gid1] = ani_af21[2:]
+        
+        return symmetric_ani(self.ani_cache, gid1, gid2)

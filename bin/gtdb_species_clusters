@@ -1,4 +1,4 @@
-#!/srv/sw/python/2.7.4/bin/python
+#!/usr/bin/env python3
 
 ###############################################################################
 #                                                                             #
@@ -47,24 +47,37 @@ def version():
 def print_help():
     """Help menu."""
 
-    print ''
-    print '                ...::: GTDB Species Clusters v' + version() + ' :::...'''
-    print '''\
+    print('')
+    print('                ...::: GTDB Species Clusters v' + version() + ' :::...''')
+    print('''\
 
-    qc_genomes          -> Quality check all potential GTDB genomes
-    select_type_genomes -> Select type genomes for named species
-    cluster_named_types -> Cluster genomes to selected GTDB type genomes
-    cluster_de_novo     -> Infer de novo species clusters and type genomes for remaining NCBI genomes
-    cluster_user        -> Cluster User genomes to GTDB species clusters, no new representatives are selected
-    tree_gids           -> Determine bacterial and archaeal genomes for canonical and validation trees
-    rep_compare         -> Compare current and previous representatives
-    cluster_stats       -> Calculate statistics for species clusters
+    Establish de novo species clusters:
+      qc_genomes          -> Quality check all potential GTDB genomes
+      select_type_genomes -> Select type genomes for named species
+      cluster_named_types -> Cluster genomes to selected GTDB type genomes
+      cluster_de_novo     -> Infer de novo species clusters and type genomes for remaining NCBI genomes
+      cluster_user        -> Cluster User genomes to GTDB species clusters, no new representatives are selected
+      tree_gids           -> Determine bacterial and archaeal genomes for canonical and validation trees
+      
+    Update species clusters:
+      u_new_genomes -> Identify new and updated genomes in current GTDB release
+      u_qc_genomes  -> Quality check new and updated genomes
+      u_gtdbtk      -> Perform initial classification of new and updated genomes using GTDB-Tk
+      u_rep_changes -> Identify lost, updated, reassigned, and unchanged species representatives
+      u_rep_actions -> Perform initial actions required for changed representatives 
+      
+    Inspect species clusters:
+      merge_test -> Produce information relevant to merging two sister species
+    
+    Other:
+      rep_compare         -> Compare current and previous representatives
+      cluster_stats       -> Calculate statistics for species clusters
 
   Use: gtdb_species_clusters <command> -h for command specific help.
 
   Feature requests or bug reports can be sent to Donovan Parks (donovan.parks@gmail.com)
     or posted on GitHub (https://github.com/Ecogenomics/gtdb-species-clusters).
-    '''
+    ''')
 
 def logger_setup(output_dir, silent):
     """Set logging for application.
@@ -102,6 +115,15 @@ def logger_setup(output_dir, silent):
 
 if __name__ == '__main__':
 
+    DEFAULT_QC_MIN_COMP = 50
+    DEFAULT_QC_MAX_CONT = 10
+    DEFAULT_QC_MIN_QUALITY = 50
+    DEFAULT_QC_SH_EXCEPTION = 80
+    DEFAULT_QC_MIN_PERC_MARKERS = 40
+    DEFAULT_QC_MAX_CONTIGS = 1000
+    DEFAULT_QC_MIN_N50 = 5000
+    DEFAULT_QC_MAX_AMBIGUOUS = 100000
+
     # initialize the options parser
     parser = argparse.ArgumentParser(add_help=False)
     subparsers = parser.add_subparsers(help="--", dest='subparser_name')
@@ -119,14 +141,14 @@ if __name__ == '__main__':
     qc_genomes_parser.add_argument('qc_exception_file', help="file listing genomes to retain regardless of quality")
     qc_genomes_parser.add_argument('species_exception_file', help="file listing species names for select genomes to override NCBI names")
     qc_genomes_parser.add_argument('output_dir', help="output directory")
-    qc_genomes_parser.add_argument('--min_comp', help='minimum completeness for a genome to be a type genome [0, 100]', type=float, default=50)
-    qc_genomes_parser.add_argument('--max_cont', help='maximum contamination for a genome to be a type genome  [0, 100]', type=float, default=10)
-    qc_genomes_parser.add_argument('--min_quality', help='minimum genome quality (comp - 5*cont) to be a type genome  [0, 100]', type=float, default=50)
-    qc_genomes_parser.add_argument('--sh_exception', help='minimum strain heterogenity to retain genomes with upto 20%% contamination [0, 100]', type=float, default=80)
-    qc_genomes_parser.add_argument('--min_perc_markers', help='minimum percentage of bac120 or ar122 marker genes', type=float, default=40)
-    qc_genomes_parser.add_argument('--max_contigs', help='maximum number of contigs for a genome to be a type genome', type=int, default=1000)
-    qc_genomes_parser.add_argument('--min_N50', help='minimum N50 of scaffolds for a genome to be a type genome', type=int, default=5000)
-    qc_genomes_parser.add_argument('--max_ambiguous', help='maximum number of ambiguous bases within contigs for a genome to be a type genome', type=int, default=100000)
+    qc_genomes_parser.add_argument('--min_comp', help='minimum completeness for a genome to be a type genome [0, 100]', type=float, default=DEFAULT_QC_MIN_COMP)
+    qc_genomes_parser.add_argument('--max_cont', help='maximum contamination for a genome to be a type genome  [0, 100]', type=float, default=DEFAULT_QC_MAX_CONT)
+    qc_genomes_parser.add_argument('--min_quality', help='minimum genome quality (comp - 5*cont) to be a type genome  [0, 100]', type=float, default=DEFAULT_QC_MIN_QUALITY)
+    qc_genomes_parser.add_argument('--sh_exception', help='minimum strain heterogenity to retain genomes with upto 20%% contamination [0, 100]', type=float, default=DEFAULT_QC_SH_EXCEPTION)
+    qc_genomes_parser.add_argument('--min_perc_markers', help='minimum percentage of bac120 or ar122 marker genes', type=float, default=DEFAULT_QC_MIN_PERC_MARKERS)
+    qc_genomes_parser.add_argument('--max_contigs', help='maximum number of contigs for a genome to be a type genome', type=int, default=DEFAULT_QC_MAX_CONTIGS)
+    qc_genomes_parser.add_argument('--min_N50', help='minimum N50 of scaffolds for a genome to be a type genome', type=int, default=DEFAULT_QC_MIN_N50)
+    qc_genomes_parser.add_argument('--max_ambiguous', help='maximum number of ambiguous bases within contigs for a genome to be a type genome', type=int, default=DEFAULT_QC_MAX_AMBIGUOUS)
     qc_genomes_parser.add_argument('--silent', help="suppress output", action='store_true')
 
     # dereplicate genomes in named species
@@ -224,6 +246,99 @@ if __name__ == '__main__':
     assign_parser.add_argument('-c', '--cpus', help='number of cpus', type=int, default=1)
     assign_parser.add_argument('--silent', help="suppress output", action='store_true')
     
+    # classify new and updated genomes using GTDB-Tk
+    u_new_genomes_parser = subparsers.add_parser('u_new_genomes',
+                                        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+                                        description='Identify new and updated genomes in current GTDB release.')
+    u_new_genomes_parser.add_argument('prev_ar_metadata_file', help="file indicating archaeal GTDB metadata for previous release")
+    u_new_genomes_parser.add_argument('prev_bac_metadata_file', help="file indicating bacterial GTDB metadata for previous release")
+    u_new_genomes_parser.add_argument('cur_gtdb_metadata_file', help="file with GTDB metadata for current GTDB release (TSV file)")
+    u_new_genomes_parser.add_argument('cur_genome_paths', help="file with path to genomes in current GTDB release")
+    u_new_genomes_parser.add_argument('ncbi_assembly_summary_genbank', help="file with NCBI metadata for GenBank genome assemblies")
+    u_new_genomes_parser.add_argument('output_dir', help="output directory")
+    u_new_genomes_parser.add_argument('--silent', help="suppress output", action='store_true')
+    
+    # quality check new and updated genomes
+    u_qc_genomes_parser = subparsers.add_parser('u_qc_genomes',
+                                        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+                                        description='Quality check new and updated genomes.')
+    u_qc_genomes_parser.add_argument('cur_gtdb_metadata_file', help="file with GTDB metadata for current GTDB release (TSV file)")
+    u_qc_genomes_parser.add_argument('cur_refseq_assembly_file', help="NCBI RefSeq assembly file indicating potentially erroneous genomes")
+    u_qc_genomes_parser.add_argument('cur_genbank_assembly_file', help="NCBI GenBank assembly file indicating potentially erroneous genomes")
+    u_qc_genomes_parser.add_argument('cur_gtdb_domain_report', help="GTDB report of number of bac120 and ar122 marker genes (gtdb power domain_report)")
+    u_qc_genomes_parser.add_argument('qc_exception_file', help="file listing genomes to retain regardless of quality")
+    u_qc_genomes_parser.add_argument('species_exception_file', help="file listing species names for select genomes to override NCBI names")
+    u_qc_genomes_parser.add_argument('genus_exception_file', help="file listing genus names for select genomes to override NCBI names")
+    u_qc_genomes_parser.add_argument('output_dir', help="output directory")
+    u_qc_genomes_parser.add_argument('--min_comp', help='minimum completeness for a genome to be a type genome [0, 100]', type=float, default=DEFAULT_QC_MIN_COMP)
+    u_qc_genomes_parser.add_argument('--max_cont', help='maximum contamination for a genome to be a type genome  [0, 100]', type=float, default=DEFAULT_QC_MAX_CONT)
+    u_qc_genomes_parser.add_argument('--min_quality', help='minimum genome quality (comp - 5*cont) to be a type genome  [0, 100]', type=float, default=DEFAULT_QC_MIN_QUALITY)
+    u_qc_genomes_parser.add_argument('--sh_exception', help='minimum strain heterogenity to retain genomes with upto 20%% contamination [0, 100]', type=float, default=DEFAULT_QC_SH_EXCEPTION)
+    u_qc_genomes_parser.add_argument('--min_perc_markers', help='minimum percentage of bac120 or ar122 marker genes', type=float, default=DEFAULT_QC_MIN_PERC_MARKERS)
+    u_qc_genomes_parser.add_argument('--max_contigs', help='maximum number of contigs for a genome to be a type genome', type=int, default=DEFAULT_QC_MAX_CONTIGS)
+    u_qc_genomes_parser.add_argument('--min_N50', help='minimum N50 of scaffolds for a genome to be a type genome', type=int, default=DEFAULT_QC_MIN_N50)
+    u_qc_genomes_parser.add_argument('--max_ambiguous', help='maximum number of ambiguous bases within contigs for a genome to be a type genome', type=int, default=DEFAULT_QC_MAX_AMBIGUOUS)
+    u_qc_genomes_parser.add_argument('--silent', help="suppress output", action='store_true')
+    
+    # perform initial classification of new and updated genomes using GTDB-Tk
+    u_gtdbtk_parser = subparsers.add_parser('u_gtdbtk',
+                                        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+                                        description='Perform initial classification of new and updated genomes using GTDB-Tk.')
+    u_gtdbtk_parser.add_argument('genomes_new_updated_file', help="file indicating path to genomic file for new and updated genomes (genomes_new_updated.tsv)")
+    u_gtdbtk_parser.add_argument('qc_passed_file', help="file indicating genomes passing QC")
+    u_gtdbtk_parser.add_argument('output_dir', help="output directory")
+    u_gtdbtk_parser.add_argument('--batch_size', help="number of genome to process with GTDB-Tk in each batch", type=int, default=5000)
+    u_gtdbtk_parser.add_argument('-c', '--cpus', help='number of cpus', type=int, default=1)
+    u_gtdbtk_parser.add_argument('--silent', help="suppress output", action='store_true')
+
+    # identify species representatives that have changed from previous release
+    u_rep_changes_parser = subparsers.add_parser('u_rep_changes',
+                                        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+                                        description='Identify species representatives that have changed from previous release.')
+    u_rep_changes_parser.add_argument('prev_gtdb_metadata_file', help="file with GTDB metadata for previous GTDB release (TSV file)")
+    u_rep_changes_parser.add_argument('prev_sp_cluster_file', help="file indicating species clusters in previous GTDB release")
+    u_rep_changes_parser.add_argument('cur_gtdb_metadata_file', help="file with GTDB metadata for current GTDB release (TSV file)")
+    u_rep_changes_parser.add_argument('genomes_new_updated_file', help="file indicating path to genomic file for new and updated genomes (genomes_new_updated.tsv)")
+    u_rep_changes_parser.add_argument('qc_passed_file', help="file indicating genomes passing QC")
+    u_rep_changes_parser.add_argument('gtdbtk_classify_file', help="file with GTDB-Tk classifications for new and updated genomes")
+    u_rep_changes_parser.add_argument('species_exception_file', help="file listing species names for select genomes to override NCBI names")
+    u_rep_changes_parser.add_argument('genus_exception_file', help="file listing genus names for select genomes to override NCBI names")
+    u_rep_changes_parser.add_argument('output_dir', help="output directory")
+    u_rep_changes_parser.add_argument('--silent', help="suppress output", action='store_true')
+    
+    # perform initial actions required for changed representatives 
+    u_rep_actions_parser = subparsers.add_parser('u_rep_actions',
+                                        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+                                        description='Perform initial actions required for changed representatives.')
+    u_rep_actions_parser.add_argument('rep_change_summary_file', help="file summarizing changes to representative genomes")
+    u_rep_actions_parser.add_argument('prev_genomic_path_file', help="file indicating  path to previous genomic FASTA files for genomes")
+    u_rep_actions_parser.add_argument('cur_genomic_path_file', help="file indicating path to current genomic FASTA files for genomes")
+    u_rep_actions_parser.add_argument('prev_gtdb_metadata_file', help="file with GTDB metadata for previous GTDB release (TSV file)")
+    u_rep_actions_parser.add_argument('prev_sp_cluster_file', help="file indicating species clusters in previous GTDB release")
+    u_rep_actions_parser.add_argument('cur_gtdb_metadata_file', help="file with GTDB metadata for current GTDB release (TSV file)")
+    u_rep_actions_parser.add_argument('genomes_new_updated_file', help="file indicating path to genomic file for new and updated genomes (genomes_new_updated.tsv)")
+    u_rep_actions_parser.add_argument('qc_passed_file', help="file indicating genomes passing QC")
+    u_rep_actions_parser.add_argument('gtdbtk_classify_file', help="file with GTDB-Tk classifications for new and updated genomes")
+    u_rep_actions_parser.add_argument('species_exception_file', help="file listing species names for select genomes to override NCBI names")
+    u_rep_actions_parser.add_argument('genus_exception_file', help="file listing genus names for select genomes to override NCBI names")
+    u_rep_actions_parser.add_argument('output_dir', help="output directory")
+    u_rep_actions_parser.add_argument('--ani_cache_file', help='file with precomputed ANI and AF values')
+    u_rep_actions_parser.add_argument('--silent', help="suppress output", action='store_true')
+
+    # compare current and previous representatives
+    merge_test_parser = subparsers.add_parser('merge_test',
+                                        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+                                        description='Produce information relevant to merging two sister species.')
+    merge_test_parser.add_argument('sp_cluster_file', help="file indicating GTDB species clusters")
+    merge_test_parser.add_argument('gtdb_metadata_file', help="file with GTDB metadata (TSV file)")
+    merge_test_parser.add_argument('genome_path_file', help="file indicating data directory for GTDB genomes")
+    merge_test_parser.add_argument('species1', help="species to inspect for merging")
+    merge_test_parser.add_argument('species2', help="species to inspect for merging")
+    merge_test_parser.add_argument('output_dir', help="output directory")
+    merge_test_parser.add_argument('--ani_cache_file', help='file with precomputed ANI and AF values')
+    merge_test_parser.add_argument('-c', '--cpus', help='number of cpus', type=int, default=1)
+    merge_test_parser.add_argument('--silent', help="suppress output", action='store_true')
+
     # compare current and previous representatives
     rep_compare_parser = subparsers.add_parser('rep_compare',
                                         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
@@ -275,7 +390,7 @@ if __name__ == '__main__':
         else:
             parser.parse_options(args)
     except SystemExit:
-        print "\n  Controlled exit resulting from an unrecoverable error or warning."
+        print("\n  Controlled exit resulting from an unrecoverable error or warning.")
     except:
-        print "\nUnexpected error:", sys.exc_info()[0]
+        print("\nUnexpected error:", sys.exc_info()[0])
         raise

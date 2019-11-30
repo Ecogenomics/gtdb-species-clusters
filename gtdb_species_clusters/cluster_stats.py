@@ -36,7 +36,7 @@ from numpy import (mean as np_mean,
                     zeros as np_zeros,
                     argmin as np_argmin)
 
-from gtdb_species_clusters.common import (parse_genome_path,
+from gtdb_species_clusters.common import (read_genome_path,
                                     read_gtdb_ncbi_taxonomy)
                                     
 from gtdb_species_clusters.type_genome_utils import (GenomeRadius,
@@ -406,7 +406,7 @@ class ClusterStats(object):
 
         # get path to genome FASTA files
         self.logger.info('Reading path to genome FASTA files.')
-        genome_files = parse_genome_path(genome_path_file)
+        genome_files = read_genome_path(genome_path_file)
         self.logger.info('Read path for %d genomes.' % len(genome_files))
         
         # determine type genomes and genomes clustered to type genomes

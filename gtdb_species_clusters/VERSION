@@ -1,3 +1,6 @@
+0.1.0
+- initial implementation of steps to update species clusters
+
 0.0.54
 - moved code from GenomeTreeTk repository to the GTDB Species Cluster repository
 - simplified code to only those methods relevant to species clusters

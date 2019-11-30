@@ -31,6 +31,7 @@ from collections import defaultdict
 
 from biolib.external.execute import check_dependencies
 
+
 class ANI(object):
     """Calculate average nucleotide identity between genomes."""
 
