@@ -31,7 +31,7 @@ from collections import defaultdict
 
 from biolib.external.execute import check_dependencies, run
 
-from gtdb_species_clusters.common import canonical_gid
+from gtdb_species_clusters.genome_utils import canonical_gid
 from gtdb_species_clusters.type_genome_utils import symmetric_ani
 
 

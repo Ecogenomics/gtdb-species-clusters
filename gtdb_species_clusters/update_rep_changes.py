@@ -19,27 +19,11 @@ import os
 import sys
 import argparse
 import logging
-from copy import deepcopy
 from collections import defaultdict
-
-from gtdb_species_clusters.common import (specific_epithet,
-                                            canonical_gid, 
-                                            read_gtdb_accessions,
-                                            read_gtdb_sp_clusters,
-                                            read_gtdb_ncbi_taxonomy,
-                                            read_gtdb_metadata,
-                                            read_cur_new_updated,
-                                            read_gtdbtk_classifications,
-                                            read_qc_file,
-                                            read_gtdb_taxonomy,
-                                            find_new_type_strains,
-                                            expand_sp_clusters)
-                                            
-from gtdb_species_clusters.type_genome_utils import gtdb_type_strain_of_species
 
 from gtdb_species_clusters.genomes import Genomes
 
-                                                        
+
 class RepChanges(object):
     """Identify species representatives that have changed from previous release."""
 
@@ -51,7 +35,6 @@ class RepChanges(object):
         
     def run(self, 
             prev_gtdb_metadata_file,
-            prev_sp_cluster_file,
             cur_gtdb_metadata_file,
             genomes_new_updated_file,
             qc_passed_file,
@@ -60,72 +43,46 @@ class RepChanges(object):
             genus_exception_file):
         """Identify species representatives that have changed from previous release."""
         
-        self.logger.info('Creating previous and current GTDB genome set.')
+        # create previous and current GTDB genome sets
+        self.logger.info('Creating previous GTDB genome set.')
         prev_genomes = Genomes()
-        prev_genomes.load_from_metadata_file(prev_gtdb_metadata_file)
+        prev_genomes.load_from_metadata_file(prev_gtdb_metadata_file,
+                                                species_exception_file,
+                                                genus_exception_file)
         self.logger.info(f' ...previous genome set contains {len(prev_genomes):,} genomes.')
-        
+        self.logger.info(' ...previous genome set has {:,} species clusters spanning {:,} genomes.'.format(
+                            len(prev_genomes.sp_clusters),
+                            prev_genomes.sp_clusters.total_num_genomes()))
+
+        self.logger.info('Creating current GTDB genome set.')
         cur_genomes = Genomes()
-        cur_genomes.load_from_metadata_file(cur_gtdb_metadata_file)
+        cur_genomes.load_from_metadata_file(cur_gtdb_metadata_file,
+                                                species_exception_file,
+                                                genus_exception_file,
+                                                create_sp_clusters=False)
         self.logger.info(f' ...current genome set contains {len(cur_genomes):,} genomes.')
 
         # get previous and current genomes from type strains
         self.logger.info('Determining genomes identified as being assembled from type strain.')
-        cur_gids_type_strain = prev_genomes.gtdb_type_strain_genomes()
-        prev_gids_type_strain = gtdb_type_strain_genomes()
+        prev_type_strain_gids = prev_genomes.gtdb_type_strain_genomes()
+        cur_type_strain_gids = cur_genomes.gtdb_type_strain_genomes()
+        new_type_strain_gids = cur_type_strain_gids - prev_type_strain_gids
         self.logger.info(' ...identified {:,} previous and {:,} current genomes from type strain.'.format(
-                            len(prev_gids_type_strain),
-                            len(cur_gids_type_strain)))
-        
-        sys.exit(-1)
-        
-        # get current NCBI taxonomy
-        self.logger.info('Reading current NCBI taxonomy from GTDB metadata file.')
-        cur_ncbi_taxonomy, _ = read_gtdb_ncbi_taxonomy(cur_gtdb_metadata_file, 
-                                                        species_exception_file,
-                                                        genus_exception_file)
-        
-        # get previous GTDB species clusters
-        self.logger.info('Reading previous GTDB species clusters.')
-        prev_sp_clusters, prev_gtdb_species = read_gtdb_sp_clusters(prev_sp_cluster_file)
-        self.logger.info(' ... identified {:,} species clusters spanning {:,} genomes.'.format(
-                            len(prev_sp_clusters),
-                            sum([len(cids) for cids in prev_sp_clusters.values()])))
-                            
-        # get previous NCBI taxonomy
-        self.logger.info('Reading previous NCBI and GTDB taxonomies from GTDB metadata file.')
-        prev_ncbi_taxonomy, _ = read_gtdb_ncbi_taxonomy(prev_gtdb_metadata_file, 
-                                                        species_exception_file,
-                                                        genus_exception_file)
-                                                        
-        prev_gtdb_taxonomy = read_gtdb_taxonomy(prev_gtdb_metadata_file)
-                                                        
-        # get new and updated genomes in current GTDB release
-        self.logger.info('Reading new and updated genomes in current GTDB release.')
-        cur_new, cur_updated = read_cur_new_updated(genomes_new_updated_file)
-        self.logger.info(f' ... identified {len(cur_new):,} new and {len(cur_updated):,} updated genomes.')
-        
-        # get list of genomes passing QC
-        self.logger.info('Reading genomes passing QC.')
-        gids_pass_qc = read_qc_file(qc_passed_file)
-        self.logger.info(f' ... identified {len(gids_pass_qc):,} genomes.')
-        
-        # read GTDB-Tk classifications for new and updated genomes
-        self.logger.info('Reading GTDB-Tk classifications.')
-        gtdbtk_classifications = read_gtdbtk_classifications(gtdbtk_classify_file)
-        self.logger.info(f' ... identified {len(gtdbtk_classifications):,} classifications.')
-        
+                            len(prev_type_strain_gids),
+                            len(cur_type_strain_gids)))
+        self.logger.info(' ...{:,} type strain genomes are new to the current genome set.'.format(
+                            len(new_type_strain_gids)))
+
         # expand previous GTDB species clusters to contain new genomes, 
         # and verify assignment of updated genomes
         self.logger.info('Expanding previous species clusters to contain new genomes based on GTDB-Tk classifications.')
-        expanded_sp_clusters, sp_assignments = expand_sp_clusters(prev_sp_clusters, 
-                                                                    prev_gtdb_species, 
-                                                                    gtdbtk_classifications,
-                                                                    cur_new,
-                                                                    cur_updated,
-                                                                    gids_pass_qc)
-        self.logger.info(f' ... {sp_assignments:,} of {len(cur_new):,} new genomes had a GTDB-Tk species assignment.')
-                            
+        prev_genomes.sp_clusters.expand_sp_clusters(genomes_new_updated_file,
+                                                    qc_passed_file,
+                                                    gtdbtk_classify_file)
+        self.logger.info(' ...expanded genome set has {:,} species clusters spanning {:,} genomes.'.format(
+                            len(prev_genomes.sp_clusters),
+                            prev_genomes.sp_clusters.total_num_genomes()))
+
         # determine status of each previous GTDB representative
         self.logger.info('Determining status of each previous GTDB representative.')
         
@@ -148,62 +105,55 @@ class RepChanges(object):
         gain_type_strain = set()
         new_type_strain = set()
         num_rep_changes = 0
-        for prev_rid in prev_sp_clusters:
-            prev_sp = prev_gtdb_species[prev_rid]
-            if prev_rid.startswith('U'):
-                user_genome.add(prev_rid)
-                fout_summary.write('{}\t{}\t{}\t{}\t{}\t{}\t{}\n'.format(
-                                    prev_rid, prev_sp, 
-                                    len(expanded_sp_clusters[prev_rid]),
-                                    'N/A','N/A','N/A','N/A'))
-                continue
-                
-            fout_summary.write(f'{prev_rid}\t{prev_sp}\t{len(expanded_sp_clusters[prev_rid])}')
-            if prev_rid in cur_accns:
-                if prev_rid in cur_updated:
+        for prev_rid, prev_gtdb_sp in prev_genomes.sp_clusters.species():
+            fout_summary.write(f'{prev_rid}\t{prev_sp}\t{len(prev_genomes.sp_clusters[prev_rid])}')
+            if prev_rid in cur_genomes:
+                if prev_rid in prev_genomes.sp_clusters.updated_gids:
                     updated_genome.add(prev_rid)
                     fout_summary.write('\tUPDATED')
-                    fout_detailed.write(f'{prev_rid}\t{prev_sp}\tGENOMIC_CHANGE:UPDATED\tNCBI accession updated from {prev_accns[prev_rid]} to {cur_accns[prev_rid]}\n')
+                    prev_ncbi_accn = prev_genomes[prev_rid].ncbi_accn
+                    cur_ncbi_accn = cur_genomes[prev_rid].ncbi_accn
+                    assert(prev_ncbi_accn != cur_ncbi_accn)
+                    fout_detailed.write((f'{prev_rid}\t{prev_gtdb_sp}\tGENOMIC_CHANGE:UPDATED\tNCBI accession updated from '
+                                            f'{prev_genomes[prev_rid].ncbi_accn} to {cur_genomes[prev_rid].ncbi_accn}\n'))
                 else:
                     unchanged_genome.add(prev_rid)
                     fout_summary.write('\tUNCHANGED')
                     
-                prev_sp = prev_ncbi_taxonomy[prev_rid][6]
-                cur_sp = cur_ncbi_taxonomy[prev_rid][6]
-                if specific_epithet(prev_sp) == specific_epithet(cur_sp):
+                prev_ncbi_sp = prev_genomes[prev_rid].ncbi_species()
+                cur_ncbi_sp = cur_genomes[prev_rid].ncbi_species()
+                if prev_genomes[prev_rid].ncbi_specific_epithet() == cur_genomes[prev_rid].ncbi_specific_epithet():
                     unchanged_sp.add(prev_rid)
                     fout_summary.write('\tUNCHANGED')
                 else:
                     reassigned_sp.add(prev_rid)
                     fout_summary.write('\tREASSIGNED')
-                    fout_detailed.write(f'{prev_rid}\t{prev_sp}\tNCBI_SPECIES_CHANGE:REASSIGNED\tSpecies reassigned from {prev_sp} to {cur_sp}\n')
+                    fout_detailed.write(f'{prev_rid}\t{prev_gtdb_sp}\tNCBI_SPECIES_CHANGE:REASSIGNED\tNCBI species reassigned from {prev_ncbi_sp} to {cur_ncbi_sp}\n')
 
-                if prev_rid in prev_gids_type_strain and prev_rid in cur_gids_type_strain:
+                if prev_rid in prev_type_strain_gids and prev_rid in cur_type_strain_gids:
                     unchanged_type_strain.add(prev_rid)
                     fout_summary.write('\tUNCHANGED')
-                elif prev_rid not in prev_gids_type_strain and prev_rid not in cur_gids_type_strain:
+                elif prev_rid not in prev_type_strain_gids and prev_rid not in cur_type_strain_gids:
                     unchanged_type_strain.add(prev_rid)
                     fout_summary.write('\tUNCHANGED')
-                elif prev_rid in prev_gids_type_strain and prev_rid not in cur_gids_type_strain:
+                elif prev_rid in prev_type_strain_gids and prev_rid not in cur_type_strain_gids:
                     lost_type_strain.add(prev_rid)
                     fout_summary.write('\tLOST')
-                    fout_detailed.write(f'{prev_rid}\t{prev_sp}\tTYPE_STRAIN_CHANGE:LOST\tNo longer considered a genome from type strain\n')
-                elif prev_rid not in prev_gids_type_strain and prev_rid in cur_gids_type_strain:
+                    fout_detailed.write(f'{prev_rid}\t{prev_gtdb_sp}\tTYPE_STRAIN_CHANGE:LOST\tNo longer considered a genome from type strain\n')
+                elif prev_rid not in prev_type_strain_gids and prev_rid in cur_type_strain_gids:
                     gain_type_strain.add(prev_rid)
                     fout_summary.write('\tGAINED')
-                    fout_detailed.write(f'{prev_rid}\t{prev_sp}\tTYPE_STRAIN_CHANGE:GAINED\tNow considered a genome from type strain\n')
+                    fout_detailed.write(f'{prev_rid}\t{prev_gtdb_sp}\tTYPE_STRAIN_CHANGE:GAINED\tNow considered a genome from type strain\n')
                 else:
                     assert(False)
                     
-                new_ts = find_new_type_strains(prev_rid, 
-                                                prev_gids_type_strain,
-                                                cur_gids_type_strain,
-                                                expanded_sp_clusters)
+                new_ts = new_type_strain_gids.intersection(prev_genomes.sp_clusters[prev_rid])
+
                 if new_ts:
                     new_type_strain.add(prev_rid)
                     fout_detailed.write('{}\t{}\tNEW_TYPE_STRAINS::NEW\tSpecies cluster has {:,} new genomes from type strain: {}\n'.format(
                                             prev_rid,
-                                            prev_sp,
+                                            prev_gtdb_sp,
                                             len(new_ts),
                                             ','.join(new_ts)))
                     
@@ -228,14 +178,15 @@ class RepChanges(object):
         fout_summary.close()
         fout_detailed.close()
         
-        num_rep_changes_perc = num_rep_changes*100.0/len(prev_sp_clusters)
+        num_prev_sp_clusters = len(prev_genomes.sp_clusters)
+        num_rep_changes_perc = num_rep_changes*100.0/num_prev_sp_clusters
         self.logger.info(f' ... identified {num_rep_changes:,} ({num_rep_changes_perc:.1f}%) species with a change to the representative genome.')
 
         self.logger.info('Genomic changes:')
-        unchanged_perc = len(unchanged_genome)*100.0 / len(prev_sp_clusters)
-        updated_perc = len(updated_genome)*100.0 / len(prev_sp_clusters)
-        lost_perc = len(lost_genome)*100.0 / len(prev_sp_clusters)
-        user_perc = len(user_genome)*100.0 / len(prev_sp_clusters)
+        unchanged_perc = len(unchanged_genome)*100.0 / num_prev_sp_clusters
+        updated_perc = len(updated_genome)*100.0 / num_prev_sp_clusters
+        lost_perc = len(lost_genome)*100.0 / num_prev_sp_clusters
+        user_perc = len(user_genome)*100.0 / num_prev_sp_clusters
         self.logger.info(f'  unchanged_genome: {len(unchanged_genome):,} ({unchanged_perc:.1f}%)')
         self.logger.info(f'  updated_genome: {len(updated_genome):,} ({updated_perc:.1f}%)')
         self.logger.info(f'  lost_genome: {len(lost_genome):,} ({lost_perc:.1f}%)')

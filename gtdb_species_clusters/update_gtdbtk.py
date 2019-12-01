@@ -23,7 +23,7 @@ from collections import defaultdict
 
 from biolib.external.execute import check_dependencies
 
-from common import canonical_gid, read_qc_file
+from gtdb_species_clusters.genome_utils import canonical_gid, read_qc_file
 
 
 class GTDB_Tk(object):

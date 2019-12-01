@@ -31,13 +31,13 @@ from biolib.external.execute import check_dependencies
 
 from numpy import (mean as np_mean)
 
-from gtdb_species_clusters.common import (read_genome_path,
-                                    binomial_species,
-                                    canonical_species_name,
-                                    read_gtdb_metadata,
-                                    read_gtdb_taxonomy,
-                                    read_gtdb_ncbi_taxonomy,
-                                    read_qc_file)
+from gtdb_species_clusters.common import read_gtdb_metadata
+                                            
+from gtdb_species_clusters.genome_utils import (read_genome_path,
+                                                read_qc_file)
+                                            
+from gtdb_species_clusters.taxon_utils import (read_gtdb_taxonomy,
+                                                read_gtdb_ncbi_taxonomy)
                                     
 from gtdb_species_clusters.type_genome_utils import (GenomeRadius,
                                             symmetric_ani,

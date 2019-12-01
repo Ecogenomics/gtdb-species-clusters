@@ -36,11 +36,11 @@ from numpy import (mean as np_mean,
                     zeros as np_zeros,
                     argmin as np_argmin)
 
-from gtdb_species_clusters.common import (read_genome_path,
-                                    read_gtdb_ncbi_taxonomy)
+from gtdb_species_clusters.genome_utils import read_genome_path
+from gtdb_species_clusters.taxon_utils import read_gtdb_ncbi_taxonomy
                                     
 from gtdb_species_clusters.type_genome_utils import (GenomeRadius,
-                                            symmetric_ani)
+                                                        symmetric_ani)
                                             
 from gtdb_species_clusters.mash import Mash
 from gtdb_species_clusters.ani_cache import ANI_Cache

@@ -296,7 +296,6 @@ if __name__ == '__main__':
                                         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
                                         description='Identify species representatives that have changed from previous release.')
     u_rep_changes_parser.add_argument('prev_gtdb_metadata_file', help="file with GTDB metadata for previous GTDB release (TSV file)")
-    u_rep_changes_parser.add_argument('prev_sp_cluster_file', help="file indicating species clusters in previous GTDB release")
     u_rep_changes_parser.add_argument('cur_gtdb_metadata_file', help="file with GTDB metadata for current GTDB release (TSV file)")
     u_rep_changes_parser.add_argument('genomes_new_updated_file', help="file indicating path to genomic file for new and updated genomes (genomes_new_updated.tsv)")
     u_rep_changes_parser.add_argument('qc_passed_file', help="file indicating genomes passing QC")
@@ -311,11 +310,11 @@ if __name__ == '__main__':
                                         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
                                         description='Perform initial actions required for changed representatives.')
     u_rep_actions_parser.add_argument('rep_change_summary_file', help="file summarizing changes to representative genomes")
-    u_rep_actions_parser.add_argument('prev_genomic_path_file', help="file indicating  path to previous genomic FASTA files for genomes")
-    u_rep_actions_parser.add_argument('cur_genomic_path_file', help="file indicating path to current genomic FASTA files for genomes")
     u_rep_actions_parser.add_argument('prev_gtdb_metadata_file', help="file with GTDB metadata for previous GTDB release (TSV file)")
-    u_rep_actions_parser.add_argument('prev_sp_cluster_file', help="file indicating species clusters in previous GTDB release")
+    u_rep_actions_parser.add_argument('prev_genomic_path_file', help="file indicating  path to previous genomic FASTA files for genomes")
     u_rep_actions_parser.add_argument('cur_gtdb_metadata_file', help="file with GTDB metadata for current GTDB release (TSV file)")
+    u_rep_actions_parser.add_argument('cur_genomic_path_file', help="file indicating path to current genomic FASTA files for genomes")
+    u_rep_actions_parser.add_argument('uba_genome_paths', help="file indicating path to genomic FASTA files for UBA genomes")
     u_rep_actions_parser.add_argument('genomes_new_updated_file', help="file indicating path to genomic file for new and updated genomes (genomes_new_updated.tsv)")
     u_rep_actions_parser.add_argument('qc_passed_file', help="file indicating genomes passing QC")
     u_rep_actions_parser.add_argument('gtdbtk_classify_file', help="file with GTDB-Tk classifications for new and updated genomes")

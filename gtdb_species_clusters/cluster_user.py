@@ -32,12 +32,12 @@ from biolib.external.execute import check_dependencies
 from numpy import (mean as np_mean,
                     std as np_std)
 
-from gtdb_species_clusters.common import read_genome_path
+from gtdb_species_clusters.genome_utils import read_genome_path
                                     
 from gtdb_species_clusters.type_genome_utils import (GenomeRadius,
-                                            read_quality_metadata,
-                                            read_clusters,
-                                            symmetric_ani)
+                                                        read_quality_metadata,
+                                                        read_clusters,
+                                                        symmetric_ani)
                                     
 from gtdb_species_clusters.ani_cache import ANI_Cache
 from gtdb_species_clusters.mash import Mash

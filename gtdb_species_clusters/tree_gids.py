@@ -22,11 +22,12 @@ import random
 import operator
 from collections import defaultdict
 
-from gtdb_species_clusters.common import (binomial_species,
-                                    read_gtdb_metadata,
-                                    read_gtdb_ncbi_taxonomy,
-                                    read_gtdb_taxonomy,
-                                    read_qc_file)
+from gtdb_species_clusters.common import read_gtdb_metadata
+                                    
+from gtdb_species_clusters.genome_utils import read_qc_file
+                                    
+from gtdb_species_clusters.taxon_utils import (read_gtdb_ncbi_taxonomy,
+                                            read_gtdb_taxonomy)
                                     
 from gtdb_species_clusters.type_genome_utils import (read_clusters, 
                                                         read_quality_metadata, 

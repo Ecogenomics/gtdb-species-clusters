@@ -333,7 +333,6 @@ class OptionsParser():
         """Identify species representatives that have changed from previous release."""
 
         check_file_exists(options.prev_gtdb_metadata_file)
-        check_file_exists(options.prev_sp_cluster_file)
         check_file_exists(options.cur_gtdb_metadata_file)
         check_file_exists(options.genomes_new_updated_file)
         check_file_exists(options.qc_passed_file)
@@ -344,7 +343,6 @@ class OptionsParser():
         
         p = RepChanges(options.output_dir)
         p.run(options.prev_gtdb_metadata_file,
-                options.prev_sp_cluster_file,
                 options.cur_gtdb_metadata_file,
                 options.genomes_new_updated_file,
                 options.qc_passed_file,
@@ -369,11 +367,11 @@ class OptionsParser():
         
         p = RepActions(options.ani_cache_file, options.output_dir)
         p.run(options.rep_change_summary_file,
-                options.prev_genomic_path_file,
-                options.cur_genomic_path_file,
                 options.prev_gtdb_metadata_file,
-                options.prev_sp_cluster_file,
+                options.prev_genomic_path_file,
                 options.cur_gtdb_metadata_file,
+                options.cur_genomic_path_file,
+                options.uba_genome_paths,
                 options.genomes_new_updated_file,
                 options.qc_passed_file,
                 options.gtdbtk_classify_file,

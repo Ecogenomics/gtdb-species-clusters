@@ -32,16 +32,17 @@ from biolib.external.execute import check_dependencies
 from numpy import (mean as np_mean,
                     std as np_std)
 
-from gtdb_species_clusters.common import (read_genome_path,
-                                    binomial_species,
-                                    genome_species_assignments,
-                                    canonical_species_name,
-                                    read_gtdb_metadata,
-                                    read_gtdb_taxonomy,
-                                    read_gtdb_ncbi_taxonomy,
-                                    read_marker_percentages,
-                                    exclude_from_refseq,
-                                    read_qc_file)
+from gtdb_species_clusters.common import read_gtdb_metadata
+                                    
+from gtdb_species_clusters.genome_utils import (read_genome_path,
+                                                read_marker_percentages,
+                                                exclude_from_refseq,
+                                                read_qc_file)
+                                    
+from gtdb_species_clusters.taxon_utils import (binomial_species,
+                                                genome_species_assignments,
+                                                read_gtdb_taxonomy,
+                                                read_gtdb_ncbi_taxonomy)
                                     
 from gtdb_species_clusters.type_genome_utils import (NCBI_TYPE_SPECIES,
                                             NCBI_PROXYTYPE,

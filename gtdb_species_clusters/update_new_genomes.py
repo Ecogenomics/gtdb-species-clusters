@@ -21,7 +21,7 @@ import argparse
 import logging
 from collections import defaultdict
 
-from common import canonical_gid, accession_version, read_gtdb_metadata
+from gtdb_species_clusters.genome_utils import canonical_gid
 
 
 class NewGenomes(object):

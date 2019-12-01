@@ -31,10 +31,9 @@ from biolib.external.execute import check_dependencies
 
 from numpy import (mean as np_mean)
 
-from gtdb_species_clusters.common import (read_gtdb_sp_clusters,
-                                            read_gtdb_taxonomy,
-                                            read_genome_path,
-                                            read_gtdb_metadata)
+from gtdb_species_clusters.genome_utils import (read_gtdb_sp_clusters,
+                                                read_genome_path)
+from gtdb_species_clusters.taxon_utils import read_gtdb_taxonomy
                                     
 from gtdb_species_clusters.type_genome_utils import symmetric_ani
                                     
