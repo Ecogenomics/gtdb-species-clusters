@@ -43,7 +43,7 @@ from gtdb_species_clusters.type_genome_utils import (GenomeRadius,
                                                         symmetric_ani)
                                             
 from gtdb_species_clusters.mash import Mash
-from gtdb_species_clusters.ani_cache import ANI_Cache
+from gtdb_species_clusters.fastani import FastANI
 
 class ClusterStats(object):
     """Calculate statistics for species cluster."""
@@ -60,7 +60,7 @@ class ClusterStats(object):
         
         self.af_sp = af_sp
         
-        self.ani_cache = ANI_Cache(ani_cache_file, cpus)
+        self.fastani = FastANI(ani_cache_file, cpus)
         
         self.max_genomes_for_stats = max_genomes    # maximum number of randomly selected genomes to
                                                     # consider when calculating pairwise statistics
@@ -94,12 +94,12 @@ class ClusterStats(object):
             
         nonrep_rep_count = defaultdict(set)
         for idx, gid in enumerate(clustered_gids):
-            cur_ani_cache = self.ani_cache.ani_cache[gid]
+            cur_ani_cache = self.fastani.ani_cache[gid]
             for rid in clusters:
                 if rid not in cur_ani_cache:
                     continue
                     
-                ani, af = symmetric_ani(self.ani_cache.ani_cache, gid, rid)
+                ani, af = symmetric_ani(self.fastani.ani_cache, gid, rid)
                 if af >= self.af_sp and ani >= cluster_radius[rid].ani:
                     nonrep_rep_count[gid].add((rid, ani))
                     
@@ -158,7 +158,7 @@ class ClusterStats(object):
         # calculate ANI between pairs
         self.logger.info('Calculating ANI between %d genome pairs:' % len(mash_ani_pairs))
         if True: #***
-            ani_af = self.ani_cache.fastani_pairs(mash_ani_pairs, genome_files)
+            ani_af = self.fastani.pairs(mash_ani_pairs, genome_files)
             pickle.dump(ani_af, open(os.path.join(self.output_dir, 'type_genomes_ani_af.pkl'), 'wb'))
         else:
             ani_af = pickle.load(open(os.path.join(self.output_dir, 'type_genomes_ani_af.pkl'), 'rb'))
@@ -234,11 +234,11 @@ class ClusterStats(object):
                     gid_pairs.append((rid, cid))
                 
                 if False: #***
-                    ani_af = self.ani_cache.fastani_pairs(gid_pairs, 
+                    ani_af = self.fastani.pairs(gid_pairs, 
                                                             genome_files, 
                                                             report_progress=False)
                 else:
-                    ani_af = self.ani_cache.ani_cache
+                    ani_af = self.fastani.ani_cache
                 
                 # calculate statistics
                 anis = [symmetric_ani(ani_af, cid, rid)[0] for cid in cids]
@@ -296,11 +296,11 @@ class ClusterStats(object):
                     gid_pairs.append((gid2, gid1))
                     
                 if False: #***
-                    ani_af = self.ani_cache.fastani_pairs(gid_pairs, 
+                    ani_af = self.fastani.pairs(gid_pairs, 
                                                         genome_files, 
                                                         report_progress=False)
                 else:
-                    ani_af = self.ani_cache.ani_cache
+                    ani_af = self.fastani.ani_cache
                                                         
                 # calculate medoid point
                 if len(gids) > 2:

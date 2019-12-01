@@ -49,7 +49,7 @@ from gtdb_species_clusters.type_genome_utils import (GenomeRadius,
                                             write_clusters,
                                             write_type_radius)
                                     
-from gtdb_species_clusters.ani_cache import ANI_Cache
+from gtdb_species_clusters.fastani import FastANI
 from gtdb_species_clusters.mash import Mash
 
 class ClusterDeNovo(object):
@@ -74,7 +74,7 @@ class ClusterDeNovo(object):
         
         self.ClusteredGenome = namedtuple('ClusteredGenome', 'ani af gid')
         
-        self.ani_cache = ANI_Cache(ani_cache_file, cpus)
+        self.fastani = FastANI(ani_cache_file, cpus)
         
     def _parse_type_clusters(self, type_genome_cluster_file):
         """Parse type genomes clustering information."""
@@ -241,7 +241,7 @@ class ClusterDeNovo(object):
                     if len(ani_pairs) > max_ani_pairs:
                         max_ani_pairs = len(ani_pairs)
                     
-                    ani_af = self.ani_cache.fastani_pairs(ani_pairs, genome_files, report_progress=False)
+                    ani_af = self.fastani.pairs(ani_pairs, genome_files, report_progress=False)
 
                     closest_rep_gid = None
                     closest_rep_ani = 0
@@ -344,7 +344,7 @@ class ClusterDeNovo(object):
                             len(clusters), 
                             len(genomes_to_cluster),
                             len(ani_pairs)))
-        ani_af = self.ani_cache.fastani_pairs(ani_pairs, genome_files)
+        ani_af = self.fastani.pairs(ani_pairs, genome_files)
 
         # assign genomes to closest representatives 
         # that is within the representatives ANI radius

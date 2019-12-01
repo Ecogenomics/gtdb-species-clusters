@@ -40,33 +40,6 @@ GTDB_NOT_TYPE_MATERIAL = set(['not type material'])
 GenomeRadius = namedtuple('GenomeRadius', 'ani af neighbour_gid')
 
 
-def ncbi_species(unfiltered_ncbi_taxonomy):
-    """Get species designation for unfiltered NCBI taxonomy string."""
-    
-    ncbi_unfiltered_taxa = [t.strip() for t in unfiltered_ncbi_taxonomy.split(';')]
-    ncbi_species = None
-    ncbi_subspecies = None
-    for taxon in ncbi_unfiltered_taxa:
-        if taxon.startswith('s__'):
-            ncbi_species = taxon[3:]
-        elif taxon.startswith('sb__'):
-            ncbi_subspecies = taxon[4:]
-            
-            # fix odd designation impacting less than a dozen genomes 
-            ncbi_subspecies = ncbi_subspecies.replace(' pv. ', ' subsp. ') 
-
-    if ncbi_subspecies:
-        if 'subsp.' not in ncbi_subspecies:
-            print("NCBI subspecies name without 'subsp.' definition: %s" % ncbi_subspecies)
-            
-        return ncbi_subspecies
-    
-    if ncbi_species:
-        return ncbi_species
-        
-    return None
-    
-    
 def check_ncbi_subsp(unfiltered_ncbi_taxonomy):
     """Determine if genome is the 'type strain of species' or 'type strain of subspecies'."""
     
@@ -80,16 +53,7 @@ def check_ncbi_subsp(unfiltered_ncbi_taxonomy):
             return False
 
     return True
-    
 
-def parse_canonical_sp(sp):
-    """Get canonical binomial species name."""
-    
-    sp = sp.replace('Candidatus ', '')
-    sp = ' '.join(sp.split()[0:2]).strip()
-    
-    return sp
-        
 
 def symmetric_ani(ani_af, gid1, gid2):
     """Calculate symmetric ANI statistics between genomes."""
@@ -116,102 +80,6 @@ def symmetric_ani(ani_af, gid1, gid2):
     af = max(rev_af, cur_af)
     
     return ani, af
-    
-    
-def is_isolate(gid, quality_metadata):
-    """Check if genome is an isolate."""
-    
-    m = quality_metadata[gid]
-    if m.ncbi_genome_category:
-        if ('metagenome' in m.ncbi_genome_category.lower()
-            or 'environmental' in m.ncbi_genome_category.lower()
-            or 'single cell' in m.ncbi_genome_category.lower()):
-            return False
-            
-    return True
-    
-    
-def is_type_strain(gid, quality_metadata):
-    return quality_metadata[gid].gtdb_type_designation in GTDB_TYPE_SPECIES
-    
-    
-def is_ncbi_type_strain(gid, quality_metadata):
-    m = quality_metadata[gid]
-    if m.ncbi_type_material_designation:
-        if m.ncbi_type_material_designation.lower() in NCBI_TYPE_SPECIES:
-            if not check_ncbi_subsp(m.ncbi_taxonomy_unfiltered):
-                return True
-            else:
-                # genome is marked as 'assembled from type material', but
-                # is a subspecies according to the NCBI taxonomy so is
-                # the type strain of a subspecies
-                # (e.g. Alpha beta subsp. gamma)
-                return False
-                
-    return False
-    
-    
-def is_complete_genome(gid, quality_metadata):
-    m = quality_metadata[gid]
-    return (m.ncbi_assembly_level 
-            and m.ncbi_assembly_level.lower() in ['complete genome', 'chromosome']
-            and m.ncbi_genome_representation
-            and m.ncbi_genome_representation.lower() == 'full'
-            and m.scaffold_count == m.ncbi_molecule_count
-            and m.ncbi_unspanned_gaps == 0
-            and m.ncbi_spanned_gaps <= 10
-            and m.ambiguous_bases <= 1e4
-            and m.total_gap_length <= 1e4
-            and m.ssu_count >= 1)
-
-
-def quality_score_update(gids, quality_metadata):
-    """"Calculate quality score of genomes for updating representatives."""
-
-    score = {}
-    for gid in gids:
-        metadata = quality_metadata[gid]
-        
-        # set base quality so genomes have the following priority order:
-        #  type strain genome
-        #  NCBI assembled from type material
-        #  NCBI reference or representative genome
-        #  type subspecies genome
-        q = 0
-        if is_type_strain(gid, quality_metadata):
-            q = 1e4
-        
-        if is_ncbi_type_strain(gid, quality_metadata):
-            q = 1e3
-
-        # check if genome appears to complete consist of only an unspanned
-        # chromosome and unspanned plasmids and thus should be considered
-        # very high quality
-        if is_complete_genome(gid, quality_metadata):
-            q += 100
-            
-        q += metadata.checkm_completeness - 5*metadata.checkm_contamination
-        q -= 5*float(metadata.contig_count)/100
-        q -= 5*float(metadata.ambiguous_bases)/1e5
-        
-        if not is_isolate(gid, quality_metadata):
-            if 'single cell' in metadata.ncbi_genome_category.lower():
-                q -= 100 # genome is a SAG
-            else: 
-                q -= 200 # genome is a MAG
-        
-        # check for near-complete 16S rRNA gene
-        gtdb_domain = metadata.gtdb_taxonomy[0]
-        min_ssu_len = 1200
-        if gtdb_domain == 'd__Archaea':
-            min_ssu_len = 900
-            
-        if metadata.ssu_length and metadata.ssu_length >= min_ssu_len:
-            q += 10
-            
-        score[gid] = q
-        
-    return score
     
     
 def quality_score(gids, quality_metadata):

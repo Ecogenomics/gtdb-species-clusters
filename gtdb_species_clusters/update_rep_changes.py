@@ -106,7 +106,7 @@ class RepChanges(object):
         new_type_strain = set()
         num_rep_changes = 0
         for prev_rid, prev_gtdb_sp in prev_genomes.sp_clusters.species():
-            fout_summary.write(f'{prev_rid}\t{prev_sp}\t{len(prev_genomes.sp_clusters[prev_rid])}')
+            fout_summary.write(f'{prev_rid}\t{prev_gtdb_sp}\t{len(prev_genomes.sp_clusters[prev_rid])}')
             if prev_rid in cur_genomes:
                 if prev_rid in prev_genomes.sp_clusters.updated_gids:
                     updated_genome.add(prev_rid)

@@ -31,8 +31,7 @@ from gtdb_species_clusters.taxon_utils import (read_gtdb_ncbi_taxonomy,
                                     
 from gtdb_species_clusters.type_genome_utils import (read_clusters, 
                                                         read_quality_metadata, 
-                                                        quality_score,
-                                                        parse_canonical_sp)
+                                                        quality_score)
 
 
 class TreeGIDs(object):
@@ -197,15 +196,13 @@ class TreeGIDs(object):
                 sys.exit(-1)
             
             # substitute proposed species name into GTDB taxonomy
-            sp = species[rid]
-            canonical_sp = parse_canonical_sp(sp)
-            taxa = prev_gtdb_taxonomy[rid][0:6] + [canonical_sp]
+            taxa = prev_gtdb_taxonomy[rid][0:6] + [species[rid]]
             new_gtdb_str = '; '.join(taxa)
             fout_can_gtdb.write('%s\t%s\n' % (rid, new_gtdb_str))
             fout_val_gtdb.write('%s\t%s\n' % (rid, new_gtdb_str))
             
-            fout_val.write('%s\t%s\t%s\n' % (rid, sp, 'GTDB type or representative genome'))
-            fout_can.write('%s\t%s\t%s\n' % (rid, sp, 'GTDB type or representative genome'))
+            fout_val.write('%s\t%s\t%s\n' % (rid, species[rid], 'GTDB type or representative genome'))
+            fout_can.write('%s\t%s\t%s\n' % (rid, species[rid], 'GTDB type or representative genome'))
             
             cluster_gids = set(sp_clusters[rid])
             for gid in cluster_gids:
@@ -218,10 +215,10 @@ class TreeGIDs(object):
                 q = quality_score(cluster_gids, quality_metadata)
                 gid = max(q.items(), key=operator.itemgetter(1))[0]
                 
-                taxa = prev_gtdb_taxonomy[gid][0:6] + [canonical_sp]
+                taxa = prev_gtdb_taxonomy[gid][0:6] + [species[rid]]
                 new_gtdb_str = '; '.join(taxa)
     
-                fout_val.write('%s\t%s\t%s\n' % (gid, sp, 'selected highest-quality genome (Q=%.2f)' % q[gid]))
+                fout_val.write('%s\t%s\t%s\n' % (gid, species[rid], 'selected highest-quality genome (Q=%.2f)' % q[gid]))
                 fout_val_gtdb.write('%s\t%s\n' % (gid, new_gtdb_str))
                     
         fout_bac_val.close()

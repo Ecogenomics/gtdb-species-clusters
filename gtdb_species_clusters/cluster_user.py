@@ -39,7 +39,7 @@ from gtdb_species_clusters.type_genome_utils import (GenomeRadius,
                                                         read_clusters,
                                                         symmetric_ani)
                                     
-from gtdb_species_clusters.ani_cache import ANI_Cache
+from gtdb_species_clusters.fastani import FastANI
 from gtdb_species_clusters.mash import Mash
 
 class ClusterUser(object):
@@ -59,7 +59,7 @@ class ClusterUser(object):
         
         self.af_sp = 0.65
 
-        self.ani_cache = ANI_Cache(ani_cache_file, cpus)
+        self.fastani = FastANI(ani_cache_file, cpus)
 
     def _mash_ani(self, genome_files, user_genomes, sp_clusters):
         """Calculate Mash ANI estimates between User genomes and species clusters."""
@@ -118,7 +118,7 @@ class ClusterUser(object):
                 # determine if genome clusters with representative
                 clustered = False
                 if ani_pairs:
-                    ani_af = self.ani_cache.fastani_pairs(ani_pairs, genome_files, report_progress=False)
+                    ani_af = self.fastani.pairs(ani_pairs, genome_files, report_progress=False)
 
                     closest_rep_gid = None
                     closest_rep_ani = 0

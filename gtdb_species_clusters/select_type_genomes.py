@@ -35,7 +35,6 @@ from numpy import (mean as np_mean,
 from gtdb_species_clusters.common import read_gtdb_metadata
                                     
 from gtdb_species_clusters.genome_utils import (read_genome_path,
-                                                read_marker_percentages,
                                                 exclude_from_refseq,
                                                 read_qc_file)
                                     
@@ -55,7 +54,7 @@ from gtdb_species_clusters.type_genome_utils import (NCBI_TYPE_SPECIES,
                                             symmetric_ani,
                                             quality_score)
                                     
-from gtdb_species_clusters.ani_cache import ANI_Cache
+from gtdb_species_clusters.fastani import FastANI
 from gtdb_species_clusters.mash import Mash
 
 class SelectTypeGenomes(object):
@@ -76,7 +75,7 @@ class SelectTypeGenomes(object):
         
         self.max_ani_neighbour = 97.0
         
-        self.ani_cache = ANI_Cache(ani_cache_file, cpus)
+        self.fastani = FastANI(ani_cache_file, cpus)
         
         self.BlastHit = namedtuple('BlastHit', ['ltp_species', 'ssu_len', 'align_len', 'perc_identity', 'bitscore', 'evalue'])
         
@@ -792,7 +791,7 @@ class SelectTypeGenomes(object):
                     note = 'manually selected type genome'
                 else:
                     # calculate ANI between genomes
-                    ani_af = self.ani_cache.fastani_pairwise(gids, genome_files)
+                    ani_af = self.fastani.pairwise(gids, genome_files)
                     anis = []
                     afs = []
                     for q in ani_af:
@@ -955,7 +954,7 @@ class SelectTypeGenomes(object):
         gid_pairs = mash_ani_pairs + genus_ani_pairs
         self.logger.info('Calculating ANI between %d genome pairs:' % len(gid_pairs))
         if True: #***
-            ani_af = self.ani_cache.fastani_pairs(gid_pairs, genome_files)
+            ani_af = self.fastani.pairs(gid_pairs, genome_files)
             pickle.dump(ani_af, open(os.path.join(self.output_dir, 'type_genomes_ani_af.pkl'), 'wb'))
         else:
             ani_af = pickle.load(open(os.path.join(self.output_dir, 'type_genomes_ani_af.pkl'), 'rb'))
@@ -1284,6 +1283,45 @@ class SelectTypeGenomes(object):
                         str(year_of_priority.get(ex_sp, 'n/a')),
                         type_metadata[ex_gid].ncbi_type_material_designation))
             fout.write('\t%.2f\t%.2f\n' % (ani, af))
+            
+    def verify_domain_assignments(self, gtdb_domain_report, gtdb_taxonomy):
+        """Parse percentage of marker genes for each genome."""
+        
+        marker_perc = {}
+        with open(gtdb_domain_report, encoding='utf-8') as f:
+            header = f.readline().rstrip().split('\t')
+            
+            domain_index = header.index('Predicted domain')
+            bac_marker_perc_index = header.index('Bacterial Marker Percentage')
+            ar_marker_perc_index = header.index('Archaeal Marker Percentage')
+            ncbi_taxonomy_index = header.index('NCBI taxonomy')
+            gtdb_taxonomy_index = header.index('GTDB taxonomy')
+            
+            for line in f:
+                line_split = line.strip().split('\t')
+                
+                gid = canonical_gid(line_split[0])
+                domain = line_split[domain_index]
+                bac_perc = float(line_split[bac_marker_perc_index])
+                ar_perc = float(line_split[ar_marker_perc_index])
+                ncbi_domain = [t.strip() for t in line_split[ncbi_taxonomy_index].split(';')][0]
+                gtdb_domain = [t.strip() for t in line_split[gtdb_taxonomy_index].split(';')][0]
+                assert(gtdb_domain == gtdb_taxonomy[gid][0])
+
+                marker_perc[gid] = max(bac_perc, ar_perc)
+                if not gid.startswith('U'):
+                    if marker_perc[gid] > 10:
+                        if ncbi_domain != gtdb_domain and ncbi_domain != 'None':
+                            print(f'[WARNING] NCBI and GTDB domains disagree in domain report: {gid}')
+                            
+                            if ncbi_domain != domain and domain != 'None':
+                                print(f' ... NCBI domain {ncbi_domain} also disagrees with predicted domain {domain}.')
+                            
+                    if marker_perc[gid] > 25 and abs(bac_perc - ar_perc) > 5:
+                        if domain != gtdb_domain and domain != 'None':
+                            print(f'[WARNING] GTDB and predicted domain (Bac = {bac_perc:.1f}%; Ar = {ar_perc:.1f}%) disagree in domain report: {gid}')
+
+        return marker_perc
  
     def run(self, qc_file,
                 metadata_file,
@@ -1308,6 +1346,10 @@ class SelectTypeGenomes(object):
         gtdb_taxonomy = read_gtdb_taxonomy(metadata_file)
         self.logger.info('Read NCBI taxonomy for %d genomes with %d manually defined updates.' % (len(ncbi_taxonomy), ncbi_update_count))
         self.logger.info('Read GTDB taxonomy for %d genomes.' % len(gtdb_taxonomy))
+        
+        # verify domain assignments
+        self.logger.info('Verifying domain assignment for each genome.')
+        self.verify_domain_assignments(gtdb_domain_report, gtdb_taxonomy)
         
         # read manually selected type genomes
         manual_type_genomes = {}
@@ -1344,7 +1386,6 @@ class SelectTypeGenomes(object):
         # calculate quality score for genomes
         self.logger.info('Calculate quality score for all genomes.')
         genome_quality, quality_metadata = self._genome_quality(metadata_file)
-        marker_perc = read_marker_percentages(gtdb_domain_report)
         self.logger.info('Read genome quality for %d genomes.' % len(genome_quality))
         
         # parse LTP blast results to identify potential type genomes based on their 16S rRNA

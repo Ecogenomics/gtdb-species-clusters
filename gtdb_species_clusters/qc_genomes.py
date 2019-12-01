@@ -26,8 +26,7 @@ from gtdb_species_clusters.taxon_utils import (binomial_species,
                                                 read_gtdb_ncbi_taxonomy,
                                                 read_gtdb_taxonomy)
                                                 
-from gtdb_species_clusters.genome_utils import (read_marker_percentages,
-                                                exclude_from_refseq)
+from gtdb_species_clusters.genome_utils import exclude_from_refseq
                                     
 from gtdb_species_clusters.type_genome_utils import (ncbi_type_strain_of_species,
                                                         gtdb_type_strain_of_species,

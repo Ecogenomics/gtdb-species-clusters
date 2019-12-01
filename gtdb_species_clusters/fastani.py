@@ -35,7 +35,7 @@ from gtdb_species_clusters.genome_utils import canonical_gid
 from gtdb_species_clusters.type_genome_utils import symmetric_ani
 
 
-class ANI_Cache(object):
+class FastANI(object):
     """Calculate average nucleotide identity between genomes using a precomputed cache where possible."""
 
     def __init__(self, ani_cache_file, cpus):
@@ -187,7 +187,7 @@ class ANI_Cache(object):
         if report_progress:
             sys.stdout.write('\n')
             
-    def fastani_pairwise(self, gids, genome_files):
+    def pairwise(self, gids, genome_files):
         """Calculate FastANI between all genome pairs in parallel."""
         
         if not gids:
@@ -250,7 +250,7 @@ class ANI_Cache(object):
         
         return ani_af
         
-    def fastani_pairs(self, gid_pairs, genome_files, report_progress=True):
+    def pairs(self, gid_pairs, genome_files, report_progress=True):
         """Calculate FastANI between specified genome pairs in parallel."""
         
         if not gid_pairs:

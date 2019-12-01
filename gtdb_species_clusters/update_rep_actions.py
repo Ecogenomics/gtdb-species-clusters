@@ -21,7 +21,7 @@ import argparse
 import logging
 from collections import defaultdict
 
-from gtdb_species_clusters.ani_cache import ANI_Cache
+from gtdb_species_clusters.fastani import FastANI
 from gtdb_species_clusters.genomes import Genomes
 
 
@@ -34,7 +34,7 @@ class RepActions(object):
         self.output_dir = output_dir
         self.logger = logging.getLogger('timestamp')
         
-        self.fastani = ANI_Cache(ani_cache_file, 1)
+        self.fastani = FastANI(ani_cache_file, 1)
         
         # action parameters
         self.genomic_update_ani = 99.0

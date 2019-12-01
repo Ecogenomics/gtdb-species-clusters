@@ -24,6 +24,8 @@ from collections import defaultdict, namedtuple
 import biolib.seq_io as seq_io
 from biolib.taxonomy import Taxonomy
 
+from gtdb_species_clusters.genome_utils import canonical_gid
+
 
 def binomial_species(taxonomy):
     """Get binomial, including Candidatus, species names in NCBI taxonomy."""

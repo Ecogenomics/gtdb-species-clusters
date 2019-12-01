@@ -44,7 +44,7 @@ from gtdb_species_clusters.type_genome_utils import (GenomeRadius,
                                             write_clusters,
                                             write_type_radius)
                                     
-from gtdb_species_clusters.ani_cache import ANI_Cache
+from gtdb_species_clusters.fastani import FastANI
 from gtdb_species_clusters.mash import Mash
 
 class ClusterNamedTypes(object):
@@ -68,7 +68,7 @@ class ClusterNamedTypes(object):
         
         self.ClusteredGenome = namedtuple('ClusteredGenome', 'ani af gid')
         
-        self.ani_cache = ANI_Cache(ani_cache_file, cpus)
+        self.fastani = FastANI(ani_cache_file, cpus)
         
     def _type_genome_radius(self, type_gids, type_genome_ani_file):
         """Calculate circumscription radius for type genomes."""
@@ -169,7 +169,7 @@ class ClusterNamedTypes(object):
         # calculate ANI between pairs
         self.logger.info('Calculating ANI between %d genome pairs:' % len(mash_ani_pairs))
         if True: #***
-            ani_af = self.ani_cache.fastani_pairs(mash_ani_pairs, genome_files)
+            ani_af = self.fastani.pairs(mash_ani_pairs, genome_files)
             pickle.dump(ani_af, open(os.path.join(self.output_dir, 'ani_af_type_vs_nontype.pkl'), 'wb'))
         else:
             ani_af = pickle.load(open(os.path.join(self.output_dir, 'ani_af_type_vs_nontype.pkl'), 'rb'))

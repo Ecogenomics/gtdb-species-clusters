@@ -36,6 +36,9 @@ class Genomes(object):
         self.genomes = {}
         self.sp_clusters = SpeciesClusters()
         
+        self.genomic_files = {} # this should be removed, but the FastANI interface
+                                # currently requires data to be passed in as a dictionary
+        
         self.logger = logging.getLogger('timestamp')
 
     def __str__(self):
@@ -62,6 +65,7 @@ class Genomes(object):
         """Convert taxonomy string to taxa list."""
         
         if taxonomy_str and taxonomy_str != 'none':
+            taxonomy_str = taxonomy_str.replace('Candidatus ', '')
             return [t.strip() for t in taxonomy_str.split(';')]
 
         return list(Taxonomy.rank_prefixes)
@@ -149,11 +153,12 @@ class Genomes(object):
                 accession = os.path.basename(os.path.normpath(genome_path))
                 genomic_file = os.path.join(genome_path, accession + '_genomic.fna')
                 self.genomes[gid].genomic_file = genomic_file
+                self.genomic_files[gid] = genomic_file
 
     def load_from_metadata_file(self, 
                                 metadata_file,
-                                species_exception_file,
-                                genus_exception_file,
+                                species_exception_file=None,
+                                genus_exception_file=None,
                                 create_sp_clusters=True):
         """Create genome set from file(s)."""
 

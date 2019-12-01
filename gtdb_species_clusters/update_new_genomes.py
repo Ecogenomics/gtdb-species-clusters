@@ -56,8 +56,7 @@ class NewGenomes(object):
         return False
             
     def run(self, 
-                prev_ar_metadata_file,
-                prev_bac_metadata_file,
+                prev_gtdb_metadata_file,
                 cur_gtdb_metadata_file,
                 cur_genome_paths,
                 ncbi_assembly_summary_genbank):
@@ -65,15 +64,14 @@ class NewGenomes(object):
         
         self.logger.info('Reading previous GTDB genomes.')
         prev_accns = {}
-        for mf in [prev_ar_metadata_file, prev_bac_metadata_file]:
-            with open(mf, encoding='utf-8') as f:
-                f.readline()
-                for line in f:
-                    line_split = line.strip().split('\t')
-                    
-                    gid = line_split[0]
-                    prev_accns[canonical_gid(gid)] = gid
-                    
+        with open(prev_gtdb_metadata_file, encoding='utf-8') as f:
+            f.readline()
+            for line in f:
+                line_split = line.strip().split('\t')
+                
+                gid = line_split[0]
+                prev_accns[canonical_gid(gid)] = gid
+                
         self.logger.info(f' ... identified {len(prev_accns):,} genomes.')
                             
         # get genomes in current release
@@ -105,7 +103,7 @@ class NewGenomes(object):
                             line_split = line.strip().split('\t')
                             
                             paired_asm = line_split[paired_asm_index]
-                            if paired_asm == 'identical':
+                            if paired_asm.lower() == 'identical':
                                 gb_accn = line_split[gb_accn_index]
                                 rs_accn = line_split[rs_accn_index]
                                 identical_accns[gb_accn] = rs_accn

@@ -232,26 +232,12 @@ if __name__ == '__main__':
     tree_gids.add_argument('species_exception_file', help="file listing species names for select genomes to override NCBI names")
     tree_gids.add_argument('output_dir', help='output directory')
     tree_gids.add_argument('--silent', help="suppress output", action='store_true')
-
-    # cluster remaining genomes
-    assign_parser = subparsers.add_parser('assign',
-                                        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
-                                        description='Assign genomes to canonical genomes comprising GTDB reference tree.')
-    assign_parser.add_argument('canonical_taxonomy_file', help="file indicating taxonomy of only canonical genomes")
-    assign_parser.add_argument('full_taxonomy_file', help="file indicating taxonomy of all genomes to at least the rank of genus")
-    assign_parser.add_argument('metadata_file', help="metadata file for all genomes in the GTDB (TSV file)")
-    assign_parser.add_argument('genome_path_file', help="file indicating path to genome files")
-    assign_parser.add_argument('output_dir', help="output directory")
-    assign_parser.add_argument('--user_genomes', help="assign user genomes", action='store_true')
-    assign_parser.add_argument('-c', '--cpus', help='number of cpus', type=int, default=1)
-    assign_parser.add_argument('--silent', help="suppress output", action='store_true')
     
     # classify new and updated genomes using GTDB-Tk
     u_new_genomes_parser = subparsers.add_parser('u_new_genomes',
                                         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
                                         description='Identify new and updated genomes in current GTDB release.')
-    u_new_genomes_parser.add_argument('prev_ar_metadata_file', help="file indicating archaeal GTDB metadata for previous release")
-    u_new_genomes_parser.add_argument('prev_bac_metadata_file', help="file indicating bacterial GTDB metadata for previous release")
+    u_new_genomes_parser.add_argument('prev_gtdb_metadata_file', help="file with GTDB metadata for previous GTDB release (TSV file)")
     u_new_genomes_parser.add_argument('cur_gtdb_metadata_file', help="file with GTDB metadata for current GTDB release (TSV file)")
     u_new_genomes_parser.add_argument('cur_genome_paths', help="file with path to genomes in current GTDB release")
     u_new_genomes_parser.add_argument('ncbi_assembly_summary_genbank', help="file with NCBI metadata for GenBank genome assemblies")
@@ -328,7 +314,6 @@ if __name__ == '__main__':
     merge_test_parser = subparsers.add_parser('merge_test',
                                         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
                                         description='Produce information relevant to merging two sister species.')
-    merge_test_parser.add_argument('sp_cluster_file', help="file indicating GTDB species clusters")
     merge_test_parser.add_argument('gtdb_metadata_file', help="file with GTDB metadata (TSV file)")
     merge_test_parser.add_argument('genome_path_file', help="file indicating data directory for GTDB genomes")
     merge_test_parser.add_argument('species1', help="species to inspect for merging")

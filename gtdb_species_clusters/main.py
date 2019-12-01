@@ -230,34 +230,11 @@ class OptionsParser():
             raise SystemExit
 
         self.logger.info('Results written to: %s' % options.output_dir)
-
-    def assign(self, options):
-        """Assign genomes to canonical genomes comprising GTDB reference tree."""
-
-        check_file_exists(options.canonical_taxonomy_file)
-        check_file_exists(options.full_taxonomy_file)
-        check_file_exists(options.metadata_file)
-        check_file_exists(options.genome_path_file)
-        
-        make_sure_path_exists(options.output_dir)
-
-        try:
-            assign = AssignGenomes(options.cpus, options.output_dir)
-            assign.run(options.canonical_taxonomy_file,
-                        options.full_taxonomy_file,
-                        options.metadata_file,
-                        options.genome_path_file,
-                        options.user_genomes)
-
-        except GTDB_Error as e:
-            print(e.message)
-            raise SystemExit
             
     def u_new_genomes(self, options):
         """Identify new and updated genomes."""
 
-        check_file_exists(options.prev_ar_metadata_file)
-        check_file_exists(options.prev_bac_metadata_file)
+        check_file_exists(options.prev_gtdb_metadata_file)
         check_file_exists(options.cur_gtdb_metadata_file)
         check_file_exists(options.cur_genome_paths)
         check_file_exists(options.ncbi_assembly_summary_genbank)
@@ -266,8 +243,7 @@ class OptionsParser():
         
         try:
             p = NewGenomes(options.output_dir)
-            p.run(options.prev_ar_metadata_file,
-                    options.prev_bac_metadata_file,
+            p.run(options.prev_gtdb_metadata_file,
                     options.cur_gtdb_metadata_file,
                     options.cur_genome_paths,
                     options.ncbi_assembly_summary_genbank)
@@ -383,15 +359,13 @@ class OptionsParser():
     def merge_test(self, options):
         """Produce information relevant to merging two sister species."""
         
-        check_file_exists(options.sp_cluster_file)
         check_file_exists(options.gtdb_metadata_file)
         check_file_exists(options.genome_path_file)
         
         make_sure_path_exists(options.output_dir)
         
         p = MergeTest(options.ani_cache_file, options.cpus, options.output_dir)
-        p.run(options.sp_cluster_file,
-                options.gtdb_metadata_file,
+        p.run(options.gtdb_metadata_file,
                 options.genome_path_file,
                 options.species1,
                 options.species2)
@@ -530,8 +504,6 @@ class OptionsParser():
             self.cluster_user(options)
         elif options.subparser_name == 'tree_gids':
             self.tree_gids(options)
-        elif options.subparser_name == 'assign':
-            self.assign(options)
         elif options.subparser_name == 'u_new_genomes':
             self.u_new_genomes(options)
         elif options.subparser_name == 'u_qc_genomes':

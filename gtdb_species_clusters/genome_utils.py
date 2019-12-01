@@ -63,94 +63,7 @@ def read_genome_path(genome_path_file):
         genome_files[gid] = os.path.join(genome_path, accession + '_genomic.fna')
         
     return genome_files
-    
-    
-def filter_genomes(metadata_file,
-                    min_comp,
-                    max_cont,
-                    min_quality, 
-                    max_contigs, 
-                    min_N50, 
-                    max_ambiguous, 
-                    max_gap_length):
-    """Indentify genomes passing filtering criteria."""
-    
-    genome_ids = set()
 
-    csv_reader = csv.reader(open(metadata_file, 'rb'))
-    bHeader = True
-    for row in csv_reader:
-        if bHeader:
-            bHeader = False
-
-            genome_index = row.index('accession')
-            comp_index = row.index('checkm_completeness')
-            cont_index = row.index('checkm_contamination')
-            contig_count_index = row.index('contig_count')
-            n50_scaffolds_index = row.index('n50_scaffolds')
-            ambiguous_bases_index = row.index('ambiguous_bases')
-            total_gap_length_index = row.index('total_gap_length')
-            
-        else:
-            genome_id = row[genome_index]
-            
-            comp = float(row[comp_index])
-            cont = float(row[cont_index])
-            quality = comp - 5*cont
-            
-            contig_count = int(row[contig_count_index])
-            n50_scaffolds = int(row[n50_scaffolds_index])
-            ambiguous_bases = int(row[ambiguous_bases_index])
-            total_gap_length = int(row[total_gap_length_index])
-            
-            if comp >= min_comp and cont <= max_cont and quality >= min_quality:
-                if contig_count <= max_contigs and n50_scaffolds >= min_N50:
-                    if ambiguous_bases <= max_ambiguous and total_gap_length <= max_gap_length:
-                        genome_ids.add(genome_id)
-
-    return genome_ids
-
-
- 
-def read_marker_percentages(gtdb_domain_report):
-    """Parse percentage of marker genes for each genome."""
-    
-    marker_perc = {}
-    with open(gtdb_domain_report, encoding='utf-8') as f:
-        header = f.readline().rstrip().split('\t')
-        
-        domain_index = header.index('Predicted domain')
-        bac_marker_perc_index = header.index('Bacterial Marker Percentage')
-        ar_marker_perc_index = header.index('Archaeal Marker Percentage')
-        ncbi_taxonomy_index = header.index('NCBI taxonomy')
-        gtdb_taxonomy_index = header.index('GTDB taxonomy')
-        
-        for line in f:
-            line_split = line.strip().split('\t')
-            
-            gid = canonical_gid(line_split[0])
-            domain = line_split[domain_index]
-            bac_perc = float(line_split[bac_marker_perc_index])
-            ar_perc = float(line_split[ar_marker_perc_index])
-            ncbi_domain = [t.strip() for t in line_split[ncbi_taxonomy_index].split(';')][0]
-            gtdb_domain = [t.strip() for t in line_split[gtdb_taxonomy_index].split(';')][0]
-
-            marker_perc[gid] = max(bac_perc, ar_perc)
-            
-            if not gid.startswith('U'):
-                if marker_perc[gid] > 10:
-                    if ncbi_domain != gtdb_domain and ncbi_domain != 'None':
-                        print(f'[WARNING] NCBI and GTDB domains disagree in domain report: {gid}')
-                        
-                        if ncbi_domain != domain and domain != 'None':
-                            print(f' ... NCBI domain {ncbi_domain} also disagrees with predicted domain {domain}.')
-                        
-                if marker_perc[gid] > 25 and abs(bac_perc - ar_perc) > 5:
-                    if domain != gtdb_domain and domain != 'None':
-                        print(f'[WARNING] GTDB and predicted domain (Bac = {bac_perc:.1f}%; Ar = {ar_perc:.1f}%) disagree in domain report: {gid}')
-
-    return marker_perc
-    
     
 def exclude_from_refseq(refseq_assembly_file, genbank_assembly_file):
     """Parse exclude from RefSeq field from NCBI assembly files."""
@@ -184,36 +97,6 @@ def read_qc_file(qc_file):
             passed_qc.add(gid)
             
     return passed_qc
-    
-    
-def read_gtdb_sp_clusters(cluster_file):
-    """Read GTDB species cluster file."""
-        
-    clusters = defaultdict(list)
-    species = {}
-    with open(cluster_file) as f:
-        headers = f.readline().strip().split('\t')
-        
-        type_sp_index = headers.index('GTDB species')
-        type_genome_index = headers.index('Representative genome')
-            
-        num_clustered_index = headers.index('No. clustered genomes')
-        clustered_genomes_index = headers.index('Clustered genomes')
-        
-        for line in f:
-            line_split = line.strip().split('\t')
-            
-            sp = line_split[type_sp_index]
-            rid = canonical_gid(line_split[type_genome_index])
-            species[rid] = sp
-
-            num_clustered = int(line_split[num_clustered_index])
-            if num_clustered > 0:
-                clusters[rid] = [canonical_gid(g.strip()) for g in line_split[clustered_genomes_index].split(',')]
-            else:
-                clusters[rid] = []
-                    
-    return clusters, species
     
     
 def read_cur_new_updated(genomes_new_updated_file):
