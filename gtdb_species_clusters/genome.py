@@ -19,10 +19,37 @@ import os
 import sys
 import logging
 from collections import defaultdict
+from dataclasses import dataclass 
 
-
+@dataclass
 class Genome(object):
     """Single genome."""
+    
+    gid: str
+    ncbi_accn: str
+    gtdb_rid: str
+    gtdb_taxonomy: list
+    ncbi_taxonomy: list
+    ncbi_taxonomy_unfiltered: list
+    gtdb_type_designation: str
+    ncbi_type_material: str
+    ncbi_assembly_level: str
+    ncbi_genome_representation: str
+    ncbi_refseq_category: str
+    ncbi_genome_category: str
+    comp: float
+    cont: float
+    length: int
+    contig_count: int
+    contig_n50: int
+    scaffold_count: int
+    ambiguous_bases: int
+    total_gap_len: int
+    ssu_count: int
+    ssu_length: int
+    ncbi_molecule_count: int
+    ncbi_unspanned_gaps: int
+    ncbi_spanned_gaps: int
     
     NCBI_TYPE_SPECIES = set(['assembly from type material', 
                         'assembly from neotype material',
@@ -34,65 +61,15 @@ class Genome(object):
     GTDB_TYPE_SUBSPECIES = set(['type strain of subspecies', 'type strain of heterotypic synonym'])
     GTDB_NOT_TYPE_MATERIAL = set(['not type material'])
 
-    def __init__(self,
-                    gid,
-                    ncbi_accn,
-                    gtdb_rid,
-                    gtdb_taxonomy,
-                    ncbi_taxonomy,
-                    ncbi_taxonomy_unfiltered,
-                    gtdb_type_designation,
-                    ncbi_type_material,
-                    ncbi_assembly_level,
-                    ncbi_genome_representation,
-                    ncbi_refseq_category,
-                    ncbi_genome_category,
-                    comp,
-                    cont,
-                    gs,
-                    contig_count,
-                    n50,
-                    scaffold_count,
-                    ambiguous_bases,
-                    total_gap_len,
-                    ssu_count,
-                    ssu_length,
-                    ncbi_molecule_count,
-                    ncbi_unspanned_gaps,
-                    ncbi_spanned_gaps):
-        """Initialization."""
+    def __post_init__(self):
+        """Post data initialization."""
 
         self.logger = logging.getLogger('timestamp')
         
-        self.gid = gid
-        self.ncbi_accn = ncbi_accn
-        self.gtdb_taxonomy = gtdb_taxonomy
-        self.ncbi_taxonomy = ncbi_taxonomy
-        self.ncbi_taxonomy_unfiltered = ncbi_taxonomy_unfiltered
-        self.gtdb_type_designation = gtdb_type_designation
-        self.ncbi_type_material = ncbi_type_material
-        self.ncbi_assembly_level = ncbi_assembly_level
-        self.ncbi_genome_representation = ncbi_genome_representation
-        self.ncbi_refseq_category = ncbi_refseq_category
-        self.ncbi_genome_category = ncbi_genome_category
         if self.gid.startswith('UBA'):
             self.ncbi_genome_category = 'metagenome'
             
-        self.comp = comp
-        self.cont = cont
-        self.gs = gs
-        self.contig_count = contig_count
-        self.n50 = n50
-        self.scaffold_count = scaffold_count
-        self.ambiguous_bases = ambiguous_bases
-        self.total_gap_len = total_gap_len
-        self.ssu_count = ssu_count
-        self.ssu_length = ssu_length
-        self.ncbi_molecule_count = ncbi_molecule_count
-        self.ncbi_unspanned_gaps = ncbi_unspanned_gaps
-        self.ncbi_spanned_gaps = ncbi_spanned_gaps
-        
-        self.is_gtdb_sp_rep = (gtdb_rid == gid)
+        self.is_gtdb_sp_rep = (self.gtdb_rid == self.gid)
         self.is_ncbi_subspecies = self._is_ncbi_subspecies()
         self.is_isolate = self._is_isolate()
         self.is_mag = self._is_mag()
@@ -101,6 +78,15 @@ class Genome(object):
         self.is_gtdb_type_strain = self._is_gtdb_type_strain()
         self.is_ncbi_type_strain = self._is_gtdb_type_strain()
         self.is_complete_genome = self._is_complete_genome()
+        self.ncbi_subspecies = self._ncbi_subspecies()
+        self.ncbi_species = self._ncbi_species()
+        self.gtdb_species = self._gtdb_species()
+        self.ncbi_specific_epithet = self._ncbi_specific_epithet()
+        self.gtdb_specific_epithet = self._gtdb_specific_epithet()
+        self.ncbi_genus = self. _ncbi_genus()
+        self.gtdb_genus = self._gtdb_genus()
+        self.score_update = self._score_update()
+        self.score_assembly = self._score_assembly()
         
         self.genomic_file = None
         
@@ -202,8 +188,8 @@ class Genome(object):
                 and self.ambiguous_bases <= 1e4
                 and self.total_gap_len <= 1e4
                 and self.ssu_count >= 1)
-                
-    def ncbi_subspecies(self):
+    
+    def _ncbi_subspecies(self):
         """Get NCBI subspecies classification of genome."""
         
         for taxon in self.ncbi_taxonomy_unfiltered:
@@ -212,20 +198,20 @@ class Genome(object):
                     
         return None
         
-    def ncbi_species(self):
+    def _ncbi_species(self):
         """Get NCBI species classification."""
         
         return self.ncbi_taxonomy[6]
         
-    def gtdb_species(self):
+    def _gtdb_species(self):
         """Get GTDB species classification."""
         
         return self.gtdb_taxonomy[6]
         
-    def ncbi_specific_epithet(self):
+    def _ncbi_specific_epithet(self):
         """Get NCBI specific epithet."""
         
-        ncbi_sp = self.ncbi_species()
+        ncbi_sp = self._ncbi_species()
         if ncbi_sp == 's__':
             return ''
         
@@ -234,10 +220,10 @@ class Genome(object):
         
         return specific
         
-    def gtdb_specific_epithet(self):
+    def _gtdb_specific_epithet(self):
         """Get GTDB specific epithet."""
         
-        gtdb_sp = self.gtdb_species()
+        gtdb_sp = self._gtdb_species()
         if gtdb_sp == 's__':
             return ''
 
@@ -245,17 +231,17 @@ class Genome(object):
         
         return specific
         
-    def ncbi_genus(self):
+    def _ncbi_genus(self):
         """Get NCBI genus classification."""
         
         return self.ncbi_taxonomy[5]
 
-    def gtdb_genus(self):
+    def _gtdb_genus(self):
         """Get GTDB genus classification."""
         
         return self.gtdb_taxonomy[5]
 
-    def score_update(self):
+    def _score_update(self):
         """"Calculate score of genomes for updating representatives."""
 
         # set base quality so genomes have the following priority order:
@@ -270,11 +256,11 @@ class Genome(object):
         if self.is_ncbi_type_strain:
             q = 1e3
             
-        q += self.score_assembly()
+        q += self._score_assembly()
             
         return q
 
-    def score_assembly(self):
+    def _score_assembly(self):
         """Calculate score indicating quality of genome assembly."""
         
         q = 0

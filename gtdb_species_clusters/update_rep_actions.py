@@ -121,27 +121,27 @@ class RepActions(object):
         gtdb_specific_epithets = defaultdict(set)
         specific_epithets_rid = defaultdict(lambda: {})
         for rid, sp in prev_sp_clusters.species():
-            gtdb_genus = prev_genomes[rid].gtdb_genus()
-            gtdb_specific_epithet = prev_genomes[rid].gtdb_specific_epithet()
+            gtdb_genus = prev_genomes[rid].gtdb_genus
+            gtdb_specific_epithet = prev_genomes[rid].gtdb_specific_epithet
             gtdb_specific_epithets[gtdb_genus].add(gtdb_specific_epithet)
             specific_epithets_rid[gtdb_genus][gtdb_specific_epithet] = rid
 
         # determine if change can be made without causing a conflict with 
         # other GTDB species clusters
         for gid, prev_gtdb_sp in ncbi_sp_change_gids.items():
-            prev_ncbi_sp = prev_genomes[gid].ncbi_species()
-            cur_ncbi_sp = cur_genomes[gid].ncbi_species()
-            prev_gtdb_genus = prev_genomes[gid].gtdb_genus()
+            prev_ncbi_sp = prev_genomes[gid].ncbi_species
+            cur_ncbi_sp = cur_genomes[gid].ncbi_species
+            prev_gtdb_genus = prev_genomes[gid].gtdb_genus
             assert(prev_ncbi_sp != cur_ncbi_sp)
-            assert(prev_gtdb_sp == prev_genomes[gid].gtdb_species())
+            assert(prev_gtdb_sp == prev_genomes[gid].gtdb_species)
             
             params = {}
             params['prev_ncbi_sp'] = prev_ncbi_sp
             params['cur_ncbi_sp'] = cur_ncbi_sp
             params['prev_gtdb_sp'] = prev_gtdb_sp
             
-            cur_ncbi_specific_epithet = cur_genomes[gid].ncbi_specific_epithet()
-            prev_gtdb_specific_epithet = prev_genomes[gid].gtdb_specific_epithet()
+            cur_ncbi_specific_epithet = cur_genomes[gid].ncbi_specific_epithet
+            prev_gtdb_specific_epithet = prev_genomes[gid].gtdb_specific_epithet
             if cur_ncbi_specific_epithet == prev_gtdb_specific_epithet:
                 action = 'NCBI_SPECIES_CHANGE:REASSIGNED:UNCHANGED'
             elif cur_ncbi_specific_epithet not in gtdb_specific_epithets[prev_gtdb_genus]:
@@ -155,7 +155,7 @@ class RepActions(object):
                                                         
                 params['ani'] = ani
                 params['af'] = af
-                params['ncbi_subspecies'] = cur_genomes[gid].ncbi_subspecies()
+                params['ncbi_subspecies'] = cur_genomes[gid].ncbi_subspecies
                                                         
                 if ani >= 95 and af >= 0.65:
                     action = 'NCBI_SPECIES_CHANGE:REASSIGNED:MERGE'
@@ -182,7 +182,7 @@ class RepActions(object):
         
         prev_sp_clusters = prev_genomes.sp_clusters
         for rid, prev_gtdb_sp in ncbi_type_species_lost.items():
-            cur_rep_quality = cur_genomes[rid].score_update()
+            cur_rep_quality = cur_genomes[rid].score_update
             
             highest_genome_quality = cur_rep_quality
             highest_quality_gid = rid
@@ -190,7 +190,7 @@ class RepActions(object):
                 if cid not in cur_genomes:
                     continue
                     
-                cid_q = cur_genomes[cid].score_update()
+                cid_q = cur_genomes[cid].score_update
                 if cid_q > highest_genome_quality:
                     highest_genome_quality = cid_q
                     highest_quality_gid = cid
@@ -232,7 +232,7 @@ class RepActions(object):
                 
             prev_gtdb_sp = prev_sp_clusters.get_species(rid)
             new_updated_cids = set(cids).intersection(new_updated_gids)
-            prev_rep_quality = cur_genomes[rid].score_update()
+            prev_rep_quality = cur_genomes[rid].score_update
             
             statusStr = '-> Processing %d of %d (%.2f%%) species [%s: %d new/updated genomes].'.ljust(86) % (
                                 idx+1, 
@@ -247,7 +247,7 @@ class RepActions(object):
             highest_quality_gid = rid
             improved_cids = {}
             for cid in new_updated_cids:
-                cid_qs = cur_genomes[cid].score_update()
+                cid_qs = cur_genomes[cid].score_update
                 if cid_qs > highest_genome_quality:
                     highest_genome_quality = cid_qs
                     highest_quality_gid = cid

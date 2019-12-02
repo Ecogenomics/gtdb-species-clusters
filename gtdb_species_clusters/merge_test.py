@@ -63,7 +63,7 @@ class MergeTest(object):
         self.logger.info(f'Closest 5 species to {species} ({rid}):')
         idx = 0
         for qid, (ani, af) in sorted(results.items(), key=lambda x: x[1], reverse=True):
-            q_species = genomes[qid].gtdb_species()
+            q_species = genomes[qid].gtdb_species
             self.logger.info(f'{q_species} ({qid}): ANI={ani:.1f}%, AF={af:.2f}')
             if idx == 5:
                 break
@@ -129,8 +129,8 @@ class MergeTest(object):
                             species2))
 
         # calculate ANI between all genome in genus
-        genus1 = genomes[gid1].gtdb_genus()
-        genus2 = genomes[gid2].gtdb_genus()
+        genus1 = genomes[gid1].gtdb_genus
+        genus2 = genomes[gid2].gtdb_genus
         if genus1 != genus2:
             self.logger.error(f'Genomes must be from same genus: {genus1} {genus2}')
             sys.exit(-1)
@@ -138,7 +138,7 @@ class MergeTest(object):
         self.logger.info(f'Identifying {genus1} species representatives.')
         reps_in_genera = set()
         for rid in genomes.sp_clusters:
-            if genomes[rid].gtdb_genus() == genus1:
+            if genomes[rid].gtdb_genus == genus1:
                 reps_in_genera.add(rid)
         
         self.logger.info(f' ... identified {len(reps_in_genera):,} representatives.')

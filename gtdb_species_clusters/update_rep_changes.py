@@ -120,9 +120,9 @@ class RepChanges(object):
                     unchanged_genome.add(prev_rid)
                     fout_summary.write('\tUNCHANGED')
                     
-                prev_ncbi_sp = prev_genomes[prev_rid].ncbi_species()
-                cur_ncbi_sp = cur_genomes[prev_rid].ncbi_species()
-                if prev_genomes[prev_rid].ncbi_specific_epithet() == cur_genomes[prev_rid].ncbi_specific_epithet():
+                prev_ncbi_sp = prev_genomes[prev_rid].ncbi_species
+                cur_ncbi_sp = cur_genomes[prev_rid].ncbi_species
+                if prev_genomes[prev_rid].ncbi_specific_epithet == cur_genomes[prev_rid].ncbi_specific_epithet:
                     unchanged_sp.add(prev_rid)
                     fout_summary.write('\tUNCHANGED')
                 else:
