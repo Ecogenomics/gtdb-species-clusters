@@ -32,6 +32,7 @@ class Genome(object):
     ncbi_taxonomy: list
     ncbi_taxonomy_unfiltered: list
     gtdb_type_designation: str
+    gtdb_type_designation_sources: str
     ncbi_type_material: str
     ncbi_assembly_level: str
     ncbi_genome_representation: str
@@ -39,6 +40,7 @@ class Genome(object):
     ncbi_genome_category: str
     comp: float
     cont: float
+    strain_heterogeneity_100: float
     length: int
     contig_count: int
     contig_n50: int
@@ -291,3 +293,54 @@ class Genome(object):
             q += 10
             
         return q
+        
+    def pass_qc(self,
+                marker_perc,
+                min_comp,
+                max_cont,
+                min_quality,
+                sh_exception,
+                min_perc_markers,
+                max_contigs,
+                min_N50,
+                max_ambiguous,
+                failed_tests):
+        """Check if genome passes QC."""
+        
+        failed = False
+        if self.comp < min_comp:
+            failed_tests['comp'] += 1
+            failed = True
+        
+        if self.strain_heterogeneity_100 >= sh_exception:
+            if self.cont > 20:
+                failed_tests['cont'] += 1
+                failed = True
+            q = self.comp - 5*self.cont*(1.0 - self.strain_heterogeneity_100/100.0)
+            if q < min_quality:
+                failed_tests['qual'] += 1
+                failed = True
+        else:
+            if self.cont > max_cont:
+                failed_tests['cont'] += 1
+                failed = True
+            q = self.comp - 5*self.cont
+            if q < min_quality:
+                failed_tests['qual'] += 1
+                failed = True
+                
+        if marker_perc < min_perc_markers:
+            failed_tests['marker_perc'] += 1
+            failed = True
+                
+        if self.contig_count > max_contigs:
+            failed_tests['contig_count'] += 1
+            failed = True
+        if self.contig_n50 < min_N50:
+            failed_tests['N50'] += 1
+            failed = True
+        if self.ambiguous_bases > max_ambiguous:
+            failed_tests['ambig'] += 1
+            failed = True
+        
+        return not failed

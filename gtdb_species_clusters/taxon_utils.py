@@ -27,6 +27,24 @@ from biolib.taxonomy import Taxonomy
 from gtdb_species_clusters.genome_utils import canonical_gid
 
 
+def is_placeholder_taxon(taxon):
+    """Check if taxon name is a placeholder."""
+    
+    assert('__' in taxon) # expect taxon name to have rank prefix
+    
+    test_taxon = taxon[3:].replace('[', '').replace(']', '')
+    if not test_taxon:
+        return True
+        
+    if any(c.isdigit() for c in test_taxon):
+        return True
+
+    if any(c.isupper() for c in test_taxon[1:]):
+        return True
+    
+    return False
+
+
 def binomial_species(taxonomy):
     """Get binomial, including Candidatus, species names in NCBI taxonomy."""
     

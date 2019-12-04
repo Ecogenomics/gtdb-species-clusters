@@ -22,6 +22,7 @@ import logging
 from collections import defaultdict
 
 from gtdb_species_clusters.genomes import Genomes
+from gtdb_species_clusters.species_clusters import SpeciesClusters
 
 
 class RepChanges(object):
@@ -36,6 +37,7 @@ class RepChanges(object):
     def run(self, 
             prev_gtdb_metadata_file,
             cur_gtdb_metadata_file,
+            cur_uba_gid_file,
             genomes_new_updated_file,
             qc_passed_file,
             gtdbtk_classify_file,
@@ -48,7 +50,8 @@ class RepChanges(object):
         prev_genomes = Genomes()
         prev_genomes.load_from_metadata_file(prev_gtdb_metadata_file,
                                                 species_exception_file,
-                                                genus_exception_file)
+                                                genus_exception_file,
+                                                uba_genome_file=cur_uba_gid_file)
         self.logger.info(f' ...previous genome set contains {len(prev_genomes):,} genomes.')
         self.logger.info(' ...previous genome set has {:,} species clusters spanning {:,} genomes.'.format(
                             len(prev_genomes.sp_clusters),
@@ -59,7 +62,9 @@ class RepChanges(object):
         cur_genomes.load_from_metadata_file(cur_gtdb_metadata_file,
                                                 species_exception_file,
                                                 genus_exception_file,
-                                                create_sp_clusters=False)
+                                                create_sp_clusters=False,
+                                                uba_genome_file=cur_uba_gid_file,
+                                                qc_passed_file=qc_passed_file)
         self.logger.info(f' ...current genome set contains {len(cur_genomes):,} genomes.')
 
         # get previous and current genomes from type strains
@@ -73,15 +78,16 @@ class RepChanges(object):
         self.logger.info(' ...{:,} type strain genomes are new to the current genome set.'.format(
                             len(new_type_strain_gids)))
 
-        # expand previous GTDB species clusters to contain new genomes, 
-        # and verify assignment of updated genomes
-        self.logger.info('Expanding previous species clusters to contain new genomes based on GTDB-Tk classifications.')
-        prev_genomes.sp_clusters.expand_sp_clusters(genomes_new_updated_file,
-                                                    qc_passed_file,
-                                                    gtdbtk_classify_file)
-        self.logger.info(' ...expanded genome set has {:,} species clusters spanning {:,} genomes.'.format(
-                            len(prev_genomes.sp_clusters),
-                            prev_genomes.sp_clusters.total_num_genomes()))
+        # created expanded previous GTDB species clusters
+        self.logger.info('Creating species clusters of new and updated genomes based on GTDB-Tk classifications.')
+        new_updated_sp_clusters = SpeciesClusters()
+        new_updated_sp_clusters.create_expanded_clusters(prev_genomes.sp_clusters,
+                                                            genomes_new_updated_file,
+                                                            qc_passed_file,
+                                                            gtdbtk_classify_file)
+        self.logger.info('Identified {:,} expanded species clusters spanning {:,} genomes.'.format(
+                            len(new_updated_sp_clusters),
+                            new_updated_sp_clusters.total_num_genomes()))
 
         # determine status of each previous GTDB representative
         self.logger.info('Determining status of each previous GTDB representative.')
@@ -108,7 +114,7 @@ class RepChanges(object):
         for prev_rid, prev_gtdb_sp in prev_genomes.sp_clusters.species():
             fout_summary.write(f'{prev_rid}\t{prev_gtdb_sp}\t{len(prev_genomes.sp_clusters[prev_rid])}')
             if prev_rid in cur_genomes:
-                if prev_rid in prev_genomes.sp_clusters.updated_gids:
+                if prev_rid in new_updated_sp_clusters.updated_gids:
                     updated_genome.add(prev_rid)
                     fout_summary.write('\tUPDATED')
                     prev_ncbi_accn = prev_genomes[prev_rid].ncbi_accn
@@ -171,7 +177,7 @@ class RepChanges(object):
             else:
                 lost_genome.add(prev_rid)
                 fout_summary.write('\t{}\t{}\t{}\t{}\t{}\n'.format('LOST','N/A','N/A','N/A', 'YES'))
-                fout_detailed.write('\tGENOMIC_CHANGE:LOST\tGenome not present in current GTDB release\n')
+                fout_detailed.write(f'{prev_rid}\t{prev_gtdb_sp}\tGENOMIC_CHANGE:LOST\tGenome not present in current GTDB release\n')
                 num_rep_changes += 1
                 
                 

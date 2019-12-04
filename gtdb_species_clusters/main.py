@@ -55,9 +55,6 @@ class OptionsParser():
         """Quality check all potential GTDB genomes."""
         
         check_file_exists(options.gtdb_metadata_file)
-        check_file_exists(options.gtdb_user_genomes_file)
-        check_file_exists(options.gtdb_user_reps)
-        check_file_exists(options.ncbi_refseq_assembly_file)
         check_file_exists(options.ncbi_genbank_assembly_file)
         check_file_exists(options.gtdb_domain_report)
         check_file_exists(options.qc_exception_file)
@@ -65,12 +62,7 @@ class OptionsParser():
         make_sure_path_exists(options.output_dir)
 
         try:
-            p = QcGenomes()
-            p.run(options.gtdb_metadata_file,
-                        options.gtdb_user_genomes_file,
-                        options.gtdb_user_reps,
-                        options.ncbi_refseq_assembly_file,
-                        options.ncbi_genbank_assembly_file,
+            p = QcGenomes(options.ncbi_genbank_assembly_file,
                         options.gtdb_domain_report,
                         options.qc_exception_file,
                         options.species_exception_file,
@@ -257,7 +249,7 @@ class OptionsParser():
         """Quality check new and updated genomes."""
         
         check_file_exists(options.cur_gtdb_metadata_file)
-        check_file_exists(options.cur_refseq_assembly_file)
+        check_file_exists(options.cur_uba_gid_file)
         check_file_exists(options.cur_genbank_assembly_file)
         check_file_exists(options.cur_gtdb_domain_report)
         check_file_exists(options.qc_exception_file)
@@ -268,9 +260,7 @@ class OptionsParser():
         try:
             p = QcGenomes()
             p.run(options.cur_gtdb_metadata_file,
-                        None,
-                        None,
-                        options.cur_refseq_assembly_file,
+                        options.cur_uba_gid_file,
                         options.cur_genbank_assembly_file,
                         options.cur_gtdb_domain_report,
                         options.qc_exception_file,
@@ -310,6 +300,7 @@ class OptionsParser():
 
         check_file_exists(options.prev_gtdb_metadata_file)
         check_file_exists(options.cur_gtdb_metadata_file)
+        check_file_exists(options.cur_uba_gid_file)
         check_file_exists(options.genomes_new_updated_file)
         check_file_exists(options.qc_passed_file)
         check_file_exists(options.gtdbtk_classify_file)
@@ -320,6 +311,7 @@ class OptionsParser():
         p = RepChanges(options.output_dir)
         p.run(options.prev_gtdb_metadata_file,
                 options.cur_gtdb_metadata_file,
+                options.cur_uba_gid_file,
                 options.genomes_new_updated_file,
                 options.qc_passed_file,
                 options.gtdbtk_classify_file,
@@ -334,6 +326,7 @@ class OptionsParser():
         check_file_exists(options.rep_change_summary_file)
         check_file_exists(options.prev_genomic_path_file)
         check_file_exists(options.cur_genomic_path_file)
+        check_file_exists(options.uba_genome_paths)
         check_file_exists(options.genomes_new_updated_file)
         check_file_exists(options.qc_passed_file)
         check_file_exists(options.gtdbtk_classify_file)

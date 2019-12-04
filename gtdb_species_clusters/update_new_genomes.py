@@ -49,7 +49,7 @@ class NewGenomes(object):
         
         accn1 = accn1.replace('RS_', '').replace('GB_', '')
         accn2 = accn2.replace('RS_', '').replace('GB_', '')
-        
+
         if identical_accns.get(accn1, None) == accn2:
             return True
 
@@ -115,7 +115,7 @@ class NewGenomes(object):
         updated_gids = set()
         for cur_gid in cur_accns:
             if cur_gid.startswith('U'):
-                continue
+                continue # only concerned with genomes at NCBI
 
             if cur_gid in prev_accns:
                 if not self.same_genome_accn(cur_accns[cur_gid], 
@@ -123,6 +123,7 @@ class NewGenomes(object):
                                                 identical_accns):
                     updated_gids.add(cur_gid)
             else:
+                # genome not present in previous GTDB release
                 new_gids.add(cur_gid)
             
         self.logger.info(f' ... identified {len(new_gids):,} new and {len(updated_gids):,} updated genomes.')
@@ -130,29 +131,35 @@ class NewGenomes(object):
         # get path to current GTDB genome directories
         self.logger.info('Identifying path to genomic files for current GTDB genomes.')
         cur_genome_files = {}
+        skipped_genomes = 0
         with open(cur_genome_paths) as f:
             for line in f:
                 line_split = line.strip().split('\t')
                 accn = line_split[0]
                 genome_path = line_split[1]
                 gid = line_split[2]
+                assert(canonical_gid(accn) == gid)
                 
                 if gid not in cur_accns:
-                    self.logger.warning('No metadata for genome in current GTDB: {}'.format(accn))
-                
+                    # a genome may not be part of the GTDB release
+                    # (e.g., genome has not NCBI taxonomy information)
+                    skipped_genomes += 1
+                    continue
+
                 assembly_id = os.path.basename(os.path.normpath(genome_path))
                 genomic_file = os.path.join(genome_path, assembly_id + '_genomic.fna')
                 cur_genome_files[gid] = genomic_file
-                if not os.path.exists(genomic_file):
-                    self.logger.warning('Genomic file not found: {}'.format(genomic_file))
+                #***if not os.path.exists(genomic_file):
+                #***    self.logger.warning('Genomic file not found: {}'.format(genomic_file))
                 
         self.logger.info(f' ... identified genomic file for {len(cur_genome_files):,} genomes.')
+        self.logger.info(f' ... skipped {skipped_genomes:,} genomes without GTDB metadata.')
         
         # write out new or modified genome IDs
         self.logger.info('Writing out and verifying path to new and updated genomic FASTA files.')
         output_file = os.path.join(self.output_dir, 'genomes_new_updated.tsv')
         fout = open(output_file, 'w')
-        fout.write('Genome ID\tAccession\tStatus\tGenomic file\n')
+        fout.write('Genome ID\tNCBI accession\tStatus\tGenomic file\n')
         for type_str, gids in [('NEW', new_gids), ('UPDATED', updated_gids)]:
             for gid in gids:
                 genomic_file = cur_genome_files[gid]

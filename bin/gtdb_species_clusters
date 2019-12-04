@@ -133,9 +133,6 @@ if __name__ == '__main__':
                                         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
                                         description='Quality check all potential GTDB genomes.')
     qc_genomes_parser.add_argument('gtdb_metadata_file', help="metadata file from GTDB with CheckM estimates for all genomes (TSV file)")
-    qc_genomes_parser.add_argument('gtdb_user_genomes_file', help="file with GTDB User genomes and GenBank accessions to consider for cluster representatives (genbank_uba_accessions.tsv)")
-    qc_genomes_parser.add_argument('gtdb_user_reps', help="file with GTDB User representative genomes from previous GTDB release (gtdb_r86_user_reps.tsv)")
-    qc_genomes_parser.add_argument('ncbi_refseq_assembly_file', help="NCBI RefSeq assembly file indicating potentially erroneous genomes")
     qc_genomes_parser.add_argument('ncbi_genbank_assembly_file', help="NCBI GenBank assembly file indicating potentially erroneous genomes")
     qc_genomes_parser.add_argument('gtdb_domain_report', help="GTDB report of number of bac120 and ar122 marker genes (gtdb power domain_report)")
     qc_genomes_parser.add_argument('qc_exception_file', help="file listing genomes to retain regardless of quality")
@@ -233,7 +230,7 @@ if __name__ == '__main__':
     tree_gids.add_argument('output_dir', help='output directory')
     tree_gids.add_argument('--silent', help="suppress output", action='store_true')
     
-    # classify new and updated genomes using GTDB-Tk
+    # identify new and updated genomes in current GTDB release
     u_new_genomes_parser = subparsers.add_parser('u_new_genomes',
                                         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
                                         description='Identify new and updated genomes in current GTDB release.')
@@ -249,7 +246,7 @@ if __name__ == '__main__':
                                         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
                                         description='Quality check new and updated genomes.')
     u_qc_genomes_parser.add_argument('cur_gtdb_metadata_file', help="file with GTDB metadata for current GTDB release (TSV file)")
-    u_qc_genomes_parser.add_argument('cur_refseq_assembly_file', help="NCBI RefSeq assembly file indicating potentially erroneous genomes")
+    u_qc_genomes_parser.add_argument('cur_uba_gid_file', help="UBA genomes to process")
     u_qc_genomes_parser.add_argument('cur_genbank_assembly_file', help="NCBI GenBank assembly file indicating potentially erroneous genomes")
     u_qc_genomes_parser.add_argument('cur_gtdb_domain_report', help="GTDB report of number of bac120 and ar122 marker genes (gtdb power domain_report)")
     u_qc_genomes_parser.add_argument('qc_exception_file', help="file listing genomes to retain regardless of quality")
@@ -283,6 +280,7 @@ if __name__ == '__main__':
                                         description='Identify species representatives that have changed from previous release.')
     u_rep_changes_parser.add_argument('prev_gtdb_metadata_file', help="file with GTDB metadata for previous GTDB release (TSV file)")
     u_rep_changes_parser.add_argument('cur_gtdb_metadata_file', help="file with GTDB metadata for current GTDB release (TSV file)")
+    u_rep_changes_parser.add_argument('cur_uba_gid_file', help="UBA genomes to process")
     u_rep_changes_parser.add_argument('genomes_new_updated_file', help="file indicating path to genomic file for new and updated genomes (genomes_new_updated.tsv)")
     u_rep_changes_parser.add_argument('qc_passed_file', help="file indicating genomes passing QC")
     u_rep_changes_parser.add_argument('gtdbtk_classify_file', help="file with GTDB-Tk classifications for new and updated genomes")

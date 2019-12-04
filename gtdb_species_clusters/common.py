@@ -24,6 +24,8 @@ from collections import defaultdict, namedtuple
 import biolib.seq_io as seq_io
 from biolib.taxonomy import Taxonomy
 
+from gtdb_species_clusters.genome_utils import canonical_gid
+
      
 def read_gtdb_metadata(metadata_file, fields):
     """Parse genome quality from GTDB metadata.

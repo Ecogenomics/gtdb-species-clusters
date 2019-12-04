@@ -129,10 +129,11 @@ class SpeciesClusters(object):
                     cids = [cid.strip() for cid in line_split[cluster_index].split(',')]
                     self.sp_clusters[rid].update([canonical_gid(cid) for cid in cids])
                     
-    def expand_sp_clusters(self, 
-                            genomes_new_updated_file,
-                            qc_passed_file,
-                            gtdbtk_classify_file):
+    def create_expanded_clusters(self, 
+                                original_sp_clusters,
+                                genomes_new_updated_file,
+                                qc_passed_file,
+                                gtdbtk_classify_file):
         """Expand species clusters to include genome in current GTDB release."""
         
         assert(not self.new_gids and not self.updated_gids)
@@ -153,17 +154,16 @@ class SpeciesClusters(object):
         self.logger.info(f' ... identified {len(gtdbtk_classifications):,} classifications.')
         
         # create mapping between species and representatives
-        sp_rid_map = {sp: rid for rid, sp in self.species_names.items()}
+        orig_sp_rid_map = {sp: rid for rid, sp in original_sp_clusters.species_names.items()}
         
         # create mapping between all genomes and species
-        gid_sp_map = {}
-        for rid, cids in self.sp_clusters.items():
-            sp = self.species_names[rid]
+        orig_gid_sp_map = {}
+        for rid, cids in original_sp_clusters.sp_clusters.items():
+            sp = original_sp_clusters.species_names[rid]
             for cid in cids:
-                gid_sp_map[cid] = sp
+                orig_gid_sp_map[cid] = sp
                                 
         # expand species clusters
-        sp_assignments = 0
         failed_qc = 0
         prev_genome_count = 0
         for gid, taxa in gtdbtk_classifications.items():
@@ -176,19 +176,20 @@ class SpeciesClusters(object):
                 # of complete workflow for R95
                 failed_qc += 1
                 continue
-                
-            if sp not in sp_rid_map:
+
+            if sp not in orig_sp_rid_map:
                 self.logger.error(f'GTDB-Tk results indicated a new species for {gid}: {sp}')
                 sys.exit(-1)
-                
-            rid = sp_rid_map[sp]
-            sp_assignments += 1
+
+            orig_rid = orig_sp_rid_map[sp]
             if gid in self.new_gids:
-                self.update_sp_cluster(rid, gid, sp)
+                self.update_sp_cluster(orig_rid, gid, sp)
             elif gid in self.updated_gids:
-                prev_sp = gid_sp_map[gid]
-                if prev_sp != sp:
-                    self.logger.warning(f'Updated genomes {gid} reassigned from {prev_sp} to {sp}.')
+                self.update_sp_cluster(orig_rid, gid, sp)
+                
+                orig_sp = orig_gid_sp_map[gid]
+                if orig_sp != sp:
+                    self.logger.warning(f'Updated genomes {gid} reassigned from {orig_sp} to {sp}.')
                     sys.exit(-1)
                     # Really, should handle this case. This will be fine so long as the genomes
                     # isn't a species representative. If a species representative has changed to

@@ -65,21 +65,20 @@ def read_genome_path(genome_path_file):
     return genome_files
 
     
-def exclude_from_refseq(refseq_assembly_file, genbank_assembly_file):
+def exclude_from_refseq(genbank_assembly_file):
     """Parse exclude from RefSeq field from NCBI assembly files."""
     
     excluded_from_refseq_note = {}
-    for assembly_file in [refseq_assembly_file, genbank_assembly_file]:
-        with open(assembly_file, encoding='utf-8') as f:
-            for line in f:
-                if line[0] == '#':
-                    if line.startswith('# assembly_accession'):
-                        header = line.strip().split('\t')
-                        exclude_index = header.index('excluded_from_refseq')
-                else:
-                    line_split = line.strip('\n\r').split('\t')
-                    gid = canonical_gid(line_split[0])
-                    excluded_from_refseq_note[gid] = line_split[exclude_index]
+    with open(genbank_assembly_file, encoding='utf-8') as f:
+        for line in f:
+            if line[0] == '#':
+                if line.startswith('# assembly_accession'):
+                    header = line.strip().split('\t')
+                    exclude_index = header.index('excluded_from_refseq')
+            else:
+                line_split = line.strip('\n\r').split('\t')
+                gid = canonical_gid(line_split[0])
+                excluded_from_refseq_note[gid] = line_split[exclude_index]
     
     return excluded_from_refseq_note
     

@@ -23,6 +23,7 @@ from collections import defaultdict
 
 from gtdb_species_clusters.fastani import FastANI
 from gtdb_species_clusters.genomes import Genomes
+from gtdb_species_clusters.species_clusters import SpeciesClusters
 
 
 class RepActions(object):
@@ -172,7 +173,7 @@ class RepActions(object):
                                     rep_change_summary_file,
                                     prev_genomes, 
                                     cur_genomes):
-        """..."""
+        """Handle representatives which has lost type strain genome status."""
         # get genomes with new NCBI species assignments
         self.logger.info('Identifying representative that lost type strain genome status.')
         ncbi_type_species_lost = self.rep_change_gids(rep_change_summary_file, 
@@ -219,34 +220,32 @@ class RepActions(object):
                                             action, 
                                             params))
                                             
-    def action_improved_rep(self, prev_genomes, cur_genomes):
+    def action_improved_rep(self, prev_genomes, cur_genomes, new_updated_sp_clusters):
         """Check if representative should be replace with higher quality genome."""
         
         self.logger.info('Identifying improved representatives for GTDB species clusters.')
-        prev_sp_clusters = prev_genomes.sp_clusters
-        new_updated_gids = prev_sp_clusters.new_gids.union(prev_sp_clusters.updated_gids)
-        for idx, (rid, cids) in enumerate(prev_sp_clusters.clusters()):
+        num_improved = 0
+        for idx, (rid, cids) in enumerate(new_updated_sp_clusters.clusters()):
             if rid not in cur_genomes:
                 # indicates genome has been lost
                 continue
                 
-            prev_gtdb_sp = prev_sp_clusters.get_species(rid)
-            new_updated_cids = set(cids).intersection(new_updated_gids)
+            prev_gtdb_sp = new_updated_sp_clusters.get_species(rid)
             prev_rep_quality = cur_genomes[rid].score_update
             
             statusStr = '-> Processing %d of %d (%.2f%%) species [%s: %d new/updated genomes].'.ljust(86) % (
                                 idx+1, 
-                                len(prev_sp_clusters), 
-                                float(idx+1)*100/len(prev_sp_clusters),
+                                len(new_updated_sp_clusters), 
+                                float(idx+1)*100/len(new_updated_sp_clusters),
                                 prev_gtdb_sp,
-                                len(new_updated_cids))
+                                len(cids))
             sys.stdout.write('%s\r' % statusStr)
             sys.stdout.flush()
             
             highest_genome_quality = prev_rep_quality
             highest_quality_gid = rid
             improved_cids = {}
-            for cid in new_updated_cids:
+            for cid in cids:
                 cid_qs = cur_genomes[cid].score_update
                 if cid_qs > highest_genome_quality:
                     highest_genome_quality = cid_qs
@@ -264,10 +263,12 @@ class RepActions(object):
                 action = 'IMPROVED_REP:REPLACED:HIGHER_QS'
                 
                 if cur_genomes[rid].genomic_file is None:
-                    print('No genomic file', rid)
+                    self.logger.error(f'No genomic file: {rid}')
+                    sys.exit(-1)
                     
                 if cur_genomes[highest_quality_gid].genomic_file is None:
-                    print('No genomic file', highest_quality_gid)
+                    self.logger.error(f'No genomic file for: {highest_quality_gid}')
+                    sys.exit(-1)
                 
                 ani, af = self.fastani.symmetric_ani_cached(rid, highest_quality_gid,
                                                             cur_genomes[rid].genomic_file, 
@@ -283,10 +284,12 @@ class RepActions(object):
                 for cid, qs in sorted_improved_cids:
                 
                     if cur_genomes[rid].genomic_file is None:
-                        print('No genomic file', rid)
+                        self.logger.error(f'No genomic file: {rid}')
+                        sys.exit(-1)
                     
                     if cur_genomes[cid].genomic_file is None:
-                        print('No genomic file', cid)
+                        self.logger.error(f'No genomic file for: {cid}')
+                        sys.exit(-1)
                 
                     ani, af = self.fastani.symmetric_ani_cached(rid, cid,
                                                                 cur_genomes[rid].genomic_file, 
@@ -301,6 +304,7 @@ class RepActions(object):
                         break
                         
             if action:
+                num_improved += 1
                 new_rid = params['new_rid']
                 improvement_list = []
                 if cur_genomes[new_rid].is_gtdb_type_strain and not cur_genomes[rid].is_gtdb_type_strain:
@@ -323,6 +327,7 @@ class RepActions(object):
                                                 params))
             
         sys.stdout.write('\n')
+        self.logger.info(f' ...identified {num_improved:,} species with improved representatives.')
             
     def run(self, 
             rep_change_summary_file,
@@ -343,7 +348,8 @@ class RepActions(object):
         prev_genomes = Genomes()
         prev_genomes.load_from_metadata_file(prev_gtdb_metadata_file,
                                                 species_exception_file,
-                                                genus_exception_file)
+                                                genus_exception_file,
+                                                uba_genome_file=uba_genome_paths)
         self.logger.info(f' ...previous genome set contains {len(prev_genomes):,} genomes.')
         self.logger.info(' ...previous genome set has {:,} species clusters spanning {:,} genomes.'.format(
                             len(prev_genomes.sp_clusters),
@@ -354,7 +360,9 @@ class RepActions(object):
         cur_genomes.load_from_metadata_file(cur_gtdb_metadata_file,
                                                 species_exception_file,
                                                 genus_exception_file,
-                                                create_sp_clusters=False)
+                                                create_sp_clusters=False,
+                                                uba_genome_file=uba_genome_paths,
+                                                qc_passed_file=qc_passed_file)
         self.logger.info(f' ...current genome set contains {len(cur_genomes):,} genomes.')
         
         # get path to previous and current genomic FASTA files
@@ -364,15 +372,16 @@ class RepActions(object):
         cur_genomes.load_genomic_file_paths(cur_genomic_path_file)
         cur_genomes.load_genomic_file_paths(uba_genome_paths)
 
-        # expand previous GTDB species clusters to contain new genomes, 
-        # and verify assignment of updated genomes
-        self.logger.info('Expanding previous species clusters to contain new genomes based on GTDB-Tk classifications.')
-        prev_genomes.sp_clusters.expand_sp_clusters(genomes_new_updated_file,
-                                                    qc_passed_file,
-                                                    gtdbtk_classify_file)
-        self.logger.info(' ...expanded genome set has {:,} species clusters spanning {:,} genomes.'.format(
-                            len(prev_genomes.sp_clusters),
-                            prev_genomes.sp_clusters.total_num_genomes()))
+        # created expanded previous GTDB species clusters
+        self.logger.info('Creating species clusters of new and updated genomes based on GTDB-Tk classifications.')
+        new_updated_sp_clusters = SpeciesClusters()
+        new_updated_sp_clusters.create_expanded_clusters(prev_genomes.sp_clusters,
+                                                            genomes_new_updated_file,
+                                                            qc_passed_file,
+                                                            gtdbtk_classify_file)
+        self.logger.info('Identified {:,} expanded species clusters spanning {:,} genomes.'.format(
+                            len(new_updated_sp_clusters),
+                            new_updated_sp_clusters.total_num_genomes()))
         
         # take required action for each changed representatives
         #if False:
@@ -388,7 +397,9 @@ class RepActions(object):
                                         prev_genomes, 
                                         cur_genomes)
                                             
-        self.action_improved_rep(prev_genomes, cur_genomes)
+        self.action_improved_rep(prev_genomes, 
+                                    cur_genomes,
+                                    new_updated_sp_clusters)
                                         
         self.action_log.close()
         self.fastani.write_cache()

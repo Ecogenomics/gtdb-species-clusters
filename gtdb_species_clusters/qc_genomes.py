@@ -20,17 +20,14 @@ import sys
 import logging
 from collections import defaultdict
 
-from gtdb_species_clusters.common import read_gtdb_metadata
-
 from gtdb_species_clusters.taxon_utils import (binomial_species,
                                                 read_gtdb_ncbi_taxonomy,
                                                 read_gtdb_taxonomy)
                                                 
-from gtdb_species_clusters.genome_utils import exclude_from_refseq
-                                    
-from gtdb_species_clusters.type_genome_utils import (ncbi_type_strain_of_species,
-                                                        gtdb_type_strain_of_species,
-                                                        pass_qc)
+from gtdb_species_clusters.genome_utils import (canonical_gid,
+                                                exclude_from_refseq)
+
+from gtdb_species_clusters.genomes import Genomes
 
 
 class QcGenomes(object):
@@ -41,36 +38,49 @@ class QcGenomes(object):
         
         self.logger = logging.getLogger('timestamp')
         
-        self.true_str = ['t', 'T', 'true', 'True']
+    def read_marker_percentages(self, gtdb_domain_report, cur_genomes):
+        """Parse percentage of marker genes for each genome."""
         
-    def _gtdb_user_genomes(self, gtdb_user_genomes_file, metadata_file):
-        """Get map between GTDB User genomes and GenBank accessions."""
-        
-        uba_to_genbank = {}
-        for line in open(gtdb_user_genomes_file):
-            line_split = line.strip().split('\t')
-            gb_acc = 'GB_' + line_split[0]
-            uba_id = line_split[4]
-            uba_to_genbank[uba_id] = gb_acc
-        
-        user_to_genbank = {}
-        m = read_gtdb_metadata(metadata_file, ['organism_name'])
-        for gid, metadata in m.items():
-            if '(UBA' in str(metadata.organism_name):
-                uba_id = metadata.organism_name[metadata.organism_name.find('(')+1:-1]
-                if uba_id in uba_to_genbank:
-                    if uba_to_genbank[uba_id] in m:
-                        # use only NCBI accessioned version of genome
-                        continue
-                    else:
-                        user_to_genbank[gid] = uba_to_genbank[uba_id]
+        marker_perc = {}
+        with open(gtdb_domain_report, encoding='utf-8') as f:
+            header = f.readline().rstrip().split('\t')
+            
+            domain_index = header.index('Predicted domain')
+            bac_marker_perc_index = header.index('Bacterial Marker Percentage')
+            ar_marker_perc_index = header.index('Archaeal Marker Percentage')
+            ncbi_taxonomy_index = header.index('NCBI taxonomy')
+            gtdb_taxonomy_index = header.index('GTDB taxonomy')
+            
+            for line in f:
+                line_split = line.strip().split('\t')
+                
+                gid = canonical_gid(line_split[0])
+                gid = cur_genomes.user_uba_id_map.get(gid, gid)
+                domain = line_split[domain_index]
+                bac_perc = float(line_split[bac_marker_perc_index])
+                ar_perc = float(line_split[ar_marker_perc_index])
+                ncbi_domain = [t.strip() for t in line_split[ncbi_taxonomy_index].split(';')][0]
+                gtdb_domain = [t.strip() for t in line_split[gtdb_taxonomy_index].split(';')][0]
 
-        return user_to_genbank
+                marker_perc[gid] = max(bac_perc, ar_perc)
+                
+                if not gid.startswith('U'):
+                    if marker_perc[gid] > 10:
+                        if ncbi_domain != gtdb_domain and ncbi_domain != 'None':
+                            print(f'[WARNING] NCBI and GTDB domains disagree in domain report: {gid}')
+                            
+                            if ncbi_domain != domain and domain != 'None':
+                                print(f' ... NCBI domain {ncbi_domain} also disagrees with predicted domain {domain}.')
+                            
+                    if marker_perc[gid] > 25 and abs(bac_perc - ar_perc) > 5:
+                        if domain != gtdb_domain and domain != 'None':
+                            print(f'[WARNING] GTDB and predicted domain (Bac = {bac_perc:.1f}%; Ar = {ar_perc:.1f}%) disagree in domain report: {gid}')
 
-    def run(self, metadata_file,
-                gtdb_user_genomes_file,
-                gtdb_user_reps,
-                ncbi_refseq_assembly_file,
+        return marker_perc
+
+    def run(self, 
+                metadata_file,
+                cur_uba_gid_file,
                 ncbi_genbank_assembly_file,
                 gtdb_domain_report,
                 qc_exception_file,
@@ -87,67 +97,33 @@ class QcGenomes(object):
                 output_dir):
         """Quality check all potential GTDB genomes."""
 
-        # get GTDB and NCBI taxonomy strings for each genome
-        self.logger.info('Reading NCBI taxonomy from GTDB metadata file.')
-        ncbi_taxonomy, ncbi_update_count = read_gtdb_ncbi_taxonomy(metadata_file, 
-                                                                    species_exception_file,
-                                                                    genus_exception_file)
-        ncbi_species = binomial_species(ncbi_taxonomy)
-        gtdb_taxonomy = read_gtdb_taxonomy(metadata_file)
-        self.logger.info(f'Read NCBI taxonomy for {len(ncbi_taxonomy):,} genomes with {ncbi_update_count:,} manually defined updates.')
-        self.logger.info(f'Read GTDB taxonomy for {len(gtdb_taxonomy):,} genomes.')
-        
-        # determine User genomes to retain for consideration
-        gtdb_user_to_genbank = {}
-        if gtdb_user_genomes_file:
-            gtdb_user_to_genbank = self._gtdb_user_genomes(gtdb_user_genomes_file, 
-                                                            metadata_file)
-            self.logger.info(f'Identified {len(gtdb_user_to_genbank):,} GTDB User genomes with GenBank accessions to retain for potential inclusion in GTDB.')
-        
-            user_genomes = 0
-            for line in open(gtdb_user_reps):
-                line_split = line.strip().split('\t')
-                gid, taxonomy = line_split
-                if gid not in gtdb_user_to_genbank:
-                    if 'd__Bacteria' in taxonomy:
-                        self.logger.warning('Bacterial genome %s has no NCBI accession and is being skipped.' % gid)
-                    else:
-                        gtdb_user_to_genbank[gid] = gid
-                        user_genomes += 1
-            self.logger.info(f'Identified {user_genomes:,} archaeal GTDB User genome WITHOUT GenBank accessions to retain for potential inclusion in GTDB.')
+        # create current GTDB genome sets
+        self.logger.info('Creating current GTDB genome set.')
+        cur_genomes = Genomes()
+        cur_genomes.load_from_metadata_file(metadata_file,
+                                                species_exception_file,
+                                                genus_exception_file,
+                                                create_sp_clusters=False,
+                                                uba_genome_file=cur_uba_gid_file)
+        self.logger.info(f' ...current genome set contains {len(cur_genomes):,} genomes.')
 
         # parse genomes flagged as exceptions from QC
         qc_exceptions = set()
         with open(qc_exception_file, encoding='utf-8') as f:
             f.readline()
             for line in f:
-                qc_exceptions.add(line.split('\t')[0].strip())
+                gid = canonical_gid(line.split('\t')[0].strip())
+                qc_exceptions.add(gid)
         self.logger.info(f'Identified {len(qc_exceptions):,} genomes flagged as exceptions from QC.')
-        
-        # calculate quality score for genomes
-        self.logger.info('Parsing QC statistics for each genome.')
-        quality_metadata = read_gtdb_metadata(metadata_file, ['checkm_completeness',
-                                                                'checkm_contamination',
-                                                                'checkm_strain_heterogeneity_100',
-                                                                'contig_count',
-                                                                'n50_contigs',
-                                                                'ambiguous_bases',
-                                                                'genome_size'])
-                                                                
-        marker_perc = read_marker_percentages(gtdb_domain_report)
-                                                                
+
         # parse NCBI assembly files
         self.logger.info('Parsing NCBI assembly files.')
-        excluded_from_refseq_note = exclude_from_refseq(ncbi_refseq_assembly_file, ncbi_genbank_assembly_file)
-
-        # get type material designations for each genome
-        self.logger.info('Reading type material designations for genomes from GTDB metadata file.')
-        type_metadata = read_gtdb_metadata(metadata_file, ['ncbi_type_material_designation',
-                                                                'gtdb_type_designation',
-                                                                'gtdb_type_designation_sources'])
-                                                                
-        ncbi_tsp = ncbi_type_strain_of_species(type_metadata)
-        gtdb_tsp = gtdb_type_strain_of_species(type_metadata)
+        excluded_from_refseq_note = exclude_from_refseq(ncbi_genbank_assembly_file)
+        
+        # get percentage of markers supporting domain assignments and 
+        # report potential issues
+        marker_perc = self.read_marker_percentages(gtdb_domain_report, 
+                                                    cur_genomes)
         
         # QC all genomes
         self.logger.info('Validating genomes.')
@@ -165,49 +141,44 @@ class QcGenomes(object):
 
         num_retained = 0
         num_filtered = 0
-        for gid in quality_metadata:
-            if gid.startswith('U_') and gid not in gtdb_user_to_genbank:
-                # skip user genomes not marked for retention
-                continue
-
+        for gid in cur_genomes:
             failed_tests = defaultdict(int)
-            passed_qc = pass_qc(quality_metadata[gid], 
-                                    marker_perc[gid],
-                                    min_comp,
-                                    max_cont,
-                                    min_quality,
-                                    sh_exception,
-                                    min_perc_markers,
-                                    max_contigs,
-                                    min_N50,
-                                    max_ambiguous,
-                                    failed_tests)
+            passed_qc = cur_genomes[gid].pass_qc(marker_perc[gid],
+                                                    min_comp,
+                                                    max_cont,
+                                                    min_quality,
+                                                    sh_exception,
+                                                    min_perc_markers,
+                                                    max_contigs,
+                                                    min_N50,
+                                                    max_ambiguous,
+                                                    failed_tests)
 
             if passed_qc or gid in qc_exceptions:
                 num_retained += 1
-                fout_retained.write('%s\t%s' % (gid, ncbi_taxonomy[gid][6]))
+                fout_retained.write('%s\t%s' % (gid, cur_genomes[gid].ncbi_species))
                 fout_retained.write('\t%.2f\t%.2f\t%.2f\t%s\t%.2f\t%d\t%d\t%d\t%s\n' % (
-                                        quality_metadata[gid].checkm_completeness,
-                                        quality_metadata[gid].checkm_contamination,
-                                        quality_metadata[gid].checkm_completeness-5*quality_metadata[gid].checkm_contamination,
-                                        ('%.2f' % quality_metadata[gid].checkm_strain_heterogeneity_100) if quality_metadata[gid].checkm_strain_heterogeneity_100 else '-',
+                                        cur_genomes[gid].comp,
+                                        cur_genomes[gid].cont,
+                                        cur_genomes[gid].comp-5*cur_genomes[gid].cont,
+                                        ('%.2f' % cur_genomes[gid].strain_heterogeneity_100) if cur_genomes[gid].strain_heterogeneity_100 else '-',
                                         marker_perc[gid],
-                                        quality_metadata[gid].contig_count,
-                                        quality_metadata[gid].n50_contigs,
-                                        quality_metadata[gid].ambiguous_bases,
+                                        cur_genomes[gid].contig_count,
+                                        cur_genomes[gid].contig_n50,
+                                        cur_genomes[gid].ambiguous_bases,
                                         'Passed QC' if passed_qc else 'Flagged as exception'))
             else:
                 num_filtered += 1 
-                fout_failed.write('%s\t%s' % (gid, ncbi_taxonomy[gid][6]))
+                fout_failed.write('%s\t%s' % (gid, cur_genomes[gid].ncbi_species))
                 fout_failed.write('\t%.2f\t%.2f\t%.2f\t%s\t%.2f\t%d\t%d\t%d' % (
-                                        quality_metadata[gid].checkm_completeness,
-                                        quality_metadata[gid].checkm_contamination,
-                                        quality_metadata[gid].checkm_completeness-5*quality_metadata[gid].checkm_contamination,
-                                        ('%.2f' % quality_metadata[gid].checkm_strain_heterogeneity_100) if quality_metadata[gid].checkm_strain_heterogeneity_100 else '-',
+                                        cur_genomes[gid].comp,
+                                        cur_genomes[gid].cont,
+                                        cur_genomes[gid].comp-5*cur_genomes[gid].cont,
+                                        ('%.2f' % cur_genomes[gid].strain_heterogeneity_100) if cur_genomes[gid].strain_heterogeneity_100 else '-',
                                         marker_perc[gid],
-                                        quality_metadata[gid].contig_count,
-                                        quality_metadata[gid].n50_contigs,
-                                        quality_metadata[gid].ambiguous_bases))
+                                        cur_genomes[gid].contig_count,
+                                        cur_genomes[gid].contig_n50,
+                                        cur_genomes[gid].ambiguous_bases))
                 fout_failed.write('\t%d\t%d\t%d\t%d\t%d\t%d\t%d\n' % (
                                     failed_tests['comp'],
                                     failed_tests['cont'],
@@ -222,7 +193,8 @@ class QcGenomes(object):
         self.logger.info(f'Retained {num_retained:,} genomes and filtered {num_filtered:,} genomes.')
                                                                 
         # QC genomes in each named species
-        self.logger.info(f'Performing QC of type genome for each of the {len(ncbi_species):,} NCBI species.')
+        vep_ncbi_species = cur_genomes.vep_ncbi_species()
+        self.logger.info(f'Performing QC of type genome for each of the {len(vep_ncbi_species):,} NCBI species.')
         
         fout_type_fail = open(os.path.join(output_dir, 'type_genomes_fail_qc.tsv'), 'w')
         fout_type_fail.write('Species\tAccession\tGTDB taxonomy\tNCBI taxonomy\tType sources\tNCBI assembly type\tGenome size (bp)')
@@ -246,7 +218,7 @@ class QcGenomes(object):
         lost_sp = 0
         filtered_genomes = 0
         failed_tests_cumulative = defaultdict(int)
-        for sp, gids in ncbi_species.items():
+        for sp, gids in vep_ncbi_species.items():
             type_pass = set()
             type_fail = set()
             other_pass = set()
@@ -255,21 +227,20 @@ class QcGenomes(object):
             failed_tests_gids = {}
             for gid in gids:
                 failed_tests = defaultdict(int)
-                passed_qc = pass_qc(quality_metadata[gid], 
-                                    marker_perc[gid],
-                                    min_comp,
-                                    max_cont,
-                                    min_quality,
-                                    sh_exception,
-                                    min_perc_markers,
-                                    max_contigs,
-                                    min_N50,
-                                    max_ambiguous,
-                                    failed_tests)
+                passed_qc = cur_genomes[gid].pass_qc(marker_perc[gid],
+                                                        min_comp,
+                                                        max_cont,
+                                                        min_quality,
+                                                        sh_exception,
+                                                        min_perc_markers,
+                                                        max_contigs,
+                                                        min_N50,
+                                                        max_ambiguous,
+                                                        failed_tests)
                                     
                 failed_tests_gids[gid] = failed_tests
 
-                if gid in gtdb_tsp or gid in ncbi_tsp:
+                if cur_genomes[gid].is_gtdb_type_strain or cur_genomes[gid].is_ncbi_type_strain:
                     if passed_qc:
                         type_pass.add(gid)
                     else:
@@ -297,19 +268,19 @@ class QcGenomes(object):
                     fout_type_fail.write('%s\t%s\t%s\t%s\t%s\t%s\t%.2f\t%.2f\t%.2f\t%.2f\t%.2f\t%.2f\t%d\t%d\t%d\t%s\t%s\n' % (
                                             sp,
                                             gid,
-                                            '; '.join(gtdb_taxonomy[gid]),
-                                            '; '.join(ncbi_taxonomy[gid]),
-                                            type_metadata[gid].gtdb_type_designation_sources,
-                                            type_metadata[gid].ncbi_type_material_designation,
-                                            float(quality_metadata[gid].genome_size)/1e6,
-                                            quality_metadata[gid].checkm_completeness,
-                                            quality_metadata[gid].checkm_contamination,
-                                            quality_metadata[gid].checkm_completeness-5*quality_metadata[gid].checkm_contamination,
-                                            quality_metadata[gid].checkm_strain_heterogeneity_100,
+                                            '; '.join(cur_genomes[gid].gtdb_taxonomy),
+                                            '; '.join(cur_genomes[gid].ncbi_taxonomy),
+                                            cur_genomes[gid].gtdb_type_designation_sources,
+                                            cur_genomes[gid].ncbi_type_material,
+                                            float(cur_genomes[gid].length)/1e6,
+                                            cur_genomes[gid].comp,
+                                            cur_genomes[gid].cont,
+                                            cur_genomes[gid].comp-5*cur_genomes[gid].cont,
+                                            cur_genomes[gid].strain_heterogeneity_100,
                                             marker_perc[gid],
-                                            quality_metadata[gid].contig_count,
-                                            quality_metadata[gid].n50_contigs,
-                                            quality_metadata[gid].ambiguous_bases,
+                                            cur_genomes[gid].contig_count,
+                                            cur_genomes[gid].contig_n50,
+                                            cur_genomes[gid].ambiguous_bases,
                                             excluded_from_refseq_note[gid],
                                             len(other_pass) == 0))
                 
@@ -330,18 +301,18 @@ class QcGenomes(object):
                     fout_fail_sp.write('%s\t%s\t%s\t%s\t%s\t%.2f\t%.2f\t%.2f\t%.2f\t%.2f\t%.2f\t%d\t%d\t%d' % (
                                             sp,
                                             gid,
-                                            '; '.join(gtdb_taxonomy[gid]),
-                                            '; '.join(ncbi_taxonomy[gid]),
+                                            '; '.join(cur_genomes[gid].gtdb_taxonomy),
+                                            '; '.join(cur_genomes[gid].ncbi_taxonomy),
                                             gid in type_fail,
-                                            float(quality_metadata[gid].genome_size)/1e6,
-                                            quality_metadata[gid].checkm_completeness,
-                                            quality_metadata[gid].checkm_contamination,
-                                            quality_metadata[gid].checkm_completeness-5*quality_metadata[gid].checkm_contamination,
-                                            quality_metadata[gid].checkm_strain_heterogeneity_100,
+                                            float(cur_genomes[gid].length)/1e6,
+                                            cur_genomes[gid].comp,
+                                            cur_genomes[gid].cont,
+                                            cur_genomes[gid].comp-5*cur_genomes[gid].cont,
+                                            cur_genomes[gid].strain_heterogeneity_100,
                                             marker_perc[gid],
-                                            quality_metadata[gid].contig_count,
-                                            quality_metadata[gid].n50_contigs,
-                                            quality_metadata[gid].ambiguous_bases))
+                                            cur_genomes[gid].contig_count,
+                                            cur_genomes[gid].contig_n50,
+                                            cur_genomes[gid].ambiguous_bases))
                     fout_fail_sp.write('\t%d\t%d\t%d\t%d\t%d\t%d\t%d' % (
                                         failed_tests_gids[gid]['comp'],
                                         failed_tests_gids[gid]['cont'],

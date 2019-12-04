@@ -22,9 +22,10 @@ from collections import defaultdict
 
 from biolib.taxonomy import Taxonomy
 
-from gtdb_species_clusters.genome_utils import canonical_gid
 from gtdb_species_clusters.genome import Genome
 from gtdb_species_clusters.species_clusters import SpeciesClusters
+from gtdb_species_clusters.genome_utils import canonical_gid
+from gtdb_species_clusters.taxon_utils import is_placeholder_taxon
 
 
 class Genomes(object):
@@ -38,6 +39,9 @@ class Genomes(object):
         
         self.genomic_files = {} # this should be removed, but the FastANI interface
                                 # currently requires data to be passed in as a dictionary
+                                
+        self.user_uba_id_map = {}   # can be removed once UBA genomes are no longer part
+                                    # of the archaeal genome set
         
         self.logger = logging.getLogger('timestamp')
 
@@ -45,6 +49,12 @@ class Genomes(object):
         """User-friendly string representation."""
         
         return '{{num_genomes:{}}}'.format(len(self.genomes))
+        
+    def __iter__(self):
+        """Iterate over genome IDs comprising genome set."""
+        
+        for gid in self.genomes:
+            yield gid
         
     def __getitem__(self, gid):
         """Get genome."""
@@ -75,6 +85,11 @@ class Genomes(object):
         
         return int(value) if value and value != 'none' else 0
         
+    def _convert_float(self, value):
+        """Convert database value to float."""
+        
+        return float(value) if value and value != 'none' else 0
+        
     def _apply_ncbi_taxonomy_ledgers(self,
                                         species_exception_file, 
                                         genus_exception_file):
@@ -86,9 +101,9 @@ class Genomes(object):
                 f.readline()
                 for line in f:
                     line_split = [token.strip() for token in line.strip().split('\t')]
-                    gid = canonical_gid(line_split[0])
+                    gid = canonical_gid(line_split[0].strip())
 
-                    sp = line_split[1].replace('Candidatus ', '')
+                    sp = line_split[1].strip().replace('Candidatus ', '')
                     if gid not in self.genomes:
                         self.logger.warning(f'Genome {gid} in species exception list not defined in genome set.')
                         continue
@@ -104,8 +119,8 @@ class Genomes(object):
                 f.readline()
                 for line in f:
                     line_split = [token.strip() for token in line.strip().split('\t')]
-                    gid = canonical_gid(line_split[0])
-                    genus = line_split[1]
+                    gid = canonical_gid(line_split[0].strip())
+                    genus = line_split[1].strip()
                     if gid not in self.genomes:
                         self.logger.warning(f'Genome {gid} in genus exception list not defined in genome set.')
                         continue
@@ -140,6 +155,16 @@ class Genomes(object):
                 
         return type_strain_gids
         
+    def vep_ncbi_species(self):
+        """Get genomes in valid or effectively published, including Candidatus, species in NCBI taxonomy."""
+        
+        vep_ncbi_species = defaultdict(set)
+        for gid in self.genomes:
+            if not is_placeholder_taxon(self.genomes[gid].ncbi_species):
+                vep_ncbi_species[self.genomes[gid].ncbi_species].add(gid)
+
+        return vep_ncbi_species
+        
     def load_genomic_file_paths(self, genome_path_file):
         """Determine path to genomic FASTA file for each genome."""
 
@@ -159,8 +184,25 @@ class Genomes(object):
                                 metadata_file,
                                 species_exception_file=None,
                                 genus_exception_file=None,
-                                create_sp_clusters=True):
+                                create_sp_clusters=True,
+                                uba_genome_file=None,
+                                qc_passed_file=None):
         """Create genome set from file(s)."""
+        
+        valid_uba_ids = set()
+        if uba_genome_file:
+            with open(uba_genome_file) as f:
+                for line in f:
+                    line_split = line.strip().split('\t')
+                    valid_uba_ids.add(line_split[0].strip())
+
+        pass_qc_gids = set()
+        if qc_passed_file:
+            with open(qc_passed_file) as f:
+                f.readline()
+                for line in f:
+                    line_split = line.strip().split('\t')
+                    pass_qc_gids.add(line_split[0].strip())
 
         with open(metadata_file, encoding='utf-8') as f:
             headers = f.readline().strip().split('\t')
@@ -172,6 +214,7 @@ class Genomes(object):
             ncbi_taxonomy_unfiltered_index = headers.index('ncbi_taxonomy_unfiltered')
             
             gtdb_type_index = headers.index('gtdb_type_designation')
+            gtdb_type_sources_index = headers.index('gtdb_type_designation_sources')
             ncbi_type_index = headers.index('ncbi_type_material_designation')
             ncbi_asm_level_index = headers.index('ncbi_assembly_level')
             ncbi_genome_representation_index = headers.index('ncbi_genome_representation')
@@ -180,6 +223,9 @@ class Genomes(object):
             
             comp_index = headers.index('checkm_completeness')
             cont_index = headers.index('checkm_contamination')
+            sh_100_index = None
+            if 'checkm_strain_heterogeneity_100' in headers:
+                sh_100_index = headers.index('checkm_strain_heterogeneity_100')
             gs_index = headers.index('genome_size')
             contig_count_index = headers.index('contig_count')
             n50_index = headers.index('n50_contigs')
@@ -205,15 +251,22 @@ class Genomes(object):
                     org_name_index = headers.index('organism_name')
                     org_name = line_split[org_name_index]
                     if '(UBA' in org_name:
-                        gid = org_name[org_name.find('(')+1:-1]
+                        uba_id = org_name[org_name.find('(')+1:-1]
+                        if uba_id in valid_uba_ids:
+                            self.user_uba_id_map[gid] = uba_id
+                            gid = uba_id
                     else:
                         continue # skip non-UBA user genomes
+                        
+                if pass_qc_gids and gid not in pass_qc_gids:
+                    continue
                 
                 gtdb_taxonomy = self._get_taxa(line_split[gtdb_taxonomy_index])
                 ncbi_taxonomy = self._get_taxa(line_split[ncbi_taxonomy_index])
                 ncbi_taxonomy_unfiltered = self._get_taxa(line_split[ncbi_taxonomy_unfiltered_index])
                 
                 gtdb_type = line_split[gtdb_type_index]
+                gtdb_type_sources = line_split[gtdb_type_sources_index]
                 ncbi_type = line_split[ncbi_type_index]
                 ncbi_asm_level = line_split[ncbi_asm_level_index]
                 ncbi_genome_representation = line_split[ncbi_genome_representation_index]
@@ -222,6 +275,9 @@ class Genomes(object):
                 
                 comp = float(line_split[comp_index])
                 cont = float(line_split[cont_index])
+                sh_100 = 0
+                if sh_100_index:
+                    sh_100 = self._convert_float(line_split[sh_100_index])
                 gs = int(line_split[gs_index])
                 contig_count = int(line_split[contig_count_index])
                 n50 = int(line_split[n50_index])
@@ -245,6 +301,7 @@ class Genomes(object):
                                             ncbi_taxonomy,
                                             ncbi_taxonomy_unfiltered,
                                             gtdb_type,
+                                            gtdb_type_sources,
                                             ncbi_type,
                                             ncbi_asm_level,
                                             ncbi_genome_representation,
@@ -252,6 +309,7 @@ class Genomes(object):
                                             ncbi_genome_cat,
                                             comp,
                                             cont,
+                                            sh_100,
                                             gs,
                                             contig_count,
                                             n50,
