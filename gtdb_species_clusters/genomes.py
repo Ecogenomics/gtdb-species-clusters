@@ -130,9 +130,9 @@ class Genomes(object):
                         
                     self.genomes[gid].ncbi_taxonomy[5] = f'g__{genus}'
                     
-                    species = self.genomes[gid].ncbi_species
+                    species = self.genomes[gid].ncbi_species()
                     if species != 's__':
-                        specific = self.genomes[gid].ncbi_specific_epithet
+                        specific = self.genomes[gid].ncbi_specific_epithet()
                         self.genomes[gid].ncbi_taxonomy[6] = f's__{genus} {specific}'
 
                     # sanity check ledgers
@@ -150,7 +150,7 @@ class Genomes(object):
         
         type_strain_gids = set()
         for gid, genome in self.genomes.items():
-            if genome.is_gtdb_type_strain:
+            if genome.is_gtdb_type_strain():
                 type_strain_gids.add(gid)
                 
         return type_strain_gids
@@ -160,8 +160,8 @@ class Genomes(object):
         
         named_ncbi_sp = defaultdict(set)
         for gid in self.genomes:
-            if not is_placeholder_taxon(self.genomes[gid].ncbi_species):
-                named_ncbi_sp[self.genomes[gid].ncbi_species].add(gid)
+            if not is_placeholder_taxon(self.genomes[gid].ncbi_species()):
+                named_ncbi_sp[self.genomes[gid].ncbi_species()].add(gid)
 
         return named_ncbi_sp
         

@@ -171,7 +171,7 @@ class QcGenomes(object):
 
             if passed_qc or gid in qc_exceptions:
                 pass_qc_gids.add(gid)
-                fout_retained.write('%s\t%s' % (gid, cur_genomes[gid].ncbi_species))
+                fout_retained.write('%s\t%s' % (gid, cur_genomes[gid].ncbi_species()))
                 fout_retained.write('\t%.2f\t%.2f\t%.2f\t%s\t%.2f\t%d\t%d\t%d\t%s\n' % (
                                         cur_genomes[gid].comp,
                                         cur_genomes[gid].cont,
@@ -184,7 +184,7 @@ class QcGenomes(object):
                                         'Passed QC' if passed_qc else 'Flagged as exception'))
             else:
                 num_filtered += 1 
-                fout_failed.write('%s\t%s' % (gid, cur_genomes[gid].ncbi_species))
+                fout_failed.write('%s\t%s' % (gid, cur_genomes[gid].ncbi_species()))
                 fout_failed.write('\t%.2f\t%.2f\t%.2f\t%s\t%.2f\t%d\t%d\t%d' % (
                                         cur_genomes[gid].comp,
                                         cur_genomes[gid].cont,
@@ -261,7 +261,7 @@ class QcGenomes(object):
                                     
                 failed_tests_gids[gid] = failed_tests
 
-                if cur_genomes[gid].is_gtdb_type_strain or cur_genomes[gid].is_ncbi_type_strain:
+                if cur_genomes[gid].is_gtdb_type_strain() or cur_genomes[gid].is_ncbi_type_strain():
                     if passed_qc:
                         type_pass.add(gid)
                     else:

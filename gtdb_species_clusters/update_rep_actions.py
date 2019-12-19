@@ -21,6 +21,8 @@ import argparse
 import logging
 from collections import defaultdict
 
+from numpy import (mean as np_mean, std as np_std)
+
 from gtdb_species_clusters.fastani import FastANI
 from gtdb_species_clusters.genomes import Genomes
 from gtdb_species_clusters.species_clusters import SpeciesClusters
@@ -49,6 +51,9 @@ class RepActions(object):
         
         self.action_log = open(os.path.join(self.output_dir, 'action_log.tsv'), 'w')
         self.action_log.write('Genome ID\tPrevious GTDB species\tAction\tParameters\n')
+
+        self.new_reps = {}
+        self.new_sp_name = {}
         
     def rep_change_gids(self, rep_change_summary_file, field, value):
         """Get genomes with a specific change."""
@@ -126,6 +131,14 @@ class RepActions(object):
                         
         return max_rid, max_score, max_ani, max_af
 
+    def update_rep(self, gtdb_sp, new_rid):
+        """Update representative genome for GTDB species cluster."""
+
+        if gtdb_sp in self.new_reps:
+            assert self.new_reps[gtdb_sp] == new_rid
+
+        self.new_reps[gtdb_sp] = new_rid
+
     def genomes_in_current_sp_cluster(self, 
                                         prev_rid, 
                                         prev_genomes, 
@@ -141,11 +154,10 @@ class RepActions(object):
         return sp_cids
         
     def action_genomic_lost(self, 
-                                rep_change_summary_file,
-                                prev_genomes, 
-                                cur_genomes,
-                                new_updated_sp_clusters,
-                                new_reps):
+                            rep_change_summary_file,
+                            prev_genomes, 
+                            cur_genomes,
+                            new_updated_sp_clusters):
         """Handle species with lost representative genome."""
         
         # get genomes with specific changes
@@ -153,7 +165,7 @@ class RepActions(object):
         genomic_lost_rids = self.rep_change_gids(rep_change_summary_file, 
                                                     'GENOMIC_CHANGE', 
                                                     'LOST')
-        self.logger.info(f' ...identified {len(genomic_lost_rids):,} genomes.')
+        self.logger.info(f' ... identified {len(genomic_lost_rids):,} genomes.')
         
         # calculate ANI between previous and current genomes
         for prev_rid, prev_gtdb_sp in genomic_lost_rids.items():
@@ -178,10 +190,10 @@ class RepActions(object):
                 params['new_rid_assembly_quality'] = cur_genomes[new_rid].score_assembly
                 params['prev_rid_assembly_quality'] = prev_genomes[prev_rid].score_assembly
                 
-                new_reps[prev_gtdb_sp] = new_rid
+                self.update_rep(prev_gtdb_sp, new_rid)
             else:
                 action = 'GENOMIC_CHANGE:LOST:SPECIES_RETIRED'
-                new_reps[prev_gtdb_sp] = None
+                self.update_rep(prev_gtdb_sp, None)
                 
             self.action_log.write('{}\t{}\t{}\t{}\n'.format(
                                         prev_rid, 
@@ -193,8 +205,7 @@ class RepActions(object):
                                 rep_change_summary_file,
                                 prev_genomes, 
                                 cur_genomes,
-                                new_updated_sp_clusters,
-                                new_reps):
+                                new_updated_sp_clusters):
         """Handle representatives with updated genomes."""
         
         # get genomes with specific changes
@@ -202,7 +213,7 @@ class RepActions(object):
         genomic_update_gids = self.rep_change_gids(rep_change_summary_file, 
                                                     'GENOMIC_CHANGE', 
                                                     'UPDATED')
-        self.logger.info(f' ...identified {len(genomic_update_gids):,} genomes.')
+        self.logger.info(f' ... identified {len(genomic_update_gids):,} genomes.')
         
         # calculate ANI between previous and current genomes
         for prev_rid, prev_gtdb_sp in genomic_update_gids.items():
@@ -244,88 +255,22 @@ class RepActions(object):
                         params['new_rid_assembly_quality'] = cur_genomes[new_rid].score_assembly
                         params['prev_rid_assembly_quality'] = prev_genomes[prev_rid].score_assembly
                         
-                        new_reps[prev_gtdb_sp] = new_rid
+                        self.update_rep(prev_gtdb_sp, new_rid)
                 else:
                     action = 'GENOMIC_CHANGE:UPDATED:SPECIES_RETIRED'
-                    new_reps[prev_gtdb_sp] = None
+                    self.update_rep(prev_gtdb_sp, None)
                 
             self.action_log.write('{}\t{}\t{}\t{}\n'.format(
                                         prev_rid, 
                                         prev_gtdb_sp, 
                                         action, 
                                         params))
-                                        
-    def action_species_reassigned(self,
-                                    rep_change_summary_file,
-                                    prev_genomes, 
-                                    cur_genomes):
-        """Handle representatives with new NCBI species assignments."""
-        
-        # get genomes with new NCBI species assignments
-        self.logger.info('Identifying representatives with new NCBI species assignments.')
-        ncbi_sp_change_gids = self.rep_change_gids(rep_change_summary_file, 
-                                                    'NCBI_SPECIES_CHANGE', 
-                                                    'REASSIGNED')
-        self.logger.info(f' ...identified {len(ncbi_sp_change_gids):,} genomes.')
-        
-        # get species assignment of previous GTDB species clusters
-        prev_sp_clusters = prev_genomes.sp_clusters
-        gtdb_specific_epithets = defaultdict(set)
-        specific_epithets_rid = defaultdict(lambda: {})
-        for rid, sp in prev_sp_clusters.species():
-            gtdb_genus = prev_genomes[rid].gtdb_genus
-            gtdb_specific_epithet = prev_genomes[rid].gtdb_specific_epithet
-            gtdb_specific_epithets[gtdb_genus].add(gtdb_specific_epithet)
-            specific_epithets_rid[gtdb_genus][gtdb_specific_epithet] = rid
 
-        # determine if change can be made without causing a conflict with 
-        # other GTDB species clusters
-        for prev_rid, prev_gtdb_sp in ncbi_sp_change_gids.items():
-            prev_ncbi_sp = prev_genomes[prev_rid].ncbi_species
-            cur_ncbi_sp = cur_genomes[prev_rid].ncbi_species
-            prev_gtdb_genus = prev_genomes[prev_rid].gtdb_genus
-            assert(prev_ncbi_sp != cur_ncbi_sp)
-            assert(prev_gtdb_sp == prev_genomes[prev_rid].gtdb_species)
-            
-            params = {}
-            params['prev_ncbi_sp'] = prev_ncbi_sp
-            params['cur_ncbi_sp'] = cur_ncbi_sp
-            params['prev_gtdb_sp'] = prev_gtdb_sp
-            
-            cur_ncbi_specific_epithet = cur_genomes[prev_rid].ncbi_specific_epithet
-            prev_gtdb_specific_epithet = prev_genomes[prev_rid].gtdb_specific_epithet
-            if cur_ncbi_specific_epithet == prev_gtdb_specific_epithet:
-                action = 'NCBI_SPECIES_CHANGE:REASSIGNED:UNCHANGED'
-            elif cur_ncbi_specific_epithet not in gtdb_specific_epithets[prev_gtdb_genus]:
-                action = 'NCBI_SPECIES_CHANGE:REASSIGNED:UPDATED'
-            else:
-                # check if species cluster should be merged
-                ncbi_proposed_rid = specific_epithets_rid[prev_gtdb_genus][cur_ncbi_specific_epithet]
-                ani, af = self.fastani.symmetric_ani_cached(prev_rid, ncbi_proposed_rid,
-                                                            cur_genomes[prev_rid].genomic_file, 
-                                                            cur_genomes[ncbi_proposed_rid].genomic_file)
-                                                        
-                params['ani'] = ani
-                params['af'] = af
-                params['ncbi_subspecies'] = cur_genomes[prev_rid].ncbi_subspecies
-                                                        
-                if ani >= 95 and af >= 0.65:
-                    action = 'NCBI_SPECIES_CHANGE:REASSIGNED:MERGE'
-                else:
-                    action = 'NCBI_SPECIES_CHANGE:REASSIGNED:CONFLICT'
-                
-            self.action_log.write('{}\t{}\t{}\t{}\n'.format(
-                                        prev_rid, 
-                                        prev_gtdb_sp, 
-                                        action, 
-                                        params))
-                                        
     def action_type_strain_lost(self, 
                                     rep_change_summary_file,
                                     prev_genomes, 
                                     cur_genomes,
-                                    new_updated_sp_clusters,
-                                    new_reps):
+                                    new_updated_sp_clusters):
         """Handle representatives which have lost type strain genome status."""
         
         # get genomes with new NCBI species assignments
@@ -333,7 +278,7 @@ class RepActions(object):
         ncbi_type_species_lost = self.rep_change_gids(rep_change_summary_file, 
                                                     'TYPE_STRAIN_CHANGE', 
                                                     'LOST')
-        self.logger.info(f' ...identified {len(ncbi_type_species_lost):,} genomes.')
+        self.logger.info(f' ... identified {len(ncbi_type_species_lost):,} genomes.')
 
         for prev_rid, prev_gtdb_sp in ncbi_type_species_lost.items():
             if prev_rid not in cur_genomes:
@@ -371,8 +316,8 @@ class RepActions(object):
                 params['new_rid_strain_ids'] = prev_genomes[new_rid].ncbi_strain_identifiers
                 params['new_rid_gtdb_type_designation'] = prev_genomes[new_rid].gtdb_type_designation
                 params['new_rid_gtdb_type_designation_sources'] = prev_genomes[new_rid].gtdb_type_designation_sources
-                
-                new_reps[prev_gtdb_sp] = new_rid
+
+                self.update_rep(prev_gtdb_sp, new_rid)
             else:
                 action = 'TYPE_STRAIN_CHANGE:LOST:RETAINED'
                 
@@ -385,23 +330,25 @@ class RepActions(object):
     def action_improved_rep(self, 
                             prev_genomes, 
                             cur_genomes, 
-                            new_updated_sp_clusters,
-                            new_reps):
+                            new_updated_sp_clusters):
         """Check if representative should be replace with higher quality genome."""
 
         self.logger.info('Identifying improved representatives for GTDB species clusters.')
         num_improved = 0
+        num_gtdb_ncbi_type_sp = 0
         num_gtdb_type_sp = 0
         num_ncbi_type_sp = 0
         num_complete = 0
         num_isolate = 0
+        anis = []
+        afs = []
         for idx, (prev_rid, cids) in enumerate(new_updated_sp_clusters.clusters()):
             if prev_rid not in cur_genomes:
                 # indicates genome has been lost
                 continue
                 
             prev_gtdb_sp = new_updated_sp_clusters.get_species(prev_rid)
-            statusStr = '-> Processing %d of %d (%.2f%%) species [%s: %d new/updated genomes].'.ljust(86) % (
+            statusStr = '-> Processing {:,} of {:,} ({:.2f}%) species [{}: {:,} new/updated genomes].'.ljust(86).format(
                                 idx+1, 
                                 len(new_updated_sp_clusters), 
                                 float(idx+1)*100/len(new_updated_sp_clusters),
@@ -429,7 +376,7 @@ class RepActions(object):
                     self.logger.error(f'No genomic file for: {new_rid}')
                     sys.exit(-1)
 
-                new_reps[prev_gtdb_sp] = new_rid
+                self.update_rep(prev_gtdb_sp, new_rid)
                 num_improved += 1
 
                 params['new_rid'] = new_rid
@@ -438,37 +385,142 @@ class RepActions(object):
                 params['new_rid_assembly_quality'] = cur_genomes[new_rid].score_assembly
                 params['prev_rid_assembly_quality'] = prev_genomes[prev_rid].score_assembly
 
-                improvement_list = []
-                if cur_genomes[new_rid].is_gtdb_type_strain and not cur_genomes[prev_rid].is_gtdb_type_strain:
-                    num_gtdb_type_sp += 1
-                    improvement_list.append('replaced with genome assembled from type strain according to GTDB')
-                elif cur_genomes[new_rid].is_ncbi_type_strain and not cur_genomes[prev_rid].is_ncbi_type_strain:
-                    num_ncbi_type_sp += 1
-                    improvement_list.append('replaced with genome assembled from type strain according to NCBI')
+                anis.append(ani)
+                afs.append(af)
 
-                if cur_genomes[new_rid].is_isolate and not cur_genomes[prev_rid].is_isolate:
+                improvement_list = []
+                gtdb_type_improv = cur_genomes[new_rid].is_gtdb_type_strain() and not cur_genomes[prev_rid].is_gtdb_type_strain()
+                ncbi_type_improv = cur_genomes[new_rid].is_ncbi_type_strain() and not cur_genomes[prev_rid].is_ncbi_type_strain()
+
+                if gtdb_type_improv and ncbi_type_improv:
+                    num_gtdb_ncbi_type_sp += 1
+                    improvement_list.append('replaced with genome from type strain according to GTDB and NCBI')
+                elif gtdb_type_improv:
+                    num_gtdb_type_sp += 1
+                    improvement_list.append('replaced with genome from type strain according to GTDB')
+                elif ncbi_type_improv:
+                    num_ncbi_type_sp += 1
+                    improvement_list.append('replaced with genome from type strain according to NCBI')
+
+                if cur_genomes[new_rid].is_isolate() and not cur_genomes[prev_rid].is_isolate():
                     num_isolate += 1
                     improvement_list.append('MAG/SAG replaced with isolate')
 
-                if cur_genomes[new_rid].is_complete_genome and not cur_genomes[prev_rid].is_complete_genome:
+                if cur_genomes[new_rid].is_complete_genome() and not cur_genomes[prev_rid].is_complete_genome():
                     num_complete += 1
                     improvement_list.append('replaced with complete genome')
                     
-                params['improvements'] = ':'.join(improvement_list)
+                params['improvements'] = '; '.join(improvement_list)
                     
                 self.action_log.write('{}\t{}\t{}\t{}\n'.format(
                                                 prev_rid, 
                                                 prev_gtdb_sp, 
                                                 action, 
                                                 params))
-            
+
         sys.stdout.write('\n')
-        self.logger.info(f' ...identified {num_improved:,} species with improved representatives.')
-        self.logger.info(f'   ...{num_gtdb_type_sp:,} replaced with GTDB genome from type strain.')
-        self.logger.info(f'   ...{num_ncbi_type_sp:,} replaced with NCBI genome from type strain.')
-        self.logger.info(f'   ...{num_isolate:,} replaced MAG/SAG with isolate.')
-        self.logger.info(f'   ...{num_complete:,} replaced with complete genome assembly.')
+        self.logger.info(f' ... identified {num_improved:,} species with improved representatives.')
+        self.logger.info(f'   ... {num_gtdb_ncbi_type_sp:,} replaced with GTDB/NCBI genome from type strain.')
+        self.logger.info(f'   ... {num_gtdb_type_sp:,} replaced with GTDB genome from type strain.')
+        self.logger.info(f'   ... {num_ncbi_type_sp:,} replaced with NCBI genome from type strain.')
+        self.logger.info(f'   ... {num_isolate:,} replaced MAG/SAG with isolate.')
+        self.logger.info(f'   ... {num_complete:,} replaced with complete genome assembly.')
+        self.logger.info(f' ... ANI = {np_mean(anis):.2f} +/- {np_std(anis):.2f}%; AF = {np_mean(afs)*100:.2f} +/- {np_std(afs)*100:.2f}%.')
+
+    def action_species_reassigned(self,
+                                    rep_change_summary_file,
+                                    prev_genomes, 
+                                    cur_genomes):
+        """Handle representatives with new NCBI species assignments."""
+        
+        # get genomes with new NCBI species assignments
+        self.logger.info('Identifying representatives with new NCBI specific epithet assignments.')
+        ncbi_sp_change_gids = self.rep_change_gids(rep_change_summary_file, 
+                                                    'NCBI_SPECIES_CHANGE', 
+                                                    'REASSIGNED')
+        self.logger.info(f' ... identified {len(ncbi_sp_change_gids):,} genomes.')
+        
+        # get species assignment of previous GTDB species clusters
+        prev_sp_clusters = prev_genomes.sp_clusters
+        gtdb_specific_epithets = defaultdict(set)
+        specific_epithets_rid = defaultdict(lambda: {})
+        for rid, sp in prev_sp_clusters.species():
+            gtdb_genus = prev_genomes[rid].gtdb_genus()
+            gtdb_specific_epithet = prev_genomes[rid].gtdb_specific_epithet()
+            gtdb_specific_epithets[gtdb_genus].add(gtdb_specific_epithet)
+            specific_epithets_rid[gtdb_genus][gtdb_specific_epithet] = rid
+
+        # determine if change can be made without causing a conflict with 
+        # other GTDB species clusters
+        num_unchanged = 0
+        num_updated = 0
+        num_merged = 0
+        num_conflict = 0
+        fout = open(os.path.join(self.output_dir, 'sp_epithet_conflicts.tsv'), 'w')
+        fout.write('Representative ID\tGTDB species\tPrevious NCBI species\tNew NCBI species')
+        fout.write('\tConflicting representative ID\tGTDB species\tPrevious NCBI species\tNew NCBI species')
+        fout.write('\tANI\tAF\n')
+        for prev_rid, prev_gtdb_sp in ncbi_sp_change_gids.items():
+            prev_ncbi_sp = prev_genomes[prev_rid].ncbi_species()
+            cur_ncbi_sp = cur_genomes[prev_rid].ncbi_species()
+            prev_gtdb_genus = prev_genomes[prev_rid].gtdb_genus()
+            assert prev_ncbi_sp != cur_ncbi_sp
+            assert prev_gtdb_sp == prev_genomes[prev_rid].gtdb_species()
             
+            params = {}
+            params['prev_ncbi_sp'] = prev_ncbi_sp
+            params['cur_ncbi_sp'] = cur_ncbi_sp
+            params['prev_gtdb_sp'] = prev_gtdb_sp
+            
+            cur_ncbi_specific_epithet = cur_genomes[prev_rid].ncbi_specific_epithet()
+            prev_gtdb_specific_epithet = prev_genomes[prev_rid].gtdb_specific_epithet()
+            if (cur_ncbi_specific_epithet == prev_gtdb_specific_epithet
+                or cur_ncbi_sp == 's__'):
+                action = 'NCBI_SPECIES_CHANGE:REASSIGNED:UNCHANGED'
+                num_unchanged += 1
+            elif cur_ncbi_specific_epithet not in gtdb_specific_epithets[prev_gtdb_genus]:
+                action = 'NCBI_SPECIES_CHANGE:REASSIGNED:UPDATED'
+                num_updated += 1
+                self.new_sp_name[prev_rid] = prev_gtdb_sp.replace(prev_gtdb_specific_epithet, cur_ncbi_specific_epithet)
+            else:
+                # check if species cluster should be merged
+                ncbi_proposed_rid = specific_epithets_rid[prev_gtdb_genus][cur_ncbi_specific_epithet]
+                ani, af = self.fastani.symmetric_ani_cached(prev_rid, ncbi_proposed_rid,
+                                                            cur_genomes[prev_rid].genomic_file, 
+                                                            cur_genomes[ncbi_proposed_rid].genomic_file)
+                                                        
+                params['ani'] = ani
+                params['af'] = af
+                params['ncbi_subspecies'] = cur_genomes[prev_rid].ncbi_subspecies()
+                                                        
+                if ani >= 95 and af >= 0.65:
+                    action = 'NCBI_SPECIES_CHANGE:REASSIGNED:MERGED'
+                    num_merged += 1
+                    self.new_sp_name[prev_rid] = prev_gtdb_sp.replace(prev_gtdb_specific_epithet, cur_ncbi_specific_epithet)
+                    self.update_rep(prev_gtdb_sp, ncbi_proposed_rid)
+                else:
+                    action = 'NCBI_SPECIES_CHANGE:REASSIGNED:CONFLICT'
+                    num_conflict += 1
+
+                    fout.write(f'{prev_rid}\t{prev_gtdb_sp}\t{prev_ncbi_sp}\t{cur_ncbi_sp}')
+                    fout.write(f'\t{ncbi_proposed_rid}\t{prev_genomes[ncbi_proposed_rid].gtdb_species()}')
+                    fout.write(f'\t{prev_genomes[ncbi_proposed_rid].ncbi_species()}')
+                    fout.write(f'\t{cur_genomes[ncbi_proposed_rid].ncbi_species()}')
+                    fout.write(f'\t{ani:.2f}\t{af*100:.2f}\n')
+                
+            self.action_log.write('{}\t{}\t{}\t{}\n'.format(
+                                        prev_rid, 
+                                        prev_gtdb_sp, 
+                                        action, 
+                                        params))
+
+        self.logger.info(f'   ... {num_unchanged:,} unchanged.')
+        self.logger.info(f'   ... {num_updated:,} updated.')
+        self.logger.info(f'   ... {num_merged:,} merged.')
+        self.logger.info(f'   ... {num_conflict:,} conflict.')
+
+        fout.close()
+
     def run(self, 
             rep_change_summary_file,
             prev_gtdb_metadata_file,
@@ -492,8 +544,8 @@ class RepActions(object):
                                                 genus_exception_file,
                                                 gtdb_type_strains_ledger=gtdb_type_strains_ledger,
                                                 uba_genome_file=uba_genome_paths)
-        self.logger.info(f' ...previous genome set contains {len(prev_genomes):,} genomes.')
-        self.logger.info(' ...previous genome set has {:,} species clusters spanning {:,} genomes.'.format(
+        self.logger.info(f' ... previous genome set contains {len(prev_genomes):,} genomes.')
+        self.logger.info(' ... previous genome set has {:,} species clusters spanning {:,} genomes.'.format(
                             len(prev_genomes.sp_clusters),
                             prev_genomes.sp_clusters.total_num_genomes()))
 
@@ -506,8 +558,8 @@ class RepActions(object):
                                                 create_sp_clusters=False,
                                                 uba_genome_file=uba_genome_paths,
                                                 qc_passed_file=qc_passed_file)
-        self.logger.info(f' ...current genome set contains {len(cur_genomes):,} genomes.')
-        
+        self.logger.info(f' ... current genome set contains {len(cur_genomes):,} genomes.')
+
         # get path to previous and current genomic FASTA files
         self.logger.info('Reading path to previous and current genomic FASTA files.')
         prev_genomes.load_genomic_file_paths(prev_genomic_path_file)
@@ -517,7 +569,6 @@ class RepActions(object):
 
         # created expanded previous GTDB species clusters
         new_updated_sp_clusters = SpeciesClusters()
-        new_reps = {}
 
         self.logger.info('Creating species clusters of new and updated genomes based on GTDB-Tk classifications.')
         new_updated_sp_clusters.create_expanded_clusters(prev_genomes.sp_clusters,
@@ -533,33 +584,28 @@ class RepActions(object):
         self.action_genomic_lost(rep_change_summary_file,
                                     prev_genomes, 
                                     cur_genomes,
-                                    new_updated_sp_clusters,
-                                    new_reps)
+                                    new_updated_sp_clusters)
 
         self.action_genomic_update(rep_change_summary_file,
                                     prev_genomes, 
                                     cur_genomes,
-                                    new_updated_sp_clusters,
-                                    new_reps)
+                                    new_updated_sp_clusters)
 
         self.action_type_strain_lost(rep_change_summary_file,
                                             prev_genomes, 
                                             cur_genomes,
-                                            new_updated_sp_clusters,
-                                            new_reps)
+                                            new_updated_sp_clusters)
 
         self.action_improved_rep(prev_genomes, 
                                     cur_genomes,
-                                    new_updated_sp_clusters,
-                                    new_reps)
+                                    new_updated_sp_clusters)
 
-        if False:   
-            self.action_species_reassigned(rep_change_summary_file,
-                                            prev_genomes, 
-                                            cur_genomes)
+        self.action_species_reassigned(rep_change_summary_file,
+                                        prev_genomes, 
+                                        cur_genomes)
 
-        num_retired_sp = sum([1 for v in new_reps.values() if v is None])  
-        num_replaced_rids = sum([1 for v in new_reps.values() if v is not None])                         
+        num_retired_sp = sum([1 for v in self.new_reps.values() if v is None])  
+        num_replaced_rids = sum([1 for v in self.new_reps.values() if v is not None])                         
         self.logger.info(f'Identified {num_retired_sp:,} retired species.')
         self.logger.info(f'Identified {num_replaced_rids:,} species with a modified representative genome.')
         
@@ -568,11 +614,20 @@ class RepActions(object):
 
         # write out representatives for existing species clusters
         fout = open(os.path.join(self.output_dir, 'species_reps.tsv'), 'w')
+        fout.write('Previous representative ID\tPrevious species name\tCurrent representative ID\tCurrent species name\tRepresentative status\tSpecies status\n')
         for rid, sp_name in prev_genomes.sp_clusters.species():
-            if sp_name in new_reps:
-                if new_reps[sp_name] is not None:
-                    fout.write(f'{sp_name}\t{new_reps[sp_name]}\tREPLACED\n')
+            new_sp_name = sp_name
+            sp_status = 'UNCHANGED'
+            if rid in self.new_sp_name:
+                new_sp_name = self.new_sp_name[rid]
+                sp_status = 'MODIFIED'
+
+            if sp_name in self.new_reps:
+                if self.new_reps[sp_name] is not None:
+                    fout.write(f'{rid}\t{sp_name}\t{self.new_reps[sp_name]}\t{new_sp_name}\tREPLACED\t{sp_status}\n')
+                else:
+                    fout.write(f'{rid}\t{sp_name}\t{self.new_reps[sp_name]}\t{new_sp_name}\tLOST\t{sp_status}\n') 
             else:
-                fout.write(f'{sp_name}\t{rid}\tUNCHANGED\n')
+                fout.write(f'{rid}\t{sp_name}\t{rid}\t{new_sp_name}\tUNCHANGED\t{sp_status}\n')
             
         fout.close()

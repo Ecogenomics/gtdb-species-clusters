@@ -30,7 +30,7 @@ from gtdb_species_clusters.genome_utils import canonical_gid
 def is_placeholder_taxon(taxon):
     """Check if taxon name is a placeholder."""
     
-    assert('__' in taxon) # expect taxon name to have rank prefix
+    assert '__' in taxon # expect taxon name to have rank prefix
     
     test_taxon = taxon[3:].replace('[', '').replace(']', '')
     if not test_taxon:

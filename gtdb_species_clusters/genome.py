@@ -57,7 +57,8 @@ class Genome(object):
     
     NCBI_TYPE_SPECIES = set(['assembly from type material', 
                                 'assembly from neotype material',
-                                'assembly designated as neotype'])
+                                'assembly designated as neotype',
+                                'assembly designated as reftype'])
     NCBI_PROXYTYPE = set(['assembly from proxytype material'])
     NCBI_TYPE_SUBSP = set(['assembly from synonym type material'])
 
@@ -73,25 +74,6 @@ class Genome(object):
         if self.gid.startswith('UBA'):
             self.ncbi_genome_category = 'metagenome'
             
-        self.is_gtdb_sp_rep = (self.gtdb_rid == self.gid)
-        self.is_ncbi_subspecies = self._is_ncbi_subspecies()
-        self.is_isolate = self._is_isolate()
-        self.is_mag = self._is_mag()
-        self.is_sag = self._is_sag()
-        assert(self.is_isolate ^ self.is_mag ^ self.is_sag)
-        self.is_gtdb_type_strain = self._is_gtdb_type_strain()
-        self.is_ncbi_type_strain = self._is_ncbi_type_strain()
-        self.is_complete_genome = self._is_complete_genome()
-        self.ncbi_subspecies = self._ncbi_subspecies()
-        self.ncbi_species = self._ncbi_species()
-        self.gtdb_species = self._gtdb_species()
-        self.ncbi_specific_epithet = self._ncbi_specific_epithet()
-        self.gtdb_specific_epithet = self._gtdb_specific_epithet()
-        self.ncbi_genus = self._ncbi_genus()
-        self.gtdb_genus = self._gtdb_genus()
-        self.score_type_strain = self._score_type_strain()
-        self.score_assembly = self._score_assembly()
-        
         self.genomic_file = None
         
     def __str__(self):
@@ -102,8 +84,13 @@ class Genome(object):
             f'gtdb_sp:{self.gtdb_taxonomy[6]}, '
             f'ncbi_sp:{self.ncbi_taxonomy[6]}}}'
         )
+
+    def is_gtdb_sp_rep(self):
+        """Check if genome is representative of species."""
+
+        return self.gtdb_rid == self.gid
         
-    def _is_ncbi_subspecies(self):
+    def is_ncbi_subspecies(self):
         """Check if genome is a subspecies at NCBI."""
 
         ncbi_subspecies = None
@@ -128,7 +115,7 @@ class Genome(object):
 
         return True
         
-    def _is_isolate(self):
+    def is_isolate(self):
         """Check if genome is an isolate."""
         
         if self.ncbi_genome_category:
@@ -139,36 +126,36 @@ class Genome(object):
                 
         return True
         
-    def _is_mag(self):
+    def is_mag(self):
         """Check if genome is a MAG."""
         
-        if not self.is_isolate:
+        if not self.is_isolate():
             if ('metagenome' in self.ncbi_genome_category.lower()
                 or 'environmental' in self.ncbi_genome_category.lower()):
                 return True
                 
         return False
         
-    def _is_sag(self):
+    def is_sag(self):
         """Check if genome is a SAG."""
         
-        if not self.is_isolate:
+        if not self.is_isolate():
             if 'single cell' in self.ncbi_genome_category.lower():
                 return True
                 
         return False
     
-    def _is_gtdb_type_strain(self):
+    def is_gtdb_type_strain(self):
         """Check if genome is a type strain genome in GTDB."""
         
         return self.gtdb_type_designation in Genome.GTDB_TYPE_SPECIES
         
-    def _is_ncbi_type_strain(self):
+    def is_ncbi_type_strain(self):
         """Check if genome is a type strain genome at NCBI."""
         
         if self.ncbi_type_material:
             if self.ncbi_type_material.lower() in Genome.NCBI_TYPE_SPECIES:
-                if not self.is_ncbi_subspecies:
+                if not self.is_ncbi_subspecies():
                     return True
                 else:
                     # genome is marked as 'assembled from type material', but
@@ -179,7 +166,7 @@ class Genome(object):
                     
         return False
         
-    def _is_complete_genome(self):
+    def is_complete_genome(self):
         """Check if genome is a complete assembly."""
         
         return (self.ncbi_assembly_level 
@@ -193,7 +180,7 @@ class Genome(object):
                 and self.total_gap_len <= 1e4
                 and self.ssu_count >= 1)
     
-    def _ncbi_subspecies(self):
+    def ncbi_subspecies(self):
         """Get NCBI subspecies classification of genome."""
         
         for taxon in self.ncbi_taxonomy_unfiltered:
@@ -202,20 +189,20 @@ class Genome(object):
                     
         return None
         
-    def _ncbi_species(self):
+    def ncbi_species(self):
         """Get NCBI species classification."""
         
         return self.ncbi_taxonomy[6]
         
-    def _gtdb_species(self):
+    def gtdb_species(self):
         """Get GTDB species classification."""
         
         return self.gtdb_taxonomy[6]
         
-    def _ncbi_specific_epithet(self):
+    def ncbi_specific_epithet(self):
         """Get NCBI specific epithet."""
         
-        ncbi_sp = self._ncbi_species()
+        ncbi_sp = self.ncbi_species()
         if ncbi_sp == 's__':
             return ''
         
@@ -224,10 +211,10 @@ class Genome(object):
         
         return specific
         
-    def _gtdb_specific_epithet(self):
+    def gtdb_specific_epithet(self):
         """Get GTDB specific epithet."""
         
-        gtdb_sp = self._gtdb_species()
+        gtdb_sp = self.gtdb_species()
         if gtdb_sp == 's__':
             return ''
 
@@ -235,12 +222,12 @@ class Genome(object):
         
         return specific
         
-    def _ncbi_genus(self):
+    def ncbi_genus(self):
         """Get NCBI genus classification."""
         
         return self.ncbi_taxonomy[5]
 
-    def _gtdb_genus(self):
+    def gtdb_genus(self):
         """Get GTDB genus classification."""
         
         return self.gtdb_taxonomy[5]
@@ -249,26 +236,26 @@ class Genome(object):
         """Calculate balanced score that accounts for ANI to previous representative."""
         
         ani_score = 100 - 20*(100-ani)
-        return 0.5*ani_score + 0.5*self.score_type_strain
+        return 0.5*ani_score + 0.5*self.score_type_strain()
 
-    def _score_type_strain(self):
+    def score_type_strain(self):
         """"Calculate score of genomes with preference to type strain genomes."""
 
         # set base quality so genomes have the following priority order:
         #  type strain genome
         #  NCBI assembled from type material
         q = 0
-        if self.is_gtdb_type_strain:
+        if self.is_gtdb_type_strain():
             q = 1e5
         
-        if self.is_ncbi_type_strain:
+        if self.is_ncbi_type_strain():
             q = 1e4
 
-        q += self._score_assembly()
+        q += self.score_assembly()
             
         return q
 
-    def _score_assembly(self):
+    def score_assembly(self):
         """Calculate score indicating quality of genome assembly."""
         
         q = 0
@@ -277,16 +264,16 @@ class Genome(object):
         # chromosome and unspanned plasmids and thus should be considered
         # very high quality
         
-        if self.is_complete_genome:
+        if self.is_complete_genome():
             q += 100
             
         q += self.comp - 5*self.cont
         q -= 5*float(self.contig_count)/100
         q -= 5*float(self.ambiguous_bases)/1e5
         
-        if self.is_sag:
+        if self.is_sag():
             q -= 100 # genome is a SAG
-        elif self.is_mag: 
+        elif self.is_mag(): 
             q -= 100 # genome is a MAG
         
         # check for near-complete 16S rRNA gene
