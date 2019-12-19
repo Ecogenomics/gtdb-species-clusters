@@ -19,7 +19,8 @@ import os
 import sys
 import logging
 from collections import defaultdict
-from dataclasses import dataclass 
+from dataclasses import dataclass
+
 
 @dataclass
 class Genome(object):
@@ -34,6 +35,7 @@ class Genome(object):
     gtdb_type_designation: str
     gtdb_type_designation_sources: str
     ncbi_type_material: str
+    ncbi_strain_identifiers: str
     ncbi_assembly_level: str
     ncbi_genome_representation: str
     ncbi_refseq_category: str
@@ -54,8 +56,8 @@ class Genome(object):
     ncbi_spanned_gaps: int
     
     NCBI_TYPE_SPECIES = set(['assembly from type material', 
-                        'assembly from neotype material',
-                        'assembly designated as neotype'])
+                                'assembly from neotype material',
+                                'assembly designated as neotype'])
     NCBI_PROXYTYPE = set(['assembly from proxytype material'])
     NCBI_TYPE_SUBSP = set(['assembly from synonym type material'])
 
@@ -78,16 +80,16 @@ class Genome(object):
         self.is_sag = self._is_sag()
         assert(self.is_isolate ^ self.is_mag ^ self.is_sag)
         self.is_gtdb_type_strain = self._is_gtdb_type_strain()
-        self.is_ncbi_type_strain = self._is_gtdb_type_strain()
+        self.is_ncbi_type_strain = self._is_ncbi_type_strain()
         self.is_complete_genome = self._is_complete_genome()
         self.ncbi_subspecies = self._ncbi_subspecies()
         self.ncbi_species = self._ncbi_species()
         self.gtdb_species = self._gtdb_species()
         self.ncbi_specific_epithet = self._ncbi_specific_epithet()
         self.gtdb_specific_epithet = self._gtdb_specific_epithet()
-        self.ncbi_genus = self. _ncbi_genus()
+        self.ncbi_genus = self._ncbi_genus()
         self.gtdb_genus = self._gtdb_genus()
-        self.score_update = self._score_update()
+        self.score_type_strain = self._score_type_strain()
         self.score_assembly = self._score_assembly()
         
         self.genomic_file = None
@@ -242,22 +244,26 @@ class Genome(object):
         """Get GTDB genus classification."""
         
         return self.gtdb_taxonomy[5]
+        
+    def score_ani(self, ani):
+        """Calculate balanced score that accounts for ANI to previous representative."""
+        
+        ani_score = 100 - 20*(100-ani)
+        return 0.5*ani_score + 0.5*self.score_type_strain
 
-    def _score_update(self):
-        """"Calculate score of genomes for updating representatives."""
+    def _score_type_strain(self):
+        """"Calculate score of genomes with preference to type strain genomes."""
 
         # set base quality so genomes have the following priority order:
         #  type strain genome
         #  NCBI assembled from type material
-        #  NCBI reference or representative genome
-        #  type subspecies genome
         q = 0
         if self.is_gtdb_type_strain:
-            q = 1e4
+            q = 1e5
         
         if self.is_ncbi_type_strain:
-            q = 1e3
-            
+            q = 1e4
+
         q += self._score_assembly()
             
         return q
@@ -281,7 +287,7 @@ class Genome(object):
         if self.is_sag:
             q -= 100 # genome is a SAG
         elif self.is_mag: 
-            q -= 200 # genome is a MAG
+            q -= 100 # genome is a MAG
         
         # check for near-complete 16S rRNA gene
         gtdb_domain = self.gtdb_taxonomy[0]

@@ -45,6 +45,27 @@ class QcGenomes(object):
         with open(gtdb_domain_report, encoding='utf-8') as f:
             header = f.readline().rstrip().split('\t')
             
+            bac_marker_perc_index = header.index('Bacterial Marker Percentage')
+            ar_marker_perc_index = header.index('Archaeal Marker Percentage')
+            
+            for line in f:
+                line_split = line.strip().split('\t')
+                
+                gid = canonical_gid(line_split[0])
+                gid = cur_genomes.user_uba_id_map.get(gid, gid)
+                bac_perc = float(line_split[bac_marker_perc_index])
+                ar_perc = float(line_split[ar_marker_perc_index])
+
+                marker_perc[gid] = max(bac_perc, ar_perc)
+              
+        return marker_perc
+        
+    def check_domain_assignments(self, gtdb_domain_report, cur_genomes, pass_qc_gids):
+        """Check GTDB domain assignment."""
+        
+        with open(gtdb_domain_report, encoding='utf-8') as f:
+            header = f.readline().rstrip().split('\t')
+            
             domain_index = header.index('Predicted domain')
             bac_marker_perc_index = header.index('Bacterial Marker Percentage')
             ar_marker_perc_index = header.index('Archaeal Marker Percentage')
@@ -56,27 +77,22 @@ class QcGenomes(object):
                 
                 gid = canonical_gid(line_split[0])
                 gid = cur_genomes.user_uba_id_map.get(gid, gid)
+                
+                if gid not in pass_qc_gids:
+                    continue
+                
                 domain = line_split[domain_index]
                 bac_perc = float(line_split[bac_marker_perc_index])
                 ar_perc = float(line_split[ar_marker_perc_index])
                 ncbi_domain = [t.strip() for t in line_split[ncbi_taxonomy_index].split(';')][0]
                 gtdb_domain = [t.strip() for t in line_split[gtdb_taxonomy_index].split(';')][0]
 
-                marker_perc[gid] = max(bac_perc, ar_perc)
-                
                 if not gid.startswith('U'):
-                    if marker_perc[gid] > 10:
-                        if ncbi_domain != gtdb_domain and ncbi_domain != 'None':
-                            print(f'[WARNING] NCBI and GTDB domains disagree in domain report: {gid}')
-                            
-                            if ncbi_domain != domain and domain != 'None':
-                                print(f' ... NCBI domain {ncbi_domain} also disagrees with predicted domain {domain}.')
-                            
-                    if marker_perc[gid] > 25 and abs(bac_perc - ar_perc) > 5:
-                        if domain != gtdb_domain and domain != 'None':
-                            print(f'[WARNING] GTDB and predicted domain (Bac = {bac_perc:.1f}%; Ar = {ar_perc:.1f}%) disagree in domain report: {gid}')
+                    if ncbi_domain != gtdb_domain and ncbi_domain != 'None':
+                        print(f'[WARNING] NCBI ({ncbi_domain}) and GTDB ({gtdb_domain}) domains disagree in domain report (Bac = {bac_perc:.1f}%; Ar = {ar_perc:.1f}%): {gid}')
 
-        return marker_perc
+                    if domain != gtdb_domain and domain != 'None':
+                        print(f'[WARNING] GTDB and predicted domain (Bac = {bac_perc:.1f}%; Ar = {ar_perc:.1f}%) disagree in domain report: {gid}')
 
     def run(self, 
                 metadata_file,
@@ -115,16 +131,15 @@ class QcGenomes(object):
                 gid = canonical_gid(line.split('\t')[0].strip())
                 qc_exceptions.add(gid)
         self.logger.info(f'Identified {len(qc_exceptions):,} genomes flagged as exceptions from QC.')
+        
+        # get percentage of bac120 or ar122 marker genes
+        marker_perc = self.read_marker_percentages(gtdb_domain_report, 
+                                                    cur_genomes)
 
         # parse NCBI assembly files
         self.logger.info('Parsing NCBI assembly files.')
         excluded_from_refseq_note = exclude_from_refseq(ncbi_genbank_assembly_file)
-        
-        # get percentage of markers supporting domain assignments and 
-        # report potential issues
-        marker_perc = self.read_marker_percentages(gtdb_domain_report, 
-                                                    cur_genomes)
-        
+
         # QC all genomes
         self.logger.info('Validating genomes.')
         fout_retained = open(os.path.join(output_dir, 'qc_passed.tsv'), 'w')
@@ -139,7 +154,7 @@ class QcGenomes(object):
         fout_failed.write('\tFailed completeness\tFailed contamination\tFailed quality')
         fout_failed.write('\tFailed marker percentage\tFailed no. contigs\tFailed N50 contigs\tFailed ambiguous bases\n')
 
-        num_retained = 0
+        pass_qc_gids = set()
         num_filtered = 0
         for gid in cur_genomes:
             failed_tests = defaultdict(int)
@@ -155,7 +170,7 @@ class QcGenomes(object):
                                                     failed_tests)
 
             if passed_qc or gid in qc_exceptions:
-                num_retained += 1
+                pass_qc_gids.add(gid)
                 fout_retained.write('%s\t%s' % (gid, cur_genomes[gid].ncbi_species))
                 fout_retained.write('\t%.2f\t%.2f\t%.2f\t%s\t%.2f\t%d\t%d\t%d\t%s\n' % (
                                         cur_genomes[gid].comp,
@@ -190,11 +205,17 @@ class QcGenomes(object):
         fout_retained.close()
         fout_failed.close()
         
-        self.logger.info(f'Retained {num_retained:,} genomes and filtered {num_filtered:,} genomes.')
+        self.logger.info(f'Retained {len(pass_qc_gids):,} genomes and filtered {num_filtered:,} genomes.')
+        
+        # check domain assignment of genomes passing QC
+        # report potential issues
+        self.check_domain_assignments(gtdb_domain_report, 
+                                        cur_genomes,
+                                        pass_qc_gids)
                                                                 
         # QC genomes in each named species
-        vep_ncbi_species = cur_genomes.vep_ncbi_species()
-        self.logger.info(f'Performing QC of type genome for each of the {len(vep_ncbi_species):,} NCBI species.')
+        named_ncbi_species = cur_genomes.named_ncbi_species()
+        self.logger.info(f'Performing QC of type genome for each of the {len(named_ncbi_species):,} NCBI species.')
         
         fout_type_fail = open(os.path.join(output_dir, 'type_genomes_fail_qc.tsv'), 'w')
         fout_type_fail.write('Species\tAccession\tGTDB taxonomy\tNCBI taxonomy\tType sources\tNCBI assembly type\tGenome size (bp)')
@@ -218,7 +239,7 @@ class QcGenomes(object):
         lost_sp = 0
         filtered_genomes = 0
         failed_tests_cumulative = defaultdict(int)
-        for sp, gids in vep_ncbi_species.items():
+        for sp, gids in named_ncbi_species.items():
             type_pass = set()
             type_fail = set()
             other_pass = set()

@@ -286,6 +286,7 @@ if __name__ == '__main__':
     u_rep_changes_parser.add_argument('gtdbtk_classify_file', help="file with GTDB-Tk classifications for new and updated genomes")
     u_rep_changes_parser.add_argument('species_exception_file', help="file listing species names for select genomes to override NCBI names")
     u_rep_changes_parser.add_argument('genus_exception_file', help="file listing genus names for select genomes to override NCBI names")
+    u_rep_changes_parser.add_argument('gtdb_type_strains_ledger', help="file listing genomes to consider as being the type strain for valid or effectively published species name")
     u_rep_changes_parser.add_argument('output_dir', help="output directory")
     u_rep_changes_parser.add_argument('--silent', help="suppress output", action='store_true')
     
@@ -304,8 +305,10 @@ if __name__ == '__main__':
     u_rep_actions_parser.add_argument('gtdbtk_classify_file', help="file with GTDB-Tk classifications for new and updated genomes")
     u_rep_actions_parser.add_argument('species_exception_file', help="file listing species names for select genomes to override NCBI names")
     u_rep_actions_parser.add_argument('genus_exception_file', help="file listing genus names for select genomes to override NCBI names")
+    u_rep_actions_parser.add_argument('gtdb_type_strains_ledger', help="file listing genomes to consider as being the type strain for valid or effectively published species name")
     u_rep_actions_parser.add_argument('output_dir', help="output directory")
     u_rep_actions_parser.add_argument('--ani_cache_file', help='file with precomputed ANI and AF values')
+    u_rep_actions_parser.add_argument('-c', '--cpus', help='number of cpus', type=int, default=1)
     u_rep_actions_parser.add_argument('--silent', help="suppress output", action='store_true')
 
     # compare current and previous representatives

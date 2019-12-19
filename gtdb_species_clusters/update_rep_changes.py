@@ -42,7 +42,8 @@ class RepChanges(object):
             qc_passed_file,
             gtdbtk_classify_file,
             species_exception_file,
-            genus_exception_file):
+            genus_exception_file,
+            gtdb_type_strains_ledger):
         """Identify species representatives that have changed from previous release."""
         
         # create previous and current GTDB genome sets
@@ -51,6 +52,7 @@ class RepChanges(object):
         prev_genomes.load_from_metadata_file(prev_gtdb_metadata_file,
                                                 species_exception_file,
                                                 genus_exception_file,
+                                                gtdb_type_strains_ledger=gtdb_type_strains_ledger,
                                                 uba_genome_file=cur_uba_gid_file)
         self.logger.info(f' ...previous genome set contains {len(prev_genomes):,} genomes.')
         self.logger.info(' ...previous genome set has {:,} species clusters spanning {:,} genomes.'.format(
@@ -62,6 +64,7 @@ class RepChanges(object):
         cur_genomes.load_from_metadata_file(cur_gtdb_metadata_file,
                                                 species_exception_file,
                                                 genus_exception_file,
+                                                gtdb_type_strains_ledger=gtdb_type_strains_ledger,
                                                 create_sp_clusters=False,
                                                 uba_genome_file=cur_uba_gid_file,
                                                 qc_passed_file=qc_passed_file)
@@ -153,11 +156,14 @@ class RepChanges(object):
                 else:
                     assert(False)
                     
-                new_ts = new_type_strain_gids.intersection(prev_genomes.sp_clusters[prev_rid])
+                sp_gids = prev_genomes.sp_clusters[prev_rid]
+                if prev_rid in new_updated_sp_clusters:
+                    sp_gids = sp_gids.union(new_updated_sp_clusters[prev_rid])
+                new_ts = new_type_strain_gids.intersection(sp_gids)
 
                 if new_ts:
                     new_type_strain.add(prev_rid)
-                    fout_detailed.write('{}\t{}\tNEW_TYPE_STRAINS::NEW\tSpecies cluster has {:,} new genomes from type strain: {}\n'.format(
+                    fout_detailed.write('{}\t{}\tNEW_TYPE_STRAINS:NEW\tSpecies cluster has {:,} new genomes from type strain: {}\n'.format(
                                             prev_rid,
                                             prev_gtdb_sp,
                                             len(new_ts),

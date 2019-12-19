@@ -205,4 +205,6 @@ class SpeciesClusters(object):
         # of complete workflow for R95
         print('failed_qc', failed_qc)
         print('prev_genome_count', prev_genome_count)
+
+        assert len(self.sp_clusters) == len(self.species_names)
         

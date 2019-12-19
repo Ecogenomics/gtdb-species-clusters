@@ -155,15 +155,15 @@ class Genomes(object):
                 
         return type_strain_gids
         
-    def vep_ncbi_species(self):
+    def named_ncbi_species(self):
         """Get genomes in valid or effectively published, including Candidatus, species in NCBI taxonomy."""
         
-        vep_ncbi_species = defaultdict(set)
+        named_ncbi_sp = defaultdict(set)
         for gid in self.genomes:
             if not is_placeholder_taxon(self.genomes[gid].ncbi_species):
-                vep_ncbi_species[self.genomes[gid].ncbi_species].add(gid)
+                named_ncbi_sp[self.genomes[gid].ncbi_species].add(gid)
 
-        return vep_ncbi_species
+        return named_ncbi_sp
         
     def load_genomic_file_paths(self, genome_path_file):
         """Determine path to genomic FASTA file for each genome."""
@@ -184,6 +184,7 @@ class Genomes(object):
                                 metadata_file,
                                 species_exception_file=None,
                                 genus_exception_file=None,
+                                gtdb_type_strains_ledger=None,
                                 create_sp_clusters=True,
                                 uba_genome_file=None,
                                 qc_passed_file=None):
@@ -203,6 +204,15 @@ class Genomes(object):
                 for line in f:
                     line_split = line.strip().split('\t')
                     pass_qc_gids.add(line_split[0].strip())
+                    
+        gtdb_type_strains = set()
+        if gtdb_type_strains_ledger:
+            with open(gtdb_type_strains_ledger) as f:
+                f.readline()
+                for line in f:
+                    tokens = line.strip().split('\t')
+                    gid = canonical_gid(tokens[0].strip())
+                    gtdb_type_strains.add(gid)
 
         with open(metadata_file, encoding='utf-8') as f:
             headers = f.readline().strip().split('\t')
@@ -215,6 +225,7 @@ class Genomes(object):
             
             gtdb_type_index = headers.index('gtdb_type_designation')
             gtdb_type_sources_index = headers.index('gtdb_type_designation_sources')
+            ncbi_strain_identifiers_index = headers.index('ncbi_strain_identifiers')
             ncbi_type_index = headers.index('ncbi_type_material_designation')
             ncbi_asm_level_index = headers.index('ncbi_assembly_level')
             ncbi_genome_representation_index = headers.index('ncbi_genome_representation')
@@ -267,7 +278,12 @@ class Genomes(object):
                 
                 gtdb_type = line_split[gtdb_type_index]
                 gtdb_type_sources = line_split[gtdb_type_sources_index]
+                if gid in gtdb_type_strains:
+                    gtdb_type = 'type strain of species'
+                    gtdb_type_sources = 'GTDB curator'
+                
                 ncbi_type = line_split[ncbi_type_index]
+                ncbi_strain_identifiers = line_split[ncbi_strain_identifiers_index]
                 ncbi_asm_level = line_split[ncbi_asm_level_index]
                 ncbi_genome_representation = line_split[ncbi_genome_representation_index]
                 ncbi_refseq_cat = line_split[ncbi_refseq_cat_index]
@@ -303,6 +319,7 @@ class Genomes(object):
                                             gtdb_type,
                                             gtdb_type_sources,
                                             ncbi_type,
+                                            ncbi_strain_identifiers,
                                             ncbi_asm_level,
                                             ncbi_genome_representation,
                                             ncbi_refseq_cat,

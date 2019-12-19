@@ -72,9 +72,9 @@ class FastANI(object):
                     self.ani_cache[gid1][gid2] = (ani, af)
                     cache_size += 1
                     
-                self.logger.info('Read ANI cache with %d entries.' % cache_size)
+                self.logger.info(f'Read ANI cache with {cache_size:,} entries.')
             else:
-                self.logger.warning('ANI cache file does not exist: %s' % self.ani_cache_file)
+                self.logger.warning(f'ANI cache file does not exist: {self.ani_cache_file}')
             
     def write_cache(self):
         """Write cache to file."""
@@ -89,7 +89,7 @@ class FastANI(object):
                     cache_size += 1
             fout.close()
             
-            self.logger.info('Wrote ANI cache with %d entries.' % cache_size)
+            self.logger.info(f'Wrote ANI cache with {cache_size:,} entries.')
 
     def _get_genome_id(self, genome_path):
         """Extract genome ID from path to genomic file."""
@@ -306,19 +306,7 @@ class FastANI(object):
                 self.ani_cache[qid][rid] = ani_af[qid][rid]
         
         return ani_af
-        
-    def symmetric_ani(self, genome_file1, genome_file2):
-        """Calculate symmetric ANI and AF between two genomes."""
-        
-        ani_af12 = self.fastani('g1', 'g2', genome_file1, genome_file2)
-        ani_af21 = self.fastani('g2', 'g1', genome_file2, genome_file1)
-        
-        ani_af = defaultdict(lambda: {})
-        ani_af['g1']['g2'] = ani_af12[2:]
-        ani_af['g2']['g1'] = ani_af21[2:]
-        
-        return symmetric_ani(ani_af, 'g1', 'g2')
-        
+
     def symmetric_ani_cached(self, gid1, gid2, genome_file1, genome_file2):
         """Calculate symmetric ANI and AF between two genomes."""
         

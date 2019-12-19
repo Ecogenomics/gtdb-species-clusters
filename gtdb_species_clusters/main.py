@@ -306,6 +306,7 @@ class OptionsParser():
         check_file_exists(options.gtdbtk_classify_file)
         check_file_exists(options.species_exception_file)
         check_file_exists(options.genus_exception_file)
+        check_file_exists(options.gtdb_type_strains_ledger)
         make_sure_path_exists(options.output_dir)
         
         p = RepChanges(options.output_dir)
@@ -316,7 +317,8 @@ class OptionsParser():
                 options.qc_passed_file,
                 options.gtdbtk_classify_file,
                 options.species_exception_file,
-                options.genus_exception_file)
+                options.genus_exception_file,
+                options.gtdb_type_strains_ledger)
         
         self.logger.info('Done.')
         
@@ -332,9 +334,10 @@ class OptionsParser():
         check_file_exists(options.gtdbtk_classify_file)
         check_file_exists(options.species_exception_file)
         check_file_exists(options.genus_exception_file)
+        check_file_exists(options.gtdb_type_strains_ledger)
         make_sure_path_exists(options.output_dir)
         
-        p = RepActions(options.ani_cache_file, options.output_dir)
+        p = RepActions(options.ani_cache_file, options.cpus, options.output_dir)
         p.run(options.rep_change_summary_file,
                 options.prev_gtdb_metadata_file,
                 options.prev_genomic_path_file,
@@ -345,7 +348,8 @@ class OptionsParser():
                 options.qc_passed_file,
                 options.gtdbtk_classify_file,
                 options.species_exception_file,
-                options.genus_exception_file)
+                options.genus_exception_file,
+                options.gtdb_type_strains_ledger)
         
         self.logger.info('Done.')
         
