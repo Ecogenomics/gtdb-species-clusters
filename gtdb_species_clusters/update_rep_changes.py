@@ -97,7 +97,7 @@ class RepChanges(object):
         
         fout_summary = open(os.path.join(self.output_dir, 'rep_change_summary.tsv'), 'w')
         fout_summary.write('Genome ID\tPrevious GTDB species\tNo. genomes in cluster')
-        fout_summary.write('\tGENOMIC_CHANGE\tNCBI_SPECIES_CHANGE\tTYPE_STRAIN_CHANGE')
+        fout_summary.write('\tGENOMIC_CHANGE\tNCBI_SPECIES_CHANGE\tTYPE_STRAIN_CHANGE\tDOMAIN_CHECK')
         fout_summary.write('\tNew type strains\tRepresentative changed\n')
         
         fout_detailed  = open(os.path.join(self.output_dir, 'rep_change_detailed.tsv'), 'w')
@@ -113,10 +113,14 @@ class RepChanges(object):
         lost_type_strain = set()
         gain_type_strain = set()
         new_type_strain = set()
+        changed_domain = set()
+        unchanged_domain = set()
         num_rep_changes = 0
         for prev_rid, prev_gtdb_sp in prev_genomes.sp_clusters.species():
             fout_summary.write(f'{prev_rid}\t{prev_gtdb_sp}\t{len(prev_genomes.sp_clusters[prev_rid])}')
             if prev_rid in cur_genomes:
+
+                # check if genome assembly has been updated
                 if prev_rid in new_updated_sp_clusters.updated_gids:
                     updated_genome.add(prev_rid)
                     fout_summary.write('\tUPDATED')
@@ -129,6 +133,7 @@ class RepChanges(object):
                     unchanged_genome.add(prev_rid)
                     fout_summary.write('\tUNCHANGED')
                     
+                # check if NCBI species assignment has changed
                 prev_ncbi_sp = prev_genomes[prev_rid].ncbi_species()
                 cur_ncbi_sp = cur_genomes[prev_rid].ncbi_species()
                 if prev_genomes[prev_rid].ncbi_specific_epithet() == cur_genomes[prev_rid].ncbi_specific_epithet():
@@ -139,6 +144,7 @@ class RepChanges(object):
                     fout_summary.write('\tREASSIGNED')
                     fout_detailed.write(f'{prev_rid}\t{prev_gtdb_sp}\tNCBI_SPECIES_CHANGE:REASSIGNED\tNCBI species reassigned from {prev_ncbi_sp} to {cur_ncbi_sp}\n')
 
+                # check if type material status has changed
                 if prev_rid in prev_type_strain_gids and prev_rid in cur_type_strain_gids:
                     unchanged_type_strain.add(prev_rid)
                     fout_summary.write('\tUNCHANGED')
@@ -155,7 +161,21 @@ class RepChanges(object):
                     fout_detailed.write(f'{prev_rid}\t{prev_gtdb_sp}\tTYPE_STRAIN_CHANGE:GAINED\tNow considered a genome from type strain\n')
                 else:
                     assert(False)
+
+                # check if domain assignment has changed
+                if prev_genomes[prev_rid].gtdb_domain() != cur_genomes[prev_rid].gtdb_domain():
+                    changed_domain.add(prev_rid)
+                    fout_detailed.write('{}\t{}\tDOMAIN_CHECK:REASSIGNED\tRepresentative changed from {} to {}\n'.format(
+                                            prev_rid,
+                                            prev_gtdb_sp,
+                                            prev_genomes[prev_rid].gtdb_domain(),
+                                            cur_genomes[prev_rid].gtdb_domain()))
+                    fout_summary.write('\tREASSIGNED')
+                else:
+                    unchanged_domain.add(prev_rid)
+                    fout_summary.write('\tUNCHANGED')
                     
+                # check if genome cluster has new genomes assembled from the type strain of the species
                 sp_gids = prev_genomes.sp_clusters[prev_rid]
                 if prev_rid in new_updated_sp_clusters:
                     sp_gids = sp_gids.union(new_updated_sp_clusters[prev_rid])
@@ -173,12 +193,13 @@ class RepChanges(object):
                 
                 if (prev_rid in unchanged_genome 
                     and prev_rid in unchanged_sp
-                    and prev_rid in unchanged_type_strain):
+                    and prev_rid in unchanged_type_strain
+                    and prev_rid in unchanged_domain):
                     fout_summary.write('\tNO')
                 else:
                     fout_summary.write('\tYES')
                     num_rep_changes += 1
-                
+
                 fout_summary.write('\n')
             else:
                 lost_genome.add(prev_rid)
@@ -221,3 +242,10 @@ class RepChanges(object):
         self.logger.info(f'  lost_type_strain: {len(lost_type_strain):,} ({lost_type_strain_perc:.1f}%)')
         self.logger.info(f'  gain_type_strain: {len(gain_type_strain):,} ({gain_type_strain_perc:.1f}%)')
         self.logger.info(f'  new_type_strain: {len(new_type_strain):,} ({new_type_strain_perc:.1f}%)')
+
+        self.logger.info('GTDB domain assignment change:')
+        unchanged_domain_perc = len(unchanged_domain)*100.0 / num_prev_sp_clusters
+        changed_domain_perc = len(changed_domain)*100.0 / num_prev_sp_clusters
+        self.logger.info(f'  unchanged: {len(unchanged_domain):,} ({unchanged_domain_perc:.1f}%)')
+        self.logger.info(f'  reassigned: {len(changed_domain):,} ({changed_domain_perc:.1f}%)')
+        

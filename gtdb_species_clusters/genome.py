@@ -231,6 +231,16 @@ class Genome(object):
         """Get GTDB genus classification."""
         
         return self.gtdb_taxonomy[5]
+
+    def ncbi_domain(self):
+        """Get NCBI domain classification."""
+        
+        return self.ncbi_taxonomy[0]
+
+    def gtdb_domain(self):
+        """Get GTDB domain classification."""
+        
+        return self.gtdb_taxonomy[0]
         
     def score_ani(self, ani):
         """Calculate balanced score that accounts for ANI to previous representative."""

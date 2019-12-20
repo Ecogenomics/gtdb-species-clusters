@@ -326,6 +326,32 @@ class RepActions(object):
                                             prev_gtdb_sp, 
                                             action, 
                                             params))
+
+    def action_domain_change(self, 
+                                rep_change_summary_file,
+                                prev_genomes, 
+                                cur_genomes):
+        """Handle representatives which have new domain assignments."""
+        
+        # get genomes with new NCBI species assignments
+        self.logger.info('Identifying representative with new domain assignments.')
+        domain_changed = self.rep_change_gids(rep_change_summary_file, 
+                                                    'DOMAIN_CHECK', 
+                                                    'REASSIGNED')
+        self.logger.info(f' ... identified {len(domain_changed):,} genomes.')
+
+        for prev_rid, prev_gtdb_sp in domain_changed.items():
+            action = 'DOMAIN_CHECK:REASSIGNED'
+            params = {}
+            params['prev_gtdb_domain'] = prev_genomes[prev_rid].gtdb_domain()
+            params['cur_gtdb_domain'] = cur_genomes[prev_rid].gtdb_domain()
+
+            self.update_rep(prev_gtdb_sp, None)
+            self.action_log.write('{}\t{}\t{}\t{}\n'.format(
+                                            prev_rid, 
+                                            prev_gtdb_sp, 
+                                            action, 
+                                            params))
                                             
     def action_improved_rep(self, 
                             prev_genomes, 
@@ -595,6 +621,10 @@ class RepActions(object):
                                             prev_genomes, 
                                             cur_genomes,
                                             new_updated_sp_clusters)
+
+        self.action_domain_change(rep_change_summary_file,
+                                    prev_genomes, 
+                                    cur_genomes)
 
         self.action_improved_rep(prev_genomes, 
                                     cur_genomes,
