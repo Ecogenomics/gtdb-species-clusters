@@ -116,8 +116,12 @@ class TaxonSuffixManager():
         """Get next suffix for taxon."""
         
         ct = canonical_taxon(taxon)
-        cur_suffix = self.taxon_suffix[ct]
-        next_suffix = self._increment_suffix(cur_suffix)
+        if ct in self.taxon_suffix:
+            cur_suffix = self.taxon_suffix[ct]
+            next_suffix = self._increment_suffix(cur_suffix)
+        else:
+            next_suffix = 'A'
+            
         self.taxon_suffix[ct] = next_suffix
         
         return next_suffix

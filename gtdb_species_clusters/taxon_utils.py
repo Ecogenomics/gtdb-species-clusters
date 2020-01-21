@@ -64,6 +64,17 @@ def generic_name(species_name):
     
     return generic.replace('s__', '')
     
+    
+def is_placeholder_sp_epithet(sp_epithet):
+    """Check if species epithet is a placeholder."""
+    
+    if any(c.isdigit() for c in sp_epithet):
+        return True
+
+    if any(c.isupper() for c in sp_epithet):
+        return True
+    
+    return False
 
 def is_placeholder_taxon(taxon):
     """Check if taxon name is a placeholder."""

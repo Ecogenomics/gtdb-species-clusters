@@ -134,19 +134,23 @@ class RepActions(object):
                         
         return max_rid, max_score, max_ani, max_af
 
-    def update_rep(self, gtdb_sp, new_rid):
+    def update_rep(self, prev_rid, new_rid):
         """Update representative genome for GTDB species cluster."""
 
-        if gtdb_sp in self.new_reps:
-            assert self.new_reps[gtdb_sp] == new_rid
-
-        self.new_reps[gtdb_sp] = new_rid
+        if prev_rid in self.new_reps and self.new_reps[prev_rid] != new_rid:
+            self.logger.warning('Representative {} was reassigned multiple times: {} {}.'.format(prev_rid, self.new_reps[prev_rid], new_rid))
+            self.logger.warning('Assuming first reassignment of {} has priority.'.format(self.new_reps[prev_rid]))
+            return
+        
+        self.new_reps[prev_rid] = new_rid
         
     def update_sp(self, gid, species):
         """Update name assigned to GTDB species cluster."""
     
-        if gid in self.new_sp_name:
-            assert self.new_sp_name[gid] == species
+        if gid in self.new_sp_name and self.new_sp_name[gid] != species:
+            self.logger.warning('Representative {} assigned multiple distinct species names: {} {}.'.format(gid, self.new_sp_name[gid], species))
+            self.logger.warning('Assuming first reassignment of {} has priority.'.format(self.new_sp_name[gid]))
+            return
             
         if species in self.new_sp_name.values():
             self.logger.warning(f'Species name {species} assigned multiple times.')
@@ -204,10 +208,10 @@ class RepActions(object):
                 params['new_rid_assembly_quality'] = cur_genomes[new_rid].score_assembly()
                 params['prev_rid_assembly_quality'] = prev_genomes[prev_rid].score_assembly()
                 
-                self.update_rep(prev_gtdb_sp, new_rid)
+                self.update_rep(prev_rid, new_rid)
             else:
                 action = 'GENOMIC_CHANGE:LOST:SPECIES_RETIRED'
-                self.update_rep(prev_gtdb_sp, None)
+                self.update_rep(prev_rid, None)
                 
             self.action_log.write('{}\t{}\t{}\t{}\n'.format(
                                         prev_rid, 
@@ -269,10 +273,10 @@ class RepActions(object):
                         params['new_rid_assembly_quality'] = cur_genomes[new_rid].score_assembly()
                         params['prev_rid_assembly_quality'] = prev_genomes[prev_rid].score_assembly()
                         
-                        self.update_rep(prev_gtdb_sp, new_rid)
+                        self.update_rep(prev_rid, new_rid)
                 else:
                     action = 'GENOMIC_CHANGE:UPDATED:SPECIES_RETIRED'
-                    self.update_rep(prev_gtdb_sp, None)
+                    self.update_rep(prev_rid, None)
                 
             self.action_log.write('{}\t{}\t{}\t{}\n'.format(
                                         prev_rid, 
@@ -331,7 +335,7 @@ class RepActions(object):
                 params['new_rid_gtdb_type_designation'] = prev_genomes[new_rid].gtdb_type_designation
                 params['new_rid_gtdb_type_designation_sources'] = prev_genomes[new_rid].gtdb_type_designation_sources
 
-                self.update_rep(prev_gtdb_sp, new_rid)
+                self.update_rep(prev_rid, new_rid)
             else:
                 action = 'TYPE_STRAIN_CHANGE:LOST:RETAINED'
                 
@@ -360,7 +364,7 @@ class RepActions(object):
             params['prev_gtdb_domain'] = prev_genomes[prev_rid].gtdb_taxa.domain
             params['cur_gtdb_domain'] = cur_genomes[prev_rid].gtdb_taxa.domain
 
-            self.update_rep(prev_gtdb_sp, None)
+            self.update_rep(prev_rid, None)
             self.action_log.write('{}\t{}\t{}\t{}\n'.format(
                                             prev_rid, 
                                             prev_gtdb_sp, 
@@ -487,75 +491,69 @@ class RepActions(object):
         
     def action_improved_rep_sp_assignments(self, prev_genomes, cur_genomes, improved_reps):
         """Check if GTDB species name needs to be updated due to changed representative."""
-        
+
         self.logger.info('Identifying improved representatives which have new NCBI specific epithet assignments.')
 
         action_count = defaultdict(int)
         fout = open(os.path.join(self.output_dir, 'species_changes.improved_reps.tsv'), 'w')
         fout.write('Action')
         fout.write('\tOriginal ID\tType strain\tPriority year\tGTDB species\tPrevious NCBI species\tCurrent NCBI species')
-        fout.write('\tNew ID\tType strain\tPriority year\tPrevious NCBI species\tCurrent NCBI species\tUpdated GTDB species')
-        fout.write('\tANI\tAF\n')
-        for orig_rid, new_rid in improved_reps.items():
-            orig_prev_gtdb_sp = prev_genomes[orig_rid].gtdb_taxa.species
-            orig_prev_ncbi_sp = prev_genomes[orig_rid].ncbi_taxa.species
-            orig_cur_ncbi_sp = cur_genomes[orig_rid].ncbi_taxa.species
-
-            new_cur_ncbi_sp = cur_genomes[new_rid].ncbi_taxa.species
-            
-            self.update_rep(prev_gtdb_sp, new_rid)
-
-            params = {}
-            params['new_cur_ncbi_sp'] = new_cur_ncbi_sp
-            params['orig_prev_ncbi_sp'] = orig_prev_ncbi_sp
-            params['orig_prev_gtdb_sp'] = orig_prev_gtdb_sp
-            params['new_cur_ncbi_subspecies'] = cur_genomes[new_rid].ncbi_unfiltered_taxa.subspecies
-            
-            action, updated_sp, ani, af = self.sp_name_manager.update(orig_rid,
-                                                                        orig_prev_gtdb_sp,
-                                                                        orig_prev_ncbi_sp,
-                                                                        orig_cur_ncbi_sp,
-                                                                        new_rid,
-                                                                        new_cur_ncbi_sp)
-
-            action_count[action] += 1
-            params['updated_gtdb_sp'] = updated_sp
-
-            new_prev_ncbi_sp = 'n/a'
-            if new_rid in prev_genomes:
-                new_prev_ncbi_sp = prev_genomes[new_rid].ncbi_taxa.species
+        fout.write('\tNew ID\tType strain\tPriority year\tPrevious NCBI species\tCurrent NCBI species\tUpdated GTDB species\n')
+        updated_reps = set(improved_reps.values())
+        for new_rid in cur_genomes.sort_by_assembly_score():
+            if new_rid not in updated_reps:
+                continue
                 
-            prev_is_type_strain = (cur_genomes[orig_rid].is_gtdb_type_strain()
-                                or cur_genomes[orig_rid].is_ncbi_type_strain())
-            new_is_type_strain = (cur_genomes[new_rid].is_gtdb_type_strain()
-                                or cur_genomes[new_rid].is_ncbi_type_strain())
+            orig_rids = [rid for rid, nrid in improved_reps.items() if nrid == new_rid]
+            if len(orig_rids) > 1:
+                self.logger.error('Multiple representatives assigned to the same genome {}: {}'.format(new_rid, orig_rids))
+                sys.exit(-1)
                 
-            fout.write(f'{action}')
-            fout.write(f'\t{orig_rid}\t{prev_is_type_strain}\t{cur_genomes[orig_rid].year_of_priority()}\t{orig_prev_gtdb_sp}\t{orig_prev_ncbi_sp}\t{orig_cur_ncbi_sp}')
-            fout.write(f'\t{new_rid}\t{new_is_type_strain}\t{cur_genomes[new_rid].year_of_priority()}\t{new_prev_ncbi_sp}\t{new_cur_ncbi_sp}\t{updated_sp}')
-            
-            if ani:
-                params['ani'] = ani
-                params['af'] = af
-                fout.write(f'\t{ani:.2f}\t{af*100:.2f}\n')
-            else:
-                fout.write('\tn/a\tn/a\n')
-            
-            if action != 'UNCHANGED':
-                self.update_sp(orig_rid, updated_sp)
+            orig_rid = orig_rids[0]
+            actions = self.sp_name_manager.update(orig_rid, new_rid)
+            for action, prev_rid, cur_rid, cur_gtdb_sp in actions:
+                action_count[action] += 1
+                self.update_rep(prev_rid, cur_rid)
                 
-            action = 'IMPROVED_REP:SPECIES_CHANGE:{}'.format(action)
-            self.action_log.write('{}\t{}\t{}\t{}\n'.format(
-                                        orig_rid, 
-                                        orig_prev_gtdb_sp, 
-                                        action, 
-                                        params))
+                if action != 'UNCHANGED':
+                    self.update_sp(prev_rid, cur_gtdb_sp)
+
+                orig_prev_gtdb_sp = prev_genomes[prev_rid].gtdb_taxa.species
+                orig_prev_ncbi_sp = prev_genomes[prev_rid].ncbi_taxa.species
+                orig_cur_ncbi_sp = cur_genomes[prev_rid].ncbi_taxa.species
+
+                new_cur_ncbi_sp = cur_genomes[cur_rid].ncbi_taxa.species
+                new_prev_ncbi_sp = 'n/a'
+                if cur_rid in prev_genomes:
+                    new_prev_ncbi_sp = prev_genomes[cur_rid].ncbi_taxa.species
+                    
+                prev_is_type_strain = cur_genomes[prev_rid].is_effective_type()
+                cur_is_type_strain = cur_genomes[cur_rid].is_effective_type()
+                    
+                fout.write(f'{action}')
+                fout.write(f'\t{prev_rid}\t{prev_is_type_strain}\t{cur_genomes[prev_rid].year_of_priority()}\t{orig_prev_gtdb_sp}\t{orig_prev_ncbi_sp}\t{orig_cur_ncbi_sp}')
+                fout.write(f'\t{cur_rid}\t{cur_is_type_strain}\t{cur_genomes[cur_rid].year_of_priority()}\t{new_prev_ncbi_sp}\t{new_cur_ncbi_sp}\t{cur_gtdb_sp}\n')
+                
+                params = {}
+                params['orig_gtdb_sp'] = orig_prev_gtdb_sp
+                params['new_rid'] = cur_rid
+                params['new_gtdb_sp'] = cur_gtdb_sp
+                params['new_ncbi_subspecies'] = cur_genomes[cur_rid].ncbi_unfiltered_taxa.subspecies
+                params['orig_type_strain'] = cur_genomes[prev_rid].is_effective_type()
+                params['new_type_strain'] = cur_genomes[cur_rid].is_effective_type()
+
+                action = 'IMPROVED_REP:SPECIES_CHANGE:{}'.format(action)
+                self.action_log.write('{}\t{}\t{}\t{}\n'.format(
+                                            prev_rid, 
+                                            orig_prev_gtdb_sp, 
+                                            action, 
+                                            params))
                                         
         fout.close()
 
         self.logger.info(f"  ... {action_count['UNCHANGED']:,} unchanged.")
         self.logger.info(f"  ... {action_count['UPDATED']:,} updated.")
-        self.logger.info(f"  ... {action_count['MERGED']:,} merged.")
+        self.logger.info(f"  ... {action_count['MANUAL_CURATION']:,} require manual curation.")
         self.logger.info(f"  ... {action_count['CONFLICT']:,} conflict.")
 
     def action_species_reassigned(self,
@@ -585,65 +583,52 @@ class RepActions(object):
         fout = open(os.path.join(self.output_dir, 'species_changes.ncbi_sp_update.tsv'), 'w')
         fout.write('Action')
         fout.write('\tGenome ID\tGTDB species\tPrevious NCBI species\tCurrent NCBI species\tUpdated GTDB species')
-        fout.write('\tPrevious type strain\tCurrent type strain')
-        fout.write('\tANI\tAF\n')
-        for prev_rid, prev_gtdb_sp in ncbi_sp_change_gids.items():
-            prev_ncbi_sp = prev_genomes[prev_rid].ncbi_taxa.species
-            cur_ncbi_sp = cur_genomes[prev_rid].ncbi_taxa.species
-            new_ncbi_sp = cur_genomes[prev_rid].ncbi_taxa.species
-            
-            assert prev_ncbi_sp != new_ncbi_sp
-            assert prev_gtdb_sp == prev_genomes[prev_rid].gtdb_taxa.species
+        fout.write('\tPrevious type strain\tCurrent type strain\n')
 
-            params = {}
-            params = {}
-            params['new_rep_ncbi_sp'] = new_ncbi_sp
-            params['prev_rep_ncbi_sp'] = prev_ncbi_sp
-            params['prev_rep_gtdb_sp'] = prev_gtdb_sp
-            params['new_ncbi_subspecies'] = cur_genomes[prev_rid].ncbi_unfiltered_taxa.subspecies
-            
-            action, updated_sp, ani, af = self.sp_name_manager.update(prev_rid,
-                                                                        prev_gtdb_sp,
-                                                                        prev_ncbi_sp,
-                                                                        cur_ncbi_sp,
-                                                                        prev_rid,
-                                                                        new_ncbi_sp)
-
-            action_count[action] += 1
-            params['updated_gtdb_sp'] = updated_sp
-            
-            prev_is_type_strain = (prev_genomes[prev_rid].is_gtdb_type_strain()
-                                or prev_genomes[prev_rid].is_ncbi_type_strain())
-            cur_is_type_strain = (cur_genomes[prev_rid].is_gtdb_type_strain()
-                                or cur_genomes[prev_rid].is_ncbi_type_strain())
-
-            fout.write(f'{action}')
-            fout.write(f'\t{prev_rid}\t{prev_gtdb_sp}\t{prev_ncbi_sp}\t{cur_ncbi_sp}\t{updated_sp}')
-            fout.write(f'\t{prev_is_type_strain}\t{cur_is_type_strain}')
-            
-            if ani:
-                params['ani'] = ani
-                params['af'] = af
-                fout.write(f'\t{ani:.2f}\t{af*100:.2f}\n')
-            else:
-                fout.write('\tn/a\tn/a\n')
-
-            
-            if action != 'UNCHANGED':
-                self.update_sp(prev_rid, updated_sp)
+        for rid in cur_genomes.sort_by_assembly_score():
+            if rid not in ncbi_sp_change_gids:
+                continue
                 
-            action = 'NCBI_SPECIES_CHANGE:REASSIGNED::{}'.format(action)
-            self.action_log.write('{}\t{}\t{}\t{}\n'.format(
-                                        prev_rid, 
-                                        prev_gtdb_sp, 
-                                        action, 
-                                        params))
+            actions = self.sp_name_manager.update(rid, rid)
+            for action, prev_rid, cur_rid, cur_gtdb_sp in actions:
+                assert prev_rid == cur_rid
+                
+                action_count[action] += 1
+                self.update_rep(prev_rid, cur_rid)
+                
+                if action != 'UNCHANGED':
+                    self.update_sp(prev_rid, cur_gtdb_sp)
+
+                prev_gtdb_sp = prev_genomes[prev_rid].gtdb_taxa.species
+                prev_ncbi_sp = prev_genomes[prev_rid].ncbi_taxa.species
+                cur_ncbi_sp = cur_genomes[prev_rid].ncbi_taxa.species
+
+                prev_is_type_strain = prev_genomes[prev_rid].is_effective_type()
+                cur_is_type_strain = cur_genomes[prev_rid].is_effective_type()
+
+                fout.write(f'{action}')
+                fout.write(f'\t{prev_rid}\t{prev_gtdb_sp}\t{prev_ncbi_sp}\t{cur_ncbi_sp}\t{cur_gtdb_sp}')
+                fout.write(f'\t{prev_is_type_strain}\t{cur_is_type_strain}\n')
+
+                params = {}
+                params['orig_gtdb_sp'] = prev_gtdb_sp
+                params['new_gtdb_sp'] = cur_gtdb_sp
+                params['new_ncbi_subspecies'] = cur_genomes[cur_rid].ncbi_unfiltered_taxa.subspecies
+                params['orig_type_strain'] = cur_genomes[prev_rid].is_effective_type()
+                params['new_type_strain'] = cur_genomes[cur_rid].is_effective_type()
+                    
+                action = 'NCBI_SPECIES_CHANGE:REASSIGNED::{}'.format(action)
+                self.action_log.write('{}\t{}\t{}\t{}\n'.format(
+                                            prev_rid, 
+                                            prev_gtdb_sp, 
+                                            action, 
+                                            params))
                                         
         fout.close()
 
         self.logger.info(f"  ... {action_count['UNCHANGED']:,} unchanged.")
         self.logger.info(f"  ... {action_count['UPDATED']:,} updated.")
-        self.logger.info(f"  ... {action_count['MERGED']:,} merged.")
+        self.logger.info(f"  ... {action_count['MANUAL_CURATION']:,} require manual curation.")
         self.logger.info(f"  ... {action_count['CONFLICT']:,} conflict.")
 
     def run(self, 
@@ -751,16 +736,15 @@ class RepActions(object):
                                         improved_reps)
 
         num_retired_sp = sum([1 for v in self.new_reps.values() if v is None])  
-        num_replaced_rids = sum([1 for v in self.new_reps.values() if v is not None])                         
+        num_replaced_rids = sum([1 for v in self.new_reps.values() if v is not None])
         self.logger.info(f'Identified {num_retired_sp:,} retired species.')
         self.logger.info(f'Identified {num_replaced_rids:,} species with a modified representative genome.')
         
         self.action_log.close()
-        self.fastani.write_cache()
 
         # write out representatives for existing species clusters
         fout = open(os.path.join(self.output_dir, 'species_reps.tsv'), 'w')
-        fout.write('Previous representative ID\tPrevious species name\tCurrent representative ID\tCurrent species name\tRepresentative status\tSpecies status\n')
+        fout.write('Previous representative ID\tPrevious species name\tNew representative ID\tNew species name\tRepresentative status\tSpecies status\n')
         for rid, sp_name in prev_genomes.sp_clusters.species():
             new_sp_name = sp_name
             sp_status = 'UNCHANGED'
@@ -768,11 +752,11 @@ class RepActions(object):
                 new_sp_name = self.new_sp_name[rid]
                 sp_status = 'MODIFIED'
 
-            if sp_name in self.new_reps:
-                if self.new_reps[sp_name] is not None:
-                    fout.write(f'{rid}\t{sp_name}\t{self.new_reps[sp_name]}\t{new_sp_name}\tREPLACED\t{sp_status}\n')
+            if rid in self.new_reps:
+                if self.new_reps[rid] is not None:
+                    fout.write(f'{rid}\t{sp_name}\t{self.new_reps[rid]}\t{new_sp_name}\tREPLACED\t{sp_status}\n')
                 else:
-                    fout.write(f'{rid}\t{sp_name}\t{self.new_reps[sp_name]}\t{new_sp_name}\tLOST\t{sp_status}\n') 
+                    fout.write(f'{rid}\t{sp_name}\t{self.new_reps[rid]}\t{new_sp_name}\tLOST\t{sp_status}\n') 
             else:
                 fout.write(f'{rid}\t{sp_name}\t{rid}\t{new_sp_name}\tUNCHANGED\t{sp_status}\n')
             

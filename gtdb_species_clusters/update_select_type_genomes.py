@@ -667,7 +667,7 @@ class UpdateSelectTypeGenomes(object):
     def _ani_type_genomes(self, cur_genomes, all_type_genomes):
         """Calculate ANI between type genomes."""
         
-        if False: #***
+        if True: #***
             mash = Mash(self.cpus)
             
             # sanity check
@@ -732,17 +732,12 @@ class UpdateSelectTypeGenomes(object):
         fout = open(os.path.join(self.output_dir, 'gtdb_type_genome_pairwise_ani.tsv'), 'w')
         fout.write('NCBI species 1\tType genome 1\tNCBI species 2\tType genome 2\tANI\tAF\tANI12\tAF12\tANI21\tAF21\n')
         for gid1, ncbi_sp1 in all_type_genomes.items():
-            if gid1.startswith('U'):
-                print(gid1)
-        
             for gid2 in ani_af.get(gid1, []):
                 if gid1 == gid2:
                     continue
-                    
-                g1 = cur_genomes.uba_user_id_map.get(gid1, gid1)
-                g2 = cur_genomes.uba_user_id_map.get(gid2, gid2)
-                cur_ani, cur_af = ani_af[g1][g2]
-                rev_ani, rev_af = ani_af[g2][g1]
+
+                cur_ani, cur_af = ani_af[gid1][gid2]
+                rev_ani, rev_af = ani_af[gid2][gid1]
                 
                 # ANI should be the larger of the two values as this
                 # is the most conservative circumscription and reduces the
@@ -769,7 +764,10 @@ class UpdateSelectTypeGenomes(object):
         for cur_gid in ani_neighbours:
             for neighbour_gid in ani_neighbours[cur_gid]:
                 if cur_gid not in ani_neighbours[neighbour_gid]:
-                    self.logger.info('ANI neighbours is not symmetrical.')
+                    self.logger.info('ANI neighbours is not symmetrical: {} {}'.format(ani_af[cur_gid][neighbour_gid], ani_af[neighbour_gid][cur_gid]))
+                    print(cur_gid, neighbour_gid)
+                    print('cur_gid in all_type_genomes', cur_gid in all_type_genomes)
+                    print('neighbour_gid in all_type_genomes', neighbour_gid in all_type_genomes)
                     sys.exit(-1)
         
         return ani_neighbours
@@ -1028,8 +1026,8 @@ class UpdateSelectTypeGenomes(object):
             header = f.readline().strip().split('\t')
             
             prev_sp_index = header.index('Previous species name')
-            cur_rep_id_index = header.index('Current representative ID')
-            cur_sp_index = header.index('Current species name')
+            cur_rep_id_index = header.index('New representative ID')
+            cur_sp_index = header.index('New species name')
             rep_status_index = header.index('Representative status')
             
             for line in f:
@@ -1082,6 +1080,11 @@ class UpdateSelectTypeGenomes(object):
                                                 uba_genome_file=uba_genome_paths,
                                                 qc_passed_file=qc_passed_file)
         self.logger.info(f' ... current genome set contains {len(cur_genomes):,} genomes.')
+        
+        # get path to previous and current genomic FASTA files
+        self.logger.info('Reading path to current genomic FASTA files.')
+        cur_genomes.load_genomic_file_paths(cur_genomic_path_file)
+        cur_genomes.load_genomic_file_paths(uba_genome_paths)
 
         # report type material
         self.logger.info('Tabulating genomes assigned as type material.')
@@ -1164,27 +1167,22 @@ class UpdateSelectTypeGenomes(object):
                                             ncbi_proxy,
                                             ncbi_type_subsp,
                                             ncbi_reps)
-
-        # get path to previous and current genomic FASTA files
-        self.logger.info('Reading path to current genomic FASTA files.')
-        cur_genomes.load_genomic_file_paths(cur_genomic_path_file)
-        cur_genomes.load_genomic_file_paths(uba_genome_paths)
         
         # parse NCBI assembly files
         self.logger.info('Parsing NCBI assembly files.')
         excluded_from_refseq_note = exclude_from_refseq(ncbi_genbank_assembly_file)
         
         self.logger.info('Selecting representative for new named NCBI species.')
-        if False: #***
+        if True: #***
             new_type_genomes = self._select_type_genomes(cur_genomes,
-                                                        existing_sp_reps,
-                                                        gtdb_type_sp, 
-                                                        gtdb_type_subsp,
-                                                        ncbi_type_sp,
-                                                        ncbi_proxy,
-                                                        ncbi_type_subsp,
-                                                        ncbi_reps,
-                                                        excluded_from_refseq_note)
+                                                            existing_sp_reps,
+                                                            gtdb_type_sp, 
+                                                            gtdb_type_subsp,
+                                                            ncbi_type_sp,
+                                                            ncbi_proxy,
+                                                            ncbi_type_subsp,
+                                                            ncbi_reps,
+                                                            excluded_from_refseq_note)
                                                         
             pickle.dump(new_type_genomes, open(os.path.join(self.output_dir, 'new_type_genomes.pkl'), 'wb'))
         else:
@@ -1207,23 +1205,6 @@ class UpdateSelectTypeGenomes(object):
         self.logger.info(f'Calculate ANI between {len(all_type_genomes):,} representatives of GTDB species clusters.')
 
         ani_af = self._ani_type_genomes(cur_genomes, all_type_genomes)
-        
-        
-        
-        
-        for gid in ani_af:
-            if gid.startswith('U_'):
-                print(gid)
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
 
         self.logger.info('Establishing ANI neighbours.')
         ani_neighbours = self._ani_neighbours(cur_genomes, ani_af, all_type_genomes)

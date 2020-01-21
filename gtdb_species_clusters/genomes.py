@@ -134,6 +134,12 @@ class Genomes(object):
                         self.logger.error(f'Species and genus ledgers have conflicting assignments for {gid}.')
                         sys.exit(-1)
 
+    def sort_by_assembly_score(self):
+        """Return genomes sorted by their assembly score."""
+        
+        for gid in sorted(self.genomes.keys(), key=lambda gid: self.genomes[gid].score_assembly(), reverse=True):
+            yield gid
+
     def get_gid(self, idx):
         """Get ID of genome at specific index."""
         
@@ -273,6 +279,8 @@ class Genomes(object):
                             self.user_uba_id_map[gid] = uba_id
                             self.uba_user_id_map[uba_id] = gid
                             gid = uba_id
+                        else:
+                            continue # retain only valid UBA genomes
                     else:
                         continue # skip non-UBA user genomes
                         

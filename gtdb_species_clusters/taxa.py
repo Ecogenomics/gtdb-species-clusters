@@ -84,6 +84,7 @@ class Taxa(object):
                 self.taxa[idx] = taxon
                 break
 
+    @property
     def subspecies(self):
         """Get subspecies classification."""
         

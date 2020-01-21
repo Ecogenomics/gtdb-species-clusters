@@ -128,13 +128,9 @@ class FastANI(object):
         if os.path.exists(tmp_fastani_file) and os.stat(tmp_fastani_file).st_size > 0:
             for line in open(tmp_fastani_file):
                 line_split = line.strip().split()
-
-                query_genome = self._get_genome_id(line_split[0])
-                ref_genome = self._get_genome_id(line_split[1])
-
                 ani = float(line_split[2])
                 af = float(line_split[3])/int(line_split[4])
-                ani_af = (query_genome, ref_genome, ani, af)
+                ani_af = (qid, rid, ani, af)
         else:
             ani_af = (qid, rid, 0.0, 0.0)
 
