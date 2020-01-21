@@ -40,6 +40,7 @@ from gtdb_species_clusters.update_new_genomes import NewGenomes
 from gtdb_species_clusters.update_gtdbtk import GTDB_Tk
 from gtdb_species_clusters.update_rep_changes import RepChanges
 from gtdb_species_clusters.update_rep_actions import RepActions
+from gtdb_species_clusters.update_select_type_genomes import UpdateSelectTypeGenomes
 
 from gtdb_species_clusters.merge_test import MergeTest
 
@@ -353,6 +354,35 @@ class OptionsParser():
         
         self.logger.info('Done.')
         
+    def u_sel_type_genomes(self, options):
+        """Perform initial actions required for changed representatives."""
+        
+        check_file_exists(options.existing_sp_reps)
+        check_file_exists(options.qc_passed_file)
+        check_file_exists(options.cur_gtdb_metadata_file)
+        check_file_exists(options.cur_genomic_path_file)
+        check_file_exists(options.uba_genome_paths)
+        check_file_exists(options.ncbi_genbank_assembly_file)
+        check_file_exists(options.gtdb_domain_report)
+        check_file_exists(options.species_exception_file)
+        check_file_exists(options.genus_exception_file)
+        check_file_exists(options.gtdb_type_strains_ledger)
+        make_sure_path_exists(options.output_dir)
+        
+        p = UpdateSelectTypeGenomes(options.ani_cache_file, options.cpus, options.output_dir)
+        p.run(options.existing_sp_reps,
+                options.qc_passed_file,
+                options.cur_gtdb_metadata_file,
+                options.cur_genomic_path_file,
+                options.uba_genome_paths,
+                options.ncbi_genbank_assembly_file,
+                options.gtdb_domain_report,
+                options.species_exception_file,
+                options.genus_exception_file,
+                options.gtdb_type_strains_ledger)
+        
+        self.logger.info('Done.')
+        
     def merge_test(self, options):
         """Produce information relevant to merging two sister species."""
         
@@ -511,6 +541,8 @@ class OptionsParser():
             self.u_rep_changes(options)
         elif options.subparser_name == 'u_rep_actions':
             self.u_rep_actions(options)
+        elif options.subparser_name == 'u_sel_type_genomes':
+            self.u_sel_type_genomes(options)
         elif options.subparser_name == 'merge_test':
             self.merge_test(options)
         elif options.subparser_name == 'rep_compare':

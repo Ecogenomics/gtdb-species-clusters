@@ -20,9 +20,8 @@ import sys
 import logging
 from collections import defaultdict
 
-from biolib.taxonomy import Taxonomy
-
 from gtdb_species_clusters.genome import Genome
+from gtdb_species_clusters.taxa import Taxa
 from gtdb_species_clusters.species_clusters import SpeciesClusters
 from gtdb_species_clusters.genome_utils import canonical_gid
 from gtdb_species_clusters.taxon_utils import is_placeholder_taxon
@@ -42,6 +41,8 @@ class Genomes(object):
                                 
         self.user_uba_id_map = {}   # can be removed once UBA genomes are no longer part
                                     # of the archaeal genome set
+                                    
+        self.uba_user_id_map = {}
         
         self.logger = logging.getLogger('timestamp')
 
@@ -59,36 +60,29 @@ class Genomes(object):
     def __getitem__(self, gid):
         """Get genome."""
         
+        gid = self.user_uba_id_map.get(gid, gid)
         return self.genomes[gid]
         
     def __contains__(self, gid):
         """Check if genome is in genome set."""
         
+        gid = self.user_uba_id_map.get(gid, gid)
         return gid in self.genomes
 
     def __len__(self):
         """Size of genome set."""
         
         return len(self.genomes)
-        
-    def _get_taxa(self, taxonomy_str):
-        """Convert taxonomy string to taxa list."""
-        
-        if taxonomy_str and taxonomy_str != 'none':
-            taxonomy_str = taxonomy_str.replace('Candidatus ', '')
-            return [t.strip() for t in taxonomy_str.split(';')]
 
-        return list(Taxonomy.rank_prefixes)
-        
-    def _convert_int(self, value):
+    def _convert_int(self, value, default_value=0):
         """Convert database value to integer."""
         
-        return int(value) if value and value != 'none' else 0
+        return int(value) if value and value != 'none' else default_value
         
-    def _convert_float(self, value):
+    def _convert_float(self, value, default_value=0.0):
         """Convert database value to float."""
         
-        return float(value) if value and value != 'none' else 0
+        return float(value) if value and value != 'none' else default_value
         
     def _apply_ncbi_taxonomy_ledgers(self,
                                         species_exception_file, 
@@ -111,7 +105,7 @@ class Genomes(object):
                     if not sp.startswith('s__'):
                         sp = 's__' + sp
                         
-                    self.genomes[gid].ncbi_taxonomy[6] = sp
+                    self.genomes[gid].ncbi_taxa.species = sp
                     species_updates[gid] = sp
         
         if genus_exception_file:
@@ -128,12 +122,12 @@ class Genomes(object):
                     if genus.startswith('g__'):
                         genus = genus[3:]
                         
-                    self.genomes[gid].ncbi_taxonomy[5] = f'g__{genus}'
+                    self.genomes[gid].ncbi_taxa.genus = f'g__{genus}'
                     
-                    species = self.genomes[gid].ncbi_species()
+                    species = self.genomes[gid].ncbi_taxa.species
                     if species != 's__':
-                        specific = self.genomes[gid].ncbi_specific_epithet()
-                        self.genomes[gid].ncbi_taxonomy[6] = f's__{genus} {specific}'
+                        specific = self.genomes[gid].ncbi_taxa.specific_epithet
+                        self.genomes[gid].ncbi_taxa.species = f's__{genus} {specific}'
 
                     # sanity check ledgers
                     if gid in species_updates and genus not in species_updates[gid]:
@@ -160,8 +154,8 @@ class Genomes(object):
         
         named_ncbi_sp = defaultdict(set)
         for gid in self.genomes:
-            if not is_placeholder_taxon(self.genomes[gid].ncbi_species()):
-                named_ncbi_sp[self.genomes[gid].ncbi_species()].add(gid)
+            if not is_placeholder_taxon(self.genomes[gid].ncbi_taxa.species):
+                named_ncbi_sp[self.genomes[gid].ncbi_taxa.species].add(gid)
 
         return named_ncbi_sp
         
@@ -179,6 +173,9 @@ class Genomes(object):
                 genomic_file = os.path.join(genome_path, accession + '_genomic.fna')
                 self.genomes[gid].genomic_file = genomic_file
                 self.genomic_files[gid] = genomic_file
+                
+                #*** Need to handle UBA genomes that can reference via their U_ ID when run through MASH
+                self.genomic_files[accession] = genomic_file 
 
     def load_from_metadata_file(self, 
                                 metadata_file,
@@ -225,6 +222,7 @@ class Genomes(object):
             
             gtdb_type_index = headers.index('gtdb_type_designation')
             gtdb_type_sources_index = headers.index('gtdb_type_designation_sources')
+            gtdb_type_species_of_genus_index = headers.index('gtdb_type_species_of_genus')
             ncbi_strain_identifiers_index = headers.index('ncbi_strain_identifiers')
             ncbi_type_index = headers.index('ncbi_type_material_designation')
             ncbi_asm_level_index = headers.index('ncbi_assembly_level')
@@ -250,6 +248,14 @@ class Genomes(object):
             ncbi_spanned_gaps_index = headers.index('ncbi_spanned_gaps')
             
             gtdb_genome_rep_index = headers.index('gtdb_genome_representative')
+            
+            if 'lpsn_priority_year' in headers:
+                # this information will be missing from the previous
+                # GTDB metadata file as we strip this out due to 
+                # concerns over republishing this information
+                lpsn_priority_index = headers.index('lpsn_priority_year')
+                dsmz_priority_index = headers.index('dsmz_priority_year')
+                straininfo_priority_index = headers.index('straininfo_priority_year')
 
             for line in f:
                 line_split = line.strip().split('\t')
@@ -265,6 +271,7 @@ class Genomes(object):
                         uba_id = org_name[org_name.find('(')+1:-1]
                         if uba_id in valid_uba_ids:
                             self.user_uba_id_map[gid] = uba_id
+                            self.uba_user_id_map[uba_id] = gid
                             gid = uba_id
                     else:
                         continue # skip non-UBA user genomes
@@ -272,15 +279,16 @@ class Genomes(object):
                 if pass_qc_gids and gid not in pass_qc_gids:
                     continue
                 
-                gtdb_taxonomy = self._get_taxa(line_split[gtdb_taxonomy_index])
-                ncbi_taxonomy = self._get_taxa(line_split[ncbi_taxonomy_index])
-                ncbi_taxonomy_unfiltered = self._get_taxa(line_split[ncbi_taxonomy_unfiltered_index])
+                gtdb_taxonomy = Taxa(line_split[gtdb_taxonomy_index])
+                ncbi_taxonomy = Taxa(line_split[ncbi_taxonomy_index])
+                ncbi_taxonomy_unfiltered = Taxa(line_split[ncbi_taxonomy_unfiltered_index])
                 
                 gtdb_type = line_split[gtdb_type_index]
                 gtdb_type_sources = line_split[gtdb_type_sources_index]
                 if gid in gtdb_type_strains:
                     gtdb_type = 'type strain of species'
                     gtdb_type_sources = 'GTDB curator'
+                gtdb_type_species_of_genus = line_split[gtdb_type_species_of_genus_index] == 't'
                 
                 ncbi_type = line_split[ncbi_type_index]
                 ncbi_strain_identifiers = line_split[ncbi_strain_identifiers_index]
@@ -309,6 +317,15 @@ class Genomes(object):
                 gtdb_rid = canonical_gid(line_split[gtdb_genome_rep_index])
                 if create_sp_clusters:
                     self.sp_clusters.update_sp_cluster(gtdb_rid, gid, gtdb_taxonomy[6])
+                
+                if 'lpsn_priority_year' in headers:
+                    lpsn_priority_year = self._convert_int(line_split[lpsn_priority_index], Genome.NO_PRIORITY_YEAR)
+                    dsmz_priority_year = self._convert_int(line_split[dsmz_priority_index], Genome.NO_PRIORITY_YEAR)
+                    straininfo_priority_year = self._convert_int(line_split[straininfo_priority_index], Genome.NO_PRIORITY_YEAR)
+                else:
+                    lpsn_priority_year = Genome.NO_PRIORITY_YEAR
+                    dsmz_priority_year = Genome.NO_PRIORITY_YEAR
+                    straininfo_priority_year = Genome.NO_PRIORITY_YEAR
 
                 self.genomes[gid] = Genome(gid,
                                             ncbi_accn,
@@ -318,6 +335,7 @@ class Genomes(object):
                                             ncbi_taxonomy_unfiltered,
                                             gtdb_type,
                                             gtdb_type_sources,
+                                            gtdb_type_species_of_genus,
                                             ncbi_type,
                                             ncbi_strain_identifiers,
                                             ncbi_asm_level,
@@ -337,7 +355,10 @@ class Genomes(object):
                                             ssu_length,
                                             ncbi_molecule_count,
                                             ncbi_unspanned_gaps,
-                                            ncbi_spanned_gaps)
+                                            ncbi_spanned_gaps,
+                                            lpsn_priority_year,
+                                            dsmz_priority_year,
+                                            straininfo_priority_year)
                                             
         self._apply_ncbi_taxonomy_ledgers(species_exception_file,
                                             genus_exception_file)

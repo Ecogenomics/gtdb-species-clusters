@@ -27,6 +27,44 @@ from biolib.taxonomy import Taxonomy
 from gtdb_species_clusters.genome_utils import canonical_gid
 
 
+def canonical_taxon(taxon):
+    """Get taxon name without suffix."""
+    
+    if taxon.startswith('s__'):
+        generic, specific = taxon.split()
+        if '_' in specific:
+            canonical_specific = specific.rsplit('_', 1)[0]
+            return '{} {}'.format(generic, canonical_specific)
+    else:
+        if '_' in taxon:
+            canonical_taxon = taxon.rsplit('_', 1)[0]
+            return canonical_taxon
+   
+    return taxon
+
+
+def specific_epithet(species_name):
+    """Set specific epithet."""
+
+    if species_name == 's__':
+        return ''
+    
+    generic, specific = species_name.split()
+    
+    return specific
+    
+
+def generic_name(species_name):
+    """Set specific epithet."""
+
+    if species_name == 's__':
+        return ''
+    
+    generic, specific = species_name.split()
+    
+    return generic.replace('s__', '')
+    
+
 def is_placeholder_taxon(taxon):
     """Check if taxon name is a placeholder."""
     

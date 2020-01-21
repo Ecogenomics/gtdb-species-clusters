@@ -31,6 +31,8 @@ from collections import defaultdict
 
 from biolib.external.execute import check_dependencies, run
 
+from gtdb_species_clusters.genome_utils import read_genome_path, canonical_gid
+
 class Mash(object):
     """Calculate Mash distance between genomes."""
 
@@ -53,7 +55,9 @@ class Mash(object):
         elif mash_genome_id.startswith('GCA_'):
             mash_genome_id = 'GB_' + mash_genome_id
             
-        return mash_genome_id
+        gid = canonical_gid(mash_genome_id)
+            
+        return gid
 
     def sketch(self, gids, genome_files, genome_list_file, sketch_file):
         """Create Mash sketch for genomes."""
@@ -65,7 +69,7 @@ class Mash(object):
                 fout.write(genome_files[gid] + '\n')
             fout.close()
 
-            self.logger.info('Creating Mash sketch for %d genomes.' % len(gids))
+            self.logger.info(f'Creating Mash sketch for {len(gids):,} genomes.')
             cmd = 'mash sketch -l -p %d -k 16 -s 5000 -o %s %s 2> /dev/null' % (self.cpus, 
                                                                                 sketch_file, 
                                                                                 genome_list_file)

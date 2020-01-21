@@ -177,10 +177,10 @@ class FastANI(object):
             
             if report_progress:
                 processed += 1
-                statusStr = '-> Processing %d of %d (%.2f%%) genome pairs.'.ljust(86) % (
+                statusStr = '-> Processing {:,} of {:,} ({:.2f}%) genome pairs.'.format(
                                     processed, 
                                     num_pairs, 
-                                    float(processed*100)/num_pairs)
+                                    float(processed*100)/num_pairs).ljust(86)
                 sys.stdout.write('%s\r' % statusStr)
                 sys.stdout.flush()
                 

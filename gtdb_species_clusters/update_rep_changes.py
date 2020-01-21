@@ -134,9 +134,9 @@ class RepChanges(object):
                     fout_summary.write('\tUNCHANGED')
                     
                 # check if NCBI species assignment has changed
-                prev_ncbi_sp = prev_genomes[prev_rid].ncbi_species()
-                cur_ncbi_sp = cur_genomes[prev_rid].ncbi_species()
-                if prev_genomes[prev_rid].ncbi_specific_epithet() == cur_genomes[prev_rid].ncbi_specific_epithet():
+                prev_ncbi_sp = prev_genomes[prev_rid].ncbi_taxa.species
+                cur_ncbi_sp = cur_genomes[prev_rid].ncbi_taxa.species
+                if prev_genomes[prev_rid].ncbi_taxa.specific_epithet == cur_genomes[prev_rid].ncbi_taxa.specific_epithet:
                     unchanged_sp.add(prev_rid)
                     fout_summary.write('\tUNCHANGED')
                 else:
@@ -163,13 +163,13 @@ class RepChanges(object):
                     assert(False)
 
                 # check if domain assignment has changed
-                if prev_genomes[prev_rid].gtdb_domain() != cur_genomes[prev_rid].gtdb_domain():
+                if prev_genomes[prev_rid].gtdb_taxa.domain != cur_genomes[prev_rid].gtdb_taxa.domain:
                     changed_domain.add(prev_rid)
                     fout_detailed.write('{}\t{}\tDOMAIN_CHECK:REASSIGNED\tRepresentative changed from {} to {}\n'.format(
                                             prev_rid,
                                             prev_gtdb_sp,
-                                            prev_genomes[prev_rid].gtdb_domain(),
-                                            cur_genomes[prev_rid].gtdb_domain()))
+                                            prev_genomes[prev_rid].gtdb_taxa.domain,
+                                            cur_genomes[prev_rid].gtdb_taxa.domain))
                     fout_summary.write('\tREASSIGNED')
                 else:
                     unchanged_domain.add(prev_rid)

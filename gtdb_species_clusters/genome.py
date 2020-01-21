@@ -21,6 +21,8 @@ import logging
 from collections import defaultdict
 from dataclasses import dataclass
 
+from gtdb_species_clusters.taxa import Taxa 
+
 
 @dataclass
 class Genome(object):
@@ -29,11 +31,12 @@ class Genome(object):
     gid: str
     ncbi_accn: str
     gtdb_rid: str
-    gtdb_taxonomy: list
-    ncbi_taxonomy: list
-    ncbi_taxonomy_unfiltered: list
+    gtdb_taxa: Taxa
+    ncbi_taxa: Taxa
+    ncbi_unfiltered_taxa: Taxa
     gtdb_type_designation: str
     gtdb_type_designation_sources: str
+    gtdb_type_species_of_genus : bool
     ncbi_type_material: str
     ncbi_strain_identifiers: str
     ncbi_assembly_level: str
@@ -54,6 +57,9 @@ class Genome(object):
     ncbi_molecule_count: int
     ncbi_unspanned_gaps: int
     ncbi_spanned_gaps: int
+    lpsn_priority_year: int
+    dsmz_priority_year: int
+    straininfo_priority_year: int
     
     NCBI_TYPE_SPECIES = set(['assembly from type material', 
                                 'assembly from neotype material',
@@ -65,6 +71,8 @@ class Genome(object):
     GTDB_TYPE_SPECIES = set(['type strain of species', 'type strain of neotype'])
     GTDB_TYPE_SUBSPECIES = set(['type strain of subspecies', 'type strain of heterotypic synonym'])
     GTDB_NOT_TYPE_MATERIAL = set(['not type material'])
+    
+    NO_PRIORITY_YEAR = 1e6
 
     def __post_init__(self):
         """Post data initialization."""
@@ -94,7 +102,7 @@ class Genome(object):
         """Check if genome is a subspecies at NCBI."""
 
         ncbi_subspecies = None
-        for taxon in self.ncbi_taxonomy_unfiltered:
+        for taxon in self.ncbi_unfiltered_taxa:
             if taxon.startswith('sb__'):
                 ncbi_subspecies = taxon[4:]
                 
@@ -150,6 +158,11 @@ class Genome(object):
         
         return self.gtdb_type_designation in Genome.GTDB_TYPE_SPECIES
         
+    def is_gtdb_type_subspecies(self):
+        """Check if genome is a type strain of subspecies in GTDB."""
+        
+        return self.gtdb_type_designation in Genome.GTDB_TYPE_SUBSPECIES
+        
     def is_ncbi_type_strain(self):
         """Check if genome is a type strain genome at NCBI."""
         
@@ -166,6 +179,42 @@ class Genome(object):
                     
         return False
         
+    def is_ncbi_type_subspecies(self):
+        """Check if genome is a type strain of subspecies at NCBI."""
+        
+        if self.ncbi_type_material:
+            if self.ncbi_type_material.lower() in Genome.NCBI_TYPE_SPECIES:
+                if not self.is_ncbi_subspecies():
+                    return False
+                else:
+                    # genome is marked as 'assembled from type material', but
+                    # is a subspecies according to the NCBI taxonomy so is
+                    # the type strain of a subspecies
+                    # (e.g. Alpha beta subsp. gamma)
+                    return True
+            elif self.ncbi_type_material.lower() in Genome.NCBI_TYPE_SUBSP:
+                return True
+                    
+        return False
+        
+    def is_ncbi_proxy(self):
+        """Check if genome is proxy type material at NCBI."""
+        
+        if self.ncbi_type_material:
+            if self.ncbi_type_material.lower() in Genome.NCBI_PROXYTYPE:
+                return True
+                    
+        return False
+        
+    def is_ncbi_representative(self):
+        """Check if genomes is a representative or reference genome at NCBI."""
+        
+        if self.ncbi_refseq_category and self.ncbi_refseq_category not in ['na', 'none']:
+            assert 'reference' in self.ncbi_refseq_category or 'representative' in self.ncbi_refseq_category
+            return True
+            
+        return False
+        
     def is_complete_genome(self):
         """Check if genome is a complete assembly."""
         
@@ -179,68 +228,36 @@ class Genome(object):
                 and self.ambiguous_bases <= 1e4
                 and self.total_gap_len <= 1e4
                 and self.ssu_count >= 1)
-    
-    def ncbi_subspecies(self):
-        """Get NCBI subspecies classification of genome."""
+
+    def strain_ids(self):
+        """Get strain IDs for genome."""
         
-        for taxon in self.ncbi_taxonomy_unfiltered:
-            if taxon.startswith('sb__'):
-                return taxon
+        strain_ids = set()
+        if self.ncbi_strain_identifiers:
+            s = [s.strip() for s in self.ncbi_strain_identifiers.split(';')]
+            for strain_id in s:
+                if strain_id:
+                    strain_ids.add(strain_id)
                     
-        return None
+        return strain_ids
+                    
+    def gtdb_type_sources(self):
+        """Get sources supporting type material designation."""
         
-    def ncbi_species(self):
-        """Get NCBI species classification."""
+        sources = set()
+        if self.gtdb_type_designation_sources and self.gtdb_type_designation_sources not in ['na', 'none']:
+            sources = set([t.strip() for t in self.gtdb_type_designation_sources.split(';')])
+            
+        return sources
         
-        return self.ncbi_taxonomy[6]
-        
-    def gtdb_species(self):
-        """Get GTDB species classification."""
-        
-        return self.gtdb_taxonomy[6]
-        
-    def ncbi_specific_epithet(self):
-        """Get NCBI specific epithet."""
-        
-        ncbi_sp = self.ncbi_species()
-        if ncbi_sp == 's__':
-            return ''
-        
-        s = ncbi_sp.replace('Candidatus ', '')
-        generic, specific = s.split()
-        
-        return specific
-        
-    def gtdb_specific_epithet(self):
-        """Get GTDB specific epithet."""
-        
-        gtdb_sp = self.gtdb_species()
-        if gtdb_sp == 's__':
-            return ''
+    def year_of_priority(self):
+        """Get year of priority for type strains of species."""
 
-        generic, specific = gtdb_sp.split()
-        
-        return specific
-        
-    def ncbi_genus(self):
-        """Get NCBI genus classification."""
-        
-        return self.ncbi_taxonomy[5]
-
-    def gtdb_genus(self):
-        """Get GTDB genus classification."""
-        
-        return self.gtdb_taxonomy[5]
-
-    def ncbi_domain(self):
-        """Get NCBI domain classification."""
-        
-        return self.ncbi_taxonomy[0]
-
-    def gtdb_domain(self):
-        """Get GTDB domain classification."""
-        
-        return self.gtdb_taxonomy[0]
+        priority = min(self.lpsn_priority_year, self.dsmz_priority_year)
+        if priority == Genome.NO_PRIORITY_YEAR:
+            priority = self.straininfo_priority_year
+                
+        return priority
         
     def score_ani(self, ani):
         """Calculate balanced score that accounts for ANI to previous representative."""
@@ -256,9 +273,10 @@ class Genome(object):
         #  NCBI assembled from type material
         q = 0
         if self.is_gtdb_type_strain():
+            q = 1e6
+        elif self.is_ncbi_type_strain():
             q = 1e5
-        
-        if self.is_ncbi_type_strain():
+        elif self.is_ncbi_representative():
             q = 1e4
 
         q += self.score_assembly()
@@ -287,9 +305,8 @@ class Genome(object):
             q -= 100 # genome is a MAG
         
         # check for near-complete 16S rRNA gene
-        gtdb_domain = self.gtdb_taxonomy[0]
         min_ssu_len = 1200
-        if gtdb_domain == 'd__Archaea':
+        if self.gtdb_taxa.domain == 'd__Archaea':
             min_ssu_len = 900
             
         if self.ssu_length and self.ssu_length >= min_ssu_len:

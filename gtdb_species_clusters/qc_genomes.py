@@ -20,10 +20,6 @@ import sys
 import logging
 from collections import defaultdict
 
-from gtdb_species_clusters.taxon_utils import (binomial_species,
-                                                read_gtdb_ncbi_taxonomy,
-                                                read_gtdb_taxonomy)
-                                                
 from gtdb_species_clusters.genome_utils import (canonical_gid,
                                                 exclude_from_refseq)
 
@@ -145,7 +141,7 @@ class QcGenomes(object):
         fout_retained = open(os.path.join(output_dir, 'qc_passed.tsv'), 'w')
         fout_failed = open(os.path.join(output_dir, 'qc_failed.tsv'), 'w')
         
-        header = 'Accession\tNCBI species'
+        header = 'Accession\tNCBI species\tGTDB taxonomy'
         header += '\tCompleteness (%)\tContamination (%)\tQuality\tStrain heterogeneity at 100%'
         header += '\tMarkers (%)\tNo. contigs\tN50 contigs\tAmbiguous bases'
         
@@ -171,7 +167,7 @@ class QcGenomes(object):
 
             if passed_qc or gid in qc_exceptions:
                 pass_qc_gids.add(gid)
-                fout_retained.write('%s\t%s' % (gid, cur_genomes[gid].ncbi_species()))
+                fout_retained.write('%s\t%s\t%s' % (gid, cur_genomes[gid].ncbi_taxa.species, cur_genomes[gid].gtdb_taxa))
                 fout_retained.write('\t%.2f\t%.2f\t%.2f\t%s\t%.2f\t%d\t%d\t%d\t%s\n' % (
                                         cur_genomes[gid].comp,
                                         cur_genomes[gid].cont,
@@ -184,7 +180,7 @@ class QcGenomes(object):
                                         'Passed QC' if passed_qc else 'Flagged as exception'))
             else:
                 num_filtered += 1 
-                fout_failed.write('%s\t%s' % (gid, cur_genomes[gid].ncbi_species()))
+                fout_failed.write('%s\t%s\t%s' % (gid, cur_genomes[gid].ncbi_taxa.species, cur_genomes[gid].gtdb_taxa))
                 fout_failed.write('\t%.2f\t%.2f\t%.2f\t%s\t%.2f\t%d\t%d\t%d' % (
                                         cur_genomes[gid].comp,
                                         cur_genomes[gid].cont,
@@ -218,12 +214,12 @@ class QcGenomes(object):
         self.logger.info(f'Performing QC of type genome for each of the {len(named_ncbi_species):,} NCBI species.')
         
         fout_type_fail = open(os.path.join(output_dir, 'type_genomes_fail_qc.tsv'), 'w')
-        fout_type_fail.write('Species\tAccession\tGTDB taxonomy\tNCBI taxonomy\tType sources\tNCBI assembly type\tGenome size (bp)')
+        fout_type_fail.write('NCBI species\tAccession\tGTDB taxonomy\tNCBI taxonomy\tType sources\tNCBI assembly type\tGenome size (bp)')
         fout_type_fail.write('\tCompleteness (%)\tContamination (%)\tQuality\tStrain heterogeneity at 100%')
         fout_type_fail.write('\tMarkers (%)\tNo. contigs\tN50 contigs\tAmbiguous bases\tNCBI exclude from RefSeq\tLost species\n')
         
         fout_fail_sp = open(os.path.join(output_dir, 'species_fail_qc.tsv'), 'w')
-        fout_fail_sp.write('Species\tAccession\tGTDB taxonomy\tNCBI taxonomy\tAssembled from type material\tGenome size (bp)')
+        fout_fail_sp.write('NCBI species\tAccession\tGTDB taxonomy\tNCBI taxonomy\tAssembled from type material\tGenome size (bp)')
         fout_fail_sp.write('\tCompleteness (%)\tContamination (%)\tQuality\tStrain heterogeneity at 100%')
         fout_fail_sp.write('\tMarkers (%)\tNo. contigs\tN50 contigs\tAmbiguous bases')
         fout_fail_sp.write('\tFailed completeness\tFailed contamination\tFailed quality')
@@ -231,7 +227,7 @@ class QcGenomes(object):
         fout_fail_sp.write('\tNCBI exclude from RefSeq\n')
         
         fout_sp_lost = open(os.path.join(output_dir, 'species_lost.tsv'), 'w')
-        fout_sp_lost.write('Species\tNo. genomes\tNo. type genomes')
+        fout_sp_lost.write('NCBI species\tNo. genomes\tNo. type genomes')
         fout_sp_lost.write('\tFail completeness\tFail contamination\tFail quality\tFailed percent markers')
         fout_sp_lost.write('\tFail no. contigs\tFail N50 contigs\tFail ambiguous bases\n')
         
@@ -289,8 +285,8 @@ class QcGenomes(object):
                     fout_type_fail.write('%s\t%s\t%s\t%s\t%s\t%s\t%.2f\t%.2f\t%.2f\t%.2f\t%.2f\t%.2f\t%d\t%d\t%d\t%s\t%s\n' % (
                                             sp,
                                             gid,
-                                            '; '.join(cur_genomes[gid].gtdb_taxonomy),
-                                            '; '.join(cur_genomes[gid].ncbi_taxonomy),
+                                            cur_genomes[gid].gtdb_taxa,
+                                            cur_genomes[gid].ncbi_taxa,
                                             cur_genomes[gid].gtdb_type_designation_sources,
                                             cur_genomes[gid].ncbi_type_material,
                                             float(cur_genomes[gid].length)/1e6,
@@ -322,8 +318,8 @@ class QcGenomes(object):
                     fout_fail_sp.write('%s\t%s\t%s\t%s\t%s\t%.2f\t%.2f\t%.2f\t%.2f\t%.2f\t%.2f\t%d\t%d\t%d' % (
                                             sp,
                                             gid,
-                                            '; '.join(cur_genomes[gid].gtdb_taxonomy),
-                                            '; '.join(cur_genomes[gid].ncbi_taxonomy),
+                                            cur_genomes[gid].gtdb_taxa,
+                                            cur_genomes[gid].ncbi_taxa,
                                             gid in type_fail,
                                             float(cur_genomes[gid].length)/1e6,
                                             cur_genomes[gid].comp,

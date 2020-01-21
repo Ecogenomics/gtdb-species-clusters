@@ -36,8 +36,8 @@ from numpy import (mean as np_mean,
                     zeros as np_zeros,
                     argmin as np_argmin)
 
-from gtdb_species_clusters.genome_utils import read_genome_path
-from gtdb_species_clusters.taxon_utils import read_gtdb_ncbi_taxonomy
+from gtdb_species_clusters.genome_utils import read_genome_path, canonical_gid
+from gtdb_species_clusters.taxon_utils import read_gtdb_taxonomy, read_gtdb_ncbi_taxonomy
                                     
 from gtdb_species_clusters.type_genome_utils import (GenomeRadius,
                                                         symmetric_ani)
@@ -114,72 +114,102 @@ class ClusterStats(object):
         sys.stdout.write('\n')
                     
         return nonrep_rep_count
-
-    def _find_closest_intragenus_rep(self, clusters, genome_files, ncbi_taxonomy):
-        """Find closest intra-genus representative genomes."""
         
-        self.logger.info('Identifying closest intra-genus neighbours for representative genomes.')
+    def _intragenus_pairwise_ani(self, clusters, species, genome_files, gtdb_taxonomy):
+        """Determine pairwise intra-genus ANI between representative genomes."""
         
-        min_mash_ani = 85.0
+        self.logger.info('Calculating pairwise intra-genus ANI values between GTDB representatives.')
         
-        mash = Mash(self.cpus)
+        min_mash_ani = 50
         
-        # create Mash sketch for potential representative genomes
-        genome_list_file = os.path.join(self.output_dir, 'gtdb_type_genomes.lst')
-        sketch = os.path.join(self.output_dir, 'gtdb_type_genomes.msh')
-        mash.sketch(clusters.keys(), genome_files, genome_list_file, sketch)
-
-        # get Mash distances
-        mash_dist_file = os.path.join(self.output_dir, 'gtdb_type_genomes.dst')
-        mash.dist_pairwise((100-min_mash_ani)/100, sketch, mash_dist_file)
-
-        # read Mash distances
-        mash_ani = mash.read_ani(mash_dist_file)
+        # get genus for each representative
+        genus = {}
+        for rid, sp in species.items():
+            genus[rid] = sp.split()[0].replace('s__', '')
+            assert genus[rid] == gtdb_taxonomy[rid][5].replace('g__', '')
 
         # get pairs above Mash threshold
-        mash_ani_pairs = []
-        for qid in mash_ani:
-            for rid in mash_ani[qid]:
+        self.logger.info('Determining intra-genus genome pairs.')
+        ani_pairs = []
+        for qid in clusters:
+            for rid in clusters:
                 if qid == rid:
                     continue
                 
-                ncbi_genusA = ncbi_taxonomy[qid][5]
-                ncbi_genusB = ncbi_taxonomy[rid][5]
-                if ncbi_genusA != ncbi_genusB:
+                genusA = genus[qid]
+                genusB = genus[rid]
+                if genusA != genusB:
                     continue
             
-                if mash_ani[qid][rid] >= min_mash_ani:
-                    if qid != rid:
-                        mash_ani_pairs.append((qid, rid))
-                        mash_ani_pairs.append((rid, qid))
-                
-        self.logger.info('Identified %d intra-genus genome pairs with a Mash ANI >= %.1f%%.' % (len(mash_ani_pairs), min_mash_ani))
+                ani_pairs.append((qid, rid))
+                ani_pairs.append((rid, qid))
+
+        self.logger.info('Identified {:,} intra-genus genome pairs.'.format(len(ani_pairs)))
         
         # calculate ANI between pairs
-        self.logger.info('Calculating ANI between %d genome pairs:' % len(mash_ani_pairs))
+        self.logger.info('Calculating ANI between {:,} genome pairs:'.format(len(ani_pairs)))
         if True: #***
-            ani_af = self.fastani.pairs(mash_ani_pairs, genome_files)
+            ani_af = self.fastani.pairs(ani_pairs, genome_files)
             pickle.dump(ani_af, open(os.path.join(self.output_dir, 'type_genomes_ani_af.pkl'), 'wb'))
         else:
             ani_af = pickle.load(open(os.path.join(self.output_dir, 'type_genomes_ani_af.pkl'), 'rb'))
             
         # find closest intra-genus pair for each rep
+        fout = open(os.path.join(self.output_dir, 'intra_genus_pairwise_ani.tsv'), 'w')
+        fout.write('Genus\tSpecies 1\tGenome ID 1\tSpecies 2\tGenome ID2\tANI\tAF\n')
         closest_intragenus_rep = {}
-        for rid in clusters:
-            if rid in ani_af:
-                closest_ani = 0
-                closest_gid = None
-                for n_gid in ani_af[rid]:
-                    ani, af = symmetric_ani(ani_af, rid, n_gid)
+        for qid in clusters:
+            genusA = genus[qid]
+            
+            closest_ani = 0
+            closest_af = 0
+            closest_gid = None
+            for rid in clusters:
+                if qid == rid:
+                    continue
+                    
+                genusB = genus[rid]
+                if genusA != genusB:
+                    continue
+                    
+                ani, af = ('n/a', 'n/a')
+                if qid in ani_af and rid in ani_af[qid]:
+                    ani, af = symmetric_ani(ani_af, qid, rid)
+
                     if ani > closest_ani:
                         closest_ani = ani
-                        closest_gid = n_gid
+                        closest_af = af
+                        closest_gid = rid
                         
-                if n_gid:
-                    closest_intragenus_rep[rid] = (closest_gid, closest_ani)
+                fout.write('{}\t{}\t{}\t{}\t{}\t{}\t{}\n'.format(
+                            genusA,
+                            species[qid],
+                            qid,
+                            species[rid],
+                            rid,
+                            ani,
+                            af))
+                            
+            if closest_gid:
+                closest_intragenus_rep[qid] = (closest_gid, closest_ani, closest_af)
+
+        fout.close()
+        
+        # write out closest intra-genus species to each representative
+        fout = open(os.path.join(self.output_dir, 'closest_intragenus_rep.tsv'), 'w')
+        fout.write('Genome ID\tSpecies\tIntra-genus neighbour\tIntra-genus species\tANI\tAF\n')
+        for qid in closest_intragenus_rep:
+            rid, ani, af = closest_intragenus_rep[qid]
             
-        return closest_intragenus_rep
-    
+            fout.write('%s\t%s\t%s\t%s\t%.2f\t%.3f\n' % (
+                            qid,
+                            species[qid],
+                            rid,
+                            species[rid],
+                            ani,
+                            af))
+        fout.close()
+
     def _parse_clusters(self, cluster_file):
         """Parse species clustering information."""
         
@@ -201,12 +231,15 @@ class ClusterStats(object):
                 line_split = line.strip().split('\t')
                 
                 rid = line_split[type_genome_index]
+                rid = canonical_gid(rid)
+                
                 species[rid] = line_split[type_sp_index]
                 
                 clusters[rid] = set()
                 num_clustered = int(line_split[num_clustered_index])
                 if num_clustered > 0:
                     for gid in [g.strip() for g in line_split[clustered_genomes_index].split(',')]:
+                        gid = canonical_gid(gid)
                         clusters[rid].add(gid)
                         
                 cluster_radius[rid] = GenomeRadius(ani = float(line_split[ani_radius_index]), 
@@ -401,18 +434,21 @@ class ClusterStats(object):
         """Calculate statistics for species cluster."""
         
         # read the NCBI taxonomy
-        self.logger.info('Reading NCBI taxonomy from GTDB metadata file.')
-        ncbi_taxonomy, ncbi_update_count = read_gtdb_ncbi_taxonomy(metadata_file, None)
+        self.logger.info('Reading GTDB and NCBI taxonomies from GTDB metadata file.')
+        gtdb_taxonomy = read_gtdb_taxonomy(metadata_file)
+        ncbi_taxonomy, ncbi_update_count = read_gtdb_ncbi_taxonomy(metadata_file, 
+                                                                    None, 
+                                                                    None)
 
         # get path to genome FASTA files
         self.logger.info('Reading path to genome FASTA files.')
         genome_files = read_genome_path(genome_path_file)
-        self.logger.info('Read path for %d genomes.' % len(genome_files))
+        self.logger.info(f'Read path for {len(genome_files):,} genomes.')
         
         # determine type genomes and genomes clustered to type genomes
         self.logger.info('Reading species clusters.')
         clusters, species, cluster_radius = self._parse_clusters(cluster_file)
-        self.logger.info('Identified %d species clusters.' % len(clusters))
+        self.logger.info(f'Identified {len(clusters):,} species clusters.')
         
         # determine species assignment for clustered genomes
         clustered_species = {}
@@ -453,26 +489,10 @@ class ClusterStats(object):
 
                 fout.write('\t%s\n' % ','.join(rids))
             fout.close()
-
-            sys.exit(0)
             
-            # find closest representative genome to each representative genome
-            closest_intragenus_rep = self._find_closest_intragenus_rep(clusters, genome_files, ncbi_taxonomy)
-            
-            fout = open(os.path.join(self.output_dir, 'closest_intragenus_rep.tsv'), 'w')
-            fout.write('Genome ID\tSpecies\tIntra-genus neighbour\tIntra-genus species\tANI\n')
-            for rid in closest_intragenus_rep:
-                nid, ani = closest_intragenus_rep[rid]
-                
-                fout.write('%s\t%s\t%s\t%s\t%.2f\n' % (
-                                rid,
-                                species[rid],
-                                nid,
-                                species[nid],
-                                ani))
-            fout.close()
-            
-            sys.exit(0)
+        # find closest representative genome to each representative genome
+        self._intragenus_pairwise_ani(clusters, species, genome_files, gtdb_taxonomy)
+        sys.exit(0)
 
         # identify statistics relative to representative genome
         rep_stats = self._rep_genome_stats(clusters, genome_files)
