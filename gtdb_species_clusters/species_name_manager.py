@@ -99,32 +99,38 @@ class SpeciesNameManager(object):
         if new_cur_ncbi_sp_epithet == orig_prev_gtdb_sp_epithet:
             # given that the species epithet has not changed, there is no
             # need to update the GTDB species name
-            actions.append(('UNCHANGED', orig_rid, new_rid, orig_prev_gtdb_sp))
+            actions.append(('UNCHANGED', orig_rid, new_rid, orig_prev_gtdb_sp, None, 0, 0))
         elif new_is_type_strain:
             # new representative is a type strain with a new species epithet so the 
             # GTDB species name needs to be updated
             if new_cur_ncbi_sp_epithet in self.sp_epithets_rid[orig_prev_gtdb_genus]:
                 # the new species name already exists in the GTDB
                 conflicting_rid = self.sp_epithets_rid[orig_prev_gtdb_genus][new_cur_ncbi_sp_epithet]
+                
+                ani, af = self.fastani.symmetric_ani_cached(new_rid, conflicting_rid,
+                                                            self.cur_genomes[new_rid].genomic_file, 
+                                                            self.cur_genomes[conflicting_rid].genomic_file)
+                
                 if self.cur_genomes[conflicting_rid].is_gtdb_type_strain():
                     # this is an issue since we have two GTDB clusters claiming
                     # to be represented by a type strain genome
-                    actions.append(('CONFLICT', orig_rid, new_rid, new_cur_gtdb_sp + '-CONFLICT'))
+                    actions.append(('CONFLICT', orig_rid, new_rid, new_cur_gtdb_sp + '-CONFLICT', conflicting_rid, ani, af))
                 else:
                     # need to update the GTDB species cluster that currently
                     # has this species name since it is not based on the type strain
-                    actions.append(('UPDATED', orig_rid, new_rid, new_cur_gtdb_sp))
+                    actions.append(('UPDATED', orig_rid, new_rid, new_cur_gtdb_sp, conflicting_rid, ani, af))
                     
                     conflicting_epithet = self._nontype_sp_epithet(new_cur_ncbi_sp_epithet, 
                                                                     orig_prev_gtdb_genus)
                     actions.append(('UPDATED', 
                                     conflicting_rid, 
                                     conflicting_rid, 
-                                    's__{} {}'.format(orig_prev_gtdb_genus[3:], conflicting_epithet)))
+                                    's__{} {}'.format(orig_prev_gtdb_genus[3:], conflicting_epithet),
+                                    None, 0, 0))
             else:
                 # new species name doesn't exist in GTDB so can update name of GTDB cluster
                 epithet = new_cur_ncbi_sp_epithet
-                actions.append(('UPDATED', orig_rid, new_rid, new_cur_gtdb_sp))
+                actions.append(('UPDATED', orig_rid, new_rid, new_cur_gtdb_sp, None, 0, 0))
         else:
             # should only update the name of a GTDB species cluster when necessary,
             # which occurs when the cluster does not properly reflect a valid 
@@ -136,7 +142,7 @@ class SpeciesNameManager(object):
                 if new_cur_ncbi_sp_epithet not in self.gtdb_canonical_sp_epithets[orig_prev_gtdb_genus]:
                     # first occurrence of species in genus so should update GTDB
                     # cluster to reflect this species name
-                    actions.append(('UPDATED', orig_rid, new_rid, new_cur_gtdb_sp))
+                    actions.append(('UPDATED', orig_rid, new_rid, new_cur_gtdb_sp, None, 0, 0))
                 else:
                     # species epithet already occurs in this genus so need to check
                     # if it directly conflicts with the current name of the GTDB
@@ -144,18 +150,18 @@ class SpeciesNameManager(object):
                     if is_placeholder_sp_epithet(orig_prev_gtdb_sp_epithet):
                         # GTDB species cluster has a placeholder name so does
                         # not conflict with epithet of new representative
-                        actions.append(('UNCHANGED', orig_rid, new_rid, orig_prev_gtdb_sp))
+                        actions.append(('UNCHANGED', orig_rid, new_rid, orig_prev_gtdb_sp, None, 0, 0))
                     else:
                         # GTDB species cluster reflects a valid or effectively published
                         # species name that is in conflict with the new representative
                         assert orig_prev_gtdb_sp_epithet != new_cur_ncbi_sp_epithet
                         
                         # how can the correct name for the species cluster be determined?
-                        actions.append(('MANUAL_CURATION', orig_rid, new_rid, orig_prev_gtdb_sp))
+                        actions.append(('MANUAL_CURATION', orig_rid, new_rid, orig_prev_gtdb_sp, None, 0, 0))
             else:
                 # species epithet of new representative is reflected by current
                 # GTDB species name so no change is required
-                actions.append(('UNCHANGED', orig_rid, new_rid, orig_prev_gtdb_sp))
+                actions.append(('UNCHANGED', orig_rid, new_rid, orig_prev_gtdb_sp, None, 0, 0))
                 
         assert len(actions) >= 1
 
@@ -193,6 +199,7 @@ class SpeciesNameManager(object):
                 if new_ncbi_sp_epithet in self.sp_epithets_rid[prev_gtdb_genus]:
                     # the new species name already exists in the GTDB
                     conflicting_rid = self.sp_epithets_rid[prev_gtdb_genus][new_ncbi_sp_epithet]
+
                     if self.cur_genomes[conflicting_rid].is_gtdb_type_strain():
                         # this is an issue since we have two GTDB clusters claiming
                         # to be represented by a type strain genome

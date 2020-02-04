@@ -31,18 +31,21 @@ class Genome(object):
     gid: str
     ncbi_accn: str
     gtdb_rid: str
+    gtdb_is_rep : bool
     gtdb_taxa: Taxa
     ncbi_taxa: Taxa
     ncbi_unfiltered_taxa: Taxa
     gtdb_type_designation: str
     gtdb_type_designation_sources: str
     gtdb_type_species_of_genus : bool
+    gtdb_untrustworthy_as_type : bool
     ncbi_type_material: str
     ncbi_strain_identifiers: str
     ncbi_assembly_level: str
     ncbi_genome_representation: str
     ncbi_refseq_category: str
     ncbi_genome_category: str
+    excluded_from_refseq_note : str
     comp: float
     cont: float
     strain_heterogeneity_100: float
@@ -96,7 +99,7 @@ class Genome(object):
     def is_gtdb_sp_rep(self):
         """Check if genome is representative of species."""
 
-        return self.gtdb_rid == self.gid
+        return self.gtdb_is_rep
         
     def is_ncbi_subspecies(self):
         """Check if genome is a subspecies at NCBI."""
@@ -152,22 +155,42 @@ class Genome(object):
                 return True
                 
         return False
+        
+    def is_gtdb_type_species(self):
+        """Check if genome is a type species of genus in GTDB."""
+        
+        if self.gtdb_untrustworthy_as_type:
+            return False
+            
+        return self.gtdb_type_species_of_genus
     
     def is_gtdb_type_strain(self):
         """Check if genome is a type strain genome in GTDB."""
+        
+        if self.gtdb_untrustworthy_as_type:
+            return False
         
         return self.gtdb_type_designation in Genome.GTDB_TYPE_SPECIES
         
     def is_gtdb_type_subspecies(self):
         """Check if genome is a type strain of subspecies in GTDB."""
         
+        if self.gtdb_untrustworthy_as_type:
+            return False
+        
         return self.gtdb_type_designation in Genome.GTDB_TYPE_SUBSPECIES
         
     def is_ncbi_type_strain(self):
         """Check if genome is a type strain genome at NCBI."""
         
+        if self.gtdb_untrustworthy_as_type:
+            return False
+        
         if self.ncbi_type_material:
             if self.ncbi_type_material.lower() in Genome.NCBI_TYPE_SPECIES:
+                if 'untrustworthy as type' in self.excluded_from_refseq_note.lower():
+                    return False
+                    
                 if not self.is_ncbi_subspecies():
                     return True
                 else:
@@ -179,7 +202,7 @@ class Genome(object):
                     
         return False
         
-    def is_effective_type(self):
+    def is_effective_type_strain(self):
         """Check if genome is a valid or effectively published type strain genome."""
         
         return self.is_gtdb_type_strain() or self.is_ncbi_type_strain()

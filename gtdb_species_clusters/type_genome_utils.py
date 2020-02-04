@@ -213,12 +213,12 @@ def gtdb_type_strain_of_species(type_metadata):
     return type_gids
             
 
-def write_clusters(clusters, type_radius, species, out_file):
+def write_clusters(clusters, rep_radius, proposed_sp, genomes, out_file):
     """Write out clustering information."""
 
     fout = open(out_file, 'w')
-    fout.write('NCBI species\tType genome')
-    fout.write('\tClosest species\tClosest type genome\tANI radius\tAF closest')
+    fout.write('Representative\tProposed species\tNCBI species\tGTDB species')
+    fout.write('\tClosest GTDB species\tClosest representative\tANI radius\tAF closest')
     fout.write('\tNo. clustered genomes\tMean ANI\tMin ANI\tMean AF\tMin AF\tClustered genomes\n')
     for gid in sorted(clusters, key=lambda x: len(clusters[x]), reverse=True):
         if len(clusters[gid]):
@@ -228,11 +228,12 @@ def write_clusters(clusters, type_radius, species, out_file):
             min_af = '%.2f' % min([d.af for d in clusters[gid]])
         else:
             mean_ani = min_ani = mean_af = min_af = 'N/A'
-        fout.write('%s\t%s' % (
-                        species.get(gid, 'unclassified'), 
-                        gid))
+        fout.write('%s\t%s\t%s\t%s' % (gid,
+                                    proposed_sp[gid],
+                                    genomes[gid].ncbi_taxa.species,
+                                    genomes[gid].gtdb_taxa.species))
                         
-        ani, af, closest_gid = type_radius[gid]
+        ani, af, closest_gid = rep_radius[gid]
         if not af:
             af = 0
             
@@ -240,7 +241,7 @@ def write_clusters(clusters, type_radius, species, out_file):
             closest_gid = 'N/A'
             closest_sp = 'N/A'
         else:
-            closest_sp = species[closest_gid]
+            closest_sp = proposed_sp[closest_gid]
         
         fout.write('\t%s\t%s\t%.2f\t%.2f' % (closest_sp,
                                                 closest_gid,
@@ -255,14 +256,14 @@ def write_clusters(clusters, type_radius, species, out_file):
     fout.close()
     
     
-def write_type_radius(type_radius, species, out_file):
-    """Write out ANI radius for each type genomes."""
+def write_rep_radius(rep_radius, proposed_sp, genomes, out_file):
+    """Write out ANI radius for each representative genomes."""
 
     fout = open(out_file, 'w')
-    fout.write('NCBI species\tType genome\tANI\tAF\tClosest species\tClosest type genome\n')
+    fout.write('Representative\tProposed species\tNCBI species\tGTDB species\tANI\tAF\tClosest species\tClosest representative\n')
     
-    for gid in type_radius:
-        ani, af, neighbour_gid = type_radius[gid]
+    for gid in rep_radius:
+        ani, af, neighbour_gid = rep_radius[gid]
         if not af:
             af = 0
             
@@ -270,10 +271,12 @@ def write_type_radius(type_radius, species, out_file):
             neighbour_gid = 'N/A'
             neighbour_sp = 'N/A'
         else:
-            neighbour_sp = species[neighbour_gid]
+            neighbour_sp = proposed_sp[neighbour_gid]
         
-        fout.write('%s\t%s\t%.2f\t%.2f\t%s\t%s\n' % (species[gid],
-                                                        gid,
+        fout.write('%s\t%st%s\t%s\t%.2f\t%.2f\t%s\t%s\n' % (gid,
+                                                        proposed_sp[gid],
+                                                        genomes[gid].ncbi_taxa.species,
+                                                        genomes[gid].gtdb_taxa.species,
                                                         ani,
                                                         af,
                                                         neighbour_sp,

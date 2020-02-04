@@ -33,27 +33,24 @@ from biolib.external.execute import check_dependencies
 from numpy import (mean as np_mean,
                     std as np_std)
 
-from gtdb_species_clusters.common import read_gtdb_metadata
-                                    
-from gtdb_species_clusters.genome_utils import (read_genome_path,
-                                                exclude_from_refseq,
-                                                read_qc_file)
-                                                
-from gtdb_species_clusters.taxon_utils import (read_gtdb_taxonomy,
-                                            read_gtdb_ncbi_taxonomy)
-                                    
-from gtdb_species_clusters.type_genome_utils import (GenomeRadius,
-                                            quality_score,
-                                            read_quality_metadata,
-                                            symmetric_ani,
-                                            write_clusters,
-                                            write_type_radius)
-                                    
-from gtdb_species_clusters.fastani import FastANI
 from gtdb_species_clusters.mash import Mash
+from gtdb_species_clusters.fastani import FastANI
 
-class ClusterDeNovo(object):
-    """Infer de novo species clusters and type genomes for remaining genomes."""
+from gtdb_species_clusters.genome import Genome
+from gtdb_species_clusters.genomes import Genomes
+from gtdb_species_clusters.species_clusters import SpeciesClusters
+                                    
+from gtdb_species_clusters.genome_utils import (canonical_gid,
+                                                read_qc_file,
+                                                exclude_from_refseq)
+
+from gtdb_species_clusters.type_genome_utils import (GenomeRadius,
+                                                        symmetric_ani,
+                                                        write_rep_radius,
+                                                        write_clusters)
+
+class UpdateClusterDeNovo(object):
+    """Infer de novo species clusters and representatives for remaining genomes."""
 
     def __init__(self, ani_sp, af_sp, ani_cache_file, cpus, output_dir):
         """Initialization."""
@@ -76,46 +73,49 @@ class ClusterDeNovo(object):
         
         self.fastani = FastANI(ani_cache_file, cpus)
         
-    def _parse_type_clusters(self, type_genome_cluster_file):
-        """Parse type genomes clustering information."""
+    def _parse_named_clusters(self, named_cluster_file):
+        """Parse named GTDB species clusters."""
         
-        type_species = set()
-        species_type_gid = {}
-        type_gids = set()
-        type_clustered_gids = set()
-        type_radius = {}
-        with open(type_genome_cluster_file) as f:
+        rep_species = set()
+        species_rep_gid = {}
+        rep_gids = set()
+        rep_clustered_gids = set()
+        rep_radius = {}
+        with open(named_cluster_file) as f:
             headers = f.readline().strip().split('\t')
             
-            type_sp_index = headers.index('NCBI species')
-            type_genome_index = headers.index('Type genome')
+            rep_index = headers.index('Representative')
+            sp_index = headers.index('Proposed species')
             num_clustered_index = headers.index('No. clustered genomes')
             clustered_genomes_index = headers.index('Clustered genomes')
-            closest_type_index = headers.index('Closest type genome')
+            closest_type_index = headers.index('Closest representative')
             ani_radius_index = headers.index('ANI radius')
             af_index = headers.index('AF closest')
 
             for line in f:
                 line_split = line.strip().split('\t')
                 
-                type_sp = line_split[type_sp_index]
-                type_species.add(type_sp)
+                sp = line_split[sp_index]
+                if sp in rep_species:
+                    self.logger.error('Proposed species represented by multiple genomes: {}'.format(sp))
+                    sys.exit(-1)
+                rep_species.add(sp)
                 
-                type_gid = line_split[type_genome_index]
-                type_gids.add(type_gid)
+                rep_gid = line_split[rep_index]
+                rep_gids.add(rep_gid)
                 
-                species_type_gid[type_gid] = type_sp
+                species_rep_gid[rep_gid] = sp
                 
                 num_clustered = int(line_split[num_clustered_index])
                 if num_clustered > 0:
                     for gid in [g.strip() for g in line_split[clustered_genomes_index].split(',')]:
-                        type_clustered_gids.add(gid)
+                        rep_clustered_gids.add(gid)
                         
-                type_radius[type_gid] = GenomeRadius(ani = float(line_split[ani_radius_index]), 
+                rep_radius[rep_gid] = GenomeRadius(ani = float(line_split[ani_radius_index]), 
                                                      af = float(line_split[af_index]),
                                                      neighbour_gid = line_split[closest_type_index])
                         
-        return type_species, species_type_gid, type_gids, type_clustered_gids, type_radius
+        return rep_species, species_rep_gid, rep_gids, rep_clustered_gids, rep_radius
         
     def _parse_synonyms(self, type_genome_synonym_file):
         """Parse synonyms."""
@@ -134,39 +134,39 @@ class ClusterDeNovo(object):
                 
         return synonyms
         
-    def _nontype_radius(self, unclustered_gids, type_gids, ani_af_nontype_vs_type):
+    def _nonrep_radius(self, unclustered_gids, rep_gids, ani_af_rep_vs_nonrep):
         """Calculate circumscription radius for unclustered, nontype genomes."""
         
-        # set type radius for all type genomes to default values
-        nontype_radius = {}
+        # set radius for genomes to default values
+        nonrep_radius = {}
         for gid in unclustered_gids:
-            nontype_radius[gid] = GenomeRadius(ani = self.ani_sp, 
+            nonrep_radius[gid] = GenomeRadius(ani = self.ani_sp, 
                                                      af = None,
                                                      neighbour_gid = None)
 
         # determine closest type ANI neighbour and restrict ANI radius as necessary
-        ani_af = pickle.load(open(ani_af_nontype_vs_type, 'rb'))
-        for nontype_gid in unclustered_gids:
-            if nontype_gid not in ani_af:
+        ani_af = pickle.load(open(ani_af_rep_vs_nonrep, 'rb'))
+        for nonrep_gid in unclustered_gids:
+            if nonrep_gid not in ani_af:
                 continue
                     
-            for type_gid in type_gids:
-                if type_gid not in ani_af[nontype_gid]:
+            for rep_gid in rep_gids:
+                if rep_gid not in ani_af[nonrep_gid]:
                     continue
                     
-                ani, af = symmetric_ani(ani_af, nontype_gid, type_gid)
+                ani, af = symmetric_ani(ani_af, nonrep_gid, rep_gid)
 
-                if ani > nontype_radius[nontype_gid].ani and af >= self.af_sp:
-                    nontype_radius[nontype_gid] = GenomeRadius(ani = ani, 
-                                                                 af = af,
-                                                                 neighbour_gid = type_gid)
+                if ani > nonrep_radius[nonrep_gid].ani and af >= self.af_sp:
+                    nonrep_radius[nonrep_gid] = GenomeRadius(ani = ani, 
+                                                             af = af,
+                                                             neighbour_gid = rep_gid)
                     
-        self.logger.info('ANI circumscription radius: min=%.2f, mean=%.2f, max=%.2f' % (
-                                min([d.ani for d in nontype_radius.values()]), 
-                                np_mean([d.ani for d in nontype_radius.values()]), 
-                                max([d.ani for d in nontype_radius.values()])))
+        self.logger.info('ANI circumscription radius: min={:.2f}, mean={:.2f}, max={:.2f}'.format(
+                                min([d.ani for d in nonrep_radius.values()]), 
+                                np_mean([d.ani for d in nonrep_radius.values()]), 
+                                max([d.ani for d in nonrep_radius.values()])))
                         
-        return nontype_radius
+        return nonrep_radius
         
     def _mash_ani_unclustered(self, genome_files, gids):
         """Calculate pairwise Mash ANI estimates between genomes."""
@@ -199,24 +199,17 @@ class ClusterDeNovo(object):
         return mash_ani
         
     def _selected_rep_genomes(self,
+                                cur_genomes,
                                 genome_files,
-                                nontype_radius, 
+                                nonrep_radius, 
                                 unclustered_qc_gids, 
-                                mash_ani,
-                                quality_metadata,
-                                rnd_type_genome):
+                                mash_ani):
         """Select representative genomes for species clusters in a  greedy fashion using species-specific ANI thresholds."""
 
         # sort genomes by quality score
-        if rnd_type_genome:
-            self.logger.info('Selecting random de novo type genomes.')
-            sorted_gids = []
-            for gid in random.sample(unclustered_qc_gids, len(unclustered_qc_gids)):
-                sorted_gids.append((gid, 0))
-        else:
-            self.logger.info('Selecting de novo type genomes in a greedy manner based on quality.')
-            qscore = quality_score(unclustered_qc_gids, quality_metadata)
-            sorted_gids = sorted(qscore.items(), key=operator.itemgetter(1), reverse=True)
+        self.logger.info('Selecting de novo representatives in a greedy manner based on quality.')
+        q = {gid:cur_genomes[gid].score_type_strain() for gid in unclustered_qc_gids}
+        q_sorted = sorted(q.items(), key=operator.itemgetter(1), reverse=True)
 
         # greedily determine representatives for new species clusters
         cluster_rep_file = os.path.join(self.output_dir, 'cluster_reps.tsv')
@@ -255,12 +248,12 @@ class ClusterDeNovo(object):
                                 closest_rep_ani = ani
                                 closest_rep_af = af
 
-                        if ani > nontype_radius[cur_gid].ani and af >= self.af_sp:
-                            nontype_radius[cur_gid] = GenomeRadius(ani = ani, 
+                        if ani > nonrep_radius[cur_gid].ani and af >= self.af_sp:
+                            nonrep_radius[cur_gid] = GenomeRadius(ani = ani, 
                                                                          af = af,
                                                                          neighbour_gid = rep_gid)
                                                                          
-                    if closest_rep_gid and closest_rep_ani > nontype_radius[closest_rep_gid].ani:
+                    if closest_rep_gid and closest_rep_ani > nonrep_radius[closest_rep_gid].ani:
                         clustered = True
                     
                 if not clustered:
@@ -270,14 +263,14 @@ class ClusterDeNovo(object):
                     clustered_genomes += 1
                 
                 if (idx+1) % 10 == 0 or idx+1 == len(sorted_gids):
-                    statusStr = '-> Clustered %d of %d (%.2f%%) genomes [ANI pairs: %d; clustered genomes: %d; clusters: %d].'.ljust(96) % (
+                    statusStr = '-> Clustered {:,} of {:,} ({:.2f}%) genomes [ANI pairs: {:,}; clustered genomes: {:,}; clusters: {:,}].'.format(
                                     idx+1, 
                                     len(sorted_gids), 
                                     float(idx+1)*100/len(sorted_gids),
                                     max_ani_pairs,
                                     clustered_genomes,
-                                    len(clusters))
-                    sys.stdout.write('%s\r' % statusStr)
+                                    len(clusters)).ljust(96)
+                    sys.stdout.write('{}\r'.format(statusStr))
                     sys.stdout.flush()
                     max_ani_pairs = 0
             sys.stdout.write('\n')
@@ -285,7 +278,7 @@ class ClusterDeNovo(object):
             # write out selected cluster representative
             fout = open(cluster_rep_file, 'w')
             for gid in clusters:
-                fout.write('%s\n' % gid)
+                fout.write('{}\n'.format(gid))
             fout.close()
         else:
             # read cluster reps from file
@@ -294,34 +287,35 @@ class ClusterDeNovo(object):
                 gid = line.strip()
                 clusters.add(gid)
                 
-        self.logger.info('Selected %d representative genomes for de novo species clusters.' % len(clusters))
+        self.logger.info('Selected {:,} representative genomes for de novo species clusters.'.format(len(clusters)))
         
         return clusters
         
-    def _cluster_genomes(self, 
+    def _cluster_genomes(self,
+                            cur_genomes,
                             genome_files,
                             rep_genomes,
-                            type_gids, 
+                            named_rep_gids, 
                             passed_qc,
                             final_cluster_radius):
-        """Cluster all non-type/representative genomes to selected type/representatives genomes."""
+        """Cluster new representatives to representatives of named GTDB species clusters."""
 
-        all_reps = rep_genomes.union(type_gids)
+        all_reps = rep_genomes.union(named_rep_gids)
         
         # calculate MASH distance between non-type/representative genomes and selected type/representatives genomes
         mash = Mash(self.cpus)
         
-        mash_type_rep_sketch_file = os.path.join(self.output_dir, 'gtdb_rep_genomes.msh')
-        type_rep_genome_list_file = os.path.join(self.output_dir, 'gtdb_rep_genomes.lst')
-        mash.sketch(all_reps, genome_files, type_rep_genome_list_file, mash_type_rep_sketch_file)
+        mash_rep_sketch_file = os.path.join(self.output_dir, 'gtdb_rep_genomes.msh')
+        rep_genome_list_file = os.path.join(self.output_dir, 'gtdb_rep_genomes.lst')
+        mash.sketch(all_reps, genome_files, rep_genome_list_file, mash_rep_sketch_file)
         
         mash_none_rep_sketch_file = os.path.join(self.output_dir, 'gtdb_nonrep_genomes.msh')
-        type_none_rep_file = os.path.join(self.output_dir, 'gtdb_nonrep_genomes.lst')
-        mash.sketch(passed_qc - all_reps, genome_files, type_none_rep_file, mash_none_rep_sketch_file)
+        non_rep_file = os.path.join(self.output_dir, 'gtdb_nonrep_genomes.lst')
+        mash.sketch(cur_genomes.genomes.keys() - all_reps, genome_files, non_rep_file, mash_none_rep_sketch_file)
 
         # get Mash distances
         mash_dist_file = os.path.join(self.output_dir, 'gtdb_rep_vs_nonrep_genomes.dst')
-        mash.dist(float(100 - self.min_mash_ani)/100, mash_type_rep_sketch_file, mash_none_rep_sketch_file, mash_dist_file)
+        mash.dist(float(100 - self.min_mash_ani)/100, mash_rep_sketch_file, mash_none_rep_sketch_file, mash_dist_file)
 
         # read Mash distances
         mash_ani = mash.read_ani(mash_dist_file)
@@ -340,7 +334,7 @@ class ClusterDeNovo(object):
                         ani_pairs.append((gid, rep_gid))
                         ani_pairs.append((rep_gid, gid))
                         
-        self.logger.info('Calculating ANI between %d species clusters and %d unclustered genomes (%d pairs):' % (
+        self.logger.info('Calculating ANI between {:,} species clusters and {:,} unclustered genomes ({:,} pairs):'.format(
                             len(clusters), 
                             len(genomes_to_cluster),
                             len(ani_pairs)))
@@ -367,25 +361,25 @@ class ClusterDeNovo(object):
                                                                         ani=closest_rep_ani, 
                                                                         af=closest_rep_af))
             else:
-                self.logger.warning('Failed to assign genome %s to representative.' % cur_gid)
+                self.logger.warning('Failed to assign genome {} to representative.'.format(cur_gid))
                 if closest_rep_gid:
-                    self.logger.warning(' ...closest_rep_gid = %s' % closest_rep_gid)
-                    self.logger.warning(' ...closest_rep_ani = %.2f' % closest_rep_ani)
-                    self.logger.warning(' ...closest_rep_af = %.2f' % closest_rep_af)
-                    self.logger.warning(' ...closest rep radius = %.2f' % final_cluster_radius[closest_rep_gid].ani)
+                    self.logger.warning(' ...closest_rep_gid = {}'.format(closest_rep_gid))
+                    self.logger.warning(' ...closest_rep_ani = {:.2f}'.format(closest_rep_ani))
+                    self.logger.warning(' ...closest_rep_af = {:.2f}'.format(closest_rep_af))
+                    self.logger.warning(' ...closest rep radius = {:.2f}'.format(final_cluster_radius[closest_rep_gid].ani))
                 else:
-                    self.logger.warning(' ...no representative with an AF >%.2f identified.' % self.af_sp)
+                    self.logger.warning(' ...no representative with an AF >{:.2f} identified.'.format(self.af_sp))
              
-            statusStr = '-> Assigned %d of %d (%.2f%%) genomes.'.ljust(86) % (idx+1, 
+            statusStr = '-> Assigned {:,} of {:,} ({:.2f%}) genomes.'.format(idx+1, 
                                                                                 len(genomes_to_cluster), 
-                                                                                float(idx+1)*100/len(genomes_to_cluster))
-            sys.stdout.write('%s\r' % statusStr)
+                                                                                float(idx+1)*100/len(genomes_to_cluster)).ljust(86)
+            sys.stdout.write('{}\r'.format(statusStr))
             sys.stdout.flush()
         sys.stdout.write('\n')
 
         return clusters, ani_af
         
-    def _assign_species_names(self, clusters, names_in_use, gtdb_taxonomy, gtdb_user_to_genbank):
+    def _assign_species_names(self, cur_genomes, clusters, names_in_use):
         """Assign a species name to each species cluster."""
         
         orig_names_in_use = set(names_in_use)
@@ -397,7 +391,7 @@ class ClusterDeNovo(object):
             clustered_gids = [c.gid for c in clusters[rid]]
             
             # find most common genus name in cluster
-            gtdb_genera = [gtdb_taxonomy[gid][5] for gid in clustered_gids] + [gtdb_taxonomy[rid][5]]
+            gtdb_genera = [cur_genomes[gid].gtdb_taxa.genus for gid in clustered_gids] + [cur_genomes[rid].gtdb_taxa.genus]
             gtdb_genus_counter = Counter(gtdb_genera)
             gtdb_common_genus = None 
             gtdb_common_genus_count = 0
@@ -409,12 +403,12 @@ class ClusterDeNovo(object):
                     
             # in case of ties involving genus of representative genome, 
             # defer to classification of representative
-            rep_genus = gtdb_taxonomy[rid][5]
+            rep_genus = cur_genomes[rid].gtdb_taxa.genus
             if gtdb_genus_counter[rep_genus] == gtdb_common_genus_count and rep_genus != 'g__':
                 gtdb_common_genus = rep_genus
             
             # get most common GTDB species name 
-            gtdb_sp = [gtdb_taxonomy[gid][6] for gid in clustered_gids] + [gtdb_taxonomy[rid][6]]
+            gtdb_sp = [cur_genomes[gid].gtdb_taxa.species for gid in clustered_gids] + [cur_genomes[rid].gtdb_taxa.species]
             gtdb_sp_counter = Counter(gtdb_sp)
             gtdb_common_sp = None
             gtdb_common_sp_count = 0
@@ -441,25 +435,21 @@ class ClusterDeNovo(object):
                 
                 acc = rid
                 if rid.startswith('U_'):
-                    if rid in gtdb_user_to_genbank:
-                        acc = gtdb_user_to_genbank[rid]
-                    else:
-                        # create accession from GTDB User ID of the form:
-                        # U_<number>u.0 which will give 'sp<number>u'
-                        acc = 'U_' + rid.replace('U_', '') + 'u.0'
+                    self.logger.error('User genome was selected as the representative for a new species cluster.')
+                    sys.exit(-1)
 
-                derived_sp = 's__' + '%s sp%s' % (genus, acc[acc.rfind('_')+1:acc.rfind('.')])
+                derived_sp = 's__' + '{} sp{}'.format(genus, acc[acc.rfind('_')+1:acc.rfind('.')])
                 if derived_sp in names_in_use:
-                    self.logger.error('Derived species name already in use: %s, %s' % (derived_sp, acc))
+                    self.logger.error('Derived species name already in use: {}, {}'.format(derived_sp, acc))
                     sys.exit(-1)
 
                 names_in_use.add(derived_sp)
                 cluster_sp_names[rid] = derived_sp
                 
-            fout.write('%s\t%s\t%s\t%d\t%s\t%s\t%s\t%s\t%s\n' % (
+            fout.write('{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\n'.format(
                         rid, 
                         cluster_sp_names[rid],
-                        '; '.join(gtdb_taxonomy[rid]),
+                        cur_genomes[rid].gtdb_taxa,
                         len(clustered_gids),
                         ', '.join("%s=%r" % (genus, count) for (genus, count) in gtdb_genus_counter.most_common()),
                         ', '.join("%s=%r" % (sp, count) for (sp, count) in gtdb_sp_counter.most_common()),
@@ -472,38 +462,37 @@ class ClusterDeNovo(object):
         return cluster_sp_names
         
     def _write_rep_info(self, 
+                        cur_genomes,
                         clusters, 
                         cluster_sp_names, 
-                        quality_metadata, 
-                        genome_quality,
                         excluded_from_refseq_note,
                         ani_af,
                         output_file):
         """Write out information about selected representative genomes."""
                                             
         fout = open(output_file, 'w')
-        fout.write('Species\tType genome\tNCBI assembly level\tNCBI genome category')
+        fout.write('Species\tRepresentative\tNCBI assembly level\tNCBI genome category')
         fout.write('\tGenome size (bp)\tQuality score\tCompleteness (%)\tContamination (%)\tNo. scaffolds\tNo. contigs\tN50 contigs\tAmbiguous bases\tSSU count\tSSU length (bp)')
         fout.write('\tNo. genomes in cluster\tMean ANI\tMean AF\tMin ANI\tMin AF\tNCBI exclude from RefSeq\n')
         
         for gid in clusters:
-            fout.write('%s\t%s\t%s\t%s' % (
+            fout.write('{}\t{}\t{}\t{}'.format(
                         cluster_sp_names[gid], 
                         gid, 
-                        quality_metadata[gid].ncbi_assembly_level,
-                        quality_metadata[gid].ncbi_genome_category))
+                        cur_genomes[gid].ncbi_assembly_level,
+                        cur_genomes[gid].ncbi_genome_category))
 
-            fout.write('\t%d\t%.2f\t%.2f\t%.2f\t%d\t%d\t%.1f\t%d\t%d\t%d' % (
-                            quality_metadata[gid].genome_size,
-                            genome_quality[gid], 
-                            quality_metadata[gid].checkm_completeness,
-                            quality_metadata[gid].checkm_contamination,
-                            quality_metadata[gid].scaffold_count,
-                            quality_metadata[gid].contig_count,
-                            quality_metadata[gid].n50_contigs,
-                            quality_metadata[gid].ambiguous_bases,
-                            quality_metadata[gid].ssu_count,
-                            quality_metadata[gid].ssu_length if quality_metadata[gid].ssu_length else 0))
+            fout.write('\t{}\t{:.2f}\t{:.2f}\t{:.2f}\t{}\t{}\t{:.1f}\t{}\t{}\t{}'.format(
+                            cur_genomes[gid].length,
+                            cur_genomes[gid].score_assembly(), 
+                            cur_genomes[gid].comp,
+                            cur_genomes[gid].cont,
+                            cur_genomes[gid].scaffold_count,
+                            cur_genomes[gid].contig_count,
+                            cur_genomes[gid].contig_n50,
+                            cur_genomes[gid].ambiguous_bases,
+                            cur_genomes[gid].ssu_count,
+                            cur_genomes[gid].ssu_length))
                             
             anis = []
             afs = []
@@ -513,12 +502,12 @@ class ClusterDeNovo(object):
                 afs.append(af)
             
             if anis:
-                fout.write('\t%d\t%.1f\t%.2f\t%.1f\t%.2f\t%s\n' % (len(clusters[gid]),
+                fout.write('\t{}\t{:.1f}\t{:.2f}\t{:.1f}\t{:.2f}\t{}\n'.format(len(clusters[gid]),
                                                                     np_mean(anis), np_mean(afs),
                                                                     min(anis), min(afs),
                                                                     excluded_from_refseq_note.get(gid, '')))
             else:
-                fout.write('\t%d\t%s\t%s\t%s\t%s\t%s\n' % (len(clusters[gid]),
+                fout.write('\t{}\t{}\t{}\t{}\t{}\t{}\n'.format(len(clusters[gid]),
                                                             'n/a', 'n/a', 'n/a', 'n/a',
                                                             excluded_from_refseq_note.get(gid, '')))
         fout.close()
@@ -543,86 +532,69 @@ class ClusterDeNovo(object):
 
         return user_to_genbank
 
-    def run(self, qc_file,
-                metadata_file,
-                gtdb_user_genomes_file,
-                genome_path_file,
-                type_genome_cluster_file,
-                type_genome_synonym_file,
-                ncbi_refseq_assembly_file,
-                ncbi_genbank_assembly_file,
-                ani_af_nontype_vs_type,
-                species_exception_file,
-                rnd_type_genome):
-        """Infer de novo species clusters and type genomes for remaining genomes."""
+    def run(self, qc_passed_file,
+                    cur_gtdb_metadata_file,
+                    cur_genomic_path_file,
+                    uba_genome_paths,
+                    named_cluster_file,
+                    synonym_file,
+                    ncbi_genbank_assembly_file,
+                    ani_af_rep_vs_nonrep,
+                    species_exception_file,
+                    genus_exception_file,
+                    gtdb_type_strains_ledger):
+        """Infer de novo species clusters and representatives for remaining genomes."""
         
-        # identify genomes failing quality criteria
-        self.logger.info('Reading QC file.')
-        passed_qc = read_qc_file(qc_file)
-        self.logger.info('Identified %d genomes passing QC.' % len(passed_qc))
+        # create current GTDB genome sets
+        self.logger.info('Creating current GTDB genome set.')
+        cur_genomes = Genomes()
+        cur_genomes.load_from_metadata_file(cur_gtdb_metadata_file,
+                                                species_exception_file,
+                                                genus_exception_file,
+                                                gtdb_type_strains_ledger=gtdb_type_strains_ledger,
+                                                create_sp_clusters=False,
+                                                uba_genome_file=uba_genome_paths,
+                                                qc_passed_file=qc_passed_file)
+        self.logger.info(f' ... current genome set contains {len(cur_genomes):,} genomes.')
         
-        # get NCBI taxonomy strings for each genome
-        self.logger.info('Reading NCBI taxonomy from GTDB metadata file.')
-        ncbi_taxonomy, ncbi_update_count = read_gtdb_ncbi_taxonomy(metadata_file, species_exception_file)
-        gtdb_taxonomy = read_gtdb_taxonomy(metadata_file)
-        self.logger.info('Read NCBI taxonomy for %d genomes with %d manually defined updates.' % (len(ncbi_taxonomy), ncbi_update_count))
-        self.logger.info('Read GTDB taxonomy for %d genomes.' % len(gtdb_taxonomy))
-        
-        # parse NCBI assembly files
-        self.logger.info('Parsing NCBI assembly files.')
-        excluded_from_refseq_note = exclude_from_refseq(ncbi_refseq_assembly_file, ncbi_genbank_assembly_file)
+        # get path to previous and current genomic FASTA files
+        self.logger.info('Reading path to current genomic FASTA files.')
+        cur_genomes.load_genomic_file_paths(cur_genomic_path_file)
+        cur_genomes.load_genomic_file_paths(uba_genome_paths)
 
-        # get path to genome FASTA files
-        self.logger.info('Reading path to genome FASTA files.')
-        genome_files = read_genome_path(genome_path_file)
-        self.logger.info('Read path for %d genomes.' % len(genome_files))
-        for gid in set(genome_files):
-            if gid not in passed_qc:
-                genome_files.pop(gid)
-        self.logger.info('Considering %d genomes as potential representatives after removing unwanted User genomes.' % len(genome_files))
-        assert(len(genome_files) == len(passed_qc))
-        
         # determine type genomes and genomes clustered to type genomes
-        type_species, species_type_gid, type_gids, type_clustered_gids, type_radius = self._parse_type_clusters(type_genome_cluster_file)
-        assert(len(type_species) == len(type_gids))
-        self.logger.info('Identified %d type genomes.' % len(type_gids))
-        self.logger.info('Identified %d clustered genomes.' % len(type_clustered_gids))
+        rep_species, species_rep_gid, named_rep_gids, rep_clustered_gids, rep_radius = self._parse_named_clusters(named_cluster_file)
+        assert(len(rep_species) == len(named_rep_gids))
+        self.logger.info('Identified {:,} type genomes.'.format(len(named_rep_gids)))
+        self.logger.info('Identified {:,} clustered genomes.'.format(len(rep_clustered_gids)))
         
-        # calculate quality score for genomes
-        self.logger.info('Parse quality statistics for all genomes.')
-        quality_metadata = read_quality_metadata(metadata_file)
-        
-        # calculate genome quality score
-        self.logger.info('Calculating genome quality score.')
-        genome_quality = quality_score(quality_metadata.keys(), quality_metadata)
-
         # determine genomes left to be clustered
-        unclustered_gids = passed_qc - type_gids - type_clustered_gids
-        self.logger.info('Identified %d unclustered genomes passing QC.' % len(unclustered_gids))
+        unclustered_gids = cur_genomes.genomes.keys() - named_rep_gids - rep_clustered_gids
+        self.logger.info('Identified {:,} unclustered genomes passing QC.'.format(len(unclustered_gids)))
 
-        # establish closest type genome for each unclustered genome
-        self.logger.info('Determining ANI circumscription for %d unclustered genomes.' % len(unclustered_gids))
-        nontype_radius = self._nontype_radius(unclustered_gids, type_gids, ani_af_nontype_vs_type)
-        
+        # establish closest representative for each unclustered genome
+        self.logger.info('Determining ANI circumscription for {:,} unclustered genomes.' % len(unclustered_gids))
+        nonrep_radius = self._nonrep_radius(unclustered_gids, named_rep_gids, ani_af_rep_vs_nonrep)
+
         # calculate Mash ANI estimates between unclustered genomes
         self.logger.info('Calculating Mash ANI estimates between unclustered genomes.')
-        mash_anis = self._mash_ani_unclustered(genome_files, unclustered_gids)
+        mash_anis = self._mash_ani_unclustered(cur_genomes.genomic_files, unclustered_gids)
 
         # select species representatives genomes in a greedy fashion based on genome quality
-        rep_genomes = self._selected_rep_genomes(genome_files,
-                                                    nontype_radius, 
+        rep_genomes = self._selected_rep_genomes(cur_genomes,
+                                                    cur_genomes.genomic_files,
+                                                    nonrep_radius, 
                                                     unclustered_gids, 
-                                                    mash_anis,
-                                                    quality_metadata,
-                                                    rnd_type_genome)
-        
+                                                    mash_anis)
+
         # cluster all non-type/non-rep genomes to species type/rep genomes
-        final_cluster_radius = type_radius.copy()
-        final_cluster_radius.update(nontype_radius)
+        final_cluster_radius = rep_radius.copy()
+        final_cluster_radius.update(nonrep_radius)
         
-        final_clusters, ani_af = self._cluster_genomes(genome_files,
+        final_clusters, ani_af = self._cluster_genomes(cur_genomes,
+                                                        cur_genomes.genomic_files,
                                                         rep_genomes,
-                                                        type_gids, 
+                                                        named_rep_gids, 
                                                         passed_qc,
                                                         final_cluster_radius)
         rep_clusters = {}
@@ -630,27 +602,25 @@ class ClusterDeNovo(object):
             rep_clusters[gid] = final_clusters[gid]
 
         # get list of synonyms in order to restrict usage of species names
-        synonyms = self._parse_synonyms(type_genome_synonym_file)
-        self.logger.info('Identified %d synonyms.' % len(synonyms))
-        
-        # determine User genomes with NCBI accession number that may form species names
-        gtdb_user_to_genbank = self._gtdb_user_genomes(gtdb_user_genomes_file, metadata_file)
-        self.logger.info('Identified %d GTDB User genomes with NCBI accessions.' % len(gtdb_user_to_genbank))
+        synonyms = self._parse_synonyms(synonym_file)
+        self.logger.info('Identified {:,} synonyms.'.format(len(synonyms)))
         
         # assign species names to de novo species clusters
-        names_in_use = synonyms.union(type_species)
-        self.logger.info('Identified %d species names already in use.' % len(names_in_use))
+        names_in_use = synonyms.union(rep_species)
+        self.logger.info('Identified {:,} species names already in use.'.format(len(names_in_use)))
         self.logger.info('Assigning species name to each de novo species cluster.')
-        cluster_sp_names = self._assign_species_names(rep_clusters, 
-                                                        names_in_use, 
-                                                        gtdb_taxonomy,
-                                                        gtdb_user_to_genbank)
+        cluster_sp_names = self._assign_species_names(cur_genomes,
+                                                        rep_clusters, 
+                                                        names_in_use)
+                                                        
+        # parse NCBI assembly files
+        self.logger.info('Parsing NCBI assembly files.')
+        excluded_from_refseq_note = exclude_from_refseq(ncbi_genbank_assembly_file)
         
          # write out file with details about selected representative genomes
-        self._write_rep_info(rep_clusters, 
+        self._write_rep_info(cur_genomes,
+                                rep_clusters, 
                                 cluster_sp_names,
-                                quality_metadata,
-                                genome_quality,
                                 excluded_from_refseq_note,
                                 ani_af,
                                 os.path.join(self.output_dir, 'gtdb_rep_genome_info.tsv'))
@@ -660,17 +630,20 @@ class ClusterDeNovo(object):
             del final_cluster_radius[gid]
             
         all_species = cluster_sp_names
-        all_species.update(species_type_gid)
+        all_species.update(species_rep_gid)
 
-        self.logger.info('Writing %d species clusters to file.' % len(all_species))
-        self.logger.info('Writing %d cluster radius information to file.' % len(final_cluster_radius))
+        self.logger.info('Writing {:,} species clusters to file.'.format(len(all_species)))
+        self.logger.info('Writing {:,} cluster radius information to file.'.format(len(final_cluster_radius)))
         
         write_clusters(final_clusters, 
                         final_cluster_radius, 
-                        all_species, 
+                        all_species,
+                        cur_genomes,
                         os.path.join(self.output_dir, 'gtdb_clusters_final.tsv'))
 
-        write_type_radius(final_cluster_radius, 
+        write_rep_radius(final_cluster_radius, 
                             all_species, 
+                            cur_genomes,
                             os.path.join(self.output_dir, 'gtdb_ani_radius_final.tsv'))
+
         

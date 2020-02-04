@@ -392,12 +392,12 @@ class RepActions(object):
                 continue
                 
             prev_gtdb_sp = new_updated_sp_clusters.get_species(prev_rid)
-            statusStr = '-> Processing {:,} of {:,} ({:.2f}%) species [{}: {:,} new/updated genomes].'.ljust(86).format(
+            statusStr = '-> Processing {:,} of {:,} ({:.2f}%) species [{}: {:,} new/updated genomes].'.format(
                                 idx+1, 
                                 len(new_updated_sp_clusters), 
                                 float(idx+1)*100/len(new_updated_sp_clusters),
                                 prev_gtdb_sp,
-                                len(cids))
+                                len(cids)).ljust(86)
             sys.stdout.write('%s\r' % statusStr)
             sys.stdout.flush()
             
@@ -498,7 +498,8 @@ class RepActions(object):
         fout = open(os.path.join(self.output_dir, 'species_changes.improved_reps.tsv'), 'w')
         fout.write('Action')
         fout.write('\tOriginal ID\tType strain\tPriority year\tGTDB species\tPrevious NCBI species\tCurrent NCBI species')
-        fout.write('\tNew ID\tType strain\tPriority year\tPrevious NCBI species\tCurrent NCBI species\tUpdated GTDB species\n')
+        fout.write('\tNew ID\tType strain\tPriority year\tPrevious NCBI species\tCurrent NCBI species\tUpdated GTDB species')
+        fout.write('\tConflicting ID\tANI to new ID\tAF to new ID\n')
         updated_reps = set(improved_reps.values())
         for new_rid in cur_genomes.sort_by_assembly_score():
             if new_rid not in updated_reps:
@@ -511,7 +512,7 @@ class RepActions(object):
                 
             orig_rid = orig_rids[0]
             actions = self.sp_name_manager.update(orig_rid, new_rid)
-            for action, prev_rid, cur_rid, cur_gtdb_sp in actions:
+            for action, prev_rid, cur_rid, cur_gtdb_sp, conflicting_rid, ani, af in actions:
                 action_count[action] += 1
                 self.update_rep(prev_rid, cur_rid)
                 
@@ -532,7 +533,12 @@ class RepActions(object):
                     
                 fout.write(f'{action}')
                 fout.write(f'\t{prev_rid}\t{prev_is_type_strain}\t{cur_genomes[prev_rid].year_of_priority()}\t{orig_prev_gtdb_sp}\t{orig_prev_ncbi_sp}\t{orig_cur_ncbi_sp}')
-                fout.write(f'\t{cur_rid}\t{cur_is_type_strain}\t{cur_genomes[cur_rid].year_of_priority()}\t{new_prev_ncbi_sp}\t{new_cur_ncbi_sp}\t{cur_gtdb_sp}\n')
+                fout.write(f'\t{cur_rid}\t{cur_is_type_strain}\t{cur_genomes[cur_rid].year_of_priority()}\t{new_prev_ncbi_sp}\t{new_cur_ncbi_sp}\t{cur_gtdb_sp}')
+                
+                if conflicting_rid:
+                    fout.write('\t{}\t{:.2f}\t{:.3f}\n'.format(conflicting_rid, ani, af))
+                else:
+                    fout.write('\tn/a\tn/a\tn/a\n')
                 
                 params = {}
                 params['orig_gtdb_sp'] = orig_prev_gtdb_sp
@@ -583,14 +589,14 @@ class RepActions(object):
         fout = open(os.path.join(self.output_dir, 'species_changes.ncbi_sp_update.tsv'), 'w')
         fout.write('Action')
         fout.write('\tGenome ID\tGTDB species\tPrevious NCBI species\tCurrent NCBI species\tUpdated GTDB species')
-        fout.write('\tPrevious type strain\tCurrent type strain\n')
-
+        fout.write('\tPrevious type strain\tCurrent type strain')
+        fout.write('\tConflicting ID\tANI to new ID\tAF to new ID\n')
         for rid in cur_genomes.sort_by_assembly_score():
             if rid not in ncbi_sp_change_gids:
                 continue
                 
             actions = self.sp_name_manager.update(rid, rid)
-            for action, prev_rid, cur_rid, cur_gtdb_sp in actions:
+            for action, prev_rid, cur_rid, cur_gtdb_sp, conflicting_rid, ani, af in actions:
                 assert prev_rid == cur_rid
                 
                 action_count[action] += 1
@@ -608,7 +614,12 @@ class RepActions(object):
 
                 fout.write(f'{action}')
                 fout.write(f'\t{prev_rid}\t{prev_gtdb_sp}\t{prev_ncbi_sp}\t{cur_ncbi_sp}\t{cur_gtdb_sp}')
-                fout.write(f'\t{prev_is_type_strain}\t{cur_is_type_strain}\n')
+                fout.write(f'\t{prev_is_type_strain}\t{cur_is_type_strain}')
+                
+                if conflicting_rid:
+                    fout.write('\t{}\t{:.2f}\t{:.3f}\n'.format(conflicting_rid, ani, af))
+                else:
+                    fout.write('\tn/a\tn/a\tn/a\n')
 
                 params = {}
                 params['orig_gtdb_sp'] = prev_gtdb_sp

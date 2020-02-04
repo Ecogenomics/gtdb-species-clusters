@@ -47,7 +47,7 @@ from gtdb_species_clusters.type_genome_utils import (GenomeRadius,
                                             read_quality_metadata,
                                             symmetric_ani,
                                             write_clusters,
-                                            write_type_radius)
+                                            write_rep_radius)
                                     
 from gtdb_species_clusters.fastani import FastANI
 from gtdb_species_clusters.mash import Mash
@@ -670,7 +670,7 @@ class ClusterDeNovo(object):
                         all_species, 
                         os.path.join(self.output_dir, 'gtdb_clusters_final.tsv'))
 
-        write_type_radius(final_cluster_radius, 
+        write_rep_radius(final_cluster_radius, 
                             all_species, 
                             os.path.join(self.output_dir, 'gtdb_ani_radius_final.tsv'))
         

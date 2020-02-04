@@ -30,6 +30,9 @@ from gtdb_species_clusters.genome_utils import canonical_gid
 def canonical_taxon(taxon):
     """Get taxon name without suffix."""
     
+    # taxon must have rank prefix
+    assert '__' in taxon
+    
     if taxon.startswith('s__'):
         generic, specific = taxon.split()
         if '_' in specific:
@@ -37,7 +40,7 @@ def canonical_taxon(taxon):
             return '{} {}'.format(generic, canonical_specific)
     else:
         if '_' in taxon:
-            canonical_taxon = taxon.rsplit('_', 1)[0]
+            canonical_taxon = taxon[0:3] + taxon[3:].rsplit('_', 1)[0]
             return canonical_taxon
    
     return taxon

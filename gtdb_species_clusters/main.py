@@ -37,10 +37,13 @@ from gtdb_species_clusters.tree_gids import TreeGIDs
 from gtdb_species_clusters.cluster_stats import ClusterStats
 
 from gtdb_species_clusters.update_new_genomes import NewGenomes
+from gtdb_species_clusters.update_resolve_types import ResolveTypes
 from gtdb_species_clusters.update_gtdbtk import GTDB_Tk
 from gtdb_species_clusters.update_rep_changes import RepChanges
 from gtdb_species_clusters.update_rep_actions import RepActions
-from gtdb_species_clusters.update_select_type_genomes import UpdateSelectTypeGenomes
+from gtdb_species_clusters.update_select_reps import UpdateSelectRepresentatives
+from gtdb_species_clusters.update_cluster_named_reps import UpdateClusterNamedReps
+from gtdb_species_clusters.update_cluster_de_novo import UpdateClusterDeNovo
 
 from gtdb_species_clusters.merge_test import MergeTest
 
@@ -282,6 +285,33 @@ class OptionsParser():
 
         self.logger.info('Quality checking information written to: %s' % options.output_dir)
         
+    def u_resolve_types(self, options):
+        """Resolve cases where a species has multiple genomes assembled from the type strain."""
+
+        check_file_exists(options.cur_gtdb_metadata_file)
+        check_file_exists(options.cur_genomic_path_file)
+        check_file_exists(options.qc_passed_file)
+        check_file_exists(options.gtdbtk_classify_file)
+        check_file_exists(options.ncbi_genbank_assembly_file)
+        check_file_exists(options.species_exception_file)
+        check_file_exists(options.genus_exception_file)
+        check_file_exists(options.gtdb_type_strains_ledger)
+        check_file_exists(options.untrustworthy_type_ledger)
+        make_sure_path_exists(options.output_dir)
+        
+        p = ResolveTypes(options.ani_cache_file, options.cpus, options.output_dir)
+        p.run(options.cur_gtdb_metadata_file,
+                options.cur_genomic_path_file,
+                options.qc_passed_file,
+                options.gtdbtk_classify_file,
+                options.ncbi_genbank_assembly_file,
+                options.species_exception_file,
+                options.genus_exception_file,
+                options.gtdb_type_strains_ledger,
+                options.untrustworthy_type_ledger)
+        
+        self.logger.info('Done.')
+        
     def u_gtdbtk(self, options):
         """Perform initial classification of new and updated genomes using GTDB-Tk."""
         
@@ -354,8 +384,8 @@ class OptionsParser():
         
         self.logger.info('Done.')
         
-    def u_sel_type_genomes(self, options):
-        """Perform initial actions required for changed representatives."""
+    def u_sel_reps(self, options):
+        """Select representatives for all named species at NCBI."""
         
         check_file_exists(options.existing_sp_reps)
         check_file_exists(options.qc_passed_file)
@@ -369,7 +399,9 @@ class OptionsParser():
         check_file_exists(options.gtdb_type_strains_ledger)
         make_sure_path_exists(options.output_dir)
         
-        p = UpdateSelectTypeGenomes(options.ani_cache_file, options.cpus, options.output_dir)
+        p = UpdateSelectRepresentatives(options.ani_cache_file, 
+                                    options.cpus, 
+                                    options.output_dir)
         p.run(options.existing_sp_reps,
                 options.qc_passed_file,
                 options.cur_gtdb_metadata_file,
@@ -377,6 +409,74 @@ class OptionsParser():
                 options.uba_genome_paths,
                 options.ncbi_genbank_assembly_file,
                 options.gtdb_domain_report,
+                options.species_exception_file,
+                options.genus_exception_file,
+                options.gtdb_type_strains_ledger)
+        
+        self.logger.info('Done.')
+        
+    def u_cluster_named_reps(self, options):
+        """Cluster genomes to selected GTDB representatives"""
+        
+        check_file_exists(options.qc_passed_file)
+        check_file_exists(options.cur_gtdb_metadata_file)
+        check_file_exists(options.cur_genomic_path_file)
+        check_file_exists(options.uba_genome_paths)
+        check_file_exists(options.named_rep_file)
+        check_file_exists(options.rep_mash_sketch_file)
+        check_file_exists(options.rep_ani_file)
+        check_file_exists(options.species_exception_file)
+        check_file_exists(options.genus_exception_file)
+        check_file_exists(options.gtdb_type_strains_ledger)
+        make_sure_path_exists(options.output_dir)
+        
+        p = UpdateClusterNamedReps(options.ani_sp,
+                                    options.af_sp,
+                                    options.ani_cache_file, 
+                                    options.cpus, 
+                                    options.output_dir)
+        p.run(options.qc_passed_file,
+                options.cur_gtdb_metadata_file,
+                options.cur_genomic_path_file,
+                options.uba_genome_paths,
+                options.named_rep_file,
+                options.rep_mash_sketch_file,
+                options.rep_ani_file,
+                options.species_exception_file,
+                options.genus_exception_file,
+                options.gtdb_type_strains_ledger)
+        
+        self.logger.info('Done.')
+        
+    def u_cluster_de_novo(self, options):
+        """Infer de novo species clusters and representatives for remaining genomes."""
+        
+        check_file_exists(options.qc_passed_file)
+        check_file_exists(options.cur_gtdb_metadata_file)
+        check_file_exists(options.cur_genomic_path_file)
+        check_file_exists(options.uba_genome_paths)
+        check_file_exists(options.named_cluster_file)
+        check_file_exists(options.synonym_file)
+        check_file_exists(options.ncbi_genbank_assembly_file)
+        check_file_exists(options.ani_af_rep_vs_nonrep)
+        check_file_exists(options.species_exception_file)
+        check_file_exists(options.genus_exception_file)
+        check_file_exists(options.gtdb_type_strains_ledger)
+        make_sure_path_exists(options.output_dir)
+        
+        p = UpdateClusterDeNovo(options.ani_sp,
+                                    options.af_sp,
+                                    options.ani_cache_file, 
+                                    options.cpus, 
+                                    options.output_dir)
+        p.run(options.qc_passed_file,
+                options.cur_gtdb_metadata_file,
+                options.cur_genomic_path_file,
+                options.uba_genome_paths,
+                options.named_cluster_file,
+                options.synonym_file,
+                options.ncbi_genbank_assembly_file,
+                options.ani_af_rep_vs_nonrep,
                 options.species_exception_file,
                 options.genus_exception_file,
                 options.gtdb_type_strains_ledger)
@@ -535,14 +635,20 @@ class OptionsParser():
             self.u_new_genomes(options)
         elif options.subparser_name == 'u_qc_genomes':
             self.u_qc_genomes(options)
+        elif options.subparser_name == 'u_resolve_types':
+            self.u_resolve_types(options)
         elif options.subparser_name == 'u_gtdbtk':
             self.u_gtdbtk(options)
         elif options.subparser_name == 'u_rep_changes':
             self.u_rep_changes(options)
         elif options.subparser_name == 'u_rep_actions':
             self.u_rep_actions(options)
-        elif options.subparser_name == 'u_sel_type_genomes':
-            self.u_sel_type_genomes(options)
+        elif options.subparser_name == 'u_sel_reps':
+            self.u_sel_reps(options)
+        elif options.subparser_name == 'u_cluster_named_reps':
+            self.u_cluster_named_reps(options)
+        elif options.subparser_name == 'u_cluster_de_novo':
+            self.u_cluster_de_novo(options)
         elif options.subparser_name == 'merge_test':
             self.merge_test(options)
         elif options.subparser_name == 'rep_compare':

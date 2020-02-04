@@ -64,13 +64,27 @@ class NewGenomes(object):
         
         self.logger.info('Reading previous GTDB genomes.')
         prev_accns = {}
+        gtdb_taxonomy = {}
+        gtdb_rep = {}
+        ncbi_genome_category = {}
         with open(prev_gtdb_metadata_file, encoding='utf-8') as f:
-            f.readline()
+            header = f.readline().strip().split('\t')
+            
+            gtdb_index = header.index('gtdb_taxonomy')
+            gtdb_rep_index = header.index('gtdb_representative')
+            ncbi_genome_cat_index = header.index('ncbi_genome_category')
+            
             for line in f:
                 line_split = line.strip().split('\t')
                 
                 gid = line_split[0]
+                if gid.startswith('U'): # only concerned with genomes at NCBI
+                    continue
+                        
                 prev_accns[canonical_gid(gid)] = gid
+                gtdb_taxonomy[canonical_gid(gid)] = line_split[gtdb_index]
+                gtdb_rep[canonical_gid(gid)] = line_split[gtdb_rep_index]
+                ncbi_genome_category[canonical_gid(gid)] = line_split[ncbi_genome_cat_index]
                 
         self.logger.info(f' ... identified {len(prev_accns):,} genomes.')
                             
@@ -83,6 +97,9 @@ class NewGenomes(object):
                     line_split = line.strip().split('\t')
                     
                     gid = line_split[0]
+                    if gid.startswith('U'): # only concerned with genomes at NCBI
+                        continue
+                        
                     cur_accns[canonical_gid(gid)] = gid
         self.logger.info(f' ... identified {len(cur_accns):,} genomes.')
         
@@ -114,9 +131,6 @@ class NewGenomes(object):
         new_gids = set()
         updated_gids = set()
         for cur_gid in cur_accns:
-            if cur_gid.startswith('U'):
-                continue # only concerned with genomes at NCBI
-
             if cur_gid in prev_accns:
                 if not self.same_genome_accn(cur_accns[cur_gid], 
                                                 prev_accns[cur_gid], 
@@ -126,7 +140,10 @@ class NewGenomes(object):
                 # genome not present in previous GTDB release
                 new_gids.add(cur_gid)
             
-        self.logger.info(f' ... identified {len(new_gids):,} new and {len(updated_gids):,} updated genomes.')
+        lost_gids = set(prev_accns) - set(cur_accns)
+        num_lost_gtdb_reps = sum([1 for gid in lost_gids if gtdb_rep[gid] == 't'])
+        self.logger.info(f' ... identified {len(new_gids):,} new, {len(updated_gids):,} updated, and {len(lost_gids):,} lost genomes.')
+        self.logger.info(f' ... {num_lost_gtdb_reps:,} lost genomes were GTDB representatives.')
 
         # get path to current GTDB genome directories
         self.logger.info('Identifying path to genomic files for current GTDB genomes.')
@@ -142,7 +159,7 @@ class NewGenomes(object):
                 
                 if gid not in cur_accns:
                     # a genome may not be part of the GTDB release
-                    # (e.g., genome has not NCBI taxonomy information)
+                    # (e.g., genome has no NCBI taxonomy information)
                     skipped_genomes += 1
                     continue
 
@@ -168,3 +185,17 @@ class NewGenomes(object):
                                                     type_str, 
                                                     genomic_file))
         fout.close()
+        
+        # write out lost genomes
+        output_file = os.path.join(self.output_dir, 'genomes_lost.tsv')
+        fout = open(output_file, 'w')
+        fout.write('Genome ID\tGTDB taxonomy\tGTDB representative\tNCBI genome category\n')
+        lost_reps = 0
+        for gid in lost_gids:
+            fout.write('{}\t{}\t{}\t{}\n'.format(
+                        gid,
+                        gtdb_taxonomy[gid],
+                        gtdb_rep[gid],
+                        ncbi_genome_category[gid]))
+        fout.close()
+        

@@ -190,8 +190,10 @@ class FastANI(object):
             return {}
             
         if len(gids) == 2: # skip overhead of setting up queues and processes
-            d = defaultdict(lambda: {})
+            d = {}
             gids = list(gids)
+            d[gids[0]] = {}
+            d[gids[1]] = {}
             
             qid, rid, ani, af = self.fastani(gids[0], gids[1],
                                                 genome_files[gids[0]],

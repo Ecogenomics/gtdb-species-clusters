@@ -42,7 +42,7 @@ from gtdb_species_clusters.taxon_utils import (read_gtdb_taxonomy,
 from gtdb_species_clusters.type_genome_utils import (GenomeRadius,
                                             symmetric_ani,
                                             write_clusters,
-                                            write_type_radius)
+                                            write_rep_radius)
                                     
 from gtdb_species_clusters.fastani import FastANI
 from gtdb_species_clusters.mash import Mash
@@ -254,7 +254,7 @@ class ClusterNamedTypes(object):
         type_radius = self._type_genome_radius(type_gids, type_genome_ani_file)
         assert(len(type_radius) == len(species_type_gid))
         
-        write_type_radius(type_radius, species_type_gid, os.path.join(self.output_dir, 'gtdb_type_genome_ani_radius.tsv'))
+        write_rep_radius(type_radius, species_type_gid, os.path.join(self.output_dir, 'gtdb_type_genome_ani_radius.tsv'))
         
         # get path to genome FASTA files
         self.logger.info('Reading path to genome FASTA files.')

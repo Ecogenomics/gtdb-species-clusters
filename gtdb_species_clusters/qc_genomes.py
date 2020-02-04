@@ -151,7 +151,7 @@ class QcGenomes(object):
         fout_failed.write('\tFailed marker percentage\tFailed no. contigs\tFailed N50 contigs\tFailed ambiguous bases\n')
 
         pass_qc_gids = set()
-        num_filtered = 0
+        failed_qc_gids = set()
         for gid in cur_genomes:
             failed_tests = defaultdict(int)
             passed_qc = cur_genomes[gid].pass_qc(marker_perc[gid],
@@ -179,7 +179,7 @@ class QcGenomes(object):
                                         cur_genomes[gid].ambiguous_bases,
                                         'Passed QC' if passed_qc else 'Flagged as exception'))
             else:
-                num_filtered += 1 
+                failed_qc_gids.add(gid) 
                 fout_failed.write('%s\t%s\t%s' % (gid, cur_genomes[gid].ncbi_taxa.species, cur_genomes[gid].gtdb_taxa))
                 fout_failed.write('\t%.2f\t%.2f\t%.2f\t%s\t%.2f\t%d\t%d\t%d' % (
                                         cur_genomes[gid].comp,
@@ -201,7 +201,11 @@ class QcGenomes(object):
         fout_retained.close()
         fout_failed.close()
         
-        self.logger.info(f'Retained {len(pass_qc_gids):,} genomes and filtered {num_filtered:,} genomes.')
+        self.logger.info('Retained {:,} ({:.2f}%) genomes and filtered {:,} ({:.2f}%) genomes.'.format(
+                            len(pass_qc_gids),
+                            len(pass_qc_gids)*100.0/len(cur_genomes),
+                            len(failed_qc_gids),
+                            len(failed_qc_gids)*100.0/len(cur_genomes)))
         
         # check domain assignment of genomes passing QC
         # report potential issues
@@ -344,9 +348,8 @@ class QcGenomes(object):
         fout_fail_sp.close()
         fout_sp_lost.close()
         
+        self.logger.info(f'Filtered {filtered_genomes:,} genomes assigned to NCBI species.')
+        self.logger.info(f'Identified {lost_type:,} species with type genomes failing QC and {lost_sp:,} total species failing QC.')
         self.logger.info('Genomes from NCBI species filtered by each criterion:')
         for test in sorted(failed_tests_cumulative):
             self.logger.info(f'{test}: {failed_tests_cumulative[test]:,}')
-
-        self.logger.info(f'Filtered {filtered_genomes:,} genomes assigned to NCBI species.')
-        self.logger.info(f'Identified {lost_type:,} species with type genomes failing QC and {lost_sp:,} total species failing QC.')
