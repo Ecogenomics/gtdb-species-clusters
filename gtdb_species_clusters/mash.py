@@ -48,13 +48,10 @@ class Mash(object):
     def _mash_genome_id(self, mash_genome_id):
         """Extract canonical GTDB genome ID from Mash results."""
             
+        # get filename and remove information past genome accession
+        # (e.g., GCA_002498385.1_ASM249838v1_genomic.fna => GCA_002498385.1)
         mash_genome_id = ntpath.basename(mash_genome_id)
         mash_genome_id = mash_genome_id[0:mash_genome_id.find('_', 4)]
-        if mash_genome_id.startswith('GCF_'):
-            mash_genome_id = 'RS_' + mash_genome_id
-        elif mash_genome_id.startswith('GCA_'):
-            mash_genome_id = 'GB_' + mash_genome_id
-            
         gid = canonical_gid(mash_genome_id)
             
         return gid

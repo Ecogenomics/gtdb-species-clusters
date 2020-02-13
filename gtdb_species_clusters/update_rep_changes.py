@@ -41,8 +41,8 @@ class RepChanges(object):
             genomes_new_updated_file,
             qc_passed_file,
             gtdbtk_classify_file,
-            species_exception_file,
-            genus_exception_file,
+            ncbi_genbank_assembly_file,
+            untrustworthy_type_file,
             gtdb_type_strains_ledger):
         """Identify species representatives that have changed from previous release."""
         
@@ -50,10 +50,10 @@ class RepChanges(object):
         self.logger.info('Creating previous GTDB genome set.')
         prev_genomes = Genomes()
         prev_genomes.load_from_metadata_file(prev_gtdb_metadata_file,
-                                                species_exception_file,
-                                                genus_exception_file,
                                                 gtdb_type_strains_ledger=gtdb_type_strains_ledger,
-                                                uba_genome_file=cur_uba_gid_file)
+                                                uba_genome_file=cur_uba_gid_file,
+                                                ncbi_genbank_assembly_file=ncbi_genbank_assembly_file,
+                                                untrustworthy_type_ledger=untrustworthy_type_file)
         self.logger.info(f' ...previous genome set contains {len(prev_genomes):,} genomes.')
         self.logger.info(' ...previous genome set has {:,} species clusters spanning {:,} genomes.'.format(
                             len(prev_genomes.sp_clusters),
@@ -62,12 +62,12 @@ class RepChanges(object):
         self.logger.info('Creating current GTDB genome set.')
         cur_genomes = Genomes()
         cur_genomes.load_from_metadata_file(cur_gtdb_metadata_file,
-                                                species_exception_file,
-                                                genus_exception_file,
                                                 gtdb_type_strains_ledger=gtdb_type_strains_ledger,
                                                 create_sp_clusters=False,
                                                 uba_genome_file=cur_uba_gid_file,
-                                                qc_passed_file=qc_passed_file)
+                                                qc_passed_file=qc_passed_file,
+                                                ncbi_genbank_assembly_file=ncbi_genbank_assembly_file,
+                                                untrustworthy_type_ledger=untrustworthy_type_file)
         self.logger.info(f' ...current genome set contains {len(cur_genomes):,} genomes.')
 
         # get previous and current genomes from type strains
@@ -232,7 +232,7 @@ class RepChanges(object):
         self.logger.info(f'  unchanged_sp: {len(unchanged_sp):,} ({unchanged_sp_perc:.1f}%)')
         self.logger.info(f'  reassigned_sp: {len(reassigned_sp):,} ({reassigned_sp_perc:.1f}%)')
         
-        self.logger.info('Genome from type strain changes:')
+        self.logger.info('Status of type strain genome declarations:')
         prev_ts_count = len(unchanged_type_strain) + len(lost_type_strain)
         unchanged_type_strain_perc = len(unchanged_type_strain)*100.0 / prev_ts_count
         lost_type_strain_perc = len(lost_type_strain)*100.0 / prev_ts_count

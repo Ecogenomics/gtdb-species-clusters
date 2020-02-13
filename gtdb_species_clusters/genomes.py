@@ -162,7 +162,9 @@ class Genomes(object):
     def sort_by_assembly_score(self):
         """Return genomes sorted by their assembly score."""
         
-        for gid in sorted(self.genomes.keys(), key=lambda gid: self.genomes[gid].score_assembly(), reverse=True):
+        for gid in sorted(self.genomes.keys(), 
+                            key=lambda gid: self.genomes[gid].score_assembly(), 
+                            reverse=True):
             yield gid
 
     def get_gid(self, idx):
@@ -179,6 +181,16 @@ class Genomes(object):
                 type_strain_gids.add(gid)
                 
         return type_strain_gids
+        
+    def get_ncbi_type_strain_genomes(self):
+        """Get type strain genomes for NCBI species."""
+        
+        type_strain_genomes = defaultdict(set)
+        for gid, genome in self.genomes.items():
+            if genome.is_effective_type_strain():
+                type_strain_genomes[genome.ncbi_taxa.species].add(gid)
+                
+        return type_strain_genomes
         
     def named_ncbi_species(self):
         """Get genomes in valid or effectively published, including Candidatus, species in NCBI taxonomy."""
@@ -234,13 +246,6 @@ class Genomes(object):
                                 gtdbtk_classify_file=None):
         """Create genome set from file(s)."""
         
-        valid_uba_ids = set()
-        if uba_genome_file:
-            with open(uba_genome_file) as f:
-                for line in f:
-                    line_split = line.strip().split('\t')
-                    valid_uba_ids.add(line_split[0].strip())
-
         pass_qc_gids = set()
         if qc_passed_file:
             with open(qc_passed_file) as f:
@@ -248,7 +253,16 @@ class Genomes(object):
                 for line in f:
                     line_split = line.strip().split('\t')
                     pass_qc_gids.add(line_split[0].strip())
+            self.logger.info(f' ... identified {len(pass_qc_gids):,} genomes passing QC.')
                     
+        valid_uba_ids = set()
+        if uba_genome_file:
+            with open(uba_genome_file) as f:
+                for line in f:
+                    line_split = line.strip().split('\t')
+                    valid_uba_ids.add(line_split[0].strip())
+            self.logger.info(f' ... identified {len(valid_uba_ids):,} UBA genomes to retain.')
+
         gtdb_type_strains = set()
         if gtdb_type_strains_ledger:
             with open(gtdb_type_strains_ledger) as f:
@@ -257,6 +271,7 @@ class Genomes(object):
                     tokens = line.strip().split('\t')
                     gid = canonical_gid(tokens[0].strip())
                     gtdb_type_strains.add(gid)
+            self.logger.info(f' ... identified {len(gtdb_type_strains):,} manually annotated as type strain genomes.')
                     
         excluded_from_refseq_note = {}
         if ncbi_genbank_assembly_file:
@@ -265,10 +280,12 @@ class Genomes(object):
         untrustworthy_as_type = set()
         if untrustworthy_type_ledger:
             untrustworthy_as_type = self.parse_untrustworthy_type_ledger(untrustworthy_type_ledger)
+            self.logger.info(f' ... identified {len(untrustworthy_as_type):,} genomes annotated as untrustworthy as type.')
             
         gtdbtk_classifications = {}
         if gtdbtk_classify_file:
             gtdbtk_classifications = read_gtdbtk_classifications(gtdbtk_classify_file)
+            self.logger.info(f' ... identified {len(gtdbtk_classifications):,} GTDB-Tk classifications.')
 
         with open(metadata_file, encoding='utf-8') as f:
             headers = f.readline().strip().split('\t')
@@ -382,7 +399,7 @@ class Genomes(object):
                 gtdb_is_rep = line_split[gtdb_rep_index] == 't'
                 gtdb_rid = canonical_gid(line_split[gtdb_genome_rep_index])
                 if create_sp_clusters:
-                    self.sp_clusters.update_sp_cluster(gtdb_rid, gid, gtdb_taxonomy[6])
+                    self.sp_clusters.update_sp_cluster(gtdb_rid, gid, gtdb_taxonomy.species)
                 
                 if 'lpsn_priority_year' in headers:
                     lpsn_priority_year = self._convert_int(line_split[lpsn_priority_index], Genome.NO_PRIORITY_YEAR)

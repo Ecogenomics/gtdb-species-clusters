@@ -43,6 +43,7 @@ class SpeciesClusters(object):
 
         self.sp_clusters = defaultdict(set)
         self.species_names = {}
+        self.genome_rid = {}
         
         self.new_gids = set()
         self.updated_gids = set()
@@ -95,13 +96,21 @@ class SpeciesClusters(object):
         
         return self.species_names[rid]
         
+    def get_representative(self, gid):
+        """Get representative of genome."""
+        
+        return self.genome_rid.get(gid, None)
+        
     def update_sp_cluster(self, rid, gid, sp_name):
         """Update species cluster."""
         
         self.sp_clusters[rid].add(gid)
         assert(rid not in self.species_names 
                 or self.species_names[rid] == sp_name)
+                
         self.species_names[rid] = sp_name
+        self.genome_rid[gid] = rid
+        self.genome_rid[rid] = rid
         
     def load_from_sp_cluster_file(self, cluster_file):
         """Create species clusters from file."""
@@ -109,8 +118,8 @@ class SpeciesClusters(object):
         with open(cluster_file) as f:
             headers = f.readline().strip().split('\t')
             
-            type_sp_index = headers.index('GTDB species')
-            type_genome_index = headers.index('Representative genome')
+            sp_index = headers.index('GTDB species')
+            rid_index = headers.index('Representative genome')
                 
             num_clustered_index = headers.index('No. clustered genomes')
             cluster_index = headers.index('Clustered genomes')
@@ -118,16 +127,19 @@ class SpeciesClusters(object):
             for line in f:
                 line_split = line.strip().split('\t')
                 
-                sp = line_split[type_sp_index]
-                rid = canonical_gid(line_split[type_genome_index])
+                sp = line_split[sp_index]
+                rid = canonical_gid(line_split[rid_index])
+                self.genome_rid[rid] = rid
                 
                 self.sp_clusters[rid] = set([rid])
                 self.species_names[rid] = sp
 
                 num_clustered = int(line_split[num_clustered_index])
                 if num_clustered > 0:
-                    cids = [cid.strip() for cid in line_split[cluster_index].split(',')]
-                    self.sp_clusters[rid].update([canonical_gid(cid) for cid in cids])
+                    cids = [canonical_gid(cid.strip()) for cid in line_split[cluster_index].split(',')]
+                    self.sp_clusters[rid].update([cid for cid in cids])
+                    for cid in cids:
+                        self.genome_rid[cid] = rid
                     
     def create_expanded_clusters(self, 
                                 original_sp_clusters,
@@ -138,21 +150,20 @@ class SpeciesClusters(object):
         
         assert(not self.new_gids and not self.updated_gids)
         
+        # read GTDB-Tk classifications for new and updated genomes
+        gtdbtk_classifications = read_gtdbtk_classifications(gtdbtk_classify_file)
+        self.logger.info(f' ... identified {len(gtdbtk_classifications):,} classifications.')
+        
         # get new and updated genomes in current GTDB release
-        self.logger.info('Reading new and updated genomes in current GTDB release.')
         self.new_gids, self.updated_gids = read_cur_new_updated(genomes_new_updated_file)
         self.logger.info(f' ... identified {len(self.new_gids):,} new and {len(self.updated_gids):,} updated genomes.')
         
         # get list of genomes passing QC
-        self.logger.info('Reading genomes passing QC.')
         gids_pass_qc = read_qc_file(qc_passed_file)
-        self.logger.info(f' ... identified {len(gids_pass_qc):,} genomes.')
-        
-        # read GTDB-Tk classifications for new and updated genomes
-        self.logger.info('Reading GTDB-Tk classifications.')
-        gtdbtk_classifications = read_gtdbtk_classifications(gtdbtk_classify_file)
-        self.logger.info(f' ... identified {len(gtdbtk_classifications):,} classifications.')
-        
+        new_pass_qc = len(self.new_gids.intersection(gids_pass_qc))
+        updated_pass_qc = len(self.updated_gids.intersection(gids_pass_qc))
+        self.logger.info(f' ... identified {new_pass_qc:,} new and {updated_pass_qc:,} updated genomes as passing QC.')
+
         # create mapping between species and representatives
         orig_sp_rid_map = {sp: rid for rid, sp in original_sp_clusters.species_names.items()}
         
@@ -165,16 +176,18 @@ class SpeciesClusters(object):
                                 
         # expand species clusters
         failed_qc = 0
+        new_sp = 0
         prev_genome_count = 0
         for gid, taxa in gtdbtk_classifications.items():
-            sp = taxa[6]
-            if sp == 's__':
-                continue
-                
             if gid not in gids_pass_qc:
                 # ***HACK: this should not be necessary, except GTDB-Tk was run external
                 # of complete workflow for R95
                 failed_qc += 1
+                continue
+                
+            sp = taxa[6]
+            if sp == 's__':
+                new_sp += 1
                 continue
 
             if sp not in orig_sp_rid_map:
@@ -205,6 +218,8 @@ class SpeciesClusters(object):
         # of complete workflow for R95
         print('failed_qc', failed_qc)
         print('prev_genome_count', prev_genome_count)
+        
+        self.logger.info(f' ... identified {new_sp:,} genomes not assigned to an existing GTDB species cluster')
 
         assert len(self.sp_clusters) == len(self.species_names)
         

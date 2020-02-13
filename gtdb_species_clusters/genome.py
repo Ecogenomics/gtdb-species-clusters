@@ -297,15 +297,16 @@ class Genome(object):
         """"Calculate score of genomes with preference to type strain genomes."""
 
         # set base quality so genomes have the following priority order:
-        #  type strain genome
+        #  GTDB type strain genome
         #  NCBI assembled from type material
+        #  NCBI representative
         q = 0
         if self.is_gtdb_type_strain():
-            q = 1e6
-        elif self.is_ncbi_type_strain():
             q = 1e5
-        elif self.is_ncbi_representative():
+        elif self.is_ncbi_type_strain():
             q = 1e4
+        elif self.is_ncbi_representative():
+            q = 1e3
 
         q += self.score_assembly()
             

@@ -88,12 +88,11 @@ class SpeciesNameManager(object):
         orig_prev_gtdb_sp = self.prev_genomes[orig_rid].gtdb_taxa.species
         orig_prev_gtdb_sp_epithet = self.prev_genomes[orig_rid].gtdb_taxa.specific_epithet
         orig_prev_ncbi_sp_epithet = self.prev_genomes[orig_rid].ncbi_taxa.specific_epithet
-        orig_cur_ncbi_sp_epithet = self.cur_genomes[orig_rid].ncbi_taxa.specific_epithet
         new_cur_ncbi_sp_epithet = self.cur_genomes[new_rid].ncbi_taxa.specific_epithet
         
         new_cur_gtdb_sp = 's__{} {}'.format(orig_prev_gtdb_genus[3:], new_cur_ncbi_sp_epithet)
 
-        new_is_type_strain = self.cur_genomes[new_rid].is_effective_type() 
+        new_is_type_strain = self.cur_genomes[new_rid].is_effective_type_strain() 
         
         actions = []
         if new_cur_ncbi_sp_epithet == orig_prev_gtdb_sp_epithet:

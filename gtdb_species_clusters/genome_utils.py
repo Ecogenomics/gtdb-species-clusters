@@ -45,6 +45,18 @@ def canonical_gid(gid):
         gid = gid[0:gid.find('.')]
     
     return gid
+    
+    
+def select_highest_quality(gids, cur_genomes):
+    """Select highest quality genome."""
+    
+    # sort by decreasing type strain score, followed by 
+    # genome ID in order to ensure ties are broken in a
+    # deterministic fashion between runs
+    q = {k:cur_genomes[k].score_type_strain() for k in gids}
+    q_sorted = sorted(q.items(), key=lambda kv: (kv[1], kv[0]), reverse=True)
+    
+    return q_sorted[0][0]
 
 
 def read_genome_path(genome_path_file):

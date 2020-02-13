@@ -213,11 +213,11 @@ def gtdb_type_strain_of_species(type_metadata):
     return type_gids
             
 
-def write_clusters(clusters, rep_radius, proposed_sp, genomes, out_file):
+def write_clusters(clusters, rep_radius, genomes, out_file):
     """Write out clustering information."""
 
     fout = open(out_file, 'w')
-    fout.write('Representative\tProposed species\tNCBI species\tGTDB species')
+    fout.write('Representative\tGTDB species\tNCBI species')
     fout.write('\tClosest GTDB species\tClosest representative\tANI radius\tAF closest')
     fout.write('\tNo. clustered genomes\tMean ANI\tMin ANI\tMean AF\tMin AF\tClustered genomes\n')
     for gid in sorted(clusters, key=lambda x: len(clusters[x]), reverse=True):
@@ -228,10 +228,9 @@ def write_clusters(clusters, rep_radius, proposed_sp, genomes, out_file):
             min_af = '%.2f' % min([d.af for d in clusters[gid]])
         else:
             mean_ani = min_ani = mean_af = min_af = 'N/A'
-        fout.write('%s\t%s\t%s\t%s' % (gid,
-                                    proposed_sp[gid],
-                                    genomes[gid].ncbi_taxa.species,
-                                    genomes[gid].gtdb_taxa.species))
+        fout.write('%s\t%s\t%s' % (gid,
+                                    genomes[gid].gtdb_taxa.species,
+                                    genomes[gid].ncbi_taxa.species))
                         
         ani, af, closest_gid = rep_radius[gid]
         if not af:
@@ -241,7 +240,7 @@ def write_clusters(clusters, rep_radius, proposed_sp, genomes, out_file):
             closest_gid = 'N/A'
             closest_sp = 'N/A'
         else:
-            closest_sp = proposed_sp[closest_gid]
+            closest_sp = genomes[closest_gid].gtdb_taxa.species
         
         fout.write('\t%s\t%s\t%.2f\t%.2f' % (closest_sp,
                                                 closest_gid,
@@ -256,11 +255,11 @@ def write_clusters(clusters, rep_radius, proposed_sp, genomes, out_file):
     fout.close()
     
     
-def write_rep_radius(rep_radius, proposed_sp, genomes, out_file):
+def write_rep_radius(rep_radius, genomes, out_file):
     """Write out ANI radius for each representative genomes."""
 
     fout = open(out_file, 'w')
-    fout.write('Representative\tProposed species\tNCBI species\tGTDB species\tANI\tAF\tClosest species\tClosest representative\n')
+    fout.write('Representative\tGTDB species\tNCBI species\tANI\tAF\tClosest species\tClosest representative\n')
     
     for gid in rep_radius:
         ani, af, neighbour_gid = rep_radius[gid]
@@ -271,12 +270,11 @@ def write_rep_radius(rep_radius, proposed_sp, genomes, out_file):
             neighbour_gid = 'N/A'
             neighbour_sp = 'N/A'
         else:
-            neighbour_sp = proposed_sp[neighbour_gid]
+            neighbour_sp = genomes[neighbour_gid].gtdb_taxa.species
         
-        fout.write('%s\t%st%s\t%s\t%.2f\t%.2f\t%s\t%s\n' % (gid,
-                                                        proposed_sp[gid],
-                                                        genomes[gid].ncbi_taxa.species,
+        fout.write('%s\t%s\t%s\t%.2f\t%.2f\t%s\t%s\n' % (gid,
                                                         genomes[gid].gtdb_taxa.species,
+                                                        genomes[gid].ncbi_taxa.species,
                                                         ani,
                                                         af,
                                                         neighbour_sp,
@@ -315,27 +313,22 @@ def read_clusters(cluster_file):
     """Read cluster file."""
         
     clusters = defaultdict(list)
-    species = {}
     rep_radius = {}
     with open(cluster_file) as f:
         headers = f.readline().strip().split('\t')
         
-        type_sp_index = headers.index('NCBI species')
-        type_genome_index = headers.index('Type genome')
+        rep_index = headers.index('Representative')
             
         num_clustered_index = headers.index('No. clustered genomes')
         clustered_genomes_index = headers.index('Clustered genomes')
-        closest_sp_index = headers.index('Closest species')
-        closest_gid_index = headers.index('Closest type genome')
+        closest_gid_index = headers.index('Closest representative')
         closest_ani_index = headers.index('ANI radius')
         closest_af_index = headers.index('AF closest')
         
         for line in f:
             line_split = line.strip().split('\t')
             
-            sp = line_split[type_sp_index]
-            rid = line_split[type_genome_index]
-            species[rid] = sp
+            rid = line_split[rep_index]
 
             num_clustered = int(line_split[num_clustered_index])
             if num_clustered > 0:
@@ -350,7 +343,4 @@ def read_clusters(cluster_file):
                                              af = closest_af,
                                              neighbour_gid = closest_gid)
                     
-    return clusters, species, rep_radius
-    
-    
-
+    return clusters, rep_radius

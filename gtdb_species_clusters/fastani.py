@@ -50,10 +50,30 @@ class FastANI(object):
         self.ani_cache_file = ani_cache_file
         self._read_cache()
         
+        self.logger.info('Using FastANI v{}.'.format(self._get_version()))
+
     def __del__(self):
         """Destructor."""
         
         self.write_cache()
+        
+    def _get_version(self):
+        """Returns the version of FastANI on the system path.
+        Returns
+        -------
+        str
+            The string containing the fastANI version.
+        """
+        try:
+            proc = subprocess.Popen(['fastANI', '-v'], stdout=subprocess.PIPE,
+                                    stderr=subprocess.PIPE, encoding='utf-8')
+            stdout, stderr = proc.communicate()
+            if stderr.startswith('Unknown option:'):
+                return 'unknown (<1.3)'
+            version = re.search(r'version (.+)', stderr)
+            return version.group(1)
+        except Exception:
+            return 'unknown'
         
     def _read_cache(self):
         """Read previously calculated ANI values."""
@@ -183,12 +203,32 @@ class FastANI(object):
         if report_progress:
             sys.stdout.write('\n')
             
-    def pairwise(self, gids, genome_files):
+    def pairwise(self, gids, genome_files, check_cache=False):
         """Calculate FastANI between all genome pairs in parallel."""
         
         if not gids:
             return {}
             
+       # check if all pairs are in cache
+        if check_cache:
+            ani_af = defaultdict(lambda: {})
+            
+            in_cache = True
+            for qid, rid in permutations(gids, 2):
+                if qid in self.ani_cache:
+                    if rid in self.ani_cache:
+                        ani_af[qid][rid] = self.ani_cache[qid][rid]
+                    else:
+                        in_cache = False
+                        break
+                else:
+                    in_cache = False
+                    break
+                    
+            if in_cache:
+                return ani_af
+            
+        # calculate required ANI pairs
         if len(gids) == 2: # skip overhead of setting up queues and processes
             d = {}
             gids = list(gids)
@@ -248,12 +288,32 @@ class FastANI(object):
         
         return ani_af
         
-    def pairs(self, gid_pairs, genome_files, report_progress=True):
+    def pairs(self, gid_pairs, genome_files, report_progress=True, check_cache=False):
         """Calculate FastANI between specified genome pairs in parallel."""
         
         if not gid_pairs:
             return {}
             
+        # check if all pairs are in cache
+        if check_cache:
+            ani_af = defaultdict(lambda: {})
+            
+            in_cache = True
+            for qid, rid in gid_pairs:
+                if qid in self.ani_cache:
+                    if rid in self.ani_cache:
+                        ani_af[qid][rid] = self.ani_cache[qid][rid]
+                    else:
+                        in_cache = False
+                        break
+                else:
+                    in_cache = False
+                    break
+                    
+            if in_cache:
+                return ani_af
+
+        # calculate required ANI pairs
         if len(gid_pairs) <= 6: # skip overhead of setting up queues and processes
             d = defaultdict(lambda: {})
             for idx in range(0, len(gid_pairs)):

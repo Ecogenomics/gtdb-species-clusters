@@ -96,8 +96,6 @@ class QcGenomes(object):
                 ncbi_genbank_assembly_file,
                 gtdb_domain_report,
                 qc_exception_file,
-                species_exception_file,
-                genus_exception_file,
                 min_comp,
                 max_cont,
                 min_quality,
@@ -113,8 +111,6 @@ class QcGenomes(object):
         self.logger.info('Creating current GTDB genome set.')
         cur_genomes = Genomes()
         cur_genomes.load_from_metadata_file(metadata_file,
-                                                species_exception_file,
-                                                genus_exception_file,
                                                 create_sp_clusters=False,
                                                 uba_genome_file=cur_uba_gid_file)
         self.logger.info(f' ...current genome set contains {len(cur_genomes):,} genomes.')
