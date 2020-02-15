@@ -158,6 +158,20 @@ class Genomes(object):
                 
         self.logger.error(f'Failed to find representative of GTDB species for {gtdb_sp}.')
         sys.exit(-1)
+        
+    def ncbi_sp_effective_type_genomes(self):
+        """Get effect type genomes for each NCBI species."""
+        
+        ncbi_sp_type_strain_genomes = defaultdict(set)
+        for gid in self.genomes:
+            if self.genomes[gid].is_effective_type_strain():
+                ncbi_sp = self.genomes[gid].ncbi_taxa.species
+                if ncbi_sp != 's__':
+                    # yes, NCBI has genomes marked as assembled from type material
+                    # that do not actually have a binomial species name
+                    ncbi_sp_type_strain_genomes[ncbi_sp].add(gid)
+                    
+        return ncbi_sp_type_strain_genomes
 
     def sort_by_assembly_score(self):
         """Return genomes sorted by their assembly score."""

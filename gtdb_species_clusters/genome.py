@@ -207,6 +207,11 @@ class Genome(object):
         
         return self.is_gtdb_type_strain() or self.is_ncbi_type_strain()
         
+    def is_exclusively_effective_type_strain(self):
+        """Check if genome is effectively, but not validly published type strain genome."""
+        
+        return not self.is_gtdb_type_strain() and self.is_ncbi_type_strain()
+        
     def is_ncbi_type_subspecies(self):
         """Check if genome is a type strain of subspecies at NCBI."""
         

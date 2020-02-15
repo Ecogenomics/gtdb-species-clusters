@@ -37,6 +37,7 @@ GTDB_TYPE_SPECIES = set(['type strain of species', 'type strain of neotype'])
 GTDB_TYPE_SUBSPECIES = set(['type strain of subspecies', 'type strain of heterotypic synonym'])
 GTDB_NOT_TYPE_MATERIAL = set(['not type material'])
 
+ClusteredGenome = namedtuple('ClusteredGenome', 'ani af gid')
 GenomeRadius = namedtuple('GenomeRadius', 'ani af neighbour_gid')
 
 
@@ -312,7 +313,7 @@ def read_quality_metadata(metadata_file):
 def read_clusters(cluster_file):
     """Read cluster file."""
         
-    clusters = defaultdict(list)
+    clusters = {}
     rep_radius = {}
     with open(cluster_file) as f:
         headers = f.readline().strip().split('\t')
@@ -331,10 +332,9 @@ def read_clusters(cluster_file):
             rid = line_split[rep_index]
 
             num_clustered = int(line_split[num_clustered_index])
+            clusters[rid] = set([rid])
             if num_clustered > 0:
-                clusters[rid] = [g.strip() for g in line_split[clustered_genomes_index].split(',')]
-            else:
-                clusters[rid] = []
+                clusters[rid].update([g.strip() for g in line_split[clustered_genomes_index].split(',')])
                 
             closest_ani = float(line_split[closest_ani_index])
             closest_af = float(line_split[closest_af_index])

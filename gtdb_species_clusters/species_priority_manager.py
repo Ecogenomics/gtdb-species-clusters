@@ -21,7 +21,7 @@ import logging
 import functools
 from collections import defaultdict
 
-
+from gtdb_species_clusters.genome_utils import select_highest_quality
 
 
 class SpeciesPriorityManager(object):
@@ -68,14 +68,6 @@ class SpeciesPriorityManager(object):
 
     def priority(self, cur_genomes, gid1, gid2):
         """Resolve priority between genomes."""
-        
-        assert cur_genomes[gid1].is_gtdb_type_strain()
-        assert cur_genomes[gid2].is_gtdb_type_strain()
-        
-        sp1 = cur_genomes[gid1].ncbi_taxa.species
-        sp2 = cur_genomes[gid2].ncbi_taxa.species
-
-        assert sp1 != sp2
 
         if (cur_genomes[gid1].is_gtdb_type_species()
             and not cur_genomes[gid2].is_gtdb_type_species()):
@@ -87,13 +79,33 @@ class SpeciesPriorityManager(object):
             return gid1, 'year of priority'
         elif cur_genomes[gid1].year_of_priority() > cur_genomes[gid2].year_of_priority():
             return gid2, 'year of priority'
+        elif (cur_genomes[gid1].is_effective_type_strain() 
+                and not cur_genomes[gid2].is_effective_type_strain()):
+            return gid1, 'effective type strain'
+        elif (not cur_genomes[gid1].is_effective_type_strain() 
+                and cur_genomes[gid2].is_effective_type_strain()):
+            return gid2, 'effective type strain'
+        elif (not cur_genomes[gid1].is_effective_type_strain() 
+                and not cur_genomes[gid2].is_effective_type_strain()):
+            # neither genome it effective type strain
+            hq_gid = select_highest_quality([gid1, gid2], cur_genomes)
+            return hq_gid, 'highest quality genome'
+        elif (cur_genomes[gid1].is_exclusively_effective_type_strain() 
+                and cur_genomes[gid2].is_exclusively_effective_type_strain()):
+            # both genomes are only effective, but not validated type material
+            hq_gid = select_highest_quality([gid1, gid2], cur_genomes)
+            return hq_gid, 'highest quality genome'
 
-        # priority is ambiguous using just publication date do species need
+        # both genomes are type strain of species, but priority
+        # is ambiguous using just publication date so species need
         # to be in the priority ledger
+        sp1 = cur_genomes[gid1].ncbi_taxa.species
+        sp2 = cur_genomes[gid2].ncbi_taxa.species
         if sp1 not in self.manual_priority or sp2 not in self.manual_priority[sp1]:
             self.logger.error('Ambiguous priority based on publication date.')
-            self.logger.error('Species need to be manually resolved in priority ledger: {}: {}, {}: {}'.format(
-                                gid1, sp1, gid2, sp2))
+            self.logger.error('Species need to be manually resolved in priority ledger: {}: {} / {} / {}, {}: {} / {} / {}'.format(
+                                gid1, sp1, cur_genomes[gid1].is_gtdb_type_strain(), cur_genomes[gid1].is_effective_type_strain(),
+                                gid2, sp2, cur_genomes[gid2].is_gtdb_type_strain(), cur_genomes[gid2].is_effective_type_strain()))
             #***sys.exit(-1)
             return gid1, 'error: ambiguous priority date' #***
             

@@ -46,6 +46,7 @@ from gtdb_species_clusters.update_cluster_named_reps import UpdateClusterNamedRe
 from gtdb_species_clusters.update_synonyms import UpdateSynonyms
 from gtdb_species_clusters.update_cluster_de_novo import UpdateClusterDeNovo
 from gtdb_species_clusters.update_species_names import UpdateSpeciesNames
+from gtdb_species_clusters.update_summary_stats import UpdateSummaryStats
 
 from gtdb_species_clusters.merge_test import MergeTest
 
@@ -460,6 +461,7 @@ class OptionsParser():
         check_file_exists(options.untrustworthy_type_file)
         check_file_exists(options.ani_af_rep_vs_nonrep)
         check_file_exists(options.gtdb_type_strains_ledger)
+        check_file_exists(options.sp_priority_ledger)
         make_sure_path_exists(options.output_dir)
         
         p = UpdateSynonyms(options.output_dir)
@@ -471,7 +473,8 @@ class OptionsParser():
                 options.ncbi_genbank_assembly_file,
                 options.untrustworthy_type_file,
                 options.ani_af_rep_vs_nonrep,
-                options.gtdb_type_strains_ledger)
+                options.gtdb_type_strains_ledger,
+                options.sp_priority_ledger)
         
         self.logger.info('Done.')
         
@@ -486,7 +489,6 @@ class OptionsParser():
         check_file_exists(options.gtdbtk_classify_file)
         check_file_exists(options.ncbi_genbank_assembly_file)
         check_file_exists(options.untrustworthy_type_file)
-        check_file_exists(options.synonym_file)
         check_file_exists(options.ani_af_rep_vs_nonrep)
         check_file_exists(options.gtdb_type_strains_ledger)
         make_sure_path_exists(options.output_dir)
@@ -504,7 +506,6 @@ class OptionsParser():
                 options.gtdbtk_classify_file,
                 options.ncbi_genbank_assembly_file,
                 options.untrustworthy_type_file,
-                options.synonym_file,
                 options.ani_af_rep_vs_nonrep,
                 options.gtdb_type_strains_ledger)
         
@@ -514,13 +515,16 @@ class OptionsParser():
         """Update names of GTDB species clusters."""
         
         check_file_exists(options.gtdb_clusters_file)
+        check_file_exists(options.prev_gtdb_metadata_file)
         check_file_exists(options.prev_genomic_path_file)
+        check_file_exists(options.cur_gtdb_metadata_file)
         check_file_exists(options.cur_genomic_path_file)
         check_file_exists(options.uba_genome_paths)
         check_file_exists(options.qc_passed_file)
         check_file_exists(options.gtdbtk_classify_file)
         check_file_exists(options.ncbi_genbank_assembly_file)
         check_file_exists(options.untrustworthy_type_file)
+        check_file_exists(options.synonym_file)
         check_file_exists(options.gtdb_type_strains_ledger)
         check_file_exists(options.sp_priority_ledger)
         check_file_exists(options.gtdb_species_updates_ledger)
@@ -537,9 +541,41 @@ class OptionsParser():
                 options.gtdbtk_classify_file,
                 options.ncbi_genbank_assembly_file,
                 options.untrustworthy_type_file,
+                options.synonym_file,
                 options.gtdb_type_strains_ledger,
                 options.sp_priority_ledger,
                 options.gtdb_species_updates_ledger)
+        
+        self.logger.info('Done.')
+        
+    def u_summary_stats(self, options):
+        """Summary statistics indicating changes to GTDB species clusters."""
+        
+        check_file_exists(options.updated_sp_rep_file)
+        check_file_exists(options.gtdb_clusters_file)
+        check_file_exists(options.prev_gtdb_metadata_file)
+        check_file_exists(options.cur_gtdb_metadata_file)
+        check_file_exists(options.uba_genome_paths)
+        check_file_exists(options.qc_passed_file)
+        check_file_exists(options.gtdbtk_classify_file)
+        check_file_exists(options.ncbi_genbank_assembly_file)
+        check_file_exists(options.untrustworthy_type_file)
+        check_file_exists(options.synonym_file)
+        check_file_exists(options.gtdb_type_strains_ledger)
+        make_sure_path_exists(options.output_dir)
+
+        p = UpdateSummaryStats(options.output_dir)
+        p.run(options.updated_sp_rep_file,
+                options.gtdb_clusters_file,
+                options.prev_gtdb_metadata_file,
+                options.cur_gtdb_metadata_file,
+                options.uba_genome_paths,
+                options.qc_passed_file,
+                options.gtdbtk_classify_file,
+                options.ncbi_genbank_assembly_file,
+                options.untrustworthy_type_file,
+                options.synonym_file,
+                options.gtdb_type_strains_ledger)
         
         self.logger.info('Done.')
         
@@ -713,6 +749,8 @@ class OptionsParser():
             self.u_cluster_de_novo(options)
         elif options.subparser_name == 'u_update_sp_names':
             self.u_update_sp_names(options)
+        elif options.subparser_name == 'u_summary_stats':
+            self.u_summary_stats(options)
         elif options.subparser_name == 'merge_test':
             self.merge_test(options)
         elif options.subparser_name == 'rep_compare':

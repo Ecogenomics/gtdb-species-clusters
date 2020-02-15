@@ -74,6 +74,14 @@ class Taxa(object):
         
         return len(self.taxa)
         
+    def __eq__(self, other):
+        """Override the default Equals behavior"""
+        return self.taxa == other.taxa
+
+    def __ne__(self, other):
+        """Override the default Unequal behavior"""
+        return self.taxa != other.taxa
+        
     def _set_taxa(self, rank_idx, taxon):
         """Set taxon for specified rank."""
         
@@ -83,6 +91,12 @@ class Taxa(object):
             if taxon[0:3] == Taxonomy.rank_prefixes[rank_idx]:
                 self.taxa[idx] = taxon
                 break
+                
+    def update_taxa(self, taxa):
+        """Update taxa."""
+        
+        self.taxa = taxa.taxa.copy()
+        self.standard_taxa = taxa.standard_taxa.copy()
 
     @property
     def subspecies(self):

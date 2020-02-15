@@ -526,19 +526,24 @@ class RepActions(object):
         for idx, prev_rid in enumerate(prev_genomes.sp_clusters):
             # get type strain genomes in GTDB species cluster, including genomes new to this release
             type_strain_gids = [gid for gid in prev_genomes.sp_clusters[prev_rid] 
-                                        if gid in cur_genomes and cur_genomes[gid].is_gtdb_type_strain()]
+                                    if gid in cur_genomes and cur_genomes[gid].is_effective_type_strain()]
             if prev_rid in new_updated_sp_clusters:
-                new_type_strain_gids = [gid for gid in new_updated_sp_clusters[prev_rid] if cur_genomes[gid].is_gtdb_type_strain()]
+                new_type_strain_gids = [gid for gid in new_updated_sp_clusters[prev_rid] if cur_genomes[gid].is_effective_type_strain()]
                 type_strain_gids.extend(new_type_strain_gids)
-
-            type_strain_sp = set([cur_genomes[gid].ncbi_taxa.species for gid in type_strain_gids])
-            if len(type_strain_sp) <= 1:
+                
+            if len(type_strain_gids) == 0:
                 continue
                 
             # check if representative has already been updated
             updated_rid = self.get_updated_rid(prev_rid)
+
+            type_strain_sp = set([cur_genomes[gid].ncbi_taxa.species for gid in type_strain_gids])
+            if len(type_strain_sp) == 1 and updated_rid in type_strain_gids:
+                continue
+                
             updated_sp = cur_genomes[updated_rid].ncbi_taxa.species
             highest_priority_gid = updated_rid
+            
             if updated_rid not in type_strain_gids:
                 highest_priority_gid = None
                 if updated_sp in type_strain_sp:
@@ -546,8 +551,10 @@ class RepActions(object):
                                 if cur_genomes[gid].ncbi_taxa.species == updated_sp]
                     hq_gid = select_highest_quality(sp_gids, cur_genomes)
                     highest_priority_gid = hq_gid
-                self.logger.warning('Representative is a non-type strain genome even though type strain genomes exist in species cluster: {}: {}, {}: {}'.format(
-                                    prev_rid, cur_genomes[prev_rid].is_gtdb_type_strain(), updated_rid, cur_genomes[updated_rid].is_gtdb_type_strain()))
+
+                #self.logger.warning('Representative is a non-type strain genome even though type strain genomes exist in species cluster: {}: {}, {}: {}'.format(
+                #                    prev_rid, cur_genomes[prev_rid].is_effective_type_strain(), updated_rid, cur_genomes[updated_rid].is_effective_type_strain()))
+                #self.logger.warning('Type strain genomes: {}'.format(','.join(type_strain_gids)))
 
             # find highest priority genome
             for sp in type_strain_sp:
@@ -622,7 +629,7 @@ class RepActions(object):
                 fout.write('\t{:.3f}\t{:.4f}\t{}\n'.format(ani, af, note))
                                                 
         fout.close()
-                                                
+
         self.logger.info(f' ... identified {num_higher_priority:,} species with representative changed to genome with higher nomenclatural priority.')
         self.logger.info(' ... change in assembly score for new representatives: {:.2f} +/- {:.2f}'.format(
                             np_mean(assembly_score_change),
@@ -780,9 +787,9 @@ class RepActions(object):
         self.action_log.close()
 
         # write out representatives for existing species clusters
-        fout = open(os.path.join(self.output_dir, 'species_reps.tsv'), 'w')
+        fout = open(os.path.join(self.output_dir, 'updated_species_reps.tsv'), 'w')
         fout.write('Previous representative ID\tNew representative ID\tAction\tRepresentative status\n')
-        for rid in prev_genomes:
+        for rid in prev_genomes.sp_clusters:
             if rid in self.new_reps:
                 new_rid, action = self.new_reps[rid]
                 if new_rid is not None:

@@ -17,14 +17,12 @@
 
 import os
 import sys
-import csv
 import uuid
-import time
 import tempfile
-import argparse
-import operator
 import ntpath
 import logging
+import re
+import subprocess
 import multiprocessing as mp
 from itertools import combinations, permutations
 from collections import defaultdict
@@ -59,10 +57,11 @@ class FastANI(object):
         
     def _get_version(self):
         """Returns the version of FastANI on the system path.
+        
         Returns
         -------
         str
-            The string containing the fastANI version.
+            The string containing the FastANI version.
         """
         try:
             proc = subprocess.Popen(['fastANI', '-v'], stdout=subprocess.PIPE,
@@ -70,9 +69,11 @@ class FastANI(object):
             stdout, stderr = proc.communicate()
             if stderr.startswith('Unknown option:'):
                 return 'unknown (<1.3)'
+                
             version = re.search(r'version (.+)', stderr)
             return version.group(1)
-        except Exception:
+        except Exception as e:
+            print(e)
             return 'unknown'
         
     def _read_cache(self):

@@ -17,12 +17,8 @@
 
 import os
 import sys
-import csv
-import uuid
-import time
-import tempfile
-import argparse
-import operator
+import subprocess
+import re
 import ntpath
 import logging
 import multiprocessing as mp
@@ -44,6 +40,29 @@ class Mash(object):
         self.cpus = cpus
 
         self.logger = logging.getLogger('timestamp')
+        
+        self.logger.info('Using Mash v{}.'.format(self._get_version()))
+        
+    def _get_version(self):
+        """Returns the version of Mash on the system path.
+        
+        Returns
+        -------
+        str
+            The string containing the Mash version.
+        """
+        try:
+            proc = subprocess.Popen(['mash'], stdout=subprocess.PIPE,
+                                    stderr=subprocess.PIPE, encoding='utf-8')
+            stdout, stderr = proc.communicate()
+            version = re.search(r'Mash version (.+)', stdout)
+            if version is None:
+                return 'unknown'
+                
+            return version.group(1)
+        except Exception as e:
+            print(e)
+            return 'unknown'
         
     def _mash_genome_id(self, mash_genome_id):
         """Extract canonical GTDB genome ID from Mash results."""

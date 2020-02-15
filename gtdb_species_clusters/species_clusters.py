@@ -59,6 +59,12 @@ class SpeciesClusters(object):
         for rid in self.sp_clusters:
             yield rid
             
+    def items(self):
+        """Iterate over representative IDs and clustered genome IDs."""
+        
+        for rid, cids in self.sp_clusters.items():
+            yield (rid, cids)
+    
     def clusters(self):
         """Iterate over representative IDs and clustered genome IDs."""
         
