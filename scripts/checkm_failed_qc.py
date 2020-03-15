@@ -92,8 +92,8 @@ class RunCheckm(object):
         os.system('checkm join_tables -f %s %s %s' % (profile_file, qa_file, tree_qa_file))
 
 if __name__ == '__main__':
-    print __prog_name__ + ' v' + __version__ + ': ' + __prog_desc__
-    print '  by ' + __author__ + ' (' + __email__ + ')' + '\n'
+    print(__prog_name__ + ' v' + __version__ + ': ' + __prog_desc__)
+    print('  by ' + __author__ + ' (' + __email__ + ')' + '\n')
 
     parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument('qc_failed_file', help='file indicating genomes that failed QC')
@@ -107,7 +107,7 @@ if __name__ == '__main__':
         runCheckm = RunCheckm()
         runCheckm.run(args.qc_failed_file, args.gtdb_genome_files, args.cpus, args.output_dir)
     except SystemExit:
-        print "\nControlled exit resulting from an unrecoverable error or warning."
+        print("\nControlled exit resulting from an unrecoverable error or warning.")
     except:
-        print "\nUnexpected error:", sys.exc_info()[0]
+        print("\nUnexpected error:", sys.exc_info()[0])
         raise
