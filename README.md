@@ -1,4 +1,5 @@
 # GTDB Species Clusters Toolkit
+[![ace-internal](https://img.shields.io/conda/vn/ace-internal/gtdb_species_clusters.svg?color=green)](https://anaconda.org/ace-internal/gtdb_species_clusters)
 
 This toolkit provides functionality for establishing, updating, and validating the 
 species clusters used in the [Genome Taxonomy Database](https://gtdb.ecogenomic.org/).
