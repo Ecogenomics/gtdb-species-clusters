@@ -25,30 +25,23 @@ __maintainer__ = "Donovan Parks"
 __email__ = "donovan.parks@gmail.com"
 __status__ = "Development"
 
+import argparse
+import logging
+import ntpath
 import os
 import sys
-import ntpath
-import logging
-import argparse
 
-from gtdb_species_clusters.main import OptionsParser
-from biolib.misc.custom_help_formatter import CustomHelpFormatter
 from biolib.common import make_sure_path_exists
-from biolib.taxonomy import Taxonomy
 
-
-def version():
-    """Read program version from file."""
-    import gtdb_species_clusters
-    version_file = open(os.path.join(gtdb_species_clusters.__path__[0], 'VERSION'))
-    return version_file.readline().strip()
+from gtdb_species_clusters import __version__
+from gtdb_species_clusters.main import OptionsParser
 
 
 def print_help():
     """Help menu."""
 
     print('')
-    print('                ...::: GTDB Species Clusters v' + version() + ' :::...''')
+    print('                ...::: GTDB Species Clusters v' + __version__ + ' :::...''')
     print('''\
 
     Establish de novo species clusters:
@@ -116,7 +109,7 @@ def logger_setup(output_dir, silent):
         file_logger.setFormatter(log_format)
         logger.addHandler(file_logger)
 
-    logger.info('GTDB Species Clusters v%s' % version())
+    logger.info('GTDB Species Clusters v%s' % __version__)
     logger.info(ntpath.basename(sys.argv[0]) + ' ' + ' '.join(sys.argv[1:]))
 
 
