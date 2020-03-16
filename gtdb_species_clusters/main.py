@@ -511,7 +511,7 @@ class OptionsParser():
         
         self.logger.info('Done.')
         
-    def u_update_sp_names(self, options):
+    def u_species_names(self, options):
         """Update names of GTDB species clusters."""
         
         check_file_exists(options.gtdb_clusters_file)
@@ -527,7 +527,8 @@ class OptionsParser():
         check_file_exists(options.synonym_file)
         check_file_exists(options.gtdb_type_strains_ledger)
         check_file_exists(options.sp_priority_ledger)
-        check_file_exists(options.gtdb_species_updates_ledger)
+        check_file_exists(options.gtdb_taxa_updates_ledger)
+        check_file_exists(options.dsmz_bacnames_file)
         make_sure_path_exists(options.output_dir)
 
         p = UpdateSpeciesNames(options.ani_cache_file, options.cpus, options.output_dir)
@@ -544,7 +545,8 @@ class OptionsParser():
                 options.synonym_file,
                 options.gtdb_type_strains_ledger,
                 options.sp_priority_ledger,
-                options.gtdb_species_updates_ledger)
+                options.gtdb_taxa_updates_ledger,
+                options.dsmz_bacnames_file)
         
         self.logger.info('Done.')
         
@@ -747,8 +749,8 @@ class OptionsParser():
             self.u_synonyms(options)
         elif options.subparser_name == 'u_cluster_de_novo':
             self.u_cluster_de_novo(options)
-        elif options.subparser_name == 'u_update_sp_names':
-            self.u_update_sp_names(options)
+        elif options.subparser_name == 'u_species_names':
+            self.u_species_names(options)
         elif options.subparser_name == 'u_summary_stats':
             self.u_summary_stats(options)
         elif options.subparser_name == 'merge_test':

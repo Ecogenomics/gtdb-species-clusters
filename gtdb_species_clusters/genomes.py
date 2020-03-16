@@ -158,7 +158,7 @@ class Genomes(object):
                 
         self.logger.error(f'Failed to find representative of GTDB species for {gtdb_sp}.')
         sys.exit(-1)
-        
+
     def ncbi_sp_effective_type_genomes(self):
         """Get effect type genomes for each NCBI species."""
         

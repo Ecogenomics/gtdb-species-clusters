@@ -21,18 +21,20 @@ import logging
 import functools
 from collections import defaultdict
 
+from gtdb_species_clusters.genome import Genome
 from gtdb_species_clusters.genome_utils import select_highest_quality
 
 
 class SpeciesPriorityManager(object):
     """Resolve naming priority of species names."""
 
-    def __init__(self, species_priority_ledger):
+    def __init__(self, species_priority_ledger, dsmz_bacnames_file):
         """Initialization."""
 
         self.logger = logging.getLogger('timestamp')
         
         self._parse_sp_priority_ledger(species_priority_ledger)
+        self._parse_dsmz_bacnames(dsmz_bacnames_file)
 
     def _parse_sp_priority_ledger(self, species_priority_ledger):
         """Parse manually resolved priority cases."""
@@ -65,6 +67,43 @@ class SpeciesPriorityManager(object):
                 num_cases += 1
                 
         self.logger.info(f' ... identified {num_cases:,} manually resolved cases.')
+        
+    def _parse_dsmz_bacnames(self, dsmz_bacnames_file):
+        """Parse priority information from LPSN at DSMZ."""
+        
+        self._genus_priority = {}
+        with open(dsmz_bacnames_file, encoding='utf-8') as f:
+            header = f.readline().strip().split('\t')
+            
+            genus_index = header.index('GENUS')
+            sp_index = header.index('SPECIES')
+            status_index = header.index('STATUS')
+            author_index = header.index('AUTHORS')
+            
+            for line in f:
+                tokens = line.strip().split('\t')
+                
+                genus = tokens[genus_index].strip().replace('"', '')
+                status = tokens[status_index].strip().replace('"', '')
+                authors = tokens[author_index].strip().replace('"', '')
+                if authors.startswith('('):
+                    authors = authors[authors.find(')')+1:].strip()
+
+                for idx, ch in enumerate(authors): 
+                    if ch.isdigit():
+                        year = int(authors[idx:idx+4])
+                        break
+
+                if status.startswith('gen. nov.') or status.startswith('genus'):
+                    self._genus_priority['g__' + genus] = year
+
+    def genus_priority(self, genus):
+        """Determine year of priority for genus."""
+        
+        if genus in self._genus_priority:
+            return self._genus_priority[genus]
+                    
+        return Genome.NO_PRIORITY_YEAR
 
     def priority(self, cur_genomes, gid1, gid2):
         """Resolve priority between genomes."""

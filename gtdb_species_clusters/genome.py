@@ -185,6 +185,13 @@ class Genome(object):
         
         if self.gtdb_untrustworthy_as_type:
             return False
+            
+        if self.ncbi_taxa.species == 's__':
+            # NCBI has genomes marked as assembled from type
+            # material that do not have a species assignment
+            # so clearly aren't valid or effective type 
+            # material at this point
+            return False
         
         if self.ncbi_type_material:
             if self.ncbi_type_material.lower() in Genome.NCBI_TYPE_SPECIES:

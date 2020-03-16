@@ -70,7 +70,7 @@ def print_help():
       u_cluster_named_reps -> Cluster genomes to selected GTDB representatives
       u_synonyms           -> Determine synonyms for validly or effectively published species
       u_cluster_de_novo    -> Infer de novo species clusters and representatives for remaining genomes
-      u_update_sp_names    -> Update names of GTDB species clusters
+      u_species_names      -> Update names of GTDB species clusters
       u_summary_stats      -> Summary statistics indicating changes to GTDB species clusters
       
     Inspect species clusters:
@@ -414,34 +414,35 @@ if __name__ == '__main__':
     u_cluster_de_novo_parser.add_argument('--silent', help="suppress output", action='store_true')
     
     # establish names for each GTDB species cluster
-    u_update_sp_names_parser = subparsers.add_parser('u_update_sp_names',
+    u_species_names_parser = subparsers.add_parser('u_species_names',
                                         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
                                         description='Update names of GTDB species clusters.')
-    u_update_sp_names_parser.add_argument('gtdb_clusters_file', help="file indicating representatives of each GTDB species cluster (u_cluster_de_novo: gtdb_clusters_final.tsv")
-    u_update_sp_names_parser.add_argument('prev_gtdb_metadata_file', help="file with GTDB metadata for previous GTDB release (TSV file)")
-    u_update_sp_names_parser.add_argument('prev_genomic_path_file', help="file indicating  path to previous genomic FASTA files for genomes")
-    u_update_sp_names_parser.add_argument('cur_gtdb_metadata_file', help="file with GTDB metadata for current GTDB release (TSV file)")
-    u_update_sp_names_parser.add_argument('cur_genomic_path_file', help="file indicating path to current genomic FASTA files for genomes")
-    u_update_sp_names_parser.add_argument('uba_genome_paths', help="file indicating path to genomic FASTA files for UBA genomes")
-    u_update_sp_names_parser.add_argument('qc_passed_file', help="file indicating genomes that have passed QC (u_qc_genomes: qc_passed.tsv)")
-    u_update_sp_names_parser.add_argument('gtdbtk_classify_file', help="file with GTDB-Tk classifications for new and updated genomes")
-    u_update_sp_names_parser.add_argument('ncbi_genbank_assembly_file', help="NCBI GenBank assembly file indicating potentially erroneous genomes")
-    u_update_sp_names_parser.add_argument('untrustworthy_type_file', help="file listing genomes that should be considered untrustworthy as type material (u_resolve_types: untrustworthy_type_material.tsv)")
-    u_update_sp_names_parser.add_argument('synonym_file', help="file with species names marked as synonyms (u_synonyms: synonyms.tsv)")
-    u_update_sp_names_parser.add_argument('gtdb_type_strains_ledger', help="file listing genomes to consider as being the type strain for valid or effectively published species name")
-    u_update_sp_names_parser.add_argument('sp_priority_ledger', help="file resolving nomenclatural priority of species names")
-    u_update_sp_names_parser.add_argument('gtdb_species_updates_ledger', help="file indicating explicit updates to species names relative to last GTDB release")
-    u_update_sp_names_parser.add_argument('output_dir', help="output directory")
-    u_update_sp_names_parser.add_argument('--ani_cache_file', help='file with precomputed ANI and AF values')
-    u_update_sp_names_parser.add_argument('-c', '--cpus', help='number of cpus', type=int, default=1)
-    u_update_sp_names_parser.add_argument('--silent', help="suppress output", action='store_true')
+    u_species_names_parser.add_argument('gtdb_clusters_file', help="file indicating representatives of each GTDB species cluster (u_cluster_de_novo: gtdb_clusters_de_novo.tsv")
+    u_species_names_parser.add_argument('prev_gtdb_metadata_file', help="file with GTDB metadata for previous GTDB release (TSV file)")
+    u_species_names_parser.add_argument('prev_genomic_path_file', help="file indicating  path to previous genomic FASTA files for genomes")
+    u_species_names_parser.add_argument('cur_gtdb_metadata_file', help="file with GTDB metadata for current GTDB release (TSV file)")
+    u_species_names_parser.add_argument('cur_genomic_path_file', help="file indicating path to current genomic FASTA files for genomes")
+    u_species_names_parser.add_argument('uba_genome_paths', help="file indicating path to genomic FASTA files for UBA genomes")
+    u_species_names_parser.add_argument('qc_passed_file', help="file indicating genomes that have passed QC (u_qc_genomes: qc_passed.tsv)")
+    u_species_names_parser.add_argument('gtdbtk_classify_file', help="file with GTDB-Tk classifications for new and updated genomes")
+    u_species_names_parser.add_argument('ncbi_genbank_assembly_file', help="NCBI GenBank assembly file indicating potentially erroneous genomes")
+    u_species_names_parser.add_argument('untrustworthy_type_file', help="file listing genomes that should be considered untrustworthy as type material (u_resolve_types: untrustworthy_type_material.tsv)")
+    u_species_names_parser.add_argument('synonym_file', help="file with species names marked as synonyms (u_synonyms: synonyms.tsv)")
+    u_species_names_parser.add_argument('gtdb_type_strains_ledger', help="file listing genomes to consider as being the type strain for valid or effectively published species name")
+    u_species_names_parser.add_argument('sp_priority_ledger', help="file resolving nomenclatural priority of species names")
+    u_species_names_parser.add_argument('gtdb_taxa_updates_ledger', help="file indicating explicit updates to taxa relative to last GTDB release")
+    u_species_names_parser.add_argument('dsmz_bacnames_file', help="table from lpsn.dsmz.de with nomenclature information")
+    u_species_names_parser.add_argument('output_dir', help="output directory")
+    u_species_names_parser.add_argument('--ani_cache_file', help='file with precomputed ANI and AF values')
+    u_species_names_parser.add_argument('-c', '--cpus', help='number of cpus', type=int, default=1)
+    u_species_names_parser.add_argument('--silent', help="suppress output", action='store_true')
 
     # summary statistics indicating changes to GTDB species clusters
     u_summary_stats_parser = subparsers.add_parser('u_summary_stats',
                                         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
                                         description='Summary statistics indicating changes to GTDB species clusters.')
     u_summary_stats_parser.add_argument('updated_sp_rep_file', help="file indicating changes to GTDB representatives (u_rep_actions: updated_species_reps.tsv")
-    u_summary_stats_parser.add_argument('gtdb_clusters_file', help="file indicating representatives of each GTDB species cluster (u_cluster_de_novo: gtdb_clusters_final.tsv")
+    u_summary_stats_parser.add_argument('gtdb_clusters_file', help="file indicating representatives of each GTDB species cluster (u_cluster_de_novo: gtdb_clusters_de_novo.tsv")
     u_summary_stats_parser.add_argument('prev_gtdb_metadata_file', help="file with GTDB metadata for previous GTDB release (TSV file)")
     u_summary_stats_parser.add_argument('cur_gtdb_metadata_file', help="file with GTDB metadata for current GTDB release (TSV file)")
     u_summary_stats_parser.add_argument('uba_genome_paths', help="file indicating path to genomic FASTA files for UBA genomes")

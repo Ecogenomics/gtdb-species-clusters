@@ -128,7 +128,7 @@ class UpdateClusterDeNovo(object):
                         
         return nonrep_radius
         
-    def _mash_ani_unclustered(self, genome_files, gids):
+    def _mash_ani_unclustered(self, cur_genomes, gids):
         """Calculate pairwise Mash ANI estimates between genomes."""
         
         mash = Mash(self.cpus)
@@ -136,7 +136,7 @@ class UpdateClusterDeNovo(object):
         # create Mash sketch for potential representative genomes
         mash_nontype_sketch_file = os.path.join(self.output_dir, 'gtdb_unclustered_genomes.msh')
         genome_list_file = os.path.join(self.output_dir, 'gtdb_unclustered_genomes.lst')
-        mash.sketch(gids, genome_files, genome_list_file, mash_nontype_sketch_file)
+        mash.sketch(gids, cur_genomes.genomic_files, genome_list_file, mash_nontype_sketch_file)
 
         # get Mash distances
         mash_dist_file = os.path.join(self.output_dir, 'gtdb_unclustered_genomes.dst')
@@ -150,9 +150,11 @@ class UpdateClusterDeNovo(object):
         for qid in mash_ani:
             for rid in mash_ani[qid]:
                 if mash_ani[qid][rid] >= self.min_mash_ani:
-                    if qid != rid:
-                        mash_ani_pairs.append((qid, rid))
-                        mash_ani_pairs.append((rid, qid))
+                    n_qid = cur_genomes.user_uba_id_map.get(qid, qid)
+                    n_rid = cur_genomes.user_uba_id_map.get(rid, rid)
+                    if n_qid != n_rid:
+                        mash_ani_pairs.append((n_qid, n_rid))
+                        mash_ani_pairs.append((n_rid, n_qid))
                 
         self.logger.info('Identified {:,} genome pairs with a Mash ANI >= {:.1f}%.'.format(
                             len(mash_ani_pairs), 
@@ -277,7 +279,10 @@ class UpdateClusterDeNovo(object):
 
             # get Mash distances
             mash_dist_file = os.path.join(self.output_dir, 'gtdb_rep_vs_nonrep_genomes.dst')
-            mash.dist(float(100 - self.min_mash_ani)/100, mash_rep_sketch_file, mash_none_rep_sketch_file, mash_dist_file)
+            mash.dist(float(100 - self.min_mash_ani)/100, 
+                        mash_rep_sketch_file, 
+                        mash_none_rep_sketch_file, 
+                        mash_dist_file)
 
             # read Mash distances
             mash_ani = mash.read_ani(mash_dist_file)
@@ -287,19 +292,37 @@ class UpdateClusterDeNovo(object):
             for gid in all_reps:
                 clusters[gid] = []
 
-            ani_pairs = []
-            for gid in nonrep_gids:
-                if gid in mash_ani:
-                    for rep_gid in clusters:
-                        if mash_ani[gid].get(rep_gid, 0) >= self.min_mash_ani:
-                            ani_pairs.append((gid, rep_gid))
-                            ani_pairs.append((rep_gid, gid))
+            if False: #***
+                mash_ani_pairs = []
+                for gid in nonrep_gids:
+                    if gid in mash_ani:
+                        for rid in clusters:
+                            if mash_ani[gid].get(rid, 0) >= self.min_mash_ani:
+                                n_gid = cur_genomes.user_uba_id_map.get(gid, gid)
+                                n_rid = cur_genomes.user_uba_id_map.get(rid, rid)
+                                if n_gid != n_rid:
+                                    mash_ani_pairs.append((n_gid, n_rid))
+                                    mash_ani_pairs.append((n_rid, n_gid))
+                                    
+            mash_ani_pairs = []
+            for qid in mash_ani:
+                n_qid = cur_genomes.user_uba_id_map.get(qid, qid)
+                assert n_qid in nonrep_gids
+                
+                for rid in mash_ani[qid]:
+                    n_rid = cur_genomes.user_uba_id_map.get(rid, rid)
+                    assert n_rid in all_reps
+                    
+                    if (mash_ani[qid][rid] >= self.min_mash_ani
+                        and n_qid != n_rid):
+                        mash_ani_pairs.append((n_qid, n_rid))
+                        mash_ani_pairs.append((n_rid, n_qid))
                             
             self.logger.info('Calculating ANI between {:,} species clusters and {:,} unclustered genomes ({:,} pairs):'.format(
                                 len(clusters), 
                                 len(nonrep_gids),
-                                len(ani_pairs)))
-            ani_af = self.fastani.pairs(ani_pairs, cur_genomes.genomic_files)
+                                len(mash_ani_pairs)))
+            ani_af = self.fastani.pairs(mash_ani_pairs, cur_genomes.genomic_files)
 
             # assign genomes to closest representatives 
             # that is within the representatives ANI radius
@@ -395,13 +418,13 @@ class UpdateClusterDeNovo(object):
 
         # calculate Mash ANI estimates between unclustered genomes
         self.logger.info('Calculating Mash ANI estimates between unclustered genomes.')
-        mash_anis = self._mash_ani_unclustered(cur_genomes.genomic_files, unclustered_gids)
+        mash_anis = self._mash_ani_unclustered(cur_genomes, unclustered_gids)
 
         # select de novo species representatives in a greedy fashion based on genome quality
         de_novo_rep_gids = self._selected_rep_genomes(cur_genomes,
-                                                            nonrep_radius, 
-                                                            unclustered_gids, 
-                                                            mash_anis)
+                                                        nonrep_radius, 
+                                                        unclustered_gids, 
+                                                        mash_anis)
 
         # cluster all non-representative genomes to representative genomes
         final_cluster_radius = rep_radius.copy()

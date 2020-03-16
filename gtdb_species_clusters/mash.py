@@ -69,9 +69,9 @@ class Mash(object):
             
         # get filename and remove information past genome accession
         # (e.g., GCA_002498385.1_ASM249838v1_genomic.fna => GCA_002498385.1)
-        mash_genome_id = ntpath.basename(mash_genome_id)
-        mash_genome_id = mash_genome_id[0:mash_genome_id.find('_', 4)]
-        gid = canonical_gid(mash_genome_id)
+        genome_file = ntpath.basename(mash_genome_id)
+        gid = genome_file[0:genome_file.find('_', 4)]
+        gid = canonical_gid(gid)
             
         return gid
 

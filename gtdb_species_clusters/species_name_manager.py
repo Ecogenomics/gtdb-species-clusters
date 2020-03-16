@@ -56,6 +56,11 @@ class SpeciesNameManager(object):
             self.gtdb_sp_epithets[gtdb_genus].add(gtdb_sp_epithet)
             self.gtdb_canonical_sp_epithets[gtdb_genus].add(canonical_taxon(gtdb_sp_epithet))
             self.sp_epithets_rid[gtdb_genus][gtdb_sp_epithet] = rid
+            
+    def placeholder_sp_epithet(self, rid):
+        """Generate placeholder species epithet from representative accession."""
+        
+        return 'sp{}'.format(rid[1:])
 
     def add_suffix(self, generic, specific):
         """Determine suffix for species."""

@@ -19,12 +19,22 @@ import os
 import csv
 import sys
 from copy import deepcopy
+from itertools import takewhile
 from collections import defaultdict, namedtuple
 
 import biolib.seq_io as seq_io
 from biolib.taxonomy import Taxonomy
 
 from gtdb_species_clusters.genome_utils import canonical_gid
+
+
+def longest_common_prefix(*s):
+    """Find the longest common prefix.
+    
+    https://rosettacode.org/wiki/Longest_common_prefix#Python
+    """
+    
+    return ''.join(a for a,b in takewhile(lambda x: x[0] == x[1], zip(min(s), max(s))))
 
 
 def canonical_taxon(taxon):
@@ -74,6 +84,11 @@ def generic_name(species_name):
 def is_placeholder_sp_epithet(sp_epithet):
     """Check if species epithet is a placeholder."""
     
+    assert '__' not in sp_epithet
+    
+    if sp_epithet == '':
+        return True
+    
     if any(c.isdigit() for c in sp_epithet):
         return True
 
@@ -88,7 +103,7 @@ def is_placeholder_taxon(taxon):
     assert '__' in taxon # expect taxon name to have rank prefix
     
     test_taxon = taxon[3:].replace('[', '').replace(']', '')
-    if not test_taxon:
+    if test_taxon == '':
         return True
         
     if any(c.isdigit() for c in test_taxon):

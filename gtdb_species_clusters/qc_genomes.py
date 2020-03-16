@@ -258,13 +258,13 @@ class QcGenomes(object):
                 failed_tests_gids[gid] = failed_tests
 
                 if cur_genomes[gid].is_gtdb_type_strain() or cur_genomes[gid].is_ncbi_type_strain():
-                    if passed_qc:
+                    if passed_qc or gid in qc_exceptions:
                         type_pass.add(gid)
                     else:
                         type_fail.add(gid)
                         filtered_genomes += 1
                 else:
-                    if passed_qc:
+                    if passed_qc or gid in qc_exceptions:
                         other_pass.add(gid)
                     else:
                         other_fail.add(gid)

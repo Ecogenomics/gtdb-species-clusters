@@ -179,15 +179,16 @@ class UpdateClusterNamedReps(object):
             for qid in mash_ani:
                 for rid in mash_ani[qid]:
                     if mash_ani[qid][rid] >= self.min_mash_ani:
-                        if qid != rid:
-                            mash_ani_pairs.append((qid, rid))
-                            mash_ani_pairs.append((rid, qid))
+                        n_qid = cur_genomes.user_uba_id_map.get(qid, qid)
+                        n_rid = cur_genomes.user_uba_id_map.get(rid, rid)
+                        if n_qid != n_rid:
+                            mash_ani_pairs.append((n_qid, n_rid))
+                            mash_ani_pairs.append((n_rid, n_qid))
                     
             self.logger.info('Identified {:,} genome pairs with a Mash ANI >= {:.1f}%.'.format(len(mash_ani_pairs), self.min_mash_ani))
             
             # calculate ANI between pairs
             self.logger.info('Calculating ANI between {:,} genome pairs:'.format(len(mash_ani_pairs)))
-        
             ani_af = self.fastani.pairs(mash_ani_pairs, cur_genomes.genomic_files)
             pickle.dump(ani_af, open(os.path.join(self.output_dir, 'ani_af_rep_vs_nonrep.pkl'), 'wb'))
         else:
@@ -211,7 +212,7 @@ class UpdateClusterNamedReps(object):
                                     len(non_reps),
                                     num_clustered))
                 sys.stdout.flush()
-                
+
             if non_rid not in ani_af:
                 continue
 

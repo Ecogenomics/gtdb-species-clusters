@@ -82,14 +82,19 @@ class Taxa(object):
         """Override the default Unequal behavior"""
         return self.taxa != other.taxa
         
-    def _set_taxa(self, rank_idx, taxon):
+    def get_taxa(self, rank_idx):
+        """Get taxon at specified rank."""
+        
+        return self.standard_taxa[rank_idx]
+    
+    def set_taxa(self, rank_idx, new_taxon):
         """Set taxon for specified rank."""
         
-        self.standard_taxa[rank_idx] = taxon
+        self.standard_taxa[rank_idx] = new_taxon
         
         for idx, taxon in enumerate(self.taxa):
             if taxon[0:3] == Taxonomy.rank_prefixes[rank_idx]:
-                self.taxa[idx] = taxon
+                self.taxa[idx] = new_taxon
                 break
                 
     def update_taxa(self, taxa):
@@ -114,7 +119,7 @@ class Taxa(object):
         
     @species.setter
     def species(self, taxon):
-        self._set_taxa(6, taxon)
+        self.set_taxa(6, taxon)
 
     @property
     def specific_epithet(self):
@@ -154,7 +159,7 @@ class Taxa(object):
         
     @genus.setter
     def genus(self, taxon):
-        self._set_taxa(5, taxon)
+        self.set_taxa(5, taxon)
         
     @property
     def family(self):
@@ -162,7 +167,7 @@ class Taxa(object):
         
     @family.setter
     def family(self, taxon):
-        self._set_taxa(4, taxon)
+        self.set_taxa(4, taxon)
         
     @property
     def order(self):
@@ -170,7 +175,7 @@ class Taxa(object):
         
     @order.setter
     def order(self, taxon):
-        self._set_taxa(3, taxon)
+        self.set_taxa(3, taxon)
         
     @property
     def class_taxon(self):
@@ -178,7 +183,7 @@ class Taxa(object):
         
     @class_taxon.setter
     def class_taxon(self, taxon):
-        self._set_taxa(2, taxon)
+        self.set_taxa(2, taxon)
         
     @property
     def phylum(self):
@@ -186,7 +191,7 @@ class Taxa(object):
         
     @phylum.setter
     def phylum(self, taxon):
-        self._set_taxa(1, taxon)
+        self.set_taxa(1, taxon)
         
     @property
     def domain(self):
@@ -194,4 +199,4 @@ class Taxa(object):
         
     @domain.setter
     def domain(self, taxon):
-        self._set_taxa(0, taxon)
+        self.set_taxa(0, taxon)
