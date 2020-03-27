@@ -368,7 +368,6 @@ class ResolveTypes(object):
                 cur_gtdb_metadata_file,
                 cur_genomic_path_file,
                 qc_passed_file,
-                gtdbtk_classify_file,
                 ncbi_genbank_assembly_file,
                 ltp_taxonomy_file,
                 gtdb_type_strains_ledger,
@@ -389,10 +388,14 @@ class ResolveTypes(object):
                                                 uba_genome_file=None,
                                                 qc_passed_file=qc_passed_file,
                                                 ncbi_genbank_assembly_file=ncbi_genbank_assembly_file,
-                                                untrustworthy_type_ledger=untrustworthy_type_ledger,
-                                                gtdbtk_classify_file=gtdbtk_classify_file)
+                                                untrustworthy_type_ledger=untrustworthy_type_ledger)
         cur_genomes.load_genomic_file_paths(cur_genomic_path_file)
         self.logger.info(f' ... current genome set contains {len(cur_genomes):,} genomes.')
+        
+        # update current genomes with GTDB-Tk classifications
+        self.logger.info('Updating current genomes with GTDB-Tk classifications.')
+        num_updated, num_ncbi_sp = cur_genomes.set_gtdbtk_classification(gtdbtk_classify_file, prev_genomes)
+        self.logger.info(f' ... set GTDB taxa for {num_updated:,} genomes with {num_ncbi_sp:,} genomes using NCBI genus and species name.')
         
         # parsing genomes manually established to be untrustworthy as type
         self.logger.info('Determining genomes manually annotated as untrustworthy as type.')

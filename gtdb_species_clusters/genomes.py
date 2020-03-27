@@ -246,6 +246,50 @@ class Genomes(object):
                 untrustworthy_as_type.add(canonical_gid(tokens[0]))
             
         return untrustworthy_as_type
+        
+    def set_gtdbtk_classification(self, gtdbtk_classify_file, prev_genomes):
+        """Update classification of genomes based on GTDB-Tk results."""
+        
+        # get species names in previous GTDB release
+        prev_ncbi_sp = set()
+        prev_gtdb_sp = set()
+        for gid in prev_genomes:
+            prev_ncbi_sp.add(prev_genomes[gid].ncbi_taxa.species)
+            prev_gtdb_sp.add(prev_genomes[gid].gtdb_taxa.species)
+        
+        # set new genomes to the predicted GTDB-Tk classification, but
+        # change genus and species classifications of a genome if it has
+        # a previously unseen NCBI species assignment. This is a problematic
+        # case for curation as GTDB-Tk is unaware of these assignments.
+        # A common example is a new genome being the most basal
+        # member of a genus, this genome being classified to this genus by 
+        # GTDB-Tk, but this genome being from a newly proposed genera which
+        # should be favored in order to have the GTDB reflect the opinion
+        # of the community. New NCBI taxa above the rank of genus are not considered
+        # as these are relatively uncommon and are picked up for manual curation
+        # using curation trees that specifically highlight genomes with previously
+        # unseen NCBI taxon names (see update_curation_trees)
+        gtdbtk_classifications = read_gtdbtk_classifications(gtdbtk_classify_file)
+        num_updated = 0
+        num_ncbi_sp = 0
+        for gid in self.genomes:
+            if gid in gtdbtk_classifications:
+                num_updated += 1
+                
+                gtdbtk_taxa = Taxa(';'.join(gtdbtk_classifications[gid]))
+                self.genomes[gid].gtdb_taxa.update_taxa(gtdbtk_taxa)
+
+                ncbi_sp = self.genomes[gid].ncbi_taxa.species
+                if (ncbi_sp == 's__' 
+                    or ncbi_sp in prev_ncbi_sp
+                    or ncbi_sp in prev_gtdb_sp):
+                    continue
+
+                self.genomes[gid].gtdb_taxa.set_taxa(5, self.genomes[gid].ncbi_taxa.genus)
+                self.genomes[gid].gtdb_taxa.set_taxa(6, ncbi_sp)
+                num_ncbi_sp += 1
+            
+        return num_updated, num_ncbi_sp
 
     def load_from_metadata_file(self, 
                                 metadata_file,
@@ -256,8 +300,7 @@ class Genomes(object):
                                 uba_genome_file=None,
                                 qc_passed_file=None,
                                 ncbi_genbank_assembly_file=None,
-                                untrustworthy_type_ledger=None,
-                                gtdbtk_classify_file=None):
+                                untrustworthy_type_ledger=None):
         """Create genome set from file(s)."""
         
         pass_qc_gids = set()
@@ -295,11 +338,6 @@ class Genomes(object):
         if untrustworthy_type_ledger:
             untrustworthy_as_type = self.parse_untrustworthy_type_ledger(untrustworthy_type_ledger)
             self.logger.info(f' ... identified {len(untrustworthy_as_type):,} genomes annotated as untrustworthy as type.')
-            
-        gtdbtk_classifications = {}
-        if gtdbtk_classify_file:
-            gtdbtk_classifications = read_gtdbtk_classifications(gtdbtk_classify_file)
-            self.logger.info(f' ... identified {len(gtdbtk_classifications):,} GTDB-Tk classifications.')
 
         with open(metadata_file, encoding='utf-8') as f:
             headers = f.readline().strip().split('\t')
@@ -371,10 +409,8 @@ class Genomes(object):
                         
                 if pass_qc_gids and gid not in pass_qc_gids:
                     continue
-                
+
                 gtdb_taxonomy = Taxa(line_split[gtdb_taxonomy_index])
-                if gid in gtdbtk_classifications:
-                    gtdb_taxonomy = Taxa(';'.join(gtdbtk_classifications[gid]))
                 
                 ncbi_taxonomy = Taxa(line_split[ncbi_taxonomy_index])
                 ncbi_taxonomy_unfiltered = Taxa(line_split[ncbi_taxonomy_unfiltered_index])

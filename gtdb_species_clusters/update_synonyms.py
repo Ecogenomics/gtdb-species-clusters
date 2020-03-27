@@ -112,7 +112,6 @@ class UpdateSynonyms(object):
                     cur_gtdb_metadata_file,
                     uba_genome_paths,
                     qc_passed_file,
-                    gtdbtk_classify_file,
                     ncbi_genbank_assembly_file,
                     untrustworthy_type_file,
                     ani_af_rep_vs_nonrep,
@@ -128,7 +127,6 @@ class UpdateSynonyms(object):
                                                 create_sp_clusters=False,
                                                 uba_genome_file=uba_genome_paths,
                                                 qc_passed_file=qc_passed_file,
-                                                gtdbtk_classify_file=gtdbtk_classify_file,
                                                 ncbi_genbank_assembly_file=ncbi_genbank_assembly_file,
                                                 untrustworthy_type_ledger=untrustworthy_type_file)
         self.logger.info(f' ... current genome set contains {len(cur_genomes):,} genomes.')

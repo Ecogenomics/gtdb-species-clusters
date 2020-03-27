@@ -45,6 +45,8 @@ from gtdb_species_clusters.update_select_reps import UpdateSelectRepresentatives
 from gtdb_species_clusters.update_cluster_named_reps import UpdateClusterNamedReps
 from gtdb_species_clusters.update_synonyms import UpdateSynonyms
 from gtdb_species_clusters.update_cluster_de_novo import UpdateClusterDeNovo
+from gtdb_species_clusters.update_genus_names import UpdateGenusNames
+from gtdb_species_clusters.update_curation_trees import UpdateCurationTrees
 from gtdb_species_clusters.update_species_names import UpdateSpeciesNames
 from gtdb_species_clusters.update_summary_stats import UpdateSummaryStats
 
@@ -290,7 +292,6 @@ class OptionsParser():
         check_file_exists(options.cur_gtdb_metadata_file)
         check_file_exists(options.cur_genomic_path_file)
         check_file_exists(options.qc_passed_file)
-        check_file_exists(options.gtdbtk_classify_file)
         check_file_exists(options.ncbi_genbank_assembly_file)
         check_file_exists(options.ltp_taxonomy_file)
         check_file_exists(options.gtdb_type_strains_ledger)
@@ -301,7 +302,6 @@ class OptionsParser():
         p.run(options.cur_gtdb_metadata_file,
                 options.cur_genomic_path_file,
                 options.qc_passed_file,
-                options.gtdbtk_classify_file,
                 options.ncbi_genbank_assembly_file,
                 options.ltp_taxonomy_file,
                 options.gtdb_type_strains_ledger,
@@ -422,7 +422,6 @@ class OptionsParser():
         check_file_exists(options.cur_genomic_path_file)
         check_file_exists(options.uba_genome_paths)
         check_file_exists(options.qc_passed_file)
-        check_file_exists(options.gtdbtk_classify_file)
         check_file_exists(options.ncbi_genbank_assembly_file)
         check_file_exists(options.untrustworthy_type_file)
         check_file_exists(options.rep_mash_sketch_file)
@@ -440,7 +439,6 @@ class OptionsParser():
                 options.cur_genomic_path_file,
                 options.uba_genome_paths,
                 options.qc_passed_file,
-                options.gtdbtk_classify_file,
                 options.ncbi_genbank_assembly_file,
                 options.untrustworthy_type_file,
                 options.rep_mash_sketch_file,
@@ -456,7 +454,6 @@ class OptionsParser():
         check_file_exists(options.cur_gtdb_metadata_file)
         check_file_exists(options.uba_genome_paths)
         check_file_exists(options.qc_passed_file)
-        check_file_exists(options.gtdbtk_classify_file)
         check_file_exists(options.ncbi_genbank_assembly_file)
         check_file_exists(options.untrustworthy_type_file)
         check_file_exists(options.ani_af_rep_vs_nonrep)
@@ -469,7 +466,6 @@ class OptionsParser():
                 options.cur_gtdb_metadata_file,
                 options.uba_genome_paths,
                 options.qc_passed_file,
-                options.gtdbtk_classify_file,
                 options.ncbi_genbank_assembly_file,
                 options.untrustworthy_type_file,
                 options.ani_af_rep_vs_nonrep,
@@ -508,6 +504,59 @@ class OptionsParser():
                 options.untrustworthy_type_file,
                 options.ani_af_rep_vs_nonrep,
                 options.gtdb_type_strains_ledger)
+        
+        self.logger.info('Done.')
+        
+    def u_genus_names(self, options):
+        """Update genus names as a precursor for establish binomial species names."""
+        
+        check_file_exists(options.gtdb_clusters_file)
+        check_file_exists(options.prev_gtdb_metadata_file)
+        check_file_exists(options.cur_gtdb_metadata_file)
+        check_file_exists(options.uba_genome_paths)
+        check_file_exists(options.qc_passed_file)
+        check_file_exists(options.gtdbtk_classify_file)
+        check_file_exists(options.ncbi_genbank_assembly_file)
+        check_file_exists(options.untrustworthy_type_file)
+        check_file_exists(options.synonym_file)
+        check_file_exists(options.gtdb_type_strains_ledger)
+        check_file_exists(options.sp_priority_ledger)
+        check_file_exists(options.gtdb_taxa_updates_ledger)
+        check_file_exists(options.dsmz_bacnames_file)
+        make_sure_path_exists(options.output_dir)
+
+        p = UpdateGenusNames(options.output_dir)
+        p.run(options.gtdb_clusters_file,
+                options.prev_gtdb_metadata_file,
+                options.cur_gtdb_metadata_file,
+                options.uba_genome_paths,
+                options.qc_passed_file,
+                options.gtdbtk_classify_file,
+                options.ncbi_genbank_assembly_file,
+                options.untrustworthy_type_file,
+                options.synonym_file,
+                options.gtdb_type_strains_ledger,
+                options.sp_priority_ledger,
+                options.gtdb_taxa_updates_ledger,
+                options.dsmz_bacnames_file)
+        
+        self.logger.info('Done.')
+        
+    def u_curation_trees(self, options):
+        """Produce curation trees highlighting new NCBI taxa."""
+        
+        check_file_exists(options.gtdb_clusters_file)
+        check_file_exists(options.prev_gtdb_metadata_file)
+        check_file_exists(options.cur_gtdb_metadata_file)
+        check_file_exists(options.uba_genome_paths)
+        check_file_exists(options.qc_passed_file)
+
+        p = UpdateCurationTrees(options.output_dir, options.output_prefix)
+        p.run(options.gtdb_clusters_file,
+                options.prev_gtdb_metadata_file,
+                options.cur_gtdb_metadata_file,
+                options.uba_genome_paths,
+                options.qc_passed_file)
         
         self.logger.info('Done.')
         
@@ -749,6 +798,10 @@ class OptionsParser():
             self.u_synonyms(options)
         elif options.subparser_name == 'u_cluster_de_novo':
             self.u_cluster_de_novo(options)
+        elif options.subparser_name == 'u_genus_names':
+            self.u_genus_names(options)
+        elif options.subparser_name == 'u_curation_trees':
+            self.u_curation_trees(options)
         elif options.subparser_name == 'u_species_names':
             self.u_species_names(options)
         elif options.subparser_name == 'u_summary_stats':
