@@ -290,6 +290,34 @@ class Genomes(object):
                 num_ncbi_sp += 1
             
         return num_updated, num_ncbi_sp
+        
+    def set_prev_gtdb_classifications(self, prev_genomes):
+        """Set genomes to GTDB assignments in previous release."""
+        
+        # set current genomes to have same GTDB assignments as in previous
+        # GTDB release. This is necessary since genomes may have different
+        # NCBI accession numbers between releases and thus the previous GTDB
+        # taxonomy will not be reflected in the latest GTDB database. The 
+        # exception is if a genome has changed domains, in which case the
+        # previous assignment is invalid.
+        self.logger.info('Setting GTDB taxonomy of genomes in current genome set.')
+        
+        update_count = 0
+        conflicting_domain_count = 0
+        for prev_gid in prev_genomes:
+            if prev_gid in self.genomes:
+                if prev_genomes[prev_gid].gtdb_taxa != self.genomes[prev_gid].gtdb_taxa:
+                    if prev_genomes[prev_gid].gtdb_taxa.domain == self.genomes[prev_gid].gtdb_taxa.domain:
+                        # verify updating genomes without assigned GTDB taxa below domain
+                        assert self.genomes[prev_gid].gtdb_taxa.phylum == 'p__'
+                        
+                        update_count += 1
+                        self.genomes[prev_gid].gtdb_taxa.update_taxa(prev_genomes[prev_gid].gtdb_taxa)
+                    else:
+                        conflicting_domain_count += 1
+                        
+        self.logger.info(f' - updated {update_count:,} genomes.')
+        self.logger.info(f' - identified {conflicting_domain_count:,} genomes with conflicting domain assignments.')
 
     def load_from_metadata_file(self, 
                                 metadata_file,
@@ -310,7 +338,7 @@ class Genomes(object):
                 for line in f:
                     line_split = line.strip().split('\t')
                     pass_qc_gids.add(line_split[0].strip())
-            self.logger.info(f' ... identified {len(pass_qc_gids):,} genomes passing QC.')
+            self.logger.info(f' - identified {len(pass_qc_gids):,} genomes passing QC.')
                     
         valid_uba_ids = set()
         if uba_genome_file:
@@ -318,7 +346,7 @@ class Genomes(object):
                 for line in f:
                     line_split = line.strip().split('\t')
                     valid_uba_ids.add(line_split[0].strip())
-            self.logger.info(f' ... identified {len(valid_uba_ids):,} UBA genomes to retain.')
+            self.logger.info(f' - identified {len(valid_uba_ids):,} UBA genomes to retain.')
 
         gtdb_type_strains = set()
         if gtdb_type_strains_ledger:
@@ -328,7 +356,7 @@ class Genomes(object):
                     tokens = line.strip().split('\t')
                     gid = canonical_gid(tokens[0].strip())
                     gtdb_type_strains.add(gid)
-            self.logger.info(f' ... identified {len(gtdb_type_strains):,} manually annotated as type strain genomes.')
+            self.logger.info(f' - identified {len(gtdb_type_strains):,} manually annotated as type strain genomes.')
                     
         excluded_from_refseq_note = {}
         if ncbi_genbank_assembly_file:
@@ -337,7 +365,7 @@ class Genomes(object):
         untrustworthy_as_type = set()
         if untrustworthy_type_ledger:
             untrustworthy_as_type = self.parse_untrustworthy_type_ledger(untrustworthy_type_ledger)
-            self.logger.info(f' ... identified {len(untrustworthy_as_type):,} genomes annotated as untrustworthy as type.')
+            self.logger.info(f' - identified {len(untrustworthy_as_type):,} genomes annotated as untrustworthy as type.')
 
         with open(metadata_file, encoding='utf-8') as f:
             headers = f.readline().strip().split('\t')

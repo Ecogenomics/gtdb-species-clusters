@@ -182,8 +182,13 @@ class UpdateSummaryStats(object):
         total_num_new = 0
         total_num_migrated_in = 0
         total_num_migrated_out = 0
+        
+        moved_in = defaultdict(int)
+        moved_out = defaultdict(int)
         for prev_rid, prev_cids in prev_genomes.sp_clusters.items():
+            assert prev_rid in prev_cids
             prev_gtdb_sp = prev_genomes[prev_rid].gtdb_taxa.species
+            new_gtdb_sp = 'n/a'
             
             new_rid = updated_rids[prev_rid]
             prev_cluster_ids.add(new_rid)
@@ -203,7 +208,7 @@ class UpdateSummaryStats(object):
                 # representatives for NCBI species
                 merged_rid = new_rid_map[new_rid]
                 merged_sp = cur_genomes[merged_rid].gtdb_taxa.species
-                note = 'merged with {} with representative {}'.format(merged_sp, merged_rid)
+                note = 'merged {} with representative {}'.format(merged_sp, merged_rid)
                 
                 new_rid = 'none'
                 rep_status = 'MERGED'
@@ -247,6 +252,9 @@ class UpdateSummaryStats(object):
             num_migrated_out = len((prev_cids - new_cluster).intersection(new_gids))
             assert len(new_cluster) == len(prev_cids) - num_lost + num_new + num_migrated_in - num_migrated_out
             assert len(prev_cids) == num_same + num_lost + num_migrated_out
+            
+            moved_in[new_gtdb_sp] += num_migrated_in
+            moved_out[prev_gtdb_sp] += num_migrated_out
             
             fout.write('\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\n'.format(
                         len(prev_cids),
@@ -298,6 +306,27 @@ class UpdateSummaryStats(object):
                         
             total_num_new += num_new
             total_num_migrated_in += num_migrated_in
+            
+            moved_in[new_gtdb_sp] += num_migrated_in
+            
+        # report major movements
+        self.logger.info('Major movements into new species clusters:')
+        for idx, (sp, count) in enumerate(sorted(moved_in.items(), key = lambda kv: kv[1], reverse=True)):
+            print(sp, count)
+            if idx > 10:
+                break
+        print('Total', sum(moved_in.values()))
+            
+        self.logger.info('Major movements out of previous species clusters:')
+        num_out_placeholder = 0
+        for idx, (sp, count) in enumerate(sorted(moved_out.items(), key = lambda kv: kv[1], reverse=True)):
+            if idx < 10:
+                print(sp, count)
+            
+            if is_placeholder_taxon(sp):
+                num_out_placeholder += count
+        print('num_out_placeholder', num_out_placeholder)
+        print('Total', sum(moved_out.values()))
             
         # report genome statistics
         num_union = len(new_gids.union(prev_gids))

@@ -205,6 +205,7 @@ class UpdateClusterNamedReps(object):
             clusters[rep_id] = []
             
         num_clustered = 0
+        non_reps = ['G003634515'] #***
         for idx, non_rid in enumerate(non_reps):
             if idx % 100 == 0:
                 sys.stdout.write('==> Processed {:,} of {:,} genomes [no. clustered = {:,}].\r'.format(
@@ -224,13 +225,13 @@ class UpdateClusterNamedReps(object):
                     continue
 
                 ani, af = symmetric_ani(ani_af, rid, non_rid)
-                
+
                 if af >= self.af_sp:
                     if ani > closest_ani or (ani == closest_ani and af > closest_af):
                         closest_rid = rid
                         closest_ani = ani
                         closest_af = af
-                
+
             if closest_rid:
                 if closest_ani > rep_radius[closest_rid].ani:
                     num_clustered += 1

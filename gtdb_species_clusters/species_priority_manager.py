@@ -72,7 +72,7 @@ class SpeciesPriorityManager(object):
         """Parse priority information from LPSN at DSMZ."""
         
         self._genus_priority = {}
-        with open(dsmz_bacnames_file, encoding='utf-8') as f:
+        with open(dsmz_bacnames_file, encoding='utf-8', errors='ignore') as f:
             header = f.readline().strip().split('\t')
             
             genus_index = header.index('GENUS')

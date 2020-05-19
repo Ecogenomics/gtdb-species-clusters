@@ -65,11 +65,22 @@ def print_help():
       u_cluster_de_novo    -> Infer de novo species clusters and representatives for remaining genomes
       u_genus_names        -> (???) Produce tables for updating genus names as a precursor for establish binomial species names
       u_curation_trees     -> Produce curation trees highlighting new NCBI taxa
-      u_species_names      -> Update names of GTDB species clusters
+      u_species_init       -> Produce initial best guess at GTDB species clusters
+      ( ... update GTDB clustering in database ...)
+      ( ... manual curation ... )
+      
+    Post-manual curation
+      pmc_manual_species     -> Identify species names manually set by curators
+      pmc_replace_generic    -> Replace generic names with genus assignment
+      pmc_check_type_species -> Check for agreement between GTDB genera and genomes assembled from type species of genus
+      pmc_check_type_strains -> Check for agreement between GTDB species and genomes assembled from type strain of species
+      u_species_final      -> Finalize species names based on results of manual curation
       u_summary_stats      -> Summary statistics indicating changes to GTDB species clusters
       
     Inspect species clusters:
-      merge_test -> Produce information relevant to merging two sister species
+      merge_test      -> Produce information relevant to merging two sister species
+      intra_sp_derep  -> Dereplicate GTDB species clusters using ANI/AF criteria
+      intra_genus_ani -> Calculate intra-genus ANI/AF values between GTDB genomes
     
     Other:
       rep_compare         -> Compare current and previous representatives
@@ -437,29 +448,108 @@ if __name__ == '__main__':
     u_curation_tree_parser.add_argument('--output_prefix', help="output prefix", default='gtdb_rX')
     u_curation_tree_parser.add_argument('--silent', help="suppress output", action='store_true')
     
-    # establish names for each GTDB species cluster
-    u_species_names_parser = subparsers.add_parser('u_species_names',
+    # produce initial best guess at GTDB species clusters
+    u_species_init_parser = subparsers.add_parser('u_species_init',
                                         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
-                                        description='Update names of GTDB species clusters.')
-    u_species_names_parser.add_argument('gtdb_clusters_file', help="file indicating representatives of each GTDB species cluster (u_cluster_de_novo: gtdb_clusters_de_novo.tsv")
-    u_species_names_parser.add_argument('prev_gtdb_metadata_file', help="file with GTDB metadata for previous GTDB release (TSV file)")
-    u_species_names_parser.add_argument('prev_genomic_path_file', help="file indicating  path to previous genomic FASTA files for genomes")
-    u_species_names_parser.add_argument('cur_gtdb_metadata_file', help="file with GTDB metadata for current GTDB release (TSV file)")
-    u_species_names_parser.add_argument('cur_genomic_path_file', help="file indicating path to current genomic FASTA files for genomes")
-    u_species_names_parser.add_argument('uba_genome_paths', help="file indicating path to genomic FASTA files for UBA genomes")
-    u_species_names_parser.add_argument('qc_passed_file', help="file indicating genomes that have passed QC (u_qc_genomes: qc_passed.tsv)")
-    u_species_names_parser.add_argument('gtdbtk_classify_file', help="file with GTDB-Tk classifications for new and updated genomes")
-    u_species_names_parser.add_argument('ncbi_genbank_assembly_file', help="NCBI GenBank assembly file indicating potentially erroneous genomes")
-    u_species_names_parser.add_argument('untrustworthy_type_file', help="file listing genomes that should be considered untrustworthy as type material (u_resolve_types: untrustworthy_type_material.tsv)")
-    u_species_names_parser.add_argument('synonym_file', help="file with species names marked as synonyms (u_synonyms: synonyms.tsv)")
-    u_species_names_parser.add_argument('gtdb_type_strains_ledger', help="file listing genomes to consider as being the type strain for valid or effectively published species name")
-    u_species_names_parser.add_argument('sp_priority_ledger', help="file resolving nomenclatural priority of species names")
-    u_species_names_parser.add_argument('gtdb_taxa_updates_ledger', help="file indicating explicit updates to taxa relative to last GTDB release")
-    u_species_names_parser.add_argument('dsmz_bacnames_file', help="table from lpsn.dsmz.de with nomenclature information")
-    u_species_names_parser.add_argument('output_dir', help="output directory")
-    u_species_names_parser.add_argument('--ani_cache_file', help='file with precomputed ANI and AF values')
-    u_species_names_parser.add_argument('-c', '--cpus', help='number of cpus', type=int, default=1)
-    u_species_names_parser.add_argument('--silent', help="suppress output", action='store_true')
+                                        description='Produce initial best guess at GTDB species clusters.')
+    u_species_init_parser.add_argument('gtdb_clusters_file', help="file indicating representatives of each GTDB species cluster (u_cluster_de_novo: gtdb_clusters_de_novo.tsv)")
+    u_species_init_parser.add_argument('prev_gtdb_metadata_file', help="file with GTDB metadata for previous GTDB release (TSV file)")
+    u_species_init_parser.add_argument('prev_genomic_path_file', help="file indicating  path to previous genomic FASTA files for genomes")
+    u_species_init_parser.add_argument('cur_gtdb_metadata_file', help="file with GTDB metadata for current GTDB release (TSV file)")
+    u_species_init_parser.add_argument('cur_genomic_path_file', help="file indicating path to current genomic FASTA files for genomes")
+    u_species_init_parser.add_argument('uba_genome_paths', help="file indicating path to genomic FASTA files for UBA genomes")
+    u_species_init_parser.add_argument('qc_passed_file', help="file indicating genomes that have passed QC (u_qc_genomes: qc_passed.tsv)")
+    u_species_init_parser.add_argument('gtdbtk_classify_file', help="file with GTDB-Tk classifications for new and updated genomes")
+    u_species_init_parser.add_argument('ncbi_genbank_assembly_file', help="NCBI GenBank assembly file indicating potentially erroneous genomes")
+    u_species_init_parser.add_argument('untrustworthy_type_file', help="file listing genomes that should be considered untrustworthy as type material (u_resolve_types: untrustworthy_type_material.tsv)")
+    u_species_init_parser.add_argument('synonym_file', help="file with species names marked as synonyms (u_synonyms: synonyms.tsv)")
+    u_species_init_parser.add_argument('gtdb_type_strains_ledger', help="file listing genomes to consider as being the type strain for valid or effectively published species name")
+    u_species_init_parser.add_argument('sp_priority_ledger', help="file resolving nomenclatural priority of species names")
+    u_species_init_parser.add_argument('gtdb_taxa_updates_ledger', help="file indicating explicit updates to taxa relative to last GTDB release")
+    u_species_init_parser.add_argument('dsmz_bacnames_file', help="table from lpsn.dsmz.de with nomenclature information")
+    u_species_init_parser.add_argument('output_dir', help="output directory")
+    u_species_init_parser.add_argument('--ani_cache_file', help='file with precomputed ANI and AF values')
+    u_species_init_parser.add_argument('-c', '--cpus', help='number of cpus', type=int, default=1)
+    u_species_init_parser.add_argument('--silent', help="suppress output", action='store_true')
+    
+    # identify species names manually set by curators
+    pmc_manual_species_parser = subparsers.add_parser('pmc_manual_species',
+                                        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+                                        description='Identify species names manually set by curators.')
+    pmc_manual_species_parser.add_argument('init_taxonomy', help="initial taxonomy file")
+    pmc_manual_species_parser.add_argument('manually_curated_tree', help="tree decorated with manually curated taxonomy")
+    pmc_manual_species_parser.add_argument('output_dir', help="output directory")
+    pmc_manual_species_parser.add_argument('--silent', help="suppress output", action='store_true')
+    
+    # replace generic names with genus assignment
+    pmc_replace_generic_parser = subparsers.add_parser('pmc_replace_generic',
+                                        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+                                        description='Replace generic names with genus assignment.')
+    pmc_replace_generic_parser.add_argument('manual_species_names', help="file indicating manually curated species names (u_manual_species: manual_species_names.tsv)")
+    pmc_replace_generic_parser.add_argument('manual_taxonomy', help="manually curated taxonomy file")
+    pmc_replace_generic_parser.add_argument('output_dir', help="output directory")
+    pmc_replace_generic_parser.add_argument('--silent', help="suppress output", action='store_true')
+    
+    # check for agreement between GTDB genera and genomes assembled from type species of genus
+    pmc_check_type_species_parser = subparsers.add_parser('pmc_check_type_species',
+                                        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+                                        description='Check for agreement between GTDB genera and genomes assembled from type species of genus.')
+    pmc_check_type_species_parser.add_argument('manual_taxonomy', help="file with manually curated taxonomy (u_replace_generic: taxonomy_updated_sp.tsv)")
+    pmc_check_type_species_parser.add_argument('cur_gtdb_metadata_file', help="file with GTDB metadata for current GTDB release (TSV file)")
+    pmc_check_type_species_parser.add_argument('uba_genome_paths', help="file indicating path to genomic FASTA files for UBA genomes")
+    pmc_check_type_species_parser.add_argument('qc_passed_file', help="file indicating genomes that have passed QC (u_qc_genomes: qc_passed.tsv)")
+    pmc_check_type_species_parser.add_argument('ncbi_genbank_assembly_file', help="NCBI GenBank assembly file indicating potentially erroneous genomes")
+    pmc_check_type_species_parser.add_argument('untrustworthy_type_file', help="file listing genomes that should be considered untrustworthy as type material (u_resolve_types: untrustworthy_type_material.tsv)")
+    pmc_check_type_species_parser.add_argument('synonym_file', help="file with species names marked as synonyms (u_synonyms: synonyms.tsv)")
+    pmc_check_type_species_parser.add_argument('gtdb_type_strains_ledger', help="file listing genomes to consider as being the type strain for valid or effectively published species name")
+    pmc_check_type_species_parser.add_argument('sp_priority_ledger', help="file resolving nomenclatural priority of species names")
+    pmc_check_type_species_parser.add_argument('dsmz_bacnames_file', help="table from lpsn.dsmz.de with nomenclature information")
+    pmc_check_type_species_parser.add_argument('output_dir', help="output directory")
+    pmc_check_type_species_parser.add_argument('--silent', help="suppress output", action='store_true')
+    
+    # check for agreement between GTDB species and genomes assembled from type strain of species
+    pmc_check_type_strains_parser = subparsers.add_parser('pmc_check_type_strains',
+                                        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+                                        description='Check for agreement between GTDB species and genomes assembled from type strain of species.')
+    pmc_check_type_strains_parser.add_argument('manual_taxonomy', help="file with manually curated taxonomy (u_replace_generic: taxonomy_updated_sp.tsv)")
+    pmc_check_type_strains_parser.add_argument('cur_gtdb_metadata_file', help="file with GTDB metadata for current GTDB release (TSV file)")
+    pmc_check_type_strains_parser.add_argument('uba_genome_paths', help="file indicating path to genomic FASTA files for UBA genomes")
+    pmc_check_type_strains_parser.add_argument('qc_passed_file', help="file indicating genomes that have passed QC (u_qc_genomes: qc_passed.tsv)")
+    pmc_check_type_strains_parser.add_argument('ncbi_genbank_assembly_file', help="NCBI GenBank assembly file indicating potentially erroneous genomes")
+    pmc_check_type_strains_parser.add_argument('untrustworthy_type_file', help="file listing genomes that should be considered untrustworthy as type material (u_resolve_types: untrustworthy_type_material.tsv)")
+    pmc_check_type_strains_parser.add_argument('synonym_file', help="file with species names marked as synonyms (u_synonyms: synonyms.tsv)")
+    pmc_check_type_strains_parser.add_argument('gtdb_type_strains_ledger', help="file listing genomes to consider as being the type strain for valid or effectively published species name")
+    pmc_check_type_strains_parser.add_argument('sp_priority_ledger', help="file resolving nomenclatural priority of species names")
+    pmc_check_type_strains_parser.add_argument('dsmz_bacnames_file', help="table from lpsn.dsmz.de with nomenclature information")
+    pmc_check_type_strains_parser.add_argument('output_dir', help="output directory")
+    pmc_check_type_strains_parser.add_argument('--silent', help="suppress output", action='store_true')
+    
+    # finalize species names based on results of manual curation
+    u_species_final_parser = subparsers.add_parser('u_species_final',
+                                        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+                                        description='Finalize species names based on results of manual curation.')
+    u_species_final_parser.add_argument('bac_curation_file', help="file with manually curated bacterial taxonomy")
+    u_species_final_parser.add_argument('ar_curation_file', help="file with manually curated archaeal taxonomy")
+    u_species_final_parser.add_argument('bac_init_taxonomy', help="initial bacterial taxonomy (u_species_init: gtdb_bac_taxonomy.tsv)")
+    u_species_final_parser.add_argument('ar_init_taxonomy', help="initial archaeal taxonomy (u_species_init: gtdb_ar_taxonomy.tsv)")
+    u_species_final_parser.add_argument('gtdb_clusters_file', help="file indicating representatives of each GTDB species cluster (u_cluster_de_novo: gtdb_clusters_de_novo.tsv)")
+    u_species_final_parser.add_argument('prev_gtdb_metadata_file', help="file with GTDB metadata for previous GTDB release (TSV file)")
+    u_species_final_parser.add_argument('cur_gtdb_metadata_file', help="file with GTDB metadata for current GTDB release (TSV file)")
+    u_species_final_parser.add_argument('uba_genome_paths', help="file indicating path to genomic FASTA files for UBA genomes")
+    u_species_final_parser.add_argument('qc_passed_file', help="file indicating genomes that have passed QC (u_qc_genomes: qc_passed.tsv)")
+    u_species_final_parser.add_argument('gtdbtk_classify_file', help="file with GTDB-Tk classifications for new and updated genomes")
+    u_species_final_parser.add_argument('updated_species_reps_file', help="file indicating status of GTDB representative genomes (u_rep_actions: updated_species_reps.tsv)")
+    u_species_final_parser.add_argument('ncbi_genbank_assembly_file', help="NCBI GenBank assembly file indicating potentially erroneous genomes")
+    u_species_final_parser.add_argument('untrustworthy_type_file', help="file listing genomes that should be considered untrustworthy as type material (u_resolve_types: untrustworthy_type_material.tsv)")
+    u_species_final_parser.add_argument('synonym_file', help="file with species names marked as synonyms (u_synonyms: synonyms.tsv)")
+    u_species_final_parser.add_argument('gtdb_type_strains_ledger', help="file listing genomes to consider as being the type strain for valid or effectively published species name")
+    u_species_final_parser.add_argument('sp_priority_ledger', help="file resolving nomenclatural priority of species names")
+    u_species_final_parser.add_argument('gtdb_taxa_updates_ledger', help="file indicating explicit updates to taxa relative to last GTDB release")
+    u_species_final_parser.add_argument('dsmz_bacnames_file', help="table from lpsn.dsmz.de with nomenclature information")
+    u_species_final_parser.add_argument('output_dir', help="output directory")
+    u_species_final_parser.add_argument('--ani_cache_file', help='file with precomputed ANI and AF values')
+    u_species_final_parser.add_argument('-c', '--cpus', help='number of cpus', type=int, default=1)
+    u_species_final_parser.add_argument('--silent', help="suppress output", action='store_true')
 
     # summary statistics indicating changes to GTDB species clusters
     u_summary_stats_parser = subparsers.add_parser('u_summary_stats',
@@ -491,6 +581,28 @@ if __name__ == '__main__':
     merge_test_parser.add_argument('--ani_cache_file', help='file with precomputed ANI and AF values')
     merge_test_parser.add_argument('-c', '--cpus', help='number of cpus', type=int, default=1)
     merge_test_parser.add_argument('--silent', help="suppress output", action='store_true')
+    
+    # dereplicate GTDB species clusters using ANI/AF criteria
+    intra_sp_derep_parser = subparsers.add_parser('intra_sp_derep',
+                                        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+                                        description='Dereplicate GTDB species clusters using ANI/AF criteria.')
+    intra_sp_derep_parser.add_argument('gtdb_clusters_file', help="file indicating representatives of each GTDB species cluster (u_cluster_de_novo: gtdb_clusters_de_novo.tsv)")
+    intra_sp_derep_parser.add_argument('gtdb_metadata_file', help="file with GTDB metadata for previous GTDB release (TSV file)")
+    intra_sp_derep_parser.add_argument('genomic_path_file', help="file indicating  path to previous genomic FASTA files for genomes")
+    intra_sp_derep_parser.add_argument('uba_gid_table', help="file indicating translation of UBA genome IDs")
+    intra_sp_derep_parser.add_argument('output_dir', help="output directory")
+    intra_sp_derep_parser.add_argument('--ani_cache_file', help='file with precomputed ANI and AF values')
+    intra_sp_derep_parser.add_argument('--derep_ani', help='ANI threshold for intra-species dereplication [0, 100]', type=float, default=99)
+    intra_sp_derep_parser.add_argument('--derep_af', help='AF threshold for intra-species dereplication [0, 1]', type=float, default=0.90)
+    intra_sp_derep_parser.add_argument('--max_genomes_per_sp', help='maximum genomes to consider in a species', type=int, default=250)
+    intra_sp_derep_parser.add_argument('-c', '--cpus', help='number of cpus', type=int, default=1)
+    intra_sp_derep_parser.add_argument('--silent', help="suppress output", action='store_true')
+    
+    # calculate intra-genus ANI/AF values between GTDB genomes
+    intra_genus_ani_parser = subparsers.add_parser('intra_genus_ani',
+                                        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+                                        description='Calculate intra-genus ANI/AF values between GTDB genomes.')
+
 
     # compare current and previous representatives
     rep_compare_parser = subparsers.add_parser('rep_compare',
@@ -536,12 +648,12 @@ if __name__ == '__main__':
             # p.sort_stats('cumulative').print_stats(10)
             # p.sort_stats('time').print_stats(10)
             import cProfile
-            cProfile.run('parser.parse_options(args)', 'prof')
+            cProfile.run('parser.run(args)', 'prof')
         elif False:
             import pdb
-            pdb.run(parser.parse_options(args))
+            pdb.run(parser.run(args))
         else:
-            parser.parse_options(args)
+            parser.run(args)
     except SystemExit:
         print("\n  Controlled exit resulting from an unrecoverable error or warning.")
     except:

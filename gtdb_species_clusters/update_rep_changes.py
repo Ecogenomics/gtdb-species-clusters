@@ -116,6 +116,7 @@ class RepChanges(object):
         changed_domain = set()
         unchanged_domain = set()
         num_rep_changes = 0
+        first_type_strain = set()
         for prev_rid, prev_gtdb_sp in prev_genomes.sp_clusters.species():
             fout_summary.write(f'{prev_rid}\t{prev_gtdb_sp}\t{len(prev_genomes.sp_clusters[prev_rid])}')
             if prev_rid in cur_genomes:
@@ -182,6 +183,9 @@ class RepChanges(object):
                 new_ts = new_type_strain_gids.intersection(sp_gids)
 
                 if new_ts:
+                    if not prev_type_strain_gids.intersection(sp_gids) and not new_ts.intersection(gain_type_strain):
+                        first_type_strain.add(prev_gtdb_sp)
+                        
                     new_type_strain.add(prev_rid)
                     fout_detailed.write('{}\t{}\tNEW_TYPE_STRAINS:NEW\tSpecies cluster has {:,} new genomes from type strain: {}\n'.format(
                                             prev_rid,
@@ -248,4 +252,6 @@ class RepChanges(object):
         changed_domain_perc = len(changed_domain)*100.0 / num_prev_sp_clusters
         self.logger.info(f'  unchanged: {len(unchanged_domain):,} ({unchanged_domain_perc:.1f}%)')
         self.logger.info(f'  reassigned: {len(changed_domain):,} ({changed_domain_perc:.1f}%)')
+        
+        print('first_type_strain', len(first_type_strain))
         

@@ -40,13 +40,14 @@ from gtdb_species_clusters.taxon_utils import (generic_name,
                                                 specific_epithet,
                                                 canonical_taxon,
                                                 parse_synonyms,
+                                                gtdb_merged_genera,
                                                 longest_common_prefix,
                                                 is_placeholder_taxon,
                                                 is_placeholder_sp_epithet)
 
 
-class UpdateSpeciesNames(object):
-    """Update names of GTDB species clusters."""
+class UpdateSpeciesInit(object):
+    """Produce initial best guess at GTDB species clusters."""
 
     def __init__(self, ani_cache_file, cpus, output_dir):
         """Initialization."""
@@ -175,72 +176,7 @@ class UpdateSpeciesNames(object):
             sp_epithet = gtdb_sp_epithet
             
         return sp_epithet
-        
-    def prev_gtdb_genera_synonyms(self, prev_genomes):
-        """Determine genera previous considered GTDB synonyms."""
-        
-        # get all GTDB genera defined in previous release
-        prev_gtdb_genera = set()
-        genera_with_type_species = set()
-        for rid in prev_genomes.sp_clusters:
-            canonical_genus = canonical_taxon(prev_genomes[rid].gtdb_taxa.genus)
-            prev_gtdb_genera.add(canonical_genus)
-            
-            ncbi_genus = prev_genomes[rid].ncbi_taxa.genus
-            gtdb_genus = prev_genomes[rid].gtdb_taxa.genus
-            if ncbi_genus == gtdb_genus and prev_genomes[rid].is_gtdb_type_species():
-                genera_with_type_species.add(ncbi_genus)
-        
-        # determine GTDB synonyms
-        synonyms = defaultdict(lambda: defaultdict(list))
-        for rid in prev_genomes.sp_clusters:
-            ncbi_genus = prev_genomes[rid].ncbi_taxa.genus
-            gtdb_genus = prev_genomes[rid].gtdb_taxa.genus
-            
-            if ncbi_genus in prev_gtdb_genera:
-                # can't be a synonym if the genus exists in the GTDB taxonomy
-                continue
-                
-            if is_placeholder_taxon(ncbi_genus):
-                # doesn't make sense to consider a GTDB genus a 
-                # synonym of a NCBI placeholder name
-                continue
-                
-            synonyms[gtdb_genus][ncbi_genus].append(rid)
-            
-        # write out GTDB synonyms
-        fout = open(os.path.join(self.output_dir, 'gtdb_prev_genera_synonyms.tsv'), 'w')
-        fout.write('GTDB genus\tNCBI/synonym genus\tPriority\tSynonym priority\tPriority conflict')
-        fout.write('\tNo. GTDB representatives\tGTDB genus has type species\tContains NCBI type species of genus\n')
-        
-        gtdb_genus_synonyms = {}
-        for gtdb_genus in synonyms:
-            for ncbi_genus in synonyms[gtdb_genus]:
-                gtdb_genus_synonyms[gtdb_genus] = ncbi_genus
-                
-                has_type_species = False
-                for rid in synonyms[gtdb_genus][ncbi_genus]:
-                    if prev_genomes[rid].is_gtdb_type_species():
-                        has_type_species = True
-                        break
-                        
-                ncbi_year = self.sp_priority_mngr.genus_priority(ncbi_genus)
-                gtdb_year = self.sp_priority_mngr.genus_priority(gtdb_genus)
-                
-                fout.write('{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\n'.format(
-                            gtdb_genus,
-                            ncbi_genus,
-                            gtdb_year,
-                            ncbi_year,
-                            gtdb_year > ncbi_year,
-                            len(synonyms[gtdb_genus][ncbi_genus]),
-                            gtdb_genus in genera_with_type_species,
-                            has_type_species))
 
-        fout.close()
-        
-        return gtdb_genus_synonyms
-        
     def name_type_species_clusters(self,
                                     rids_by_naming_priority,
                                     cluster_sp_names,
@@ -253,7 +189,7 @@ class UpdateSpeciesNames(object):
         """Assign names to clusters represented by a type species of genus genome."""
         
         # determine genera previously considered GTDB synonyms
-        prev_gtdb_synonyms = self.prev_gtdb_genera_synonyms(prev_genomes)
+        prev_merged_gtdb_genera = gtdb_merged_genera(prev_genomes, self.sp_priority_mngr, self.output_dir)
 
         num_updates = 0
         num_conflicting_type_sp = 0
@@ -397,6 +333,7 @@ class UpdateSpeciesNames(object):
                                     prev_genomes, 
                                     proposed_gtdb_sp,
                                     True,
+                                    "TYPE_STRAIN_OF_SPECIES",
                                     "GTDB specific species name does not reflect type strain of species",
                                     rid in gtdb_type_strain_ledger)
             
@@ -412,6 +349,7 @@ class UpdateSpeciesNames(object):
                                         prev_genomes, 
                                         proposed_gtdb_sp,
                                         mandatory,
+                                        "TYPE_STRAIN_OF_SPECIES",
                                         issue,
                                         rid in gtdb_type_strain_ledger)
                                         
@@ -560,6 +498,9 @@ class UpdateSpeciesNames(object):
         for rid in rids_by_naming_priority:
             if rid in cluster_sp_names:
                 continue
+                
+            if rid == 'G000515315': #***
+                print('here!')
 
             gtdb_sp = cur_genomes[rid].gtdb_taxa.species
             if gtdb_sp != 's__' and gtdb_sp not in used_sp_names:
@@ -602,7 +543,7 @@ class UpdateSpeciesNames(object):
             
         self.logger.info(f' ... updated name of {num_updates:,} GTDB clusters.')
         self.logger.warning(f' ... same name assigned to {dup_name_count:,} species clusters.')
-        
+
     def  _sort_by_naming_priority(self, 
                                     clusters,
                                     prev_genomes, 
@@ -654,7 +595,7 @@ class UpdateSpeciesNames(object):
         assert len(rids_by_naming_priority) == len(clusters)
         
         return rids_by_naming_priority
-
+        
     def update_species_names(self, 
                                 clusters,
                                 prev_genomes, 
@@ -677,9 +618,13 @@ class UpdateSpeciesNames(object):
                     # yes, NCBI has genomes marked as assembled from type material
                     # that do not actually have a binomial species name
                     ncbi_sp_type_strain_genomes[ncbi_sp].add(gid)
+                    
+                    if ncbi_sp == 's__Anoxybacillus amylolyticus': #***
+                        print(gid, cur_genomes[gid].is_effective_type_strain(), gid in gtdb_type_strain_ledger, ncbi_sp)
+                    
         self.logger.info(' ... identified effective type strain genomes for {:,} NCBI species.'.format(
                             len(ncbi_sp_type_strain_genomes)))
-        
+
         # verify that type genomes for a species are contained in a 
         # single GTDB species cluster
         rid_map = {}
@@ -691,10 +636,13 @@ class UpdateSpeciesNames(object):
         for ncbi_sp, type_gids in ncbi_sp_type_strain_genomes.items():
             gtdb_rids = set([rid_map[gid] for gid in type_gids])
             if len(gtdb_rids) > 1:
-                self.logger.warning('Type strain genomes from NCBI species {} were assigned to {:,} GTDB species clusters: {}.'.format(
+                self.logger.warning('Type strain genomes from NCBI species {} were assigned to {:,} GTDB species clusters: {} {}.'.format(
                                     ncbi_sp,
                                     len(gtdb_rids),
-                                    [(rid, cur_genomes[rid].gtdb_taxa.species) for rid in gtdb_rids]))
+                                    [(gid, rid_map[gid]) for gid in type_gids],
+                                    [(rid, cur_genomes[rid].gtdb_taxa.species, cur_genomes[rid].ncbi_taxa.species) for rid in gtdb_rids]))
+                                    
+        sys.exit(-1)
                                     
         # order representatives by naming priority
         rids_by_naming_priority = self._sort_by_naming_priority(clusters,
@@ -719,54 +667,52 @@ class UpdateSpeciesNames(object):
 
         num_type_species = len(cluster_sp_names)
         self.logger.info(f' ... assigned {num_type_species:,} name from type species.')
-        
-        if False:
-            # determine names for species clusters represented by a validly
-            # or effectively published species name with a designated type strain
-            self.logger.info('Assigning names to cluster represented by type strain genomes.')
-            self.name_type_strain_clusters(rids_by_naming_priority,
-                                            cluster_sp_names,
-                                            used_sp_names,
-                                            clusters,
-                                            prev_genomes, 
-                                            cur_genomes, 
-                                            gtdb_type_strain_ledger,
-                                            synonyms)
-            num_type_strains = len(cluster_sp_names) - num_type_species
-            total_sp_names = len(cluster_sp_names)
-            self.logger.info(f' ... assigned {num_type_strains:,} names from type strains and {total_sp_names:,} total names.')
 
-            # determine name for species clusters where a NCBI-define 
-            # binomial latin name exists, but there is no designated type strain
-            # (e.g., Candidatus species)
-            self.logger.info('Assigning names to clusters with binomial NCBI species names.')
-            self.name_binomial_clusters(rids_by_naming_priority,
+        # determine names for species clusters represented by a validly
+        # or effectively published species name with a designated type strain
+        self.logger.info('Assigning names to cluster represented by type strain genomes.')
+        self.name_type_strain_clusters(rids_by_naming_priority,
+                                        cluster_sp_names,
+                                        used_sp_names,
+                                        clusters,
+                                        prev_genomes, 
+                                        cur_genomes, 
+                                        gtdb_type_strain_ledger,
+                                        synonyms)
+        num_type_strains = len(cluster_sp_names) - num_type_species
+        total_sp_names = len(cluster_sp_names)
+        self.logger.info(f' ... assigned {num_type_strains:,} names from type strains and {total_sp_names:,} total names.')
+
+        # determine name for species clusters where a NCBI-define 
+        # binomial latin name exists, but there is no designated type strain
+        # (e.g., Candidatus species)
+        self.logger.info('Assigning names to clusters with binomial NCBI species names.')
+        self.name_binomial_clusters(rids_by_naming_priority,
+                                    cluster_sp_names,
+                                    used_sp_names,
+                                    clusters,
+                                    prev_genomes, 
+                                    cur_genomes, 
+                                    synonyms)
+        num_assigned = len(cluster_sp_names) - total_sp_names
+        total_sp_names = len(cluster_sp_names)
+        self.logger.info(f' ... assigned {num_assigned:,} additional names and {total_sp_names:,} total names.')
+            
+        # determine names for remaining clusters which should all have a
+        # placeholder name 
+        self.logger.info('Assigning names to clusters without NCBI species names.')
+        self.name_placeholder_clusters(rids_by_naming_priority,
                                         cluster_sp_names,
                                         used_sp_names,
                                         clusters,
                                         prev_genomes, 
                                         cur_genomes, 
                                         synonyms)
-            num_assigned = len(cluster_sp_names) - total_sp_names
-            total_sp_names = len(cluster_sp_names)
-            self.logger.info(f' ... assigned {num_assigned:,} additional names and {total_sp_names:,} total names.')
-                
-            # determine names for remaining clusters which should all have a
-            # placeholder name 
-            self.logger.info('Assigning names to clusters without NCBI species names.')
-            self.name_placeholder_clusters(rids_by_naming_priority,
-                                            cluster_sp_names,
-                                            used_sp_names,
-                                            clusters,
-                                            prev_genomes, 
-                                            cur_genomes, 
-                                            synonyms)
-            num_assigned = len(cluster_sp_names) - total_sp_names
-            total_sp_names = len(cluster_sp_names)
-            self.logger.info(f' ... assigned {num_assigned:,} additional names and {total_sp_names:,} total names.')
-        
+        num_assigned = len(cluster_sp_names) - total_sp_names
+        total_sp_names = len(cluster_sp_names)
+        self.logger.info(f' ... assigned {num_assigned:,} additional names and {total_sp_names:,} total names.')
+    
         self.sp_curation_log.close()
-        sys.exit(-1) #***
         
         # sanity check
         for rid, sp in cluster_sp_names.items():
@@ -885,7 +831,7 @@ class UpdateSpeciesNames(object):
                 sp_priority_ledger,
                 gtdb_taxa_updates_ledger,
                 dsmz_bacnames_file):
-        """Perform initial actions required for changed representatives."""
+        """Produce initial best guess at GTDB species clusters."""
 
         # create previous and current GTDB genome sets
         self.logger.info('Creating previous GTDB genome set.')
@@ -909,6 +855,8 @@ class UpdateSpeciesNames(object):
                                                 ncbi_genbank_assembly_file=ncbi_genbank_assembly_file,
                                                 untrustworthy_type_ledger=untrustworthy_type_file)
         self.logger.info(f' ... current genome set contains {len(cur_genomes):,} genomes.')
+        
+        cur_genomes.set_prev_gtdb_classifications(prev_genomes)
         
         # update current genomes with GTDB-Tk classifications
         self.logger.info('Updating current genomes with GTDB-Tk classifications.')
@@ -954,26 +902,6 @@ class UpdateSpeciesNames(object):
         self.logger.info(' ... identified {:,} synonyms from {:,} distinct species.'.format(
                             len(synonyms),
                             len(set(synonyms.values()))))
-        
-        # set current genomes to have same GTDB assignments as in previous
-        # GTDB release. This is necessary, since genomes may have different
-        # NCBI accession numbers between releases and thus the previous GTDB
-        # taxonomy will not be reflected in the latest GTDB database. The 
-        # exception is if a genome has changed domains, in which case the
-        # previous assignment is invalid.
-        self.logger.info('Setting GTDB taxonomy of genomes in current genome set.')
-        update_count = 0
-        conflicting_domain_count = 0
-        for prev_gid in prev_genomes:
-            if prev_gid in cur_genomes:
-                if prev_genomes[prev_gid].gtdb_taxa != cur_genomes[prev_gid].gtdb_taxa:
-                    if prev_genomes[prev_gid].gtdb_taxa.domain == cur_genomes[prev_gid].gtdb_taxa.domain:
-                        update_count += 1
-                        cur_genomes[prev_gid].gtdb_taxa.update_taxa(prev_genomes[prev_gid].gtdb_taxa)
-                    else:
-                        conflicting_domain_count += 1
-        self.logger.info(f' ... updated {update_count:,} genomes.')
-        self.logger.info(f' ... identified {conflicting_domain_count:,} genomes with conflicting domain assignments.')
 
        # get explicit updates to previous GTDB taxa
         self.logger.info('Reading explicit taxa updates.')

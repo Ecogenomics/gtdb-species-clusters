@@ -141,10 +141,11 @@ class QcGenomes(object):
         header += '\tCompleteness (%)\tContamination (%)\tQuality\tStrain heterogeneity at 100%'
         header += '\tMarkers (%)\tNo. contigs\tN50 contigs\tAmbiguous bases'
         
-        fout_retained.write(header + '\tNote\n')
+        fout_retained.write(header + '\tNote\tNCBI exclude from RefSeq\n')
         fout_failed.write(header)
         fout_failed.write('\tFailed completeness\tFailed contamination\tFailed quality')
-        fout_failed.write('\tFailed marker percentage\tFailed no. contigs\tFailed N50 contigs\tFailed ambiguous bases\n')
+        fout_failed.write('\tFailed marker percentage\tFailed no. contigs\tFailed N50 contigs')
+        fout_failed.write('\tFailed ambiguous bases\tNCBI exclude from RefSeq\n')
 
         pass_qc_gids = set()
         failed_qc_gids = set()
@@ -164,7 +165,7 @@ class QcGenomes(object):
             if passed_qc or gid in qc_exceptions:
                 pass_qc_gids.add(gid)
                 fout_retained.write('%s\t%s\t%s' % (gid, cur_genomes[gid].ncbi_taxa.species, cur_genomes[gid].gtdb_taxa))
-                fout_retained.write('\t%.2f\t%.2f\t%.2f\t%s\t%.2f\t%d\t%d\t%d\t%s\n' % (
+                fout_retained.write('\t%.2f\t%.2f\t%.2f\t%s\t%.2f\t%d\t%d\t%d\t%s\t%s\n' % (
                                         cur_genomes[gid].comp,
                                         cur_genomes[gid].cont,
                                         cur_genomes[gid].comp-5*cur_genomes[gid].cont,
@@ -173,7 +174,8 @@ class QcGenomes(object):
                                         cur_genomes[gid].contig_count,
                                         cur_genomes[gid].contig_n50,
                                         cur_genomes[gid].ambiguous_bases,
-                                        'Passed QC' if passed_qc else 'Flagged as exception'))
+                                        'Passed QC' if passed_qc else 'Flagged as exception',
+                                        excluded_from_refseq_note.get(gid, '')))
             else:
                 failed_qc_gids.add(gid) 
                 fout_failed.write('%s\t%s\t%s' % (gid, cur_genomes[gid].ncbi_taxa.species, cur_genomes[gid].gtdb_taxa))
@@ -186,14 +188,15 @@ class QcGenomes(object):
                                         cur_genomes[gid].contig_count,
                                         cur_genomes[gid].contig_n50,
                                         cur_genomes[gid].ambiguous_bases))
-                fout_failed.write('\t%d\t%d\t%d\t%d\t%d\t%d\t%d\n' % (
+                fout_failed.write('\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%s\n' % (
                                     failed_tests['comp'],
                                     failed_tests['cont'],
                                     failed_tests['qual'],
                                     failed_tests['marker_perc'],
                                     failed_tests['contig_count'],
                                     failed_tests['N50'],
-                                    failed_tests['ambig']))
+                                    failed_tests['ambig'],
+                                    excluded_from_refseq_note.get(gid, '')))
         fout_retained.close()
         fout_failed.close()
         

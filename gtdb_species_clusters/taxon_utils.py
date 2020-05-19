@@ -41,12 +41,14 @@ def canonical_taxon(taxon):
     """Get taxon name without suffix."""
 
     if taxon.startswith('s__'):
-        generic, specific = taxon.split()
+        generic, specific = taxon[3:].split()
+
+        if '_' in generic:
+            generic = generic.rsplit('_', 1)[0]
         if '_' in specific:
-            canonical_specific = specific.rsplit('_', 1)[0]
-            return '{} {}'.format(generic, canonical_specific)
-        else:
-            return taxon
+            specific = specific.rsplit('_', 1)[0]
+            
+        return 's__{} {}'.format(generic, specific)
 
     rank_prefix = ''
     if taxon[1:3] == '__':
@@ -146,7 +148,119 @@ def binomial_species(taxonomy):
         
     return binomial_names
 
+
+def gtdb_merged_genera(prev_genomes, sp_priority_mngr, output_dir):
+    """Determine genera previous merged in GTDB."""
     
+    # get all GTDB genera defined in previous release
+    prev_gtdb_genera = set()
+    genera_with_type_species = set()
+    for rid in prev_genomes.sp_clusters:
+        canonical_genus = canonical_taxon(prev_genomes[rid].gtdb_taxa.genus)
+        prev_gtdb_genera.add(canonical_genus)
+        
+        ncbi_genus = prev_genomes[rid].ncbi_taxa.genus
+        gtdb_genus = prev_genomes[rid].gtdb_taxa.genus
+        if ncbi_genus == gtdb_genus and prev_genomes[rid].is_gtdb_type_species():
+            genera_with_type_species.add(ncbi_genus)
+    
+    # determine GTDB synonyms
+    synonyms = defaultdict(lambda: defaultdict(list))
+    for rid in prev_genomes.sp_clusters:
+        ncbi_genus = prev_genomes[rid].ncbi_taxa.genus
+        gtdb_genus = prev_genomes[rid].gtdb_taxa.genus
+        
+        if ncbi_genus in prev_gtdb_genera:
+            # can't be a synonym if the genus exists in the GTDB taxonomy
+            continue
+            
+        if is_placeholder_taxon(ncbi_genus):
+            # doesn't make sense to consider a GTDB genus a 
+            # synonym of a NCBI placeholder name
+            continue
+            
+        synonyms[gtdb_genus][ncbi_genus].append(rid)
+        
+    # write out GTDB synonyms
+    fout = open(os.path.join(output_dir, 'gtdb_prev_genera_synonyms.tsv'), 'w')
+    fout.write('GTDB genus\tNCBI/synonym genus\tPriority\tSynonym priority\tPriority conflict')
+    fout.write('\tNo. GTDB representatives\tGTDB genus has type species\tContains NCBI type species of genus\n')
+    
+    merged_genera = {}
+    for gtdb_genus in synonyms:
+        for ncbi_genus in synonyms[gtdb_genus]:
+            merged_genera[gtdb_genus] = ncbi_genus
+            
+            has_type_species = False
+            for rid in synonyms[gtdb_genus][ncbi_genus]:
+                if prev_genomes[rid].is_gtdb_type_species():
+                    has_type_species = True
+                    break
+                    
+            ncbi_year = sp_priority_mngr.genus_priority(ncbi_genus)
+            gtdb_year = sp_priority_mngr.genus_priority(gtdb_genus)
+            
+            fout.write('{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\n'.format(
+                        gtdb_genus,
+                        ncbi_genus,
+                        gtdb_year,
+                        ncbi_year,
+                        gtdb_year > ncbi_year,
+                        len(synonyms[gtdb_genus][ncbi_genus]),
+                        gtdb_genus in genera_with_type_species,
+                        has_type_species))
+
+    fout.close()
+    
+    return merged_genera
+        
+        
+def sort_by_naming_priority(sp_clusters,
+                            prev_genomes, 
+                            cur_genomes, 
+                            gtdb_type_strain_ledger):
+    """Sort representatives by naming priority."""
+    
+    # group by naming priority
+    type_species = []
+    type_strains = []
+    binomial = []
+    placeholder = []
+    for rid in sp_clusters:
+        ncbi_sp = cur_genomes[rid].ncbi_taxa.species
+        gtdb_sp = cur_genomes[rid].gtdb_taxa.species
+         
+        if cur_genomes[rid].is_gtdb_type_species():
+            type_species.append(rid)
+        elif cur_genomes[rid].is_effective_type_strain():
+            type_strains.append(rid)
+        elif not is_placeholder_taxon(ncbi_sp) or not is_placeholder_taxon(gtdb_sp):
+            binomial.append(rid)
+        else:
+            placeholder.append(rid)
+            
+    assert len(sp_clusters) == len(type_species) + len(type_strains) + len(binomial) + len(placeholder)
+            
+    # sort groups so previous GTDB representatives
+    # are processed first
+    rids_by_naming_priority = []
+    for d in [type_species, type_strains, binomial, placeholder]:
+        prev_reps = []
+        new_reps = []
+        for rid in d:
+            if rid in prev_genomes.sp_clusters:
+                prev_reps.append(rid)
+            else:
+                new_reps.append(rid)
+            
+        rids_by_naming_priority.extend(prev_reps)
+        rids_by_naming_priority.extend(new_reps)
+        
+    assert len(rids_by_naming_priority) == len(sp_clusters)
+    
+    return rids_by_naming_priority
+        
+
 def genome_species_assignments(ncbi_taxonomy):
     """Get species assignment for each genome."""
     

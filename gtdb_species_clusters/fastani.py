@@ -97,7 +97,7 @@ class FastANI(object):
             else:
                 self.logger.warning(f'ANI cache file does not exist: {self.ani_cache_file}')
             
-    def write_cache(self):
+    def write_cache(self, silence=False):
         """Write cache to file."""
         
         if self.ani_cache_file:
@@ -110,7 +110,8 @@ class FastANI(object):
                     cache_size += 1
             fout.close()
             
-            self.logger.info(f'Wrote ANI cache with {cache_size:,} entries.')
+            if not silence:
+                self.logger.info(f'Wrote ANI cache with {cache_size:,} entries.')
 
     def _get_genome_id(self, genome_path):
         """Extract genome ID from path to genomic file."""
@@ -302,7 +303,7 @@ class FastANI(object):
             in_cache = True
             for qid, rid in gid_pairs:
                 if qid in self.ani_cache:
-                    if rid in self.ani_cache:
+                    if rid in self.ani_cache[qid]:
                         ani_af[qid][rid] = self.ani_cache[qid][rid]
                     else:
                         in_cache = False
@@ -317,9 +318,7 @@ class FastANI(object):
         # calculate required ANI pairs
         if len(gid_pairs) <= 6: # skip overhead of setting up queues and processes
             d = defaultdict(lambda: {})
-            for idx in range(0, len(gid_pairs)):
-                qid = gid_pairs[idx][0]
-                rid = gid_pairs[idx][1]
+            for qid, rid in gid_pairs:
                 qid, rid, ani, af = self.fastani(qid, rid, 
                                                     genome_files[qid],
                                                     genome_files[rid])
