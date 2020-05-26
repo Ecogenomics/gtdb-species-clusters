@@ -37,14 +37,56 @@ def longest_common_prefix(*s):
     return ''.join(a for a,b in takewhile(lambda x: x[0] == x[1], zip(min(s), max(s))))
 
 
+def test_same_epithet(epithet1, epithet2):
+    """Test if species epithet are the same, except for changes due to difference in the gender of the genus."""
+    
+    if epithet1 == epithet2:
+        return True
+        
+    if is_placeholder_sp_epithet(epithet1) or is_placeholder_sp_epithet(epithet2):
+        return False
+        
+    lcp = longest_common_prefix(epithet1, epithet2)
+    if len(lcp) >= max(len(epithet1), len(epithet2)) - 3:
+        # a small change to the suffix presumably reflecting
+        # a change in the gender of the genus
+        return True
+        
+    return False
+
+
+def canonical_species(species):
+    """Get species name without suffix on generic or specific names.
+    
+    e.g., s__Alpha_A Beta_B -> s__Alpha Beta
+    """
+    
+    assert species.startswith('s__')
+    
+    generic, specific = species[3:].split()
+
+    if '_' in generic:
+        generic = generic.rsplit('_', 1)[0]
+    if '_' in specific:
+        specific = specific.rsplit('_', 1)[0]
+        
+    return 's__{} {}'.format(generic, specific)
+    
+
 def canonical_taxon(taxon):
-    """Get taxon name without suffix."""
+    """Get taxon name without suffix.
+    
+    Strips final alphabetic suffix from taxon names. Note, 
+    the canonical name of a species in this context will be:
+    s__Alpha_A Beta_B -> s__Alpha_A Beta
+    
+    That is, any suffix on the generic name is not removed. If this
+    should be removed, used the method canonical_species().
+    """
 
     if taxon.startswith('s__'):
         generic, specific = taxon[3:].split()
 
-        if '_' in generic:
-            generic = generic.rsplit('_', 1)[0]
         if '_' in specific:
             specific = specific.rsplit('_', 1)[0]
             
@@ -59,6 +101,19 @@ def canonical_taxon(taxon):
         taxon = taxon.rsplit('_', 1)[0]
    
     return rank_prefix + taxon
+
+
+def taxon_suffix(taxon):
+    """Return alphabetic suffix of taxon."""
+    
+    if taxon[1:3] == '_':
+        taxon = taxon[3:]
+    
+    if '_' in taxon:
+        suffix = taxon.rsplit('_', 1)[1]
+        return suffix
+        
+    return None
 
 
 def specific_epithet(species_name):
@@ -215,22 +270,30 @@ def gtdb_merged_genera(prev_genomes, sp_priority_mngr, output_dir):
     return merged_genera
         
         
-def sort_by_naming_priority(sp_clusters,
+def sort_by_naming_priority(rids_of_interest,
+                            sp_clusters,
                             prev_genomes, 
                             cur_genomes, 
-                            gtdb_type_strain_ledger):
+                            gtdb_type_strain_ledger,
+                            mc_species):
     """Sort representatives by naming priority."""
     
     # group by naming priority
+    manual_curation = []
     type_species = []
     type_strains = []
     binomial = []
     placeholder = []
     for rid in sp_clusters:
+        if rid not in rids_of_interest:
+            continue
+            
         ncbi_sp = cur_genomes[rid].ncbi_taxa.species
         gtdb_sp = cur_genomes[rid].gtdb_taxa.species
-         
-        if cur_genomes[rid].is_gtdb_type_species():
+        
+        if rid in mc_species:
+            manual_curation.append(rid)
+        elif cur_genomes[rid].is_gtdb_type_species():
             type_species.append(rid)
         elif cur_genomes[rid].is_effective_type_strain():
             type_strains.append(rid)
@@ -239,12 +302,19 @@ def sort_by_naming_priority(sp_clusters,
         else:
             placeholder.append(rid)
             
-    assert len(sp_clusters) == len(type_species) + len(type_strains) + len(binomial) + len(placeholder)
+    assert len(rids_of_interest) == len(manual_curation) + len(type_species) + len(type_strains) + len(binomial) + len(placeholder)
             
-    # sort groups so previous GTDB representatives
-    # are processed first
-    rids_by_naming_priority = []
-    for d in [type_species, type_strains, binomial, placeholder]:
+    # sort groups so previous GTDB representatives are processed first
+    manual_curation_sorted = []
+    type_species_sorted = []
+    type_strains_sorted = []
+    binomial_sorted = []
+    placeholder_sorted = []
+    for d, d_sorted in [(manual_curation, manual_curation_sorted), 
+                        (type_species, type_species_sorted), 
+                        (type_strains, type_strains_sorted),
+                        (binomial, binomial_sorted),
+                        (placeholder, placeholder_sorted)]:
         prev_reps = []
         new_reps = []
         for rid in d:
@@ -253,12 +323,10 @@ def sort_by_naming_priority(sp_clusters,
             else:
                 new_reps.append(rid)
             
-        rids_by_naming_priority.extend(prev_reps)
-        rids_by_naming_priority.extend(new_reps)
-        
-    assert len(rids_by_naming_priority) == len(sp_clusters)
-    
-    return rids_by_naming_priority
+        d_sorted.extend(prev_reps)
+        d_sorted.extend(new_reps)
+
+    return manual_curation_sorted, type_species_sorted, type_strains_sorted, binomial_sorted, placeholder_sorted
         
 
 def genome_species_assignments(ncbi_taxonomy):

@@ -27,7 +27,7 @@ from gtdb_species_clusters.genomes import Genomes
 from gtdb_species_clusters.species_priority_manager import SpeciesPriorityManager
 
 from gtdb_species_clusters.taxon_utils import (specific_epithet,
-                                                longest_common_prefix)
+                                                test_same_epithet)
 
 
 class PMC_CheckTypeStrains(object):
@@ -38,20 +38,6 @@ class PMC_CheckTypeStrains(object):
         
         self.output_dir = output_dir
         self.logger = logging.getLogger('timestamp')
-        
-    def _test_same_epithet(self, epithet1, epithet2):
-        """Test if species epithet are the same, except for changes due to difference in the gender of the genus."""
-        
-        if epithet1 == epithet2:
-            return True
-            
-        lcp = longest_common_prefix(epithet1, epithet2)
-        if len(lcp) >= min(len(epithet1), len(epithet2)) - 3:
-            # a small change to the suffix presumably reflecting
-            # a change in the gender of the genus
-            return True
-            
-        return False
 
     def run(self,
                 manual_taxonomy,
@@ -86,10 +72,6 @@ class PMC_CheckTypeStrains(object):
                                                 ncbi_genbank_assembly_file=ncbi_genbank_assembly_file,
                                                 untrustworthy_type_ledger=untrustworthy_type_file)
         self.logger.info(f' ... current genome set contains {len(cur_genomes):,} genomes.')
-        
-        # *** CHECK
-        print('G003992675', cur_genomes['G003992675'].is_gtdb_type_strain())
-        print('G003149745', cur_genomes['G003149745'].is_gtdb_type_strain())
 
         # establish appropriate species names for GTDB clusters with new representatives
         self.logger.info('Identifying type strain genomes with incongruent GTDB species assignments.')
@@ -105,7 +87,7 @@ class PMC_CheckTypeStrains(object):
                     # and do not have a species assignment even for type strain genome
                     continue 
                 
-                if not self._test_same_epithet(specific_epithet(gtdb_sp), specific_epithet(ncbi_sp)):
+                if not test_same_epithet(specific_epithet(gtdb_sp), specific_epithet(ncbi_sp)):
                     num_incongruent += 1
                     fout.write('{}\t{}\t{}\t{}\n'.format(
                                 rid,

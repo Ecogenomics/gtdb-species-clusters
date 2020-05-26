@@ -229,3 +229,29 @@ class SpeciesClusters(object):
 
         assert len(self.sp_clusters) == len(self.species_names)
         
+    def reassigned_rids(self, new_sp_clusters):
+        """Determine species clusters with new representatives."""
+
+        old_to_new = {}
+        new_to_old = {}
+        for rid in new_sp_clusters:
+            if rid not in self.sp_clusters:
+                prev_rids = []
+                for gid in new_sp_clusters[rid]:
+                    if gid in self.sp_clusters:
+                        prev_rids.append(gid)
+                        break
+                        
+                if len(prev_rids) > 1:
+                    self.logger.error('New species cluster contains multiple previous representatives: {} -> {}'.format(
+                                        rid,
+                                        prev_rids))
+                    sys.exit(-1)
+                        
+                if len(prev_rids) == 1:
+                    prev_rid = prev_rids[0]
+                    old_to_new[prev_rid] = rid
+                    new_to_old[rid] = prev_rid
+
+        return new_to_old, old_to_new
+        

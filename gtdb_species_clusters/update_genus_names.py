@@ -38,7 +38,6 @@ from gtdb_species_clusters.type_genome_utils import (symmetric_ani,
                                                         write_rep_radius)
 from gtdb_species_clusters.taxon_utils import (generic_name,
                                                 specific_epithet,
-                                                canonical_taxon,
                                                 parse_synonyms,
                                                 longest_common_prefix,
                                                 is_placeholder_taxon,

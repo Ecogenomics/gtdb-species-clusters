@@ -29,7 +29,6 @@ from gtdb_species_clusters.genome_utils import canonical_gid
 
 from gtdb_species_clusters.taxon_utils import (generic_name,
                                                 specific_epithet,
-                                                canonical_taxon,
                                                 parse_synonyms,
                                                 gtdb_merged_genera,
                                                 sort_by_naming_priority,
@@ -90,7 +89,7 @@ class PMC_CheckTypeSpecies(object):
             if cur_genomes[rid].is_gtdb_type_species():
                 gtdb_genus = taxa[Taxonomy.GENUS_INDEX]
                 ncbi_genus = cur_genomes[rid].ncbi_taxa.genus
-                
+
                 if gtdb_genus != ncbi_genus:
                     gtdb_priority = sp_priority_mngr.genus_priority(gtdb_genus)
                     ncbi_priority = sp_priority_mngr.genus_priority(ncbi_genus)

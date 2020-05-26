@@ -73,6 +73,7 @@ class TaxonSuffixManager():
 
                         canonical_taxon = '{}{}'.format(rank_prefix, taxon_name)
                         cur_suffix = self.taxon_suffix.get(canonical_taxon, 'A')
+    
                         if self._suffix_value(suffix) >= self._suffix_value(cur_suffix):
                             self.taxon_suffix[canonical_taxon] = suffix
 
@@ -116,6 +117,7 @@ class TaxonSuffixManager():
         """Get next suffix for taxon."""
         
         ct = canonical_taxon(taxon)
+
         if ct in self.taxon_suffix:
             cur_suffix = self.taxon_suffix[ct]
             next_suffix = self._increment_suffix(cur_suffix)

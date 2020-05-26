@@ -212,8 +212,8 @@ class UpdateClusterDeNovo(object):
 
                         if ani > nonrep_radius[cur_gid].ani and af >= self.af_sp:
                             nonrep_radius[cur_gid] = GenomeRadius(ani = ani, 
-                                                                         af = af,
-                                                                         neighbour_gid = rep_gid)
+                                                                     af = af,
+                                                                     neighbour_gid = rep_gid)
                                                                          
                     if closest_rep_gid and closest_rep_ani > nonrep_radius[closest_rep_gid].ani:
                         clustered = True
@@ -342,8 +342,8 @@ class UpdateClusterDeNovo(object):
                     
                 if closest_rep_gid:
                     clusters[closest_rep_gid].append(ClusteredGenome(gid=cur_gid, 
-                                                                            ani=closest_rep_ani, 
-                                                                            af=closest_rep_af))
+                                                                        ani=closest_rep_ani, 
+                                                                        af=closest_rep_af))
                 else:
                     self.logger.warning('Failed to assign genome {} to representative.'.format(cur_gid))
                     if closest_rep_gid:

@@ -57,20 +57,28 @@ class SpeciesNameManager(object):
             self.gtdb_canonical_sp_epithets[gtdb_genus].add(canonical_taxon(gtdb_sp_epithet))
             self.sp_epithets_rid[gtdb_genus][gtdb_sp_epithet] = rid
             
-    def placeholder_sp_epithet(self, rid):
+    def numeric_placeholder_sp_epithet(self, rid):
         """Generate placeholder species epithet from representative accession."""
         
-        return 'sp{}'.format(rid[1:])
+        if rid.startswith('G'):
+            sp_id = rid.replace('G', '')
+        else:
+            print('Unrecognized genome ID: {}'.format(rid))
+            raise
+        
+        return 'sp{}'.format(sp_id)
 
-    def add_suffix(self, generic, specific):
+    def suffixed_placeholder_sp_epithet(self, generic, specific):
         """Determine suffix for species."""
+        
+        if is_placeholder_sp_epithet(specific):
+            self.logger.error('Only Latin specific names should have a suffix: {}'.format(specific))
+            sys.exit(-1)
         
         sp = 's__{} {}'.format(generic, specific)
         next_suffix = self.taxon_suffix_manager.next_suffix(sp)
-        
-        canonical_specific = canonical_taxon(specific)
-        
-        return '{}_{}'.format(canonical_specific, next_suffix)
+
+        return '{}_{}'.format(specific, next_suffix)
         
     def _nontype_sp_epithet(self, new_cur_ncbi_sp_epithet, orig_prev_gtdb_genus):
         """Get appropriate and potentially suffixed species epithet for non-type genome."""
@@ -82,7 +90,7 @@ class SpeciesNameManager(object):
             # other species already have suffixed versions of this epithet so 
             # must also suffix this epithet since the true location of this 
             # species is unclear
-            epithet = self.add_suffix(orig_prev_gtdb_genus[3:], new_cur_ncbi_sp_epithet)
+            epithet = self.suffixed_placeholder_sp_epithet(orig_prev_gtdb_genus[3:], new_cur_ncbi_sp_epithet)
         
         return epithet
         
