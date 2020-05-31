@@ -26,7 +26,8 @@ from biolib.taxonomy import Taxonomy
 from gtdb_species_clusters.taxon_utils import (canonical_taxon,
                                                 test_same_epithet,
                                                 generic_name,
-                                                specific_epithet)
+                                                specific_epithet,
+                                                is_placeholder_taxon)
 
 
 class SpecificEpithetManager():
@@ -40,13 +41,19 @@ class SpecificEpithetManager():
         self.sp_epithet_map = defaultdict(lambda: {})
         self.gtdb_ncbi_generic_map = defaultdict(lambda: defaultdict(list))
         
-    def infer_epithet_map(self, cur_genomes, cur_clusters):
+    def infer_epithet_map(self, gids_of_interest, mc_species, cur_genomes, cur_clusters):
         """Infer mapping of NCBI epithet to GTDB epithet which may be different due to gender of genus."""
         
-        # get speces in genus
+        # get species in GTDB genus
         generic_rids = defaultdict(list)
         for rid in cur_clusters:
+            if rid not in gids_of_interest:
+                continue
+                
             gtdb_generic = cur_genomes[rid].gtdb_taxa.genus.replace('g__', '')
+            if rid in mc_species:
+                gtdb_generic = generic_name(mc_species[rid])
+                
             generic_rids[gtdb_generic].append(rid)
             
         # establish epithets that are nearly identical
@@ -61,7 +68,12 @@ class SpecificEpithetManager():
                     
                 ncbi_generic = generic_name(ncbi_species)
                 ncbi_specific = specific_epithet(ncbi_species)
-                gtdb_species = cur_genomes[rid].gtdb_taxa.species
+                
+                if rid in mc_species:
+                    gtdb_species = mc_species[rid]
+                else:
+                    gtdb_species = cur_genomes[rid].gtdb_taxa.species
+                    
                 gtdb_specific = canonical_taxon(specific_epithet(gtdb_species))
 
                 self.gtdb_ncbi_generic_map[gtdb_generic][gtdb_specific].append(ncbi_generic)
@@ -93,8 +105,8 @@ class SpecificEpithetManager():
             
         return ncbi_specific
     
-    def write_epithet_map(self, output_file):
-        """Write out epithet map."""
+    def write_diff_epithet_map(self, output_file):
+        """Write out epithet map for specific names that differ between GTDB and NCBI."""
         
         fout = open(output_file, 'w')
         
@@ -120,5 +132,31 @@ class SpecificEpithetManager():
                                                 gtdb_generic, 
                                                 gtdb_specific, 
                                                 ncbi_generic_counter))
+        
+        fout.close()
+        
+        
+    def write_epithet_map(self, output_file):
+        """Write out epithet map."""
+        
+        fout = open(output_file, 'w')
+        
+        fout.write('GTDB generic\tGTDB specific\tNCBI generic\tNCBI specific\n')
+        
+        for gtdb_generic in self.sp_epithet_map:
+            if is_placeholder_taxon('g__' + gtdb_generic):
+                continue
+                
+            for ncbi_specific, gtdb_specific in self.sp_epithet_map[gtdb_generic].items():
+                ncbi_generic_list = self.gtdb_ncbi_generic_map[gtdb_generic][gtdb_specific]
+                ncbi_generic_counter = Counter(ncbi_generic_list)
+                top_ncbi_generic, count = ncbi_generic_counter.most_common(1)[0]
+                
+                if top_ncbi_generic != gtdb_generic:
+                    fout.write('{}\t{}\t{}\t{}\n'.format(
+                                gtdb_generic, 
+                                gtdb_specific,
+                                top_ncbi_generic,
+                                ncbi_specific))
         
         fout.close()

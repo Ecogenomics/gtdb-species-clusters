@@ -26,6 +26,7 @@ from biolib.newick import parse_label
 
 import dendropy
 
+from taxon_utils import specific_epithet, generic_name
 
 class PMC_Checks(object):
     """Perform post-manual curation checks"""
@@ -51,43 +52,39 @@ class PMC_Checks(object):
                                                 schema='newick', 
                                                 rooting='force-rooted', 
                                                 preserve_underscores=True)
-                                                
-        mc_species = {}
-        for leaf in mc_tree.leaf_node_iter():
-            if leaf.taxon.label.startswith('D-'):
+        mc_taxonomy = Taxonomy().read_from_tree(mc_tree)
+
+        mc_specific = {}
+        for gid, taxa in mc_taxonomy.items():
+            if gid.startswith('D-'):
                 continue 
                 
-            gid = canonical_gid(leaf.taxon.label)
-            parent_node = leaf.parent_node
-            _support, taxa_str, _auxiliary_info = parse_label(parent_node.label)
-            while taxa_str is None: # find first parent with a taxon label
-                parent_node = parent_node.parent_node
-                _support, taxa_str, _auxiliary_info = parse_label(parent_node.label)
+            mc_sp = taxa[-1]
+            if not mc_sp.startswith('s__') or mc_sp == 's__':
+                self.logger.error('Most specific classification for {} is {}.'.format(gid, taxa))
+                continue
 
-            mc_sp = [t.strip() for t in taxa_str.split(';')][-1]
-            if not mc_sp.startswith('s__'):
-                self.logger.warning('Most specific classification for {} is {}.'.format(gid, taxa_str))
-                
-            mc_species[gid] = mc_sp
-            
-        self.logger.info(' - read taxonomy for {:,} genomes.'.format(len(mc_species)))
+            mc_specific[gid] = specific_epithet(mc_sp)
+
+        self.logger.info(' - read taxonomy for {:,} genomes.'.format(len(mc_specific)))
         
-        assert init_num_gids == len(mc_species)
-        
-        # report genomes with modified species assignment
+        # report genomes with modified specific name assignment
         self.logger.info('Identifying genomes with manually-curated species names.')
         fout = open(os.path.join(self.output_dir, 'manual_species_names.tsv'), 'w')
         fout.write('Genome ID\tInitial species\tManually-curated species\n')
         num_mc = 0
-        for gid, mc_sp in mc_species.items():
-            init_sp = init_taxonomy[gid][Taxonomy.SPECIES_INDEX]
+        for gid, mc_sp in mc_specific.items():
+            init_species = init_taxonomy[gid][Taxonomy.SPECIES_INDEX]
+            init_specific = specific_epithet(init_species)
             
-            if init_sp != mc_sp:
+            if init_specific != mc_sp:
+                mc_generic = mc_taxonomy[gid][Taxonomy.GENUS_INDEX].replace('g__', '')
+                mc_species = 's__{} {}'.format(mc_generic, mc_sp)
                 num_mc += 1
                 fout.write('{}\t{}\t{}\n'.format(
                             gid,
-                            init_sp,
-                            mc_sp))
+                            init_species,
+                            mc_species))
                             
         fout.close()
         

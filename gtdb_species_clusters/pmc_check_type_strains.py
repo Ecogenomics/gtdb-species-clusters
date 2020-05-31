@@ -49,11 +49,13 @@ class PMC_CheckTypeStrains(object):
                 synonym_file,
                 gtdb_type_strains_ledger,
                 sp_priority_ledger,
+                genus_priority_ledger,
                 dsmz_bacnames_file):
         """Finalize species names based on results of manual curation."""
         
         # initialize species priority manager
         sp_priority_mngr = SpeciesPriorityManager(sp_priority_ledger,
+                                                    genus_priority_ledger,
                                                     dsmz_bacnames_file)
 
         # identify species and genus names updated during manual curation

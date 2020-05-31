@@ -28,19 +28,23 @@ from gtdb_species_clusters.genome_utils import select_highest_quality
 class SpeciesPriorityManager(object):
     """Resolve naming priority of species names."""
 
-    def __init__(self, species_priority_ledger, dsmz_bacnames_file):
+    def __init__(self, 
+                    species_priority_ledger, 
+                    genus_priority_ledger, 
+                    dsmz_bacnames_file):
         """Initialization."""
 
         self.logger = logging.getLogger('timestamp')
         
         self._parse_sp_priority_ledger(species_priority_ledger)
+        self._parse_genus_priority_ledger(genus_priority_ledger)
         self._parse_dsmz_bacnames(dsmz_bacnames_file)
 
     def _parse_sp_priority_ledger(self, species_priority_ledger):
         """Parse manually resolved priority cases."""
         
         self.logger.info('Parsing species priority ledger.')
-        self.manual_priority = defaultdict(lambda: {})
+        self.manual_sp_priority = defaultdict(lambda: {})
         
         num_cases = 0
         with open(species_priority_ledger, encoding='utf-8') as f:
@@ -48,25 +52,57 @@ class SpeciesPriorityManager(object):
             
             spA_index = header.index('NCBI species A')
             spB_index = header.index('NCBI species B')
-            priority_sp_index = header.index('Priority')
+            priority_index = header.index('Priority')
             
             for line in f:
                 tokens = line.strip().split('\t')
                 
                 spA = tokens[spA_index].strip()
                 spB = tokens[spB_index].strip()
-                priority_sp = tokens[priority_sp_index].strip()
+                priority_sp = tokens[priority_index].strip()
                 
                 assert spA.startswith('s__')
                 assert spB.startswith('s__')
                 assert priority_sp.startswith('s__')
                 assert priority_sp in [spA, spB]
                 
-                self.manual_priority[spA][spB] = priority_sp
-                self.manual_priority[spB][spA] = priority_sp
+                self.manual_sp_priority[spA][spB] = priority_sp
+                self.manual_sp_priority[spB][spA] = priority_sp
                 num_cases += 1
                 
-        self.logger.info(f' ... identified {num_cases:,} manually resolved cases.')
+        self.logger.info(f' - identified {num_cases:,} manually resolved cases.')
+        
+    def _parse_genus_priority_ledger(self, genus_priority_ledger):
+        """Parse manually resolved priority cases."""
+        
+        self.logger.info('Parsing genus priority ledger.')
+        self.manual_genus_priority = defaultdict(lambda: {})
+        
+        num_cases = 0
+        with open(genus_priority_ledger, encoding='utf-8') as f:
+            header = [f.strip() for f in f.readline().strip().split('\t')]
+            
+            genusA_index = header.index('Genus A')
+            genusB_index = header.index('Genus B')
+            priority_index = header.index('Priority')
+            
+            for line in f:
+                tokens = [v.strip() for v in line.strip().split('\t')]
+                
+                genusA = tokens[genusA_index]
+                genusB = tokens[genusB_index]
+                priority_genus = tokens[priority_index]
+                
+                assert genusA.startswith('g__')
+                assert genusB.startswith('g__')
+                assert priority_genus.startswith('g__')
+                assert priority_genus in [genusA, genusB]
+                
+                self.manual_genus_priority[genusA][genusB] = priority_genus
+                self.manual_genus_priority[genusB][genusA] = priority_genus
+                num_cases += 1
+                
+        self.logger.info(f' - identified {num_cases:,} manually resolved cases.')
         
     def _parse_dsmz_bacnames(self, dsmz_bacnames_file):
         """Parse priority information from LPSN at DSMZ."""
@@ -97,16 +133,31 @@ class SpeciesPriorityManager(object):
                 if status.startswith('gen. nov.') or status.startswith('genus'):
                     self._genus_priority['g__' + genus] = year
 
-    def genus_priority(self, genus):
+    def genus_priority_year(self, genus):
         """Determine year of priority for genus."""
         
         if genus in self._genus_priority:
             return self._genus_priority[genus]
                     
         return Genome.NO_PRIORITY_YEAR
+        
+    def genus_priority(self, genus1, genus2):
+        """Resolve priority between two genera."""
+        
+        year1 = self.genus_priority_year(genus1)
+        year2 = self.genus_priority_year(genus2)
+        
+        if genus1 in self.manual_genus_priority and genus2 in self.manual_genus_priority:
+            return self.manual_genus_priority[genus1][genus2]
+        elif year1 < year2:
+            return genus1
+        elif year2 < year1:
+            return genus2
+        
+        return None
 
-    def priority(self, cur_genomes, gid1, gid2):
-        """Resolve priority between genomes."""
+    def species_priority(self, cur_genomes, gid1, gid2):
+        """Resolve species priority of genomes."""
 
         if (cur_genomes[gid1].is_gtdb_type_species()
             and not cur_genomes[gid2].is_gtdb_type_species()):
@@ -140,7 +191,7 @@ class SpeciesPriorityManager(object):
         # to be in the priority ledger
         sp1 = cur_genomes[gid1].ncbi_taxa.species
         sp2 = cur_genomes[gid2].ncbi_taxa.species
-        if sp1 not in self.manual_priority or sp2 not in self.manual_priority[sp1]:
+        if sp1 not in self.manual_sp_priority or sp2 not in self.manual_sp_priority[sp1]:
             self.logger.error('Ambiguous priority based on publication date.')
             self.logger.error('Species need to be manually resolved in priority ledger: {}: {} / {} / {}, {}: {} / {} / {}'.format(
                                 gid1, sp1, cur_genomes[gid1].is_gtdb_type_strain(), cur_genomes[gid1].is_effective_type_strain(),
@@ -148,14 +199,14 @@ class SpeciesPriorityManager(object):
             #***sys.exit(-1)
             return gid1, 'error: ambiguous priority date' #***
             
-        priority_sp = self.manual_priority[sp1][sp2]
+        priority_sp = self.manual_sp_priority[sp1][sp2]
         if sp1 == priority_sp:
             return gid1, 'manual curation'
             
         return gid2, 'manual curation'
         
-    def has_priority(self, cur_genomes, gid1, gid2):
-        """Check if genome 1 has priority over genome 2."""
+    def test_species_priority(self, cur_genomes, gid1, gid2):
+        """Check if species of genome 1 has priority over species of genome 2."""
         
         if (cur_genomes[gid1].is_gtdb_type_strain() 
             and not cur_genomes[gid2].is_gtdb_type_strain()):
@@ -171,7 +222,7 @@ class SpeciesPriorityManager(object):
             
         return False
         
-    def _priority_sort(self, gid1, gid2):
+    def _sp_priority_sort(self, gid1, gid2):
         """Sort genomes by priority."""
         
         priority_gid, note = self.priority(self.cur_genomes, gid1, gid2)
@@ -180,12 +231,12 @@ class SpeciesPriorityManager(object):
             
         return 1
         
-    def sort_by_priority(self, cur_genomes, gids, reverse=False):
+    def sort_by_sp_priority(self, cur_genomes, gids, reverse=False):
         """Sort set of genomes by priority with highest priority genome first."""
         
         self.cur_genomes = cur_genomes
         sorted_gids = sorted(gids, 
-                                key=functools.cmp_to_key(self._priority_sort), 
+                                key=functools.cmp_to_key(self._sp_priority_sort), 
                                 reverse=reverse)
         
         return sorted_gids

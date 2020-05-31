@@ -56,11 +56,13 @@ class PMC_CheckTypeSpecies(object):
                 synonym_file,
                 gtdb_type_strains_ledger,
                 sp_priority_ledger,
+                genus_priority_ledger,
                 dsmz_bacnames_file):
         """Finalize species names based on results of manual curation."""
         
         # initialize species priority manager
         sp_priority_mngr = SpeciesPriorityManager(sp_priority_ledger,
+                                                    genus_priority_ledger,
                                                     dsmz_bacnames_file)
 
         # identify species and genus names updated during manual curation
@@ -91,22 +93,22 @@ class PMC_CheckTypeSpecies(object):
                 ncbi_genus = cur_genomes[rid].ncbi_taxa.genus
 
                 if gtdb_genus != ncbi_genus:
-                    gtdb_priority = sp_priority_mngr.genus_priority(gtdb_genus)
-                    ncbi_priority = sp_priority_mngr.genus_priority(ncbi_genus)
-                
-                    if gtdb_priority >= ncbi_priority:
+                    priority_genus = sp_priority_mngr.genus_priority(gtdb_genus, ncbi_genus)
+
+                    if priority_genus != gtdb_genus:
                         num_incongruent += 1
-                        
-                        priority_status = 'NCBI genus name has priority'
-                        if gtdb_priority == ncbi_priority:
+
+                        if priority_genus == ncbi_genus:
+                            priority_status = 'NCBI genus name has priority'
+                        else:
                             priority_status = 'Genus with priority must be manually established'
-                        
+
                         fout.write('{}\t{}\t{}\t{}\t{}\t{}\t{}\n'.format(
                                     rid,
                                     gtdb_genus,
                                     ncbi_genus,
-                                    gtdb_priority,
-                                    ncbi_priority,
+                                    sp_priority_mngr.genus_priority_year(gtdb_genus),
+                                    sp_priority_mngr.genus_priority_year(ncbi_genus),
                                     priority_status,
                                     cur_genomes[rid].excluded_from_refseq_note))
       

@@ -42,6 +42,7 @@ from gtdb_species_clusters.type_genome_utils import (symmetric_ani,
 from gtdb_species_clusters.taxon_utils import (generic_name,
                                                 specific_epithet,
                                                 canonical_taxon,
+                                                canonical_species,
                                                 taxon_suffix,
                                                 parse_synonyms,
                                                 gtdb_merged_genera,
@@ -276,10 +277,9 @@ class PMC_SpeciesNames(object):
         ncbi_sp = cur_genomes[rid].ncbi_taxa.species
         
         if gtdb_species != ncbi_sp:
-            gtdb_priority = self.sp_priority_mngr.genus_priority(gtdb_genus)
-            ncbi_priority = self.sp_priority_mngr.genus_priority(ncbi_genus)
+            gtdb_priority = self.sp_priority_mngr.genus_priority(gtdb_genus, ncbi_genus)
 
-            if gtdb_genus != ncbi_genus and gtdb_priority >= ncbi_priority:
+            if gtdb_genus != ncbi_genus and (gtdb_priority is None or gtdb_priority == ncbi_genus):
                 case_count['INCONGRUENT_TYPE_SPECIES_GENERIC'] += 1
                 note = 'incongruent type species'
                 print('INCONGRUENT_TYPE_SPECIES_GENERIC', rid, gtdb_genus, ncbi_genus)
@@ -422,13 +422,17 @@ class PMC_SpeciesNames(object):
                                     
         return resolved_gids
         
-    def amend_multiple_nontype_species(self, sorted_rids, final_taxonomy, cur_genomes, reassigned_rid_mapping):
-        """Amend species assignments for genera with multiple, identical non-type species names.
+    def amend_multiple_nontype_species(self, 
+                                        sorted_rids, 
+                                        final_taxonomy, 
+                                        cur_genomes, 
+                                        mc_species, 
+                                        reassigned_rid_mapping):
+        """Amend species assignments for genera with multiple, identical species names.
         
         Amends species assignments where there are multiple species clusters in
-        a genus with the same specific name, but none of these are represented 
-        by type strain genomes. Ideally, this should be handled during initial
-        species assignment, but this wasn't done in R95 and this acts as a good
+        a genus with the same specific name, . Ideally, this should be handled during
+        initial species assignment, but this wasn't done in R95 and this acts as a good
         safety check.
         """
         
@@ -488,10 +492,14 @@ class PMC_SpeciesNames(object):
                         if rid in type_strain_genomes:
                             continue
 
-                        # check if specific name already has an assigned suffix,
-                        # otherwise establish most suitable suffix 
-                        prev_rid = reassigned_rid_mapping.get(rid, rid)
-                        cur_species = cur_genomes[prev_rid].gtdb_taxa.species
+                        # check if species name defined by manual curation,
+                        # or in previous GTDB release
+                        if rid in mc_species:
+                            cur_species = mc_species[rid]
+                        else:
+                            prev_rid = reassigned_rid_mapping.get(rid, rid)
+                            cur_species = cur_genomes[prev_rid].gtdb_taxa.species
+                            
                         cur_specific = specific_epithet(cur_species)
                         congruent_canonical = canonical_taxon(cur_specific) == canonical_specific_name
                         
@@ -634,16 +642,49 @@ class PMC_SpeciesNames(object):
                                         
         
         # amend species assignments where there are multiple species clusters in
-        # a genus with the same specific name, but none of these are represented 
-        # by type strain genomes. Ideally, this should be handled during initial
-        # species assignment, but this wasn't done in R95 and this acts as a good
-        # safety check.
+        # a genus with the same specific name. Ideally, this should be handled during 
+        # initial species assignment, but this wasn't done in R95 and this acts as a 
+        # good safety check.
         self.amend_multiple_nontype_species(sorted_rids,
                                                 final_taxonomy, 
                                                 cur_genomes,
+                                                mc_species,
                                                 reassigned_rid_mapping)
                                                 
        
+        #*** Identify clear misclassifications that should results in a 
+        # genome being given a sp<accn> placeholder name instead of preserving
+        # or suffixing a Latin specific name.
+        #  e.g., Enterobacter_D kobei since E. kobei exists and is defined by a type strain genome
+        
+        # get NCBI and GTDB species defined by a type strain genome
+        ncbi_type_species = defaultdict(set)
+        for gid in final_taxonomy:
+            if cur_genomes[gid].is_gtdb_type_strain():
+                ncbi_species = cur_genomes[gid].ncbi_taxa.species
+                
+                if ncbi_species != 's__':
+                    ncbi_type_species[ncbi_species].add(gid)
+        
+        num_flagged = 0
+        for cur_gid in final_taxonomy:
+            if cur_genomes[cur_gid].is_gtdb_type_strain():
+                continue
+                
+            ncbi_sp = cur_genomes[cur_gid].ncbi_taxa.species
+            gtdb_sp = final_taxonomy[cur_gid][Taxonomy.SPECIES_INDEX]
+            type_gtdb_sp = set([final_taxonomy[gid][Taxonomy.SPECIES_INDEX] for gid in ncbi_type_species.get(ncbi_sp, [])])
+            if canonical_species(gtdb_sp) in type_gtdb_sp or canonical_taxon(gtdb_sp) in type_gtdb_sp:
+                continue
+            
+            if ncbi_sp in ncbi_type_species:
+                if generic_name(gtdb_sp) not in ncbi_sp:
+                    print(cur_gid, ncbi_sp, ncbi_type_species.get(ncbi_sp, []), type_gtdb_sp, final_taxonomy[cur_gid][Taxonomy.SPECIES_INDEX])
+                    num_flagged += 1
+                    
+        print('num_flagged', num_flagged)
+        sys.exit(-1)
+        
         #***
         new_reps = 0
         changed_species_name = 0
@@ -829,6 +870,7 @@ class PMC_SpeciesNames(object):
     def run(self,
                 manual_taxonomy,
                 manual_sp_names,
+                pmc_customer_species,
                 gtdb_clusters_file,
                 prev_gtdb_metadata_file,
                 cur_gtdb_metadata_file,
@@ -840,6 +882,7 @@ class PMC_SpeciesNames(object):
                 synonym_file,
                 gtdb_type_strains_ledger,
                 sp_priority_ledger,
+                genus_priority_ledger,
                 dsmz_bacnames_file):
         """Finalize species names based on results of manual curation."""
         
@@ -859,6 +902,23 @@ class PMC_SpeciesNames(object):
                 mc_species[tokens[0]] = tokens[2]
         self.logger.info(' - identified manually-curated species names for {:,} genomes.'.format(
                             len(mc_species)))
+                            
+        # read post-curation, manually defined species
+        self.logger.info('Parsing post-curation, manually-curated species.')
+        pmc_species = {}
+        with open(pmc_customer_species) as f:
+            f.readline()
+            for line in f:
+                tokens = line.strip().split('\t')
+                gid = tokens[0]
+                species = tokens[1]
+                if gid in mc_species:
+                    self.logger.warning('Manually-curated genome {} reassigned from {} to {}.'.format(
+                                            gid, mc_species[gid], species))
+                pmc_species[gid] = species
+                mc_species[gid] = species
+        self.logger.info(' - identified post-curation, manually-curated species names for {:,} genomes.'.format(
+                            len(pmc_species)))
 
         # create previous and current GTDB genome sets
         self.logger.info('Creating previous GTDB genome set.')
@@ -918,7 +978,8 @@ class PMC_SpeciesNames(object):
 
         # create specific epithet manager
         self.sp_epithet_mngr = SpecificEpithetManager()
-        self.sp_epithet_mngr.infer_epithet_map(cur_genomes, cur_clusters)
+        self.sp_epithet_mngr.infer_epithet_map(mc_taxonomy, mc_species, cur_genomes, cur_clusters)
+        self.sp_epithet_mngr.write_diff_epithet_map(os.path.join(self.output_dir, 'specific_epithet_diff_map.tsv'))
         self.sp_epithet_mngr.write_epithet_map(os.path.join(self.output_dir, 'specific_epithet_map.tsv'))
         
         # create species name manager
@@ -929,6 +990,7 @@ class PMC_SpeciesNames(object):
                                                     
         # initialize species priority manager
         self.sp_priority_mngr = SpeciesPriorityManager(sp_priority_ledger,
+                                                        genus_priority_ledger,
                                                         dsmz_bacnames_file)
                                                         
         # parse file indicating status of previous GTDB species representatives

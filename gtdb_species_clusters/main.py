@@ -53,6 +53,7 @@ from gtdb_species_clusters.pmc_checks import PMC_Checks
 from gtdb_species_clusters.pmc_check_type_species import PMC_CheckTypeSpecies
 from gtdb_species_clusters.pmc_check_type_strains import PMC_CheckTypeStrains
 from gtdb_species_clusters.pmc_species_names import PMC_SpeciesNames
+from gtdb_species_clusters.pmc_validation import PMC_Validation
 from gtdb_species_clusters.update_summary_stats import UpdateSummaryStats
 
 from gtdb_species_clusters.merge_test import MergeTest
@@ -645,6 +646,7 @@ class OptionsParser():
         check_file_exists(args.synonym_file)
         check_file_exists(args.gtdb_type_strains_ledger)
         check_file_exists(args.sp_priority_ledger)
+        check_file_exists(args.genus_priority_ledger)
         check_file_exists(args.dsmz_bacnames_file)
         make_sure_path_exists(args.output_dir)
 
@@ -658,6 +660,7 @@ class OptionsParser():
                 args.synonym_file,
                 args.gtdb_type_strains_ledger,
                 args.sp_priority_ledger,
+                args.genus_priority_ledger,
                 args.dsmz_bacnames_file)
         
         self.logger.info('Done.')
@@ -674,6 +677,7 @@ class OptionsParser():
         check_file_exists(args.synonym_file)
         check_file_exists(args.gtdb_type_strains_ledger)
         check_file_exists(args.sp_priority_ledger)
+        check_file_exists(args.genus_priority_ledger)
         check_file_exists(args.dsmz_bacnames_file)
         make_sure_path_exists(args.output_dir)
 
@@ -687,6 +691,7 @@ class OptionsParser():
                 args.synonym_file,
                 args.gtdb_type_strains_ledger,
                 args.sp_priority_ledger,
+                args.genus_priority_ledger,
                 args.dsmz_bacnames_file)
         
         self.logger.info('Done.')
@@ -695,6 +700,47 @@ class OptionsParser():
         """Establish final species names based on manual curation."""
         
         check_file_exists(args.manual_taxonomy)
+        check_file_exists(args.manual_sp_names)
+        check_file_exists(args.pmc_customer_species)
+        check_file_exists(args.gtdb_clusters_file)
+        check_file_exists(args.prev_gtdb_metadata_file)
+        check_file_exists(args.cur_gtdb_metadata_file)
+        check_file_exists(args.uba_genome_paths)
+        check_file_exists(args.qc_passed_file)
+        check_file_exists(args.updated_species_reps_file)
+        check_file_exists(args.ncbi_genbank_assembly_file)
+        check_file_exists(args.untrustworthy_type_file)
+        check_file_exists(args.synonym_file)
+        check_file_exists(args.gtdb_type_strains_ledger)
+        check_file_exists(args.sp_priority_ledger)
+        check_file_exists(args.genus_priority_ledger)
+        check_file_exists(args.dsmz_bacnames_file)
+        make_sure_path_exists(args.output_dir)
+
+        p = PMC_SpeciesNames(args.output_dir)
+        p.run(args.manual_taxonomy,
+                args.manual_sp_names,
+                args.pmc_customer_species,
+                args.gtdb_clusters_file,
+                args.prev_gtdb_metadata_file,
+                args.cur_gtdb_metadata_file,
+                args.uba_genome_paths,
+                args.qc_passed_file,
+                args.updated_species_reps_file,
+                args.ncbi_genbank_assembly_file,
+                args.untrustworthy_type_file,
+                args.synonym_file,
+                args.gtdb_type_strains_ledger,
+                args.sp_priority_ledger,
+                args.genus_priority_ledger,
+                args.dsmz_bacnames_file)
+        
+        self.logger.info('Done.')
+        
+    def pmc_validate(self, args):
+        """Validate final species names."""
+        
+        check_file_exists(args.final_taxonomy)
         check_file_exists(args.manual_sp_names)
         check_file_exists(args.gtdb_clusters_file)
         check_file_exists(args.prev_gtdb_metadata_file)
@@ -707,11 +753,13 @@ class OptionsParser():
         check_file_exists(args.synonym_file)
         check_file_exists(args.gtdb_type_strains_ledger)
         check_file_exists(args.sp_priority_ledger)
+        check_file_exists(args.genus_priority_ledger)
         check_file_exists(args.dsmz_bacnames_file)
+        check_file_exists(args.ground_truth_test_cases)
         make_sure_path_exists(args.output_dir)
 
-        p = PMC_SpeciesNames(args.output_dir)
-        p.run(args.manual_taxonomy,
+        p = PMC_Validation(args.output_dir)
+        p.run(args.final_taxonomy,
                 args.manual_sp_names,
                 args.gtdb_clusters_file,
                 args.prev_gtdb_metadata_file,
@@ -724,7 +772,9 @@ class OptionsParser():
                 args.synonym_file,
                 args.gtdb_type_strains_ledger,
                 args.sp_priority_ledger,
-                args.dsmz_bacnames_file)
+                args.genus_priority_ledger,
+                args.dsmz_bacnames_file,
+                args.ground_truth_test_cases)
         
         self.logger.info('Done.')
         
@@ -966,6 +1016,8 @@ class OptionsParser():
             self.pmc_check_type_strains(args)
         elif args.subparser_name == 'pmc_species_names':
             self.pmc_species_names(args)
+        elif args.subparser_name == 'pmc_validate':
+            self.pmc_validate(args)
         elif args.subparser_name == 'u_summary_stats':
             self.u_summary_stats(args)
         elif args.subparser_name == 'merge_test':
