@@ -77,6 +77,19 @@ class TaxonSuffixManager():
                         if self._suffix_value(suffix) >= self._suffix_value(cur_suffix):
                             self.taxon_suffix[canonical_taxon] = suffix
 
+    def highest_suffix(self, canonical_taxon):
+        """Get highest suffix observed for a GTDB taxon."""
+        
+        if canonical_taxon in self.taxon_suffix:
+            return self.taxon_suffix[canonical_taxon]
+            
+        return None
+        
+    def is_higher_suffix(self, suffix1, suffix2):
+        """Test if suffix1 > suffix2."""
+        
+        return self._suffix_value(suffix1) > self._suffix_value(suffix2)
+        
     def _suffix_value(self, suffix):
         """Get value of taxa suffix.
         

@@ -38,10 +38,54 @@ class SpecificEpithetManager():
         
         self.logger = logging.getLogger('timestamp')
         
+        self.curated_epithet_changes = {}
         self.sp_epithet_map = defaultdict(lambda: {})
         self.gtdb_ncbi_generic_map = defaultdict(lambda: defaultdict(list))
         
-    def infer_epithet_map(self, gids_of_interest, mc_species, cur_genomes, cur_clusters):
+    def parse_specific_epithet_ledger(self, specific_epithet_ledger):
+        """Parse manually curated changes to specific names resulting from genus transfers."""
+
+        self.logger.info('Reading manually-curate specific epithet changes.')
+        mc_count = 0
+        with open(specific_epithet_ledger) as f:
+            header = f.readline().strip().split('\t')
+            
+            generic_idx = header.index('GTDB generic')
+            sp_corr_idx = header.index('GTDB specific_corrected')
+            sp_idx = header.index('GTDB specific')
+            ncbi_sp_idx = header.index('NCBI specific')
+            
+            for line in f:
+                tokens = [t.strip() for t in line.strip().split('\t')]
+                
+                gtdb_generic = tokens[generic_idx]
+                specific_corr = tokens[sp_corr_idx]
+                gtdb_specific = tokens[sp_idx]
+                ncbi_specific = tokens[ncbi_sp_idx]
+
+                if specific_corr:
+                    species_orig = 's__{} {}'.format(gtdb_generic, gtdb_specific)
+                    species_corr = 's__{} {}'.format(gtdb_generic, specific_corr)
+                    self.curated_epithet_changes[species_orig] = species_corr
+                    mc_count += 1
+                elif gtdb_specific != ncbi_specific:
+                    species_orig = 's__{} {}'.format(gtdb_generic, ncbi_specific)
+                    species_corr = 's__{} {}'.format(gtdb_generic, gtdb_specific)
+                    self.curated_epithet_changes[species_orig] = species_corr
+                    mc_count += 1
+
+        self.logger.info(' - identified {:,} specified cases.'.format(mc_count))
+
+    def translate_species(self, gtdb_species):
+        """Translate GTDB species name to name with corrected specific epithet."""
+        
+        return self.curated_epithet_changes.get(gtdb_species, gtdb_species)
+        
+    def infer_epithet_map(self, 
+                            gids_of_interest, 
+                            mc_species, 
+                            cur_genomes, 
+                            cur_clusters):
         """Infer mapping of NCBI epithet to GTDB epithet which may be different due to gender of genus."""
         
         # get species in GTDB genus
@@ -96,15 +140,7 @@ class SpecificEpithetManager():
                                             top_gtdb_specific, 
                                             ncbi_specific,
                                             count*100.0/len(gtdb_specific_list)))
-                                            
-    def translate_epithet(self, gtdb_generic, ncbi_specific):
-        """Translate NCBI specific name to GTDB equivalence."""
-        
-        if gtdb_generic in self.sp_epithet_map:
-            return self.sp_epithet_map[gtdb_generic].get(ncbi_specific, ncbi_specific)
-            
-        return ncbi_specific
-    
+
     def write_diff_epithet_map(self, output_file):
         """Write out epithet map for specific names that differ between GTDB and NCBI."""
         
@@ -116,6 +152,7 @@ class SpecificEpithetManager():
             for ncbi_specific, gtdb_specific in self.sp_epithet_map[gtdb_generic].items():
                 if gtdb_specific != ncbi_specific:
                     ncbi_generic_list = self.gtdb_ncbi_generic_map[gtdb_generic][gtdb_specific]
+
                     ncbi_generic_counter = Counter(ncbi_generic_list)
                 
                     top_ncbi_generic, count = ncbi_generic_counter.most_common(1)[0]
@@ -149,6 +186,7 @@ class SpecificEpithetManager():
                 
             for ncbi_specific, gtdb_specific in self.sp_epithet_map[gtdb_generic].items():
                 ncbi_generic_list = self.gtdb_ncbi_generic_map[gtdb_generic][gtdb_specific]
+
                 ncbi_generic_counter = Counter(ncbi_generic_list)
                 top_ncbi_generic, count = ncbi_generic_counter.most_common(1)[0]
                 

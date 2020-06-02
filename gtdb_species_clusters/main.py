@@ -714,6 +714,7 @@ class OptionsParser():
         check_file_exists(args.gtdb_type_strains_ledger)
         check_file_exists(args.sp_priority_ledger)
         check_file_exists(args.genus_priority_ledger)
+        check_file_exists(args.specific_epithet_ledger)
         check_file_exists(args.dsmz_bacnames_file)
         make_sure_path_exists(args.output_dir)
 
@@ -733,6 +734,7 @@ class OptionsParser():
                 args.gtdb_type_strains_ledger,
                 args.sp_priority_ledger,
                 args.genus_priority_ledger,
+                args.specific_epithet_ledger,
                 args.dsmz_bacnames_file)
         
         self.logger.info('Done.')
@@ -754,6 +756,7 @@ class OptionsParser():
         check_file_exists(args.gtdb_type_strains_ledger)
         check_file_exists(args.sp_priority_ledger)
         check_file_exists(args.genus_priority_ledger)
+        check_file_exists(args.specific_epithet_ledger)
         check_file_exists(args.dsmz_bacnames_file)
         check_file_exists(args.ground_truth_test_cases)
         make_sure_path_exists(args.output_dir)
@@ -773,6 +776,7 @@ class OptionsParser():
                 args.gtdb_type_strains_ledger,
                 args.sp_priority_ledger,
                 args.genus_priority_ledger,
+                args.specific_epithet_ledger,
                 args.dsmz_bacnames_file,
                 args.ground_truth_test_cases)
         
