@@ -106,7 +106,7 @@ def canonical_taxon(taxon):
 def taxon_suffix(taxon):
     """Return alphabetic suffix of taxon."""
     
-    if taxon[1:3] == '_':
+    if taxon[1:3] == '__':
         taxon = taxon[3:]
     
     if '_' in taxon:
@@ -154,6 +154,7 @@ def is_placeholder_sp_epithet(sp_epithet):
     
     return False
 
+
 def is_placeholder_taxon(taxon):
     """Check if taxon name is a placeholder."""
     
@@ -171,6 +172,23 @@ def is_placeholder_taxon(taxon):
     
     return False
 
+
+def is_alphanumeric_taxon(taxon):
+    """Check if taxon name is an alphanumeric placeholder.
+    
+    Example: g__9cdg1, f__UBA123, not not g__Prochlorococcus_A
+    """
+    
+    return is_placeholder_taxon(taxon) and taxon_suffix(taxon) is None
+
+
+def is_suffixed_taxon(taxon):
+    """Check if taxon name is a suffixed placeholder.
+    
+    Example: g__Prochlorococcus_A, but not g__9cdg1 or f__UBA123
+    """
+    
+    return is_placeholder_taxon(taxon) and taxon_suffix(taxon) is not None
 
 def binomial_species(taxonomy):
     """Get binomial, including Candidatus, species names in NCBI taxonomy."""
@@ -252,8 +270,8 @@ def gtdb_merged_genera(prev_genomes, sp_priority_mngr, output_dir):
                     has_type_species = True
                     break
                     
-            ncbi_year = sp_priority_mngr.genus_priority(ncbi_genus)
-            gtdb_year = sp_priority_mngr.genus_priority(gtdb_genus)
+            ncbi_year = sp_priority_mngr.genus_priority_year(ncbi_genus)
+            gtdb_year = sp_priority_mngr.genus_priority_year(gtdb_genus)
             
             fout.write('{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\n'.format(
                         gtdb_genus,

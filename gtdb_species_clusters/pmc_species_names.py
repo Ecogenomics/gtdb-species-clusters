@@ -50,6 +50,8 @@ from gtdb_species_clusters.taxon_utils import (generic_name,
                                                 longest_common_prefix,
                                                 is_placeholder_taxon,
                                                 is_placeholder_sp_epithet,
+                                                is_alphanumeric_taxon,
+                                                is_suffixed_taxon,
                                                 test_same_epithet)
 
 
@@ -61,68 +63,7 @@ class PMC_SpeciesNames(object):
         
         self.output_dir = output_dir
         self.logger = logging.getLogger('timestamp')
-        
-        self.sp_name_log = open(os.path.join(self.output_dir, 'sp_name_log.tsv'), 'w')
-        self.sp_name_log.write('GTDB domain\tGenome ID\tPrevious GTDB species\tNew GTDB species\tStatus\tReason for update\n')
 
-        self.sp_curation_log = open(os.path.join(self.output_dir, 'sp_curation_log.tsv'), 'w')
-        self.sp_curation_log.write('GTDB domain\tGenome ID\tPrevious NCBI species\tCurrent NCBI species')
-        self.sp_curation_log.write('\tPrevious GTDB genus\tPrevious GTDB species\tProposed GTDB species')
-        self.sp_curation_log.write('\tCase\tIssue\n')
-
-    def update_log(self, 
-                    gid, 
-                    cur_genomes, 
-                    prev_genomes, 
-                    sp,
-                    status,
-                    reason):
-        """Add entry to update log."""
-
-        prev_gtdb_sp = 'n/a'
-        if gid in prev_genomes:
-            prev_gtdb_sp = prev_genomes[gid].gtdb_taxa.species
-
-        self.sp_name_log.write('{}\t{}\t{}\t{}\t{}\t{}\n'.format(
-            cur_genomes[gid].gtdb_taxa.domain,
-            gid,
-            prev_gtdb_sp,
-            sp,
-            status,
-            reason))
-            
-    def curation_log(self, 
-                        gid, 
-                        cur_genomes, 
-                        prev_genomes, 
-                        proposed_gtdb_sp, 
-                        case,
-                        issue):
-        """Add entry to curation log."""
-        
-        prev_ncbi_sp = 'n/a'
-        if gid in prev_genomes:
-            prev_ncbi_sp = prev_genomes[gid].ncbi_taxa.species
-            
-        prev_gtdb_sp = 'n/a'
-        prev_gtdb_genus = 'n/a'
-        if gid in cur_genomes:
-            prev_gtdb_sp = cur_genomes[gid].gtdb_taxa.species
-            prev_gtdb_genus = cur_genomes[gid].gtdb_taxa.genus
-            
-        cur_ncbi_sp = cur_genomes[gid].ncbi_taxa.species
-
-        self.sp_curation_log.write('{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\n'.format(
-                                    cur_genomes[gid].gtdb_taxa.domain,
-                                    gid,
-                                    prev_ncbi_sp,
-                                    cur_ncbi_sp,
-                                    prev_gtdb_genus,
-                                    prev_gtdb_sp,
-                                    proposed_gtdb_sp,
-                                    case,
-                                    issue))
-                                    
     def parse_species_rep_status(self, updated_species_reps_file):
         """Parse file indicating status of previous GTDB species representatives."""
         
@@ -151,63 +92,7 @@ class PMC_SpeciesNames(object):
                     prev_gtdb_rep_status[prev_rid] = tokens[rep_status_index]
         
         return prev_gtdb_rep_status, new_to_prev_rid
-        
-    def sanity_check_sp(self,
-                            gid,
-                            mc_taxonomy,
-                            prev_genomes,
-                            cur_genomes):
-        """Sanity check species assignment."""
-        
-        genus = mc_taxonomy[gid][Taxonomy.GENUS_INDEX]
-        species = mc_taxonomy[gid][Taxonomy.SPECIES_INDEX]
-        
-        # check for binomial species name
-        if len(species.split()) != 2:
-            self.curation_log(gid, 
-                                cur_genomes, 
-                                prev_genomes, 
-                                species, 
-                                "INVALID_SPECIES_NAME",
-                                "GTDB species name is not binomial")
-            return
 
-        generic = generic_name(species)
-        specific = specific_epithet(species)
-        
-        ncbi_genus = cur_genomes[gid].ncbi_taxa.genus
-        ncbi_sp = cur_genomes[gid].ncbi_taxa.species
-        ncbi_specific = specific_epithet(ncbi_sp)
-        
-        # check generic name is the same as the genus name
-        if genus[3:] != generic:
-            self.curation_log(gid, 
-                                cur_genomes, 
-                                prev_genomes, 
-                                species, 
-                                "GENERIC_NAME_CONFLICT",
-                                "Generic name of GTDB species does not reflect GTDB genus assignment")
-        
-        # genus name must reflect type species of genus
-        if cur_genomes[gid].is_gtdb_type_species:
-            if ncbi_genus != genus:
-                self.curation_log(gid, 
-                                    cur_genomes, 
-                                    prev_genomes, 
-                                    species, 
-                                    "TYPE_SPECIES_OF_GENUS",
-                                    "GTDB genus assignment does not reflect type species of genus")
-                                    
-        # specific name must reflect type strain of species
-        if cur_genomes[gid].is_gtdb_type_species:
-            if ncbi_specific != specific:
-                self.curation_log(gid, 
-                                    cur_genomes, 
-                                    prev_genomes, 
-                                    species, 
-                                    "TYPE_STRAIN_OF_SPECIES",
-                                    "GTDB specific species name does not reflect type strain of species")
-                                    
     def key_taxon(self, gid, taxonomy):
         """Get key taxon for determine species assignments."""
         
@@ -327,6 +212,7 @@ class PMC_SpeciesNames(object):
                             prev_genomes,
                             cur_clusters,
                             new_to_prev_rid,
+                            misclassified_gids,
                             case_count):
         """Establish final species name for non-type material genome."""
         
@@ -335,11 +221,16 @@ class PMC_SpeciesNames(object):
         # get taxon names
         gtdb_genus, gtdb_species, gtdb_generic, gtdb_specific = self.key_taxon(rid, 
                                                                                 final_taxonomy)
+                                                                                
+        ncbi_species = cur_genomes[rid].ncbi_taxa.species
+        ncbi_specific = specific_epithet(ncbi_species)
         
         final_species = gtdb_species
         note = ''
+        
+        # check if genome has a forbidden specific epithet so should be treated
+        # as having no species assignment at NCBI
         if gtdb_specific in forbidden_names:
-            # should treat genome as if it does not have a NCBI species
             note = 'forbidden specific epithet'
             
             prev_rid = new_to_prev_rid.get(rid, rid)
@@ -355,8 +246,8 @@ class PMC_SpeciesNames(object):
             else:
                 final_species = self.create_numeric_sp_placeholder(rid, gtdb_generic)
                 
-        if is_placeholder_taxon(canonical_taxon(gtdb_genus)) and not is_placeholder_sp_epithet(gtdb_specific):
-            # Latin specific names are not allowed with non-suffixed, placeholder generic/genus names
+        # Latin specific names are not allowed with alphanumeric generic/genus names
+        if is_alphanumeric_taxon(gtdb_genus) and not is_placeholder_sp_epithet(gtdb_specific):
             note = 'Latin specific name not allowed with placeholder generic name'
             
             prev_rid = new_to_prev_rid.get(rid, rid)
@@ -371,62 +262,33 @@ class PMC_SpeciesNames(object):
             else:
                 final_species = self.create_numeric_sp_placeholder(rid, gtdb_generic)
                 
-        
-        if False:
-            ncbi_sp = cur_genomes[rid].ncbi_taxa.species
-            ncbi_specific = specific_epithet(ncbi_sp)
-            
-            if rid in prev_genomes:
-                prev_gtdb_sp = prev_genomes[rid].gtdb_taxa.species
-                prev_gtdb_specific = specific_epithet(prev_gtdb_sp)
-            else:
-                prev_gtdb_sp = prev_gtdb_specific = None
-            
-            # resolving naming of species
-            note = ''
-            if gtdb_specific == ncbi_specific:
-                # GTDB and NCBI agree on specific names which is the ideal case
-                return gtdb_species, 'GTDB and NCBI agree on specific name'
-            elif ncbi_specific:
-                # GTDB specific name does not match NCBI specific name
-                case_count['GTDB_NCBI_SPECIFIC_NAME_MISMATCH'] += 1
-                note = 'GTDB and NCBI specific names do not match'
-                #***print('GTDB_NCBI_SPECIFIC_NAME_MISMATCH', rid, gtdb_species, ncbi_sp)
-            else:
-                # NCBI does not indicate a specific name
-                if not prev_gtdb_specific or gtdb_specific == prev_gtdb_specific:
-                    # proposed GTDB specific name either matches current GTDB
-                    # specific name or is a new name so any placeholder specific
-                    # name should suffice
-                    if is_placeholder_sp_epithet(gtdb_specific):
-                        return gtdb_species, 'GTDB assigned placeholder specific name'
-                    else:
-                        # check if the genomes in this cluster provide support for
-                        # the specified Latin name
-                        support = self.ncbi_specific_name_support(rid, gtdb_specific, cur_genomes, cur_clusters)
-                        if support >= 0.5:
-                            return gtdb_species, 'Latin specific name supported by genomes in species cluster (support = {:.2f})'.format(support)
-                        else:
-                            # Latin specific name is no longer supported, due to change(s) in
-                            # the species assignments at NCBI. Specific name should be changed
-                            # to a GTDB placeholder.
-                            final_species = self.create_numeric_sp_placeholder(rid, gtdb_generic)
-                            return final_species, 'Latin specific name no longer supported; changed to GTDB placeholder'
-                else:
-                    # proposed GTDB specific name differs from previous GTDB specific name
-                    # which should not happen without justification
-                    if gtdb_species in cur_gtdb_sp:
-                        rid, case = cur_gtdb_sp[gtdb_species]
-                        print('*********', gtdb_species, rid, case)
-                        if cur_genomes[rid].is_gtdb_type_strain():
-                            # change to name was required as the true type strain 
-                            # of the species has been identified
-                            return gtdb_species, 'Specific name changed to GTDB placeholder as a result of type strain genome in another GTDB species cluster'
-                        
-                    case_count['MODIFIED_SPECIFIC_NAME'] += 1
-                    note = 'modified specific name'
-                    print('MODIFIED_SPECIFIC_NAME', rid, gtdb_species, ncbi_sp, prev_gtdb_sp)
+        # check if NCBI species of genome is misclassified and thus specific name needs to be a placeholder
+        if rid in misclassified_gids:
+            note = 'misclassified NCBI genome'
+
+            using_prev_specific_placeholder = False
+            prev_rid = new_to_prev_rid.get(rid, rid)
+            if prev_rid in prev_genomes:
+                prev_sp = prev_genomes[prev_rid].gtdb_taxa.species
+                prev_gtdb_specific = specific_epithet(prev_sp)
+                if is_placeholder_sp_epithet(prev_gtdb_specific):
+                    final_species = 's__{} {}'.format(gtdb_generic, prev_gtdb_specific)
+                    using_prev_specific_placeholder = True
                     
+            # need to generate a specific placeholder name which should be a suffixed
+            # placeholder if the misclassified genome is still in the expected family,
+            # and a alphanumeric placeholder is the misclassified genome is in a different
+            # family
+            if not using_prev_specific_placeholder:
+                type_gid = misclassified_gids[rid]
+                is_alphanumeric_genus = is_alphanumeric_taxon(gtdb_genus)
+                is_same_family = final_taxonomy[rid][Taxonomy.FAMILY_INDEX] == final_taxonomy[type_gid][Taxonomy.FAMILY_INDEX]
+                if is_same_family:
+                    specific = self.sp_name_mngr.suffixed_placeholder_sp_epithet(gtdb_generic, ncbi_specific)
+                    final_species = 's__{} {}'.format(gtdb_generic, specific)
+                else:
+                    final_species = self.create_numeric_sp_placeholder(rid, gtdb_generic)
+
         return final_species, note
         
     def resolve_specific_epithet_suffixes(self, final_taxonomy, cur_genomes):
@@ -495,15 +357,16 @@ class PMC_SpeciesNames(object):
         safety check.
         """
         
+        #test_genera = ['g__Crenothrix'] #'g__Crenothrix', 'g__Pauljensenia', 'g__Acinetobacter', 'g__Thermosynechococcus'] #***
+        
         starting_taxonomy = copy.deepcopy(final_taxonomy)
 
         # get all representatives in a genus
         genus_reps = defaultdict(list)
         for rid in sorted_rids:
             genus = final_taxonomy[rid][Taxonomy.GENUS_INDEX]
-            
-            #'g__Crenothrix', 'g__Pauljensenia', 'g__Acinetobacter', 'g__Thermosynechococcus'] #***
-            #if genus in test_genera:
+
+            #if genus in test_genera: #***
             genus_reps[genus].append(rid)
             
         # check if canonical, Latin specific names occurs multiple times
@@ -523,7 +386,6 @@ class PMC_SpeciesNames(object):
                 if len(rids) > 1:
                     # check if there is a type strain genome
                     type_strain_genomes = [rid for rid in rids if cur_genomes[rid].is_effective_type_strain()]
-                    print('***type strain genomes', genus, canonical_specific_name, type_strain_genomes) #***
                     if len(type_strain_genomes) > 1:
                         # make sure only 1 of these genomes doesn't already have a suffix
                         non_suffixed_count = 0
@@ -544,7 +406,7 @@ class PMC_SpeciesNames(object):
                                                     type_strain_genomes[0],
                                                     final_taxonomy[type_strain_genomes[0]][Taxonomy.SPECIES_INDEX], 
                                                     's__{} {}'.format(generic, canonical_specific_name)))
-                            sys.exit(-1)
+                            #***sys.exit(-1)
                     
                     # update species assignment if required
                     updated = False
@@ -603,10 +465,83 @@ class PMC_SpeciesNames(object):
                             elif is_placeholder_sp_epithet(final_specific) and cur_genomes[rid].is_gtdb_type_strain():
                                 print_table = True
                                                                                 
-                        if False: #***print_table or ('g__' + generic in test_genera): #***
+                        if False: #print_table or ('g__' + generic in test_genera): #***
                             for row in rows:
                                 print(row)
+                                
+    def identified_ncbi_misclassification(self, final_taxonomy, cur_genomes, prev_genomes, ncbi_synonyms):
+        """Identify genomes that are misclassified at NCBI."""
+
+        # get NCBI species defined by a type strain genome
+        self.logger.info('Identifying misclassified genomes.')
+        ncbi_anchored_species = {}
+        for gid in final_taxonomy:
+            ncbi_species = cur_genomes[gid].ncbi_taxa.species
+            ncbi_species = ncbi_synonyms.get(ncbi_species, ncbi_species)
+            
+            if ncbi_species != 's__':
+                gtdb_genus = final_taxonomy[gid][Taxonomy.GENUS_INDEX]
+                ncbi_generic = generic_name(ncbi_species)
+                anchored_sp = (cur_genomes[gid].is_effective_type_strain()
+                                or gtdb_genus == 'g__' + ncbi_generic)
+                                
+                if anchored_sp:
+                    gtdb_species = final_taxonomy[gid][Taxonomy.SPECIES_INDEX]
+                    
+                    if ncbi_species not in ncbi_anchored_species:
+                        ncbi_anchored_species[ncbi_species] = (gtdb_species, gid)
+                    elif cur_genomes[gid].is_effective_type_strain():
+                        # favor having the GTDB species which is a type strain genome
+                        ncbi_anchored_species[ncbi_species] = (gtdb_species, gid)
+                    
+        self.logger.info(' - identified {:,} NCBI anchored species.'.format(len(ncbi_anchored_species)))
+
+        fout = open(os.path.join(self.output_dir, 'misclassified_genomes.tsv'), 'w')
+        fout.write('Genome ID\tType strain genome\tProposed GTDB species\tNCBI species\tNCBI later synonym')
+        fout.write('\tType strain genome ID\tGTDB species of type strain genome')
+        fout.write('\tIs alphanumeric genus\tIn same family\tIn R89\tGenus requires update\n')
+        misclassified_gids = {}
+        for cur_gid in final_taxonomy:
+            ncbi_sp = cur_genomes[cur_gid].ncbi_taxa.species
+            ncbi_sp = ncbi_synonyms.get(ncbi_sp, ncbi_sp)
+            
+            gtdb_genus = final_taxonomy[cur_gid][Taxonomy.GENUS_INDEX]
+            gtdb_sp = final_taxonomy[cur_gid][Taxonomy.SPECIES_INDEX]
+
+            if ncbi_sp in ncbi_anchored_species:
+                gtdb_type_sp, type_gid = ncbi_anchored_species[ncbi_sp]
                 
+                if generic_name(gtdb_sp) != generic_name(gtdb_type_sp):
+                    is_alphanumeric = is_alphanumeric_taxon(gtdb_genus)
+                    is_same_family = final_taxonomy[cur_gid][Taxonomy.FAMILY_INDEX] == final_taxonomy[type_gid][Taxonomy.FAMILY_INDEX]
+                    in_r89 = cur_gid in prev_genomes
+                    requires_update = False
+                    if not in_r89:
+                        if is_alphanumeric and is_same_family:
+                            requires_update = True
+                        if is_suffixed_taxon(gtdb_genus) and not is_same_family:
+                            requires_update = True
+                    
+                    fout.write('{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\n'.format(
+                                cur_gid,
+                                cur_genomes[cur_gid].is_effective_type_strain(),
+                                gtdb_sp,
+                                cur_genomes[cur_gid].ncbi_taxa.species,
+                                ncbi_sp,
+                                type_gid,
+                                gtdb_type_sp,
+                                is_alphanumeric,
+                                is_same_family,
+                                in_r89,
+                                requires_update))
+                    misclassified_gids[cur_gid] = type_gid
+        
+        self.logger.info(' - identified {:,} misclassified genomes.'.format(len(misclassified_gids)))
+
+        fout.close()
+    
+        return misclassified_gids
+    
     def finalize_species_name(self, 
                                 rid, 
                                 final_sp, 
@@ -632,7 +567,8 @@ class PMC_SpeciesNames(object):
                                 cur_genomes, 
                                 gtdb_type_strain_ledger,
                                 prev_gtdb_rep_status,
-                                new_to_prev_rid):
+                                new_to_prev_rid,
+                                ncbi_synonyms):
         """Establish final species names."""
         
         final_taxonomy = copy.deepcopy(mc_taxonomy)
@@ -658,7 +594,7 @@ class PMC_SpeciesNames(object):
                                         mc_species)
         (manual_curation_rids, type_species_rids, type_strains_rids, binomial_rids, placeholder_rids) = rtn
         sorted_rids = manual_curation_rids + type_species_rids + type_strains_rids + binomial_rids + placeholder_rids
-        
+
         # establish final name for each GTDB species cluster
         case_count = defaultdict(int)
         cur_gtdb_sp = {}
@@ -666,7 +602,7 @@ class PMC_SpeciesNames(object):
         for rid in manual_curation_rids:
             case = 'MANUAL_CURATION'
             note = 'Species name set by manual curation'
-            final_sp = final_taxonomy[rid][Taxonomy.SPECIES_INDEX]
+            final_sp = mc_species[rid]
             
             self.finalize_species_name(rid,
                                         final_sp,
@@ -713,6 +649,12 @@ class PMC_SpeciesNames(object):
                                                 cur_genomes,
                                                 mc_species,
                                                 reassigned_rid_mapping)
+        
+        # identify genomes that are misclassified at NCBI
+        misclassified_gids = self.identified_ncbi_misclassification(final_taxonomy, 
+                                                                    cur_genomes,
+                                                                    prev_genomes,
+                                                                    ncbi_synonyms)
                                                 
         # establish final names for non-type genomes
         for rid in binomial_rids + placeholder_rids:
@@ -723,6 +665,7 @@ class PMC_SpeciesNames(object):
                                                         prev_genomes,
                                                         cur_clusters,
                                                         new_to_prev_rid,
+                                                        misclassified_gids,
                                                         case_count)
                 
             self.finalize_species_name(rid,
@@ -730,99 +673,20 @@ class PMC_SpeciesNames(object):
                                         case,
                                         final_taxonomy, 
                                         cur_gtdb_sp)
-       
-        if False:
-            #*** Identify clear misclassifications that should results in a 
-            # genome being given a sp<accn> placeholder name instead of preserving
-            # or suffixing a Latin specific name.
-            #  e.g., Enterobacter_D kobei since E. kobei exists and is defined by a type strain genome
-            
-            # get NCBI and GTDB species defined by a type strain genome
-            ncbi_type_species = defaultdict(set)
-            for gid in final_taxonomy:
-                if cur_genomes[gid].is_gtdb_type_strain():
-                    ncbi_species = cur_genomes[gid].ncbi_taxa.species
-                    
-                    if ncbi_species != 's__':
-                        ncbi_type_species[ncbi_species].add(gid)
-            
-            num_flagged = 0
-            for cur_gid in final_taxonomy:
-                if cur_genomes[cur_gid].is_gtdb_type_strain():
-                    continue
-                    
-                ncbi_sp = cur_genomes[cur_gid].ncbi_taxa.species
-                gtdb_sp = final_taxonomy[cur_gid][Taxonomy.SPECIES_INDEX]
-                type_gtdb_sp = set([final_taxonomy[gid][Taxonomy.SPECIES_INDEX] for gid in ncbi_type_species.get(ncbi_sp, [])])
-                if canonical_species(gtdb_sp) in type_gtdb_sp or canonical_taxon(gtdb_sp) in type_gtdb_sp:
-                    continue
-                
-                if ncbi_sp in ncbi_type_species:
-                    if generic_name(gtdb_sp) not in ncbi_sp:
-                        print(cur_gid, ncbi_sp, ncbi_type_species.get(ncbi_sp, []), type_gtdb_sp, final_taxonomy[cur_gid][Taxonomy.SPECIES_INDEX])
-                        num_flagged += 1
-                        
-            print('num_flagged', num_flagged)
-            #sys.exit(-1)
-            
-            #***
-            new_reps = 0
-            changed_species_name = 0
-            changed_specific_name = 0
-            changed_specific_suffix = 0
-            for rid in cur_clusters:
-                if rid not in final_taxonomy:
-                    continue # must be representative of species from other domain
-                    
-                if rid not in prev_genomes.sp_clusters:
-                    prev_gid = None
-                    for gid in cur_clusters[rid]:
-                        if gid in prev_genomes.sp_clusters:
-                            prev_gid = gid
-                            break
-                            
-                    if prev_gid:
-                        new_reps += 1
-                        # species cluster has a new representative
-                        if prev_genomes[prev_gid].gtdb_taxa.species != final_taxonomy[rid][Taxonomy.SPECIES_INDEX]:
-                            changed_species_name += 1
-                            
-                            prev_specific = specific_epithet(prev_genomes[prev_gid].gtdb_taxa.species)
-                            final_specific = specific_epithet(final_taxonomy[rid][Taxonomy.SPECIES_INDEX])
 
-                            if prev_specific != final_specific:
-                                changed_specific_name += 1
-                                
-                                if is_placeholder_sp_epithet(final_specific) or not cur_genomes[rid].is_gtdb_type_strain():
-                                    print('{}->{}: {}->{} (TS={})'.format(
-                                                prev_gid,
-                                                rid, 
-                                                prev_genomes[prev_gid].gtdb_taxa.species,
-                                                final_taxonomy[rid][Taxonomy.SPECIES_INDEX],
-                                                cur_genomes[rid].is_gtdb_type_strain()))
-                                
-                                prev_suffix = taxon_suffix(prev_specific)
-                                final_suffix = taxon_suffix(final_specific)
-                               
-                                if final_suffix is not None and prev_suffix != final_suffix:
-                                    changed_specific_suffix += 1
-           
-            print('new_reps', new_reps)
-            print('changed_species_name', changed_species_name)
-            print('changed_specific_name', changed_specific_name)
-            print('changed_specific_suffix', changed_specific_suffix)
-            
         # write out final taxonomy
         fout = open(os.path.join(self.output_dir, 'final_taxonomy.tsv'), 'w')
         for rid, taxa in final_taxonomy.items():
-            fout.write('{}\t{}\t{}\t{}\n'.format(
+            fout.write('{}\t{}\t{}\t{}\t{}\n'.format(
                         rid,
                         ';'.join(taxa),
                         cur_genomes[rid].is_gtdb_type_strain(),
-                        cur_genomes[rid].is_effective_type_strain()))
+                        cur_genomes[rid].is_effective_type_strain(),
+                        cur_genomes[rid].is_gtdb_type_species()))
         fout.close()
         
-        sys.exit(-1)
+        for case, count in case_count.items():
+            print('{}\t{}'.format(case, count))
 
         if False:
             # status string should indicate:
@@ -849,61 +713,7 @@ class PMC_SpeciesNames(object):
                                     
                 if final_sp in prev_gtdb_sp:
                     self.logger.error(f'New species cluster assigned previous GTDB species name: {rid}, {final_sp}')
-                
-            mc_taxonomy[rid][Taxonomy.SPECIES_INDEX] = final_sp
-            
-            self.sanity_check_sp(rid, 
-                                    mc_taxonomy,
-                                    prev_genomes,
-                                    cur_genomes)
 
-        for case, count in case_count.items():
-            print('{}\t{}'.format(case, count))
-        
-    def record_modified_gtdb_sp_names(self,
-                                        mc_taxonomy, 
-                                        updated_gtdb_genera, 
-                                        updated_gtdb_species,
-                                        clusters,
-                                        prev_genomes, 
-                                        cur_genomes,
-                                        gtdb_type_strain_ledger,
-                                        prev_gtdb_rep_status,
-                                        new_to_prev_rid,
-                                        synonyms):
-        """Create record of modified GTDB species names."""
-
-        for rid, status in prev_gtdb_rep_status.items():
-            if status == 'LOST' and rid not in new_to_prev_rid:
-                # species cluster is effectively retired
-                self.update_log(rid, 
-                                    cur_genomes, 
-                                    prev_genomes, 
-                                    'n/a',
-                                    'RETIRED',
-                                    'Species cluster retired as only representative of species is no longer available.')
-            else:
-                assert rid in mc_taxonomy
-                
-                prev_sp_rid = new_to_prev_rid[rid]
-                prev_gtdb_sp = prev_genomes[prev_sp_rid].gtdb_taxa.species
-                sp_final = mc_taxonomy[rid][Taxonomy.SPECIES_INDEX]
-            
-                if prev_gtdb_sp == sp_final:
-                    self.update_log(rid, 
-                                    cur_genomes, 
-                                    prev_genomes, 
-                                    sp_final,
-                                    'UNCHANGED',
-                                    '')
-                else:
-                    self.update_log(rid, 
-                                    cur_genomes, 
-                                    prev_genomes, 
-                                    sp_final,
-                                    'CHANGED',
-                                    '')
-        
     def parse_gtdb_type_strain_ledger(self, gtdb_type_strains_ledger, cur_genomes):
         """Read and validate GTDB type strain ledger."""
         
@@ -934,7 +744,7 @@ class PMC_SpeciesNames(object):
     def run(self,
                 manual_taxonomy,
                 manual_sp_names,
-                pmc_customer_species,
+                pmc_custom_species,
                 gtdb_clusters_file,
                 prev_gtdb_metadata_file,
                 cur_gtdb_metadata_file,
@@ -950,7 +760,7 @@ class PMC_SpeciesNames(object):
                 specific_epithet_ledger,
                 dsmz_bacnames_file):
         """Finalize species names based on results of manual curation."""
-        
+
         # read manually-curated taxonomy
         self.logger.info('Parsing manually-curated taxonomy.')
         mc_taxonomy = Taxonomy().read(manual_taxonomy, use_canonical_gid=True)
@@ -971,7 +781,7 @@ class PMC_SpeciesNames(object):
         # read post-curation, manually defined species
         self.logger.info('Parsing post-curation, manually-curated species.')
         pmc_species = {}
-        with open(pmc_customer_species) as f:
+        with open(pmc_custom_species) as f:
             f.readline()
             for line in f:
                 tokens = line.strip().split('\t')
@@ -1036,10 +846,10 @@ class PMC_SpeciesNames(object):
 
         # get list of synonyms in order to restrict usage of species names
         self.logger.info('Reading GTDB synonyms.')
-        synonyms = parse_synonyms(synonym_file)
+        ncbi_synonyms = parse_synonyms(synonym_file)
         self.logger.info(' - identified {:,} synonyms from {:,} distinct species.'.format(
-                            len(synonyms),
-                            len(set(synonyms.values()))))
+                            len(ncbi_synonyms),
+                            len(set(ncbi_synonyms.values()))))
 
         # create specific epithet manager
         self.sp_epithet_mngr = SpecificEpithetManager()
@@ -1084,46 +894,6 @@ class PMC_SpeciesNames(object):
                                         cur_genomes,
                                         gtdb_type_strain_ledger,
                                         prev_gtdb_rep_status,
-                                        new_to_prev_rid)
+                                        new_to_prev_rid,
+                                        ncbi_synonyms)
                                         
-        # establish reason for any modified GTDB species names
-        if False:
-            self.record_modified_gtdb_sp_names(mc_taxonomy, 
-                                                mc_species,
-                                                cur_clusters,
-                                                prev_genomes, 
-                                                cur_genomes,
-                                                gtdb_type_strain_ledger,
-                                                prev_gtdb_rep_status,
-                                                new_to_prev_rid,
-                                                synonyms)
-                                                
-            self.sp_name_log.close()
-            self.sp_curation_log.close()
-        
-        if False: #***
-            # write out taxonomy files
-            bac_taxonomy_out = open(os.path.join(self.output_dir, 'gtdb_bac_taxonomy.tsv'), 'w')
-            ar_taxonomy_out = open(os.path.join(self.output_dir, 'gtdb_ar_taxonomy.tsv'), 'w')
-            for rid in cur_clusters:
-                gtdb_domain = cur_genomes[rid].gtdb_taxa.domain
-                fout = bac_taxonomy_out
-                if gtdb_domain == 'd__Archaea':
-                    fout = ar_taxonomy_out
-                fout.write('{}\t{}\n'.format(rid, cur_genomes[rid].gtdb_taxa))
-                
-            bac_taxonomy_out.close()
-            ar_taxonomy_out.close()
-
-            # write out cluster information with finalized GTDB cluster names
-            self.logger.info('Writing {:,} species clusters to file.'.format(len(cur_clusters)))
-            self.logger.info('Writing {:,} cluster radius information to file.'.format(len(rep_radius)))
-            
-            write_clusters(cur_clusters, 
-                            rep_radius, 
-                            cur_genomes,
-                            os.path.join(self.output_dir, 'gtdb_clusters_de_novo.tsv'))
-
-            write_rep_radius(rep_radius, 
-                                cur_genomes,
-                                os.path.join(self.output_dir, 'gtdb_ani_radius_de_novo.tsv'))

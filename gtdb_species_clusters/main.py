@@ -583,6 +583,7 @@ class OptionsParser():
         check_file_exists(args.synonym_file)
         check_file_exists(args.gtdb_type_strains_ledger)
         check_file_exists(args.sp_priority_ledger)
+        check_file_exists(args.genus_priority_ledger)
         check_file_exists(args.gtdb_taxa_updates_ledger)
         check_file_exists(args.dsmz_bacnames_file)
         make_sure_path_exists(args.output_dir)
@@ -603,6 +604,7 @@ class OptionsParser():
                 args.synonym_file,
                 args.gtdb_type_strains_ledger,
                 args.sp_priority_ledger,
+                args.genus_priority_ledger,
                 args.gtdb_taxa_updates_ledger,
                 args.dsmz_bacnames_file)
         
@@ -701,7 +703,7 @@ class OptionsParser():
         
         check_file_exists(args.manual_taxonomy)
         check_file_exists(args.manual_sp_names)
-        check_file_exists(args.pmc_customer_species)
+        check_file_exists(args.pmc_custom_species)
         check_file_exists(args.gtdb_clusters_file)
         check_file_exists(args.prev_gtdb_metadata_file)
         check_file_exists(args.cur_gtdb_metadata_file)
@@ -721,7 +723,7 @@ class OptionsParser():
         p = PMC_SpeciesNames(args.output_dir)
         p.run(args.manual_taxonomy,
                 args.manual_sp_names,
-                args.pmc_customer_species,
+                args.pmc_custom_species,
                 args.gtdb_clusters_file,
                 args.prev_gtdb_metadata_file,
                 args.cur_gtdb_metadata_file,
@@ -744,6 +746,7 @@ class OptionsParser():
         
         check_file_exists(args.final_taxonomy)
         check_file_exists(args.manual_sp_names)
+        check_file_exists(args.pmc_custom_species)
         check_file_exists(args.gtdb_clusters_file)
         check_file_exists(args.prev_gtdb_metadata_file)
         check_file_exists(args.cur_gtdb_metadata_file)
@@ -764,6 +767,7 @@ class OptionsParser():
         p = PMC_Validation(args.output_dir)
         p.run(args.final_taxonomy,
                 args.manual_sp_names,
+                args.pmc_custom_species,
                 args.gtdb_clusters_file,
                 args.prev_gtdb_metadata_file,
                 args.cur_gtdb_metadata_file,

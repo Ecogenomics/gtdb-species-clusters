@@ -26,7 +26,10 @@ from biolib.taxonomy import Taxonomy
 from gtdb_species_clusters.genomes import Genomes
 from gtdb_species_clusters.species_priority_manager import SpeciesPriorityManager
 
-from gtdb_species_clusters.taxon_utils import (specific_epithet,
+from gtdb_species_clusters.taxon_utils import (generic_name,
+                                                specific_epithet,
+                                                canonical_species,
+                                                is_placeholder_taxon,
                                                 test_same_epithet)
 
 
@@ -74,27 +77,51 @@ class PMC_CheckTypeStrains(object):
                                                 ncbi_genbank_assembly_file=ncbi_genbank_assembly_file,
                                                 untrustworthy_type_ledger=untrustworthy_type_file)
         self.logger.info(f' ... current genome set contains {len(cur_genomes):,} genomes.')
+        
+        # get all GTDB species represented by a type strain:
+        gtdb_type_species = set()
+        for rid in mc_taxonomy:
+            if cur_genomes[rid].is_effective_type_strain():
+                gtdb_type_species.add(mc_taxonomy[rid][Taxonomy.SPECIES_INDEX])
 
         # establish appropriate species names for GTDB clusters with new representatives
         self.logger.info('Identifying type strain genomes with incongruent GTDB species assignments.')
         fout = open(os.path.join(self.output_dir, 'type_strains_incongruencies.tsv'), 'w')
-        fout.write('Genome ID\tGTDB species\tNCBI species\tNCBI RefSeq note\n')
+        fout.write('Genome ID\tGTDB species\tNCBI species\tGTDB type strain\tNCBI type strain\tNCBI RefSeq note\n')
         num_incongruent = 0
         for rid, taxa in mc_taxonomy.items():
-            if cur_genomes[rid].is_gtdb_type_strain():
+            if cur_genomes[rid].is_effective_type_strain():
                 gtdb_sp = taxa[Taxonomy.SPECIES_INDEX]
+                gtdb_generic = generic_name(gtdb_sp)
+                
                 ncbi_sp = cur_genomes[rid].ncbi_taxa.species
+                ncbi_generic = generic_name(ncbi_sp)
+                
                 if ncbi_sp == 's__':
                     # NCBI taxonomy is sometimes behind the genome annotation pages,
                     # and do not have a species assignment even for type strain genome
                     continue 
+                    
+                # check if genome is a valid genus transfer into a genus
+                # that already contains a species with the specific
+                # name which results in a polyphyletic suffix being required
+                # e.g. G002240355 is Prauserella marina at NCBI and is
+                # transferred into Saccharomonospora under the GTDB. However,
+                # Saccharomonospora marina already exists so this genome
+                # needs to be S. marina_A.
+                if (is_placeholder_taxon(gtdb_sp) 
+                    and gtdb_generic != ncbi_generic
+                    and canonical_species(gtdb_sp) in gtdb_type_species):
+                    continue
                 
                 if not test_same_epithet(specific_epithet(gtdb_sp), specific_epithet(ncbi_sp)):
                     num_incongruent += 1
-                    fout.write('{}\t{}\t{}\t{}\n'.format(
+                    fout.write('{}\t{}\t{}\t{}\t{}\t{}\n'.format(
                                 rid,
                                 gtdb_sp,
                                 ncbi_sp,
+                                cur_genomes[rid].is_gtdb_type_strain(),
+                                cur_genomes[rid].is_ncbi_type_strain(),
                                 cur_genomes[rid].excluded_from_refseq_note))
       
         self.logger.info(' - identified {:,} genomes with incongruent species assignments.'.format(num_incongruent))

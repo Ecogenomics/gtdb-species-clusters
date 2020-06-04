@@ -228,8 +228,8 @@ class UpdateSpeciesInit(object):
             proposed_gtdb_genus = 'g__' + generic_name(proposed_gtdb_sp)
             if proposed_gtdb_genus != ncbi_genus:
                 num_conflicting_type_sp += 1
-                ncbi_year = self.sp_priority_mngr.genus_priority(ncbi_genus)
-                gtdb_year = self.sp_priority_mngr.genus_priority(proposed_gtdb_genus)
+                ncbi_year = self.sp_priority_mngr.genus_priority_year(ncbi_genus)
+                gtdb_year = self.sp_priority_mngr.genus_priority_year(proposed_gtdb_genus)
 
                 if gtdb_year < ncbi_year:
                     self.curation_log(rid, 
@@ -368,9 +368,11 @@ class UpdateSpeciesInit(object):
                                     prev_genomes, 
                                     proposed_gtdb_sp,
                                     True,
+                                    "ALREADY_USED_SPECIES_NAME",
                                     "Assigned species name supported by multiple type strain genomes: {} {}".format(
                                         rid, used_sp_names[proposed_gtdb_sp]),
                                     rid in gtdb_type_strain_ledger)
+                                    
                 self.logger.warning('NCBI species name of type strain representative already in use: {}: {}, {}'.format(
                                     proposed_gtdb_sp, rid, used_sp_names[proposed_gtdb_sp]))
             
@@ -415,6 +417,9 @@ class UpdateSpeciesInit(object):
                 
             if ncbi_sp in synonyms:
                 ncbi_sp = synonyms[ncbi_sp]
+                
+            if rid == 'G000974745':
+                print('***', rid, cur_genomes[rid].gtdb_taxa.species, ncbi_sp, ncbi_sp in synonyms)
                 
             # update GTDB generic name only if unassigned, and
             # GTDB specific name only if no other species has 
@@ -468,6 +473,7 @@ class UpdateSpeciesInit(object):
                                     prev_genomes, 
                                     proposed_gtdb_sp,
                                     True,
+                                    "ALREADY_USED_SPECIES_NAME",
                                     "Assigned species name supported by NCBI binomial species name: {} {}".format(
                                         rid, used_sp_names[proposed_gtdb_sp]),
                                     False)
@@ -476,6 +482,9 @@ class UpdateSpeciesInit(object):
                                     
             if proposed_gtdb_sp in synonyms:
                 self.logger.error('Assigning synonym to non-type strain species cluster: {}: {}'.format(ncbi_sp, rid))
+                                    
+            if rid == 'G000974745':
+                print('***', 'proposed_gtdb_sp', proposed_gtdb_sp)
                                     
             cluster_sp_names[rid] = proposed_gtdb_sp
             used_sp_names[proposed_gtdb_sp] = rid
@@ -498,9 +507,6 @@ class UpdateSpeciesInit(object):
         for rid in rids_by_naming_priority:
             if rid in cluster_sp_names:
                 continue
-                
-            if rid == 'G000515315': #***
-                print('here!')
 
             gtdb_sp = cur_genomes[rid].gtdb_taxa.species
             if gtdb_sp != 's__' and gtdb_sp not in used_sp_names:
@@ -516,7 +522,7 @@ class UpdateSpeciesInit(object):
             if proposed_gtdb_sp != cur_genomes[rid].gtdb_taxa.species:
                 if rid in prev_genomes:
                     num_updates += 1
-                    self.update_log(rid, cur_genomes, prev_genomes, proposed_gtdb_sp, "Updated to reflect bionomial NCBI species name.")
+                    self.update_log(rid, cur_genomes, prev_genomes, proposed_gtdb_sp, "Updated to reflect binomial NCBI species name.")
                     
                 for cid in clusters[rid]:
                     #***cur_genomes[cid].gtdb_taxa.genus = 'g__' + generic_name(proposed_gtdb_sp)
@@ -529,6 +535,7 @@ class UpdateSpeciesInit(object):
                                     prev_genomes, 
                                     proposed_gtdb_sp,
                                     True,
+                                    "ALREADY_USED_SPECIES_NAME",
                                     "Placeholder name assigned to multiple genomes: {} {}".format(
                                         rid, used_sp_names[proposed_gtdb_sp]),
                                     False)
@@ -619,9 +626,6 @@ class UpdateSpeciesInit(object):
                     # that do not actually have a binomial species name
                     ncbi_sp_type_strain_genomes[ncbi_sp].add(gid)
                     
-                    if ncbi_sp == 's__Anoxybacillus amylolyticus': #***
-                        print(gid, cur_genomes[gid].is_effective_type_strain(), gid in gtdb_type_strain_ledger, ncbi_sp)
-                    
         self.logger.info(' ... identified effective type strain genomes for {:,} NCBI species.'.format(
                             len(ncbi_sp_type_strain_genomes)))
 
@@ -641,8 +645,6 @@ class UpdateSpeciesInit(object):
                                     len(gtdb_rids),
                                     [(gid, rid_map[gid]) for gid in type_gids],
                                     [(rid, cur_genomes[rid].gtdb_taxa.species, cur_genomes[rid].ncbi_taxa.species) for rid in gtdb_rids]))
-                                    
-        sys.exit(-1)
                                     
         # order representatives by naming priority
         rids_by_naming_priority = self._sort_by_naming_priority(clusters,
@@ -829,6 +831,7 @@ class UpdateSpeciesInit(object):
                 synonym_file,
                 gtdb_type_strains_ledger,
                 sp_priority_ledger,
+                genus_priority_ledger,
                 gtdb_taxa_updates_ledger,
                 dsmz_bacnames_file):
         """Produce initial best guess at GTDB species clusters."""
@@ -934,6 +937,7 @@ class UpdateSpeciesInit(object):
                                                     
         # initialize species priority manager
         self.sp_priority_mngr = SpeciesPriorityManager(sp_priority_ledger,
+                                                        genus_priority_ledger,
                                                         dsmz_bacnames_file)
  
         # establish appropriate species names for GTDB clusters with new representatives
