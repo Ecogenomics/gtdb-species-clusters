@@ -88,6 +88,13 @@ class SpecificEpithetManager():
                             cur_clusters):
         """Infer mapping of NCBI epithet to GTDB epithet which may be different due to gender of genus."""
         
+        
+        # **************************************
+        # This should be updated so it only includes valid transfers, and not
+        # results due to misclassifications at NCBI. For example, right now this
+        # code reports Enterobacter cancerogenus being transferred to Pantoea, but
+        # really this is just a misclassified NCBI genome.
+        
         # get species in GTDB genus
         generic_rids = defaultdict(list)
         for rid in cur_clusters:
@@ -171,8 +178,7 @@ class SpecificEpithetManager():
                                                 ncbi_generic_counter))
         
         fout.close()
-        
-        
+
     def write_epithet_map(self, output_file):
         """Write out epithet map."""
         

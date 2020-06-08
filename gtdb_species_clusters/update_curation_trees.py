@@ -38,7 +38,7 @@ class UpdateCurationTrees(object):
         self.logger = logging.getLogger('timestamp')
          
     def new_ncbi_taxa(self, prev_genomes, cur_genomes, cur_clusters):
-        """Determine new NCBI taxa as these shouldbe considered by curators."""
+        """Determine new NCBI taxa as these should be considered by curators."""
         
         for rank_index in range(1, 7):
             rank_label = Taxonomy.rank_labels[rank_index]

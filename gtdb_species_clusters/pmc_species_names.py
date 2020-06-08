@@ -63,6 +63,9 @@ class PMC_SpeciesNames(object):
         
         self.output_dir = output_dir
         self.logger = logging.getLogger('timestamp')
+        
+        self.final_name_log = open(os.path.join(output_dir, 'final_sp_name.log'), 'w')
+        self.final_name_log.write('Genome ID\tGTDB species\tCase\tNote\n')
 
     def parse_species_rep_status(self, updated_species_reps_file):
         """Parse file indicating status of previous GTDB species representatives."""
@@ -102,28 +105,6 @@ class PMC_SpeciesNames(object):
         specific = specific_epithet(species)
 
         return genus, species, generic, specific
-        
-    def ncbi_specific_name_support(self, rid, gtdb_specific, cur_genomes, cur_clusters):
-        """Validate assignment of specific name based on NCBI assignment of genomes in species cluster."""
-        
-        assert rid in cur_clusters[rid]
-
-        support = 0
-        total_ncbi_sp = 0
-        for gid in cur_clusters[rid]:
-            ncbi_sp = cur_genomes[gid].ncbi_taxa.species
-            ncbi_specific = specific_epithet(ncbi_sp)
-            
-            if ncbi_sp != 's__':
-                total_ncbi_sp += 1
-            
-                if ncbi_specific == gtdb_specific:
-                    support += 1
-            
-        if total_ncbi_sp == 0:
-            return 0
-            
-        return float(support)/total_ncbi_sp
         
     def create_placeholder_species_name(self, gid, generic, specific):
         """Create most appropriate placeholder species name.
@@ -213,6 +194,7 @@ class PMC_SpeciesNames(object):
                             cur_clusters,
                             new_to_prev_rid,
                             misclassified_gids,
+                            ncbi_synonyms,
                             case_count):
         """Establish final species name for non-type material genome."""
         
@@ -223,6 +205,7 @@ class PMC_SpeciesNames(object):
                                                                                 final_taxonomy)
                                                                                 
         ncbi_species = cur_genomes[rid].ncbi_taxa.species
+        ncbi_species = ncbi_synonyms.get(ncbi_species, ncbi_species)
         ncbi_specific = specific_epithet(ncbi_species)
         
         final_species = gtdb_species
@@ -307,7 +290,27 @@ class PMC_SpeciesNames(object):
                     final_taxonomy[rid][Taxonomy.SPECIES_INDEX] = gtdb_species_corr
                 else:
                     final_taxonomy[rid][Taxonomy.SPECIES_INDEX] = '{}_{}'.format(gtdb_species_corr, suffix)
+                    
+    def resolve_synonyms(self, final_taxonomy, cur_genomes, ncbi_synonyms):
+        """Resolve cases where specific suffix should be changed as NCBI species are considered synonyms under the GTDB."""
+        
+        for rid in final_taxonomy:
+            gtdb_genus, gtdb_species, gtdb_generic, gtdb_specific = self.key_taxon(rid, final_taxonomy)
+
+            if is_placeholder_sp_epithet(gtdb_specific):
+                # should not replace a placeholder name with a Latin name, since placeholder
+                # names should be preserved
+                continue
                 
+            ncbi_species = cur_genomes[rid].ncbi_taxa.species
+            if ncbi_species in ncbi_synonyms:
+                synonym = ncbi_synonyms[ncbi_species]
+
+                synonym_specific = specific_epithet(synonym)
+                
+                if gtdb_specific != synonym_specific:
+                    final_taxonomy[rid][Taxonomy.SPECIES_INDEX] = 's__{} {}'.format(gtdb_generic, synonym_specific)
+
     def resolve_duplicate_type_strain_species(self, mc_taxonomy, cur_genomes):
         """Resolve cases where 2 or more type strain genomes have the same species name."""
         
@@ -546,6 +549,7 @@ class PMC_SpeciesNames(object):
                                 rid, 
                                 final_sp, 
                                 case,
+                                note,
                                 final_taxonomy, 
                                 cur_gtdb_sp):
     
@@ -557,6 +561,12 @@ class PMC_SpeciesNames(object):
         cur_gtdb_sp[final_sp] = (rid, case)
         
         final_taxonomy[rid][Taxonomy.SPECIES_INDEX] = final_sp
+        
+        self.final_name_log.write('{}\t{}\t{}\t{}\n'.format(
+                                    rid,
+                                    final_sp,
+                                    case,
+                                    note))
 
     def finalize_species_names(self,
                                 mc_taxonomy, 
@@ -572,10 +582,13 @@ class PMC_SpeciesNames(object):
         """Establish final species names."""
         
         final_taxonomy = copy.deepcopy(mc_taxonomy)
-        
+
         # resolve specific epithets requiring changes due to genus transfers
         self.resolve_specific_epithet_suffixes(final_taxonomy, cur_genomes)
-        
+
+        # resolve synonyms
+        self.resolve_synonyms(final_taxonomy, cur_genomes, ncbi_synonyms)
+
         # resolve type strain genomes with the same name
         resolved_type_strain_gids = self.resolve_duplicate_type_strain_species(final_taxonomy, 
                                                                                 cur_genomes)
@@ -607,6 +620,7 @@ class PMC_SpeciesNames(object):
             self.finalize_species_name(rid,
                                         final_sp,
                                         case,
+                                        note,
                                         final_taxonomy, 
                                         cur_gtdb_sp)
 
@@ -620,6 +634,7 @@ class PMC_SpeciesNames(object):
             self.finalize_species_name(rid,
                                         final_sp,
                                         case,
+                                        note,
                                         final_taxonomy, 
                                         cur_gtdb_sp)
                                         
@@ -637,6 +652,7 @@ class PMC_SpeciesNames(object):
             self.finalize_species_name(rid,
                                         final_sp,
                                         case,
+                                        note,
                                         final_taxonomy, 
                                         cur_gtdb_sp)
                                         
@@ -644,18 +660,19 @@ class PMC_SpeciesNames(object):
         # a genus with the same specific name. Ideally, this should be handled during 
         # initial species assignment, but this wasn't done in R95 and this acts as a 
         # good safety check.
+        print('###5', final_taxonomy['G000974745'][Taxonomy.SPECIES_INDEX])
         self.amend_multiple_nontype_species(sorted_rids,
                                                 final_taxonomy, 
                                                 cur_genomes,
                                                 mc_species,
                                                 reassigned_rid_mapping)
-        
+
         # identify genomes that are misclassified at NCBI
         misclassified_gids = self.identified_ncbi_misclassification(final_taxonomy, 
                                                                     cur_genomes,
                                                                     prev_genomes,
                                                                     ncbi_synonyms)
-                                                
+
         # establish final names for non-type genomes
         for rid in binomial_rids + placeholder_rids:
             case = 'NONTYPE_SPECIES_CLUSTER'
@@ -666,11 +683,13 @@ class PMC_SpeciesNames(object):
                                                         cur_clusters,
                                                         new_to_prev_rid,
                                                         misclassified_gids,
+                                                        ncbi_synonyms,
                                                         case_count)
                 
             self.finalize_species_name(rid,
                                         final_sp,
                                         case,
+                                        note,
                                         final_taxonomy, 
                                         cur_gtdb_sp)
 
@@ -896,4 +915,6 @@ class PMC_SpeciesNames(object):
                                         prev_gtdb_rep_status,
                                         new_to_prev_rid,
                                         ncbi_synonyms)
+                                        
+        self.final_name_log.close()
                                         

@@ -457,7 +457,7 @@ class OptionsParser():
     def u_synonyms(self, args):
         """Determine synonyms for validly or effectively published species."""
         
-        check_file_exists(args.named_cluster_file)
+        check_file_exists(args.gtdb_clusters_file)
         check_file_exists(args.cur_gtdb_metadata_file)
         check_file_exists(args.uba_genome_paths)
         check_file_exists(args.qc_passed_file)
@@ -466,10 +466,12 @@ class OptionsParser():
         check_file_exists(args.ani_af_rep_vs_nonrep)
         check_file_exists(args.gtdb_type_strains_ledger)
         check_file_exists(args.sp_priority_ledger)
+        check_file_exists(args.genus_priority_ledger)
+        check_file_exists(args.dsmz_bacnames_file)
         make_sure_path_exists(args.output_dir)
         
         p = UpdateSynonyms(args.output_dir)
-        p.run(args.named_cluster_file,
+        p.run(args.gtdb_clusters_file,
                 args.cur_gtdb_metadata_file,
                 args.uba_genome_paths,
                 args.qc_passed_file,
@@ -477,7 +479,9 @@ class OptionsParser():
                 args.untrustworthy_type_file,
                 args.ani_af_rep_vs_nonrep,
                 args.gtdb_type_strains_ledger,
-                args.sp_priority_ledger)
+                args.sp_priority_ledger,
+                args.genus_priority_ledger,
+                args.dsmz_bacnames_file)
         
         self.logger.info('Done.')
         
@@ -745,6 +749,7 @@ class OptionsParser():
         """Validate final species names."""
         
         check_file_exists(args.final_taxonomy)
+        check_file_exists(args.final_scaled_tree)
         check_file_exists(args.manual_sp_names)
         check_file_exists(args.pmc_custom_species)
         check_file_exists(args.gtdb_clusters_file)
@@ -766,6 +771,7 @@ class OptionsParser():
 
         p = PMC_Validation(args.output_dir)
         p.run(args.final_taxonomy,
+                args.final_scaled_tree,
                 args.manual_sp_names,
                 args.pmc_custom_species,
                 args.gtdb_clusters_file,

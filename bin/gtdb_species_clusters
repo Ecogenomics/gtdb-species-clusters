@@ -61,8 +61,8 @@ def print_help():
       u_rep_actions        -> Perform initial actions required for changed representatives
       u_sel_reps           -> Select representatives for all named species at NCBI 
       u_cluster_named_reps -> Cluster genomes to selected GTDB representatives
-      u_synonyms           -> Determine synonyms for validly or effectively published species
       u_cluster_de_novo    -> Infer de novo species clusters and representatives for remaining genomes
+      u_synonyms           -> Determine synonyms for validly or effectively published species
       u_genus_names        -> (???) Produce tables for updating genus names as a precursor for establish binomial species names
       u_curation_trees     -> Produce curation trees highlighting new NCBI taxa
       u_species_init       -> Produce initial best guess at GTDB species clusters
@@ -379,23 +379,7 @@ if __name__ == '__main__':
     u_cluster_named_reps_parser.add_argument('--af_sp', help='minimum AF for defining species clusters', type=float, default=0.65)
     u_cluster_named_reps_parser.add_argument('-c', '--cpus', help='number of cpus', type=int, default=1)
     u_cluster_named_reps_parser.add_argument('--silent', help="suppress output", action='store_true')
-    
-    # determine synonyms for validly or effectively published species
-    u_synonyms_parser = subparsers.add_parser('u_synonyms',
-                                        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
-                                        description='Determine synonyms for validly or effectively published species.')
-    u_synonyms_parser.add_argument('named_cluster_file', help="file with named GTDB clusters (u_cluster_named_reps: gtdb_named_rep_clusters.tsv)")
-    u_synonyms_parser.add_argument('cur_gtdb_metadata_file', help="file with GTDB metadata for current GTDB release (TSV file)")
-    u_synonyms_parser.add_argument('uba_genome_paths', help="file indicating path to genomic FASTA files for UBA genomes")
-    u_synonyms_parser.add_argument('qc_passed_file', help="file indicating genomes that have passed QC (u_qc_genomes: qc_passed.tsv)")
-    u_synonyms_parser.add_argument('ncbi_genbank_assembly_file', help="NCBI GenBank assembly file indicating potentially erroneous genomes")
-    u_synonyms_parser.add_argument('untrustworthy_type_file', help="file listing genomes that should be considered untrustworthy as type material (u_resolve_types: untrustworthy_type_material.tsv)")
-    u_synonyms_parser.add_argument('ani_af_rep_vs_nonrep', help="file with pairwise ANI values between representative and non-representative genomes (u_cluster_named_reps: ani_af_rep_vs_nonrep.pkl)")
-    u_synonyms_parser.add_argument('gtdb_type_strains_ledger', help="file listing genomes to consider as being the type strain for valid or effectively published species name")
-    u_synonyms_parser.add_argument('sp_priority_ledger', help="file resolving nomenclatural priority of species names")
-    u_synonyms_parser.add_argument('output_dir', help="output directory")
-    u_synonyms_parser.add_argument('--silent', help="suppress output", action='store_true')
-    
+
     # infer de novo species clusters and type genomes for remaining genomes
     u_cluster_de_novo_parser = subparsers.add_parser('u_cluster_de_novo',
                                         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
@@ -416,11 +400,29 @@ if __name__ == '__main__':
     u_cluster_de_novo_parser.add_argument('-c', '--cpus', help='number of cpus', type=int, default=1)
     u_cluster_de_novo_parser.add_argument('--silent', help="suppress output", action='store_true')
     
+    # determine synonyms for validly or effectively published species
+    u_synonyms_parser = subparsers.add_parser('u_synonyms',
+                                        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+                                        description='Determine synonyms for validly or effectively published species.')
+    u_synonyms_parser.add_argument('gtdb_clusters_file', help="file indicating representatives of each GTDB species cluster (u_cluster_de_novo: gtdb_clusters_de_novo.tsv)")
+    u_synonyms_parser.add_argument('cur_gtdb_metadata_file', help="file with GTDB metadata for current GTDB release (TSV file)")
+    u_synonyms_parser.add_argument('uba_genome_paths', help="file indicating path to genomic FASTA files for UBA genomes")
+    u_synonyms_parser.add_argument('qc_passed_file', help="file indicating genomes that have passed QC (u_qc_genomes: qc_passed.tsv)")
+    u_synonyms_parser.add_argument('ncbi_genbank_assembly_file', help="NCBI GenBank assembly file indicating potentially erroneous genomes")
+    u_synonyms_parser.add_argument('untrustworthy_type_file', help="file listing genomes that should be considered untrustworthy as type material (u_resolve_types: untrustworthy_type_material.tsv)")
+    u_synonyms_parser.add_argument('ani_af_rep_vs_nonrep', help="file with pairwise ANI values between representative and non-representative genomes (u_cluster_named_reps: ani_af_rep_vs_nonrep.pkl)")
+    u_synonyms_parser.add_argument('gtdb_type_strains_ledger', help="file listing genomes to consider as being the type strain for valid or effectively published species name")
+    u_synonyms_parser.add_argument('sp_priority_ledger', help="file resolving nomenclatural priority of species names")
+    u_synonyms_parser.add_argument('genus_priority_ledger', help="file resolving nomenclatural priority of genus names")
+    u_synonyms_parser.add_argument('dsmz_bacnames_file', help="table from lpsn.dsmz.de with nomenclature information")
+    u_synonyms_parser.add_argument('output_dir', help="output directory")
+    u_synonyms_parser.add_argument('--silent', help="suppress output", action='store_true')
+    
     # Produce tables for updating genus names as a precursor for establish binomial species names
     u_genus_names_parser = subparsers.add_parser('u_genus_names',
                                         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
                                         description='Produce tables for updating genus names as a precursor for establish binomial species names.')
-    u_genus_names_parser.add_argument('gtdb_clusters_file', help="file indicating representatives of each GTDB species cluster (u_cluster_de_novo: gtdb_clusters_de_novo.tsv")
+    u_genus_names_parser.add_argument('gtdb_clusters_file', help="file indicating representatives of each GTDB species cluster (u_cluster_de_novo: gtdb_clusters_de_novo.tsv)")
     u_genus_names_parser.add_argument('prev_gtdb_metadata_file', help="file with GTDB metadata for previous GTDB release (TSV file)")
     u_genus_names_parser.add_argument('cur_gtdb_metadata_file', help="file with GTDB metadata for current GTDB release (TSV file)")
     u_genus_names_parser.add_argument('uba_genome_paths', help="file indicating path to genomic FASTA files for UBA genomes")
@@ -557,6 +559,7 @@ if __name__ == '__main__':
                                         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
                                         description='Validate final species names.')
     pmc_validate_parser.add_argument('final_taxonomy', help="file with final taxonomy (u_replace_generic: final_taxonomy.tsv)")
+    pmc_validate_parser.add_argument('final_scaled_tree', help="Newick file with scaled curation tree")
     pmc_validate_parser.add_argument('manual_sp_names', help="file indicating species names explicitly set by manually curated (u_replace_generic: manual_species_names.tsv)")
     pmc_validate_parser.add_argument('pmc_custom_species', help="file indicating post-curation, manual species assignments that are hard to automatically generate")
     pmc_validate_parser.add_argument('gtdb_clusters_file', help="file indicating representatives of each GTDB species cluster (u_cluster_de_novo: gtdb_clusters_de_novo.tsv)")

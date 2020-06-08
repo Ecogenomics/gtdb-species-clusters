@@ -15,6 +15,19 @@
 #                                                                             #
 ###############################################################################
 
+### Cases to improve or verify:
+# G002915575: given the name s__RIT-PI-d sp002915575, but should be s__Superficieibacter electus
+# G003123745: given the names__F0332 sp003123745, but should be s__Ancrocorticia populi
+
+### Required changes:
+# - all initially proposed names need to be unique so they will be decorated on the curation tree. If a name isn't unique and the species 
+#   isn't monophyletic on the tree than there can be genomes without a species assignment. See slide 69.
+#
+# - need to update the update_species_init method to properly handle cases where a genus
+#   has multiple species with the same Latin name, none of which are representated by a type strain.
+#   -- in this case, all species clusters should have a alphabetical suffix
+#
+
 import os
 import sys
 import argparse
@@ -44,7 +57,6 @@ from gtdb_species_clusters.taxon_utils import (generic_name,
                                                 longest_common_prefix,
                                                 is_placeholder_taxon,
                                                 is_placeholder_sp_epithet)
-
 
 class UpdateSpeciesInit(object):
     """Produce initial best guess at GTDB species clusters."""

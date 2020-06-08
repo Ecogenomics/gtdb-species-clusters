@@ -190,6 +190,7 @@ def is_suffixed_taxon(taxon):
     
     return is_placeholder_taxon(taxon) and taxon_suffix(taxon) is not None
 
+
 def binomial_species(taxonomy):
     """Get binomial, including Candidatus, species names in NCBI taxonomy."""
     

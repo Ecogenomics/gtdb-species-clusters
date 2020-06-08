@@ -15,6 +15,10 @@
 #                                                                             #
 ###############################################################################
 
+### TO DO:
+# - What happens to G000284175 (Rickettsia montanensis) in u_sel_reps
+# -- shouldn't this show up as an ANI neighbour?
+
 import os
 import sys
 import logging
@@ -694,7 +698,6 @@ class UpdateSelectRepresentatives(object):
                             len(ani_neighbours), 
                             self.max_ani_neighbour,
                             self.max_af_neighbour))
-        
 
         # get genomes that are the type species of genus
         type_species_of_genus = set()
