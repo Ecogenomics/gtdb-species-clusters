@@ -369,27 +369,7 @@ def generic_specific_names(species_name):
     
     return generic, specific
     
-    
-def parse_synonyms(synonym_file):
-    """Parse synonyms."""
-    
-    synonyms = {}
-    with open(synonym_file) as f:
-        headers = f.readline().strip().split('\t')
-        
-        ncbi_sp_index = headers.index('NCBI species')
-        ncbi_synonym_index = headers.index('NCBI synonym')
-        
-        for line in f:
-            line_split = line.strip().split('\t')
-            
-            ncbi_sp = line_split[ncbi_sp_index]
-            ncbi_synonym = line_split[ncbi_synonym_index]
-            synonyms[ncbi_synonym] = ncbi_sp
-            
-    return synonyms
-    
-    
+
 def read_gtdb_taxonomy(metadata_file):
     """Parse GTDB taxonomy from GTDB metadata.
 

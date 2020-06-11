@@ -25,10 +25,8 @@ from collections import defaultdict, Counter
 from numpy import (mean as np_mean, std as np_std)
 
 from gtdb_species_clusters.genomes import Genomes
-from gtdb_species_clusters.species_name_manager import SpeciesNameManager
-from gtdb_species_clusters.species_priority_manager import SpeciesPriorityManager
 from gtdb_species_clusters.type_genome_utils import read_clusters
-from gtdb_species_clusters.taxon_utils import parse_synonyms, is_placeholder_taxon
+from gtdb_species_clusters.taxon_utils import is_placeholder_taxon
 
 
 class UpdateSummaryStats(object):

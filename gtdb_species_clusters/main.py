@@ -529,7 +529,6 @@ class OptionsParser():
         check_file_exists(args.gtdbtk_classify_file)
         check_file_exists(args.ncbi_genbank_assembly_file)
         check_file_exists(args.untrustworthy_type_file)
-        check_file_exists(args.synonym_file)
         check_file_exists(args.gtdb_type_strains_ledger)
         check_file_exists(args.sp_priority_ledger)
         check_file_exists(args.gtdb_taxa_updates_ledger)
@@ -545,7 +544,6 @@ class OptionsParser():
                 args.gtdbtk_classify_file,
                 args.ncbi_genbank_assembly_file,
                 args.untrustworthy_type_file,
-                args.synonym_file,
                 args.gtdb_type_strains_ledger,
                 args.sp_priority_ledger,
                 args.gtdb_taxa_updates_ledger,

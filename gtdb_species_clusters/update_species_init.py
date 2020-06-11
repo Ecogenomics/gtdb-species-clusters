@@ -44,6 +44,7 @@ from gtdb_species_clusters.genomes import Genomes
 from gtdb_species_clusters.species_clusters import SpeciesClusters
 from gtdb_species_clusters.species_name_manager import SpeciesNameManager
 from gtdb_species_clusters.species_priority_manager import SpeciesPriorityManager
+from gtdb_species_clusters.ncbi_species_manager import NCBI_SpeciesManager
 from gtdb_species_clusters.genome_utils import canonical_gid
 from gtdb_species_clusters.type_genome_utils import (symmetric_ani, 
                                                         read_clusters, 
@@ -52,7 +53,6 @@ from gtdb_species_clusters.type_genome_utils import (symmetric_ani,
 from gtdb_species_clusters.taxon_utils import (generic_name,
                                                 specific_epithet,
                                                 canonical_taxon,
-                                                parse_synonyms,
                                                 gtdb_merged_genera,
                                                 longest_common_prefix,
                                                 is_placeholder_taxon,
@@ -887,17 +887,17 @@ class UpdateSpeciesInit(object):
         
         # read named GTDB species clusters
         self.logger.info('Reading GTDB species clusters.')
-        clusters, rep_radius = read_clusters(gtdb_clusters_file)
+        cur_clusters, rep_radius = read_clusters(gtdb_clusters_file)
         self.logger.info(' ... identified {:,} clusters spanning {:,} genomes.'.format(
-                            len(clusters),
-                            sum([len(gids) + 1 for gids in clusters.values()])))
+                            len(cur_clusters),
+                            sum([len(gids) + 1 for gids in cur_clusters.values()])))
                             
         # write out archaeal and bacterial genome files
         self.logger.info('Creating genomic files for archaeal and bacterial reference genomes.')
         for prefix, domain in [('ar', 'd__Archaea'), ('bac', 'd__Bacteria')]:
             fout = open(os.path.join(self.output_dir, '{}_genomes.lst'.format(prefix)), 'w')
             genome_count = 0
-            for rid in clusters:
+            for rid in cur_clusters:
                 gtdb_domain = cur_genomes[rid].gtdb_taxa.domain
                 if gtdb_domain == domain:
                     fout.write('{}\n'.format(cur_genomes[rid].ncbi_accn))
@@ -913,7 +913,8 @@ class UpdateSpeciesInit(object):
 
         # get list of synonyms in order to restrict usage of species names
         self.logger.info('Reading GTDB synonyms.')
-        synonyms = parse_synonyms(synonym_file)
+        ncbi_species_mngr = NCBI_SpeciesManager(cur_genomes, cur_clusters, self.output_dir)
+        synonyms = ncbi_species_mngr.parse_synonyms_table(synonym_file)
         self.logger.info(' ... identified {:,} synonyms from {:,} distinct species.'.format(
                             len(synonyms),
                             len(set(synonyms.values()))))
@@ -953,7 +954,7 @@ class UpdateSpeciesInit(object):
                                                         dsmz_bacnames_file)
  
         # establish appropriate species names for GTDB clusters with new representatives
-        self.update_species_names(clusters,
+        self.update_species_names(cur_clusters,
                                     prev_genomes, 
                                     cur_genomes, 
                                     gtdb_type_strain_ledger,
@@ -962,7 +963,7 @@ class UpdateSpeciesInit(object):
         # write out taxonomy files
         bac_taxonomy_out = open(os.path.join(self.output_dir, 'gtdb_bac_taxonomy.tsv'), 'w')
         ar_taxonomy_out = open(os.path.join(self.output_dir, 'gtdb_ar_taxonomy.tsv'), 'w')
-        for rid in clusters:
+        for rid in cur_clusters:
             gtdb_domain = cur_genomes[rid].gtdb_taxa.domain
             fout = bac_taxonomy_out
             if gtdb_domain == 'd__Archaea':
@@ -974,10 +975,10 @@ class UpdateSpeciesInit(object):
 
         # write out cluster information with finalized GTDB cluster names
         if False: #***
-            self.logger.info('Writing {:,} species clusters to file.'.format(len(clusters)))
+            self.logger.info('Writing {:,} species clusters to file.'.format(len(cur_clusters)))
             self.logger.info('Writing {:,} cluster radius information to file.'.format(len(rep_radius)))
             
-            write_clusters(clusters, 
+            write_clusters(cur_clusters, 
                             rep_radius, 
                             cur_genomes,
                             os.path.join(self.output_dir, 'gtdb_clusters_de_novo.tsv'))

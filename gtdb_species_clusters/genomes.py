@@ -242,7 +242,6 @@ class Genomes(object):
             f.readline()
             for line in f:
                 tokens = line.strip().split('\t')
-                
                 untrustworthy_as_type.add(canonical_gid(tokens[0]))
             
         return untrustworthy_as_type

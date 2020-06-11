@@ -45,6 +45,7 @@ class SpeciesPriorityManager(object):
         
         self.logger.info('Parsing species priority ledger.')
         self.manual_sp_priority = defaultdict(lambda: {})
+        self.manual_species_priority_year = {}
         
         num_cases = 0
         with open(species_priority_ledger, encoding='utf-8') as f:
@@ -52,6 +53,8 @@ class SpeciesPriorityManager(object):
             
             spA_index = header.index('NCBI species A')
             spB_index = header.index('NCBI species B')
+            spA_year_index = header.index('Priority year A')
+            spB_year_index = header.index('Priority year B')
             priority_index = header.index('Priority')
             
             for line in f:
@@ -59,6 +62,8 @@ class SpeciesPriorityManager(object):
                 
                 spA = tokens[spA_index].strip()
                 spB = tokens[spB_index].strip()
+                yearA = int(tokens[spA_year_index].strip())
+                yearB = int(tokens[spB_year_index].strip())
                 priority_sp = tokens[priority_index].strip()
                 
                 assert spA.startswith('s__')
@@ -68,6 +73,9 @@ class SpeciesPriorityManager(object):
                 
                 self.manual_sp_priority[spA][spB] = priority_sp
                 self.manual_sp_priority[spB][spA] = priority_sp
+                
+                self.manual_species_priority_year[spA] = yearA
+                self.manual_species_priority_year[spB] = yearB
                 num_cases += 1
                 
         self.logger.info(f' - identified {num_cases:,} manually resolved cases.')
@@ -156,6 +164,16 @@ class SpeciesPriorityManager(object):
         
         return None
 
+    def species_priority_year(self, cur_genomes, gid):
+        """Get year of priority for genome."""
+        
+        ncbi_sp = cur_genomes[gid].ncbi_taxa.species
+        if (cur_genomes[gid].is_effective_type_strain()
+            and ncbi_sp in self.manual_species_priority_year):
+            return self.manual_species_priority_year[ncbi_sp]
+            
+        return cur_genomes[gid].year_of_priority()
+        
     def species_priority(self, cur_genomes, gid1, gid2):
         """Resolve species priority of genomes."""
 
@@ -165,9 +183,9 @@ class SpeciesPriorityManager(object):
         elif (not cur_genomes[gid1].is_gtdb_type_species()
             and cur_genomes[gid2].is_gtdb_type_species()):
             return gid2, 'type species of genus'
-        elif cur_genomes[gid1].year_of_priority() < cur_genomes[gid2].year_of_priority():
+        elif self.species_priority_year(cur_genomes, gid1) < self.species_priority_year(cur_genomes, gid2):
             return gid1, 'year of priority'
-        elif cur_genomes[gid1].year_of_priority() > cur_genomes[gid2].year_of_priority():
+        elif self.species_priority_year(cur_genomes, gid1) > self.species_priority_year(cur_genomes, gid2):
             return gid2, 'year of priority'
         elif (cur_genomes[gid1].is_effective_type_strain() 
                 and not cur_genomes[gid2].is_effective_type_strain()):

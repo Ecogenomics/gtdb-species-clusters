@@ -27,27 +27,20 @@ from numpy import (mean as np_mean, std as np_std)
 
 from biolib.taxonomy import Taxonomy
 
-from gtdb_species_clusters.fastani import FastANI
 from gtdb_species_clusters.genomes import Genomes
-from gtdb_species_clusters.species_clusters import SpeciesClusters
 
 from gtdb_species_clusters.species_name_manager import SpeciesNameManager
 from gtdb_species_clusters.species_priority_manager import SpeciesPriorityManager
 from gtdb_species_clusters.specific_epithet_manager import SpecificEpithetManager
+from gtdb_species_clusters.ncbi_species_manager import NCBI_SpeciesManager
 from gtdb_species_clusters.genome_utils import canonical_gid
-from gtdb_species_clusters.type_genome_utils import (symmetric_ani, 
-                                                        read_clusters, 
-                                                        write_clusters, 
-                                                        write_rep_radius)
+from gtdb_species_clusters.type_genome_utils import (read_clusters)
 from gtdb_species_clusters.taxon_utils import (generic_name,
                                                 specific_epithet,
                                                 canonical_taxon,
                                                 canonical_species,
                                                 taxon_suffix,
-                                                parse_synonyms,
-                                                gtdb_merged_genera,
                                                 sort_by_naming_priority,
-                                                longest_common_prefix,
                                                 is_placeholder_taxon,
                                                 is_placeholder_sp_epithet,
                                                 is_alphanumeric_taxon,
@@ -865,7 +858,8 @@ class PMC_SpeciesNames(object):
 
         # get list of synonyms in order to restrict usage of species names
         self.logger.info('Reading GTDB synonyms.')
-        ncbi_synonyms = parse_synonyms(synonym_file)
+        ncbi_species_mngr = NCBI_SpeciesManager(cur_genomes, cur_clusters, self.output_dir)
+        ncbi_synonyms = ncbi_species_mngr.parse_synonyms_table(synonym_file)
         self.logger.info(' - identified {:,} synonyms from {:,} distinct species.'.format(
                             len(ncbi_synonyms),
                             len(set(ncbi_synonyms.values()))))

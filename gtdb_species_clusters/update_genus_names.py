@@ -38,7 +38,6 @@ from gtdb_species_clusters.type_genome_utils import (symmetric_ani,
                                                         write_rep_radius)
 from gtdb_species_clusters.taxon_utils import (generic_name,
                                                 specific_epithet,
-                                                parse_synonyms,
                                                 longest_common_prefix,
                                                 is_placeholder_taxon,
                                                 is_placeholder_sp_epithet)
@@ -279,7 +278,6 @@ class UpdateGenusNames(object):
                 gtdbtk_classify_file,
                 ncbi_genbank_assembly_file,
                 untrustworthy_type_file,
-                synonym_file,
                 gtdb_type_strains_ledger,
                 sp_priority_ledger,
                 gtdb_taxa_updates_ledger,
@@ -316,13 +314,6 @@ class UpdateGenusNames(object):
         self.logger.info(' ... identified {:,} clusters spanning {:,} genomes.'.format(
                             len(cur_clusters),
                             sum([len(gids) + 1 for gids in cur_clusters.values()])))
-
-        # get list of synonyms in order to restrict usage of species names
-        self.logger.info('Reading GTDB synonyms.')
-        synonyms = parse_synonyms(synonym_file)
-        self.logger.info(' ... identified {:,} synonyms from {:,} distinct species.'.format(
-                            len(synonyms),
-                            len(set(synonyms.values()))))
         
         # set current genomes to have same GTDB assignments as in previous
         # GTDB release. This is necessary, since genomes may have different

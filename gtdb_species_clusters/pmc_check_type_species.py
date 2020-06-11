@@ -25,14 +25,9 @@ from biolib.taxonomy import Taxonomy
 
 from gtdb_species_clusters.genomes import Genomes
 from gtdb_species_clusters.species_priority_manager import SpeciesPriorityManager
-from gtdb_species_clusters.genome_utils import canonical_gid
 
 from gtdb_species_clusters.taxon_utils import (generic_name,
                                                 specific_epithet,
-                                                parse_synonyms,
-                                                gtdb_merged_genera,
-                                                sort_by_naming_priority,
-                                                longest_common_prefix,
                                                 is_placeholder_taxon,
                                                 is_placeholder_sp_epithet)
 

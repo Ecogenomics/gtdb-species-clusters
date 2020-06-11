@@ -430,7 +430,6 @@ if __name__ == '__main__':
     u_genus_names_parser.add_argument('gtdbtk_classify_file', help="file with GTDB-Tk classifications for new and updated genomes")
     u_genus_names_parser.add_argument('ncbi_genbank_assembly_file', help="NCBI GenBank assembly file indicating potentially erroneous genomes")
     u_genus_names_parser.add_argument('untrustworthy_type_file', help="file listing genomes that should be considered untrustworthy as type material (u_resolve_types: untrustworthy_type_material.tsv)")
-    u_genus_names_parser.add_argument('synonym_file', help="file with species names marked as synonyms (u_synonyms: synonyms.tsv)")
     u_genus_names_parser.add_argument('gtdb_type_strains_ledger', help="file listing genomes to consider as being the type strain for valid or effectively published species name")
     u_genus_names_parser.add_argument('sp_priority_ledger', help="file resolving nomenclatural priority of species names")
     u_genus_names_parser.add_argument('gtdb_taxa_updates_ledger', help="file indicating explicit updates to taxa relative to last GTDB release")
