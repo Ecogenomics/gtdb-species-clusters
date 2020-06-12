@@ -180,6 +180,15 @@ def is_alphanumeric_taxon(taxon):
     """
     
     return is_placeholder_taxon(taxon) and taxon_suffix(taxon) is None
+    
+
+def is_alphanumeric_sp_epithet(sp_epithet):
+    """Check if specific name is an alphanumeric placeholder.
+    
+    Example: sp012345678, but not coli or coli_B
+    """
+    
+    return is_placeholder_sp_epithet(sp_epithet) and taxon_suffix(sp_epithet) is None
 
 
 def is_suffixed_taxon(taxon):
@@ -190,6 +199,26 @@ def is_suffixed_taxon(taxon):
     
     return is_placeholder_taxon(taxon) and taxon_suffix(taxon) is not None
 
+
+def is_suffixed_sp_epithet(sp_epithet):
+    """Check if specific name is a suffixed placeholder.
+    
+    Example: coli_B, but not coli or sp012345678
+    """
+    
+    return is_placeholder_sp_epithet(sp_epithet) and taxon_suffix(sp_epithet) is not None
+
+
+def specific_epithet_type(sp_epithet):
+    """Determine if specific name is Latin, suffixed Latin, or alphanumeric."""
+    
+    if is_alphanumeric_sp_epithet(sp_epithet):
+        return 'ALPHANUMERIC'
+    elif is_suffixed_sp_epithet(sp_epithet):
+        return 'SUFFIXED_LATIN'
+    
+    return 'LATIN'
+    
 
 def binomial_species(taxonomy):
     """Get binomial, including Candidatus, species names in NCBI taxonomy."""
@@ -293,7 +322,6 @@ def sort_by_naming_priority(rids_of_interest,
                             sp_clusters,
                             prev_genomes, 
                             cur_genomes, 
-                            gtdb_type_strain_ledger,
                             mc_species):
     """Sort representatives by naming priority."""
     

@@ -43,6 +43,7 @@ from gtdb_species_clusters.update_rep_changes import RepChanges
 from gtdb_species_clusters.update_rep_actions import RepActions
 from gtdb_species_clusters.update_select_reps import UpdateSelectRepresentatives
 from gtdb_species_clusters.update_cluster_named_reps import UpdateClusterNamedReps
+from gtdb_species_clusters.update_erroneous_ncbi import UpdateErroneousNCBI
 from gtdb_species_clusters.update_synonyms import UpdateSynonyms
 from gtdb_species_clusters.update_cluster_de_novo import UpdateClusterDeNovo
 from gtdb_species_clusters.update_genus_names import UpdateGenusNames
@@ -454,6 +455,40 @@ class OptionsParser():
         
         self.logger.info('Done.')
         
+    def u_ncbi_erroneous(self, args):
+        """Identify genomes with erroneous NCBI species assignments."""
+        
+        check_file_exists(args.gtdb_clusters_file)
+        check_file_exists(args.cur_gtdb_metadata_file)
+        check_file_exists(args.cur_genomic_path_file)
+        check_file_exists(args.uba_genome_paths)
+        check_file_exists(args.qc_passed_file)
+        check_file_exists(args.ncbi_genbank_assembly_file)
+        check_file_exists(args.untrustworthy_type_file)
+        check_file_exists(args.gtdb_type_strains_ledger)
+        check_file_exists(args.sp_priority_ledger)
+        check_file_exists(args.genus_priority_ledger)
+        check_file_exists(args.dsmz_bacnames_file)
+        make_sure_path_exists(args.output_dir)
+        
+        p = UpdateErroneousNCBI(args.ani_ncbi_erroneous,
+                            args.ani_cache_file, 
+                            args.cpus, 
+                            args.output_dir)
+        p.run(args.gtdb_clusters_file,
+                args.cur_gtdb_metadata_file,
+                args.cur_genomic_path_file,
+                args.uba_genome_paths,
+                args.qc_passed_file,
+                args.ncbi_genbank_assembly_file,
+                args.untrustworthy_type_file,
+                args.gtdb_type_strains_ledger,
+                args.sp_priority_ledger,
+                args.genus_priority_ledger,
+                args.dsmz_bacnames_file)
+        
+        self.logger.info('Done.')
+    
     def u_synonyms(self, args):
         """Determine synonyms for validly or effectively published species."""
         
@@ -711,10 +746,10 @@ class OptionsParser():
         check_file_exists(args.cur_gtdb_metadata_file)
         check_file_exists(args.uba_genome_paths)
         check_file_exists(args.qc_passed_file)
-        check_file_exists(args.updated_species_reps_file)
         check_file_exists(args.ncbi_genbank_assembly_file)
         check_file_exists(args.untrustworthy_type_file)
         check_file_exists(args.synonym_file)
+        check_file_exists(args.updated_species_reps)
         check_file_exists(args.gtdb_type_strains_ledger)
         check_file_exists(args.sp_priority_ledger)
         check_file_exists(args.genus_priority_ledger)
@@ -731,10 +766,10 @@ class OptionsParser():
                 args.cur_gtdb_metadata_file,
                 args.uba_genome_paths,
                 args.qc_passed_file,
-                args.updated_species_reps_file,
                 args.ncbi_genbank_assembly_file,
                 args.untrustworthy_type_file,
                 args.synonym_file,
+                args.updated_species_reps,
                 args.gtdb_type_strains_ledger,
                 args.sp_priority_ledger,
                 args.genus_priority_ledger,
@@ -1008,6 +1043,8 @@ class OptionsParser():
             self.u_sel_reps(args)
         elif args.subparser_name == 'u_cluster_named_reps':
             self.u_cluster_named_reps(args)
+        elif args.subparser_name == 'u_ncbi_erroneous':
+            self.u_ncbi_erroneous(args)
         elif args.subparser_name == 'u_synonyms':
             self.u_synonyms(args)
         elif args.subparser_name == 'u_cluster_de_novo':

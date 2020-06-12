@@ -18,6 +18,7 @@
 import os
 import sys
 import logging
+from itertools import product
 from collections import defaultdict, Counter
 
 import dendropy 
@@ -45,7 +46,10 @@ from gtdb_species_clusters.taxon_utils import (generic_name,
                                                 is_placeholder_taxon,
                                                 is_placeholder_sp_epithet,
                                                 is_alphanumeric_taxon,
+                                                is_alphanumeric_sp_epithet,
                                                 is_suffixed_taxon,
+                                                is_suffixed_sp_epithet,
+                                                specific_epithet_type,
                                                 test_same_epithet)
 
 class PMC_Validation(object):
@@ -521,8 +525,6 @@ class PMC_Validation(object):
             validated_count, 
             'Identified {:,} genomes which violate the suffixing rules for specific names (Proposed GTDB species, NCBI species, Note):'.format(len(invalid_suffix)))
             
-        sys.exit(-1) #***
-            
     def validate_genera_placeholder_suffixes(self, final_taxonomy, cur_genomes, reassigned_rid_mapping):
         """Validate placeholder suffixes of genera."""
         
@@ -969,16 +971,17 @@ class PMC_Validation(object):
             
         return misclassified_gids
             
-    def report_modified_species_names(self, final_taxonomy, prev_genomes, prev_to_new_rids):
+    def report_modified_species_names(self, final_taxonomy, cur_genomes, prev_genomes, prev_to_new_rids):
         """Report GTDB species clusters with modified names."""
         
         domains_of_interest = set([taxa[Taxonomy.DOMAIN_INDEX] for taxa in final_taxonomy.values()])
         
         fout = open(os.path.join(self.output_dir, 'modified_sp_names.tsv'), 'w')
-        fout.write('Previous ID\tNew ID\tPrevious name\tNew name\tModified generic name\tModified specific name\tUpdated representative\n')
+        fout.write('Previous ID\tNew ID\tPrevious name\tNew name\tModified generic name\tModified specific name\tUpdated representative\tType of specific name change\n')
         
         modified_generic_names = 0
         modified_specific_names = 0
+        modified_specific_type = defaultdict(lambda: defaultdict(int))
         same_species_names = 0
         lost_sp_cluster = 0
         total_names = 0
@@ -998,35 +1001,43 @@ class PMC_Validation(object):
                 new_sp = final_taxonomy[new_rid][Taxonomy.SPECIES_INDEX]
                 new_genus = generic_name(new_sp)
                 new_specific = specific_epithet(new_sp)
+                
+                if prev_sp == new_sp:
+                    same_species_names += 1
+                else:
+                    type_sp_name_change = 'n/a'
+                    if prev_specific != new_specific:
+                        type_sp_name_change = '{} -> {}'.format(
+                                                specific_epithet_type(prev_specific), 
+                                                specific_epithet_type(new_specific))
+                                                
+                    fout.write('{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\n'.format(
+                                prev_rid,
+                                new_rid,
+                                prev_sp,
+                                new_sp,
+                                prev_genus != new_genus,
+                                prev_specific != new_specific,
+                                prev_rid != new_rid,
+                                type_sp_name_change))
+                    
+                if prev_genus != new_genus:
+                    modified_generic_names += 1
+                    
+                if prev_specific != new_specific:
+                    modified_specific_names += 1
+                    modified_specific_type[specific_epithet_type(prev_specific)][specific_epithet_type(new_specific)] += 1
             else:
                 lost_sp_cluster += 1
-                fout.write('{}\t{}\t{}\t{}\t{}\t{}\t{}\n'.format(
+                fout.write('{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\n'.format(
                             prev_rid,
                             'n/a',
                             prev_sp,
+                            'n/a',
                             'n/a',
                             'n/a',
                             'n/a',
                             'n/a'))
-                continue
-            
-            if prev_sp == new_sp:
-                same_species_names += 1
-            else:
-                fout.write('{}\t{}\t{}\t{}\t{}\t{}\t{}\n'.format(
-                            prev_rid,
-                            new_rid,
-                            prev_sp,
-                            new_sp,
-                            prev_genus != new_genus,
-                            prev_specific != new_specific,
-                            prev_rid != new_rid))
-                
-            if prev_genus != new_genus:
-                modified_generic_names += 1
-                
-            if prev_specific != new_specific:
-                modified_specific_names += 1
             
         self.logger.info(' - total previous species names: {:,}'.format(total_names))
         self.logger.info(' - unmodified names: {:,} ({:.2f}%)'.format(
@@ -1038,11 +1049,81 @@ class PMC_Validation(object):
         self.logger.info(' - modified specific names: {:,} ({:.2f}%)'.format(
                         modified_specific_names,
                         modified_specific_names*100.0/total_names))
+                        
+        for prev_type, new_type in product(['LATIN', 'SUFFIXED_LATIN', 'ALPHANUMERIC'], repeat=2):
+            self.logger.info('   - modified specific names from {} to {}: {:,} ({:.2f}%)'.format(
+                        prev_type,
+                        new_type,
+                        modified_specific_type[prev_type][new_type],
+                        modified_specific_type[prev_type][new_type]*100.0/modified_specific_names))
+
         self.logger.info(' - lost species clusters: {:,} ({:.2f}%)'.format(
                         lost_sp_cluster,
                         lost_sp_cluster*100.0/total_names))
 
         fout.close()
+        
+        # do a comparison between GTDB and NCBI in terms of number of modified names
+        gtdb_modified_genus_names = 0
+        ncbi_modified_genus_names = 0
+        gtdb_modified_specific_names = 0
+        ncbi_modified_specific_names = 0
+        total_names = 0
+        for prev_rid in prev_genomes.sp_clusters:
+            prev_domain = prev_genomes[prev_rid].gtdb_taxa.domain
+            if prev_domain not in domains_of_interest:
+                continue
+                
+            new_rid = prev_to_new_rids.get(prev_rid, prev_rid)
+            if new_rid not in final_taxonomy:
+                continue 
+
+            prev_ncbi_sp = prev_genomes[prev_rid].ncbi_taxa.species
+            if prev_ncbi_sp == 's__':
+                continue
+            prev_ncbi_genus = prev_genomes[prev_rid].ncbi_taxa.genus
+            prev_ncbi_specific = specific_epithet(prev_ncbi_sp)
+
+            new_ncbi_sp = cur_genomes[new_rid].ncbi_taxa.species
+            new_ncbi_genus = cur_genomes[new_rid].ncbi_taxa.genus
+            new_ncbi_specific = specific_epithet(new_ncbi_sp)
+            
+            prev_gtdb_sp = prev_genomes[prev_rid].gtdb_taxa.species
+            prev_gtdb_genus = prev_genomes[prev_rid].gtdb_taxa.genus
+            prev_gtdb_specific = specific_epithet(prev_gtdb_sp)
+            
+            new_gtdb_sp = final_taxonomy[new_rid][Taxonomy.SPECIES_INDEX]
+            new_gtdb_genus = final_taxonomy[new_rid][Taxonomy.GENUS_INDEX]
+            new_gtdb_specific = specific_epithet(new_gtdb_sp)
+            
+            total_names += 1
+
+            if prev_ncbi_genus != new_ncbi_genus:
+                ncbi_modified_genus_names += 1
+            
+            if prev_gtdb_genus != new_gtdb_genus:
+                gtdb_modified_genus_names += 1
+                
+            if prev_ncbi_sp != new_ncbi_sp:
+                ncbi_modified_specific_names += 1
+                
+            if prev_gtdb_sp != new_gtdb_sp:
+                gtdb_modified_specific_names += 1
+                
+        self.logger.info('Comparison of number of name changes in NCBI and GTDB.')
+        self.logger.info(' - total previous GTDB representatives with NCBI species assignment: {:,}'.format(total_names))
+        self.logger.info(' - modified NCBI genus names: {:,} ({:.2f}%)'.format(
+                        ncbi_modified_genus_names,
+                        ncbi_modified_genus_names*100.0/total_names))
+        self.logger.info(' - modified GTDB genus names: {:,} ({:.2f}%)'.format(
+                        gtdb_modified_genus_names,
+                        gtdb_modified_genus_names*100.0/total_names))
+        self.logger.info(' - modified NCBI specific names: {:,} ({:.2f}%)'.format(
+                        ncbi_modified_specific_names,
+                        ncbi_modified_specific_names*100.0/total_names))
+        self.logger.info(' - modified GTDB specific names: {:,} ({:.2f}%)'.format(
+                        gtdb_modified_specific_names,
+                        gtdb_modified_specific_names*100.0/total_names))
 
     def run(self,
                 final_taxonomy,
@@ -1139,61 +1220,27 @@ class PMC_Validation(object):
 
         # identified genomes with misclassified species assignments at NCBI
         self.logger.info('Identify genomes with misclassified NCBI species assignments.')
-        misclassified_gids = ncbi_species_mngr.identify_misclassified_genomes(ncbi_synonyms, self.mc_gids)
-        
-        
-        ncbi_sp_gids = defaultdict(list)
-        for gid in cur_genomes:
-            ncbi_species = cur_genomes[gid].ncbi_taxa.species
-            if ncbi_species != 's__':
-                ncbi_sp_gids[ncbi_species].append(gid)
-        
-        num_unclassified_ncbi_rep = 0
-        for rid, cids in cur_clusters.items():
-            rep_ncbi_species = cur_genomes[rid].ncbi_taxa.species
-            
-            if rep_ncbi_species == 's__':
-                cluster_ncbi_species = []
-                for cid in cids:
-                    if cid == rid:
-                        continue
-                        
-                    if cid in misclassified_gids:
-                        continue
-                        
-                    ncbi_species = cur_genomes[cid].ncbi_taxa.species
-                    if ncbi_species != 's__':
-                        cluster_ncbi_species.append(ncbi_species)
-                        
-                if len(set(cluster_ncbi_species)) != 1:
-                    continue
-                    
-                if len(cluster_ncbi_species) != len(ncbi_sp_gids[cluster_ncbi_species[0]]):
-                    continue
-
-                print(rid, len(cids), Counter(cluster_ncbi_species))
-                num_unclassified_ncbi_rep += 1
-                    
-        print('num_unclassified_ncbi_rep', num_unclassified_ncbi_rep)
-        
-        
+        misclassified_gids = ncbi_species_mngr.identify_misclassified_genomes(final_taxonomy,
+                                                                                ncbi_synonyms, 
+                                                                                self.mc_gids)
 
         # classify each Latin NCBI species as either unambiguously or ambiguously assigned
         self.logger.info('Classifying NCBI species as unambiguous, ambiguous, or synonym.')
-        ncbi_species, unambiguous_ncbi_sp, ambiguous_ncbi_sp = ncbi_species_mngr.classify_ncbi_species(
-                                                                    ncbi_synonyms, 
-                                                                    misclassified_gids)
+        ncbi_classification_table = os.path.join(self.output_dir, 'ncbi_sp_classification.tsv')
+        if os.path.exists(ncbi_classification_table):
+            self.logger.warning('Reading classification of NCBI species from existing table: {}'.format(
+                                    ncbi_classification_table))
+            ncbi_species, unambiguous_ncbi_sp, ambiguous_ncbi_sp = ncbi_species_mngr.parse_ncbi_classification_table(
+                                                                    ncbi_classification_table)
+        else:
+            ncbi_species, unambiguous_ncbi_sp, ambiguous_ncbi_sp = ncbi_species_mngr.classify_ncbi_species(
+                                                                        ncbi_synonyms, 
+                                                                        misclassified_gids)
         
-        unambiguous_type_strain_count = 0
-        unambiguous_unanimous_consensus_count = 0
-        for _, _, classification, _ in unambiguous_ncbi_sp.values():
-            if classification == 'TYPE_STRAIN_GENOME':
-                unambiguous_type_strain_count += 1
-            elif classification == 'UNANIMOUS_CONSENSUS':
-                unambiguous_unanimous_consensus_count += 1
-            else:
-                self.logger.error('Unknown classification type: {}'.format(classification))
-                sys.exit(-1)
+        unambiguous_classifications = [classification for rid, classification in unambiguous_ncbi_sp.values()]
+        unambiguous_type_strain_count = unambiguous_classifications.count('TYPE_STRAIN_GENOME')
+        unambiguous_unanimous_consensus_count = unambiguous_classifications.count('UNANIMOUS_CONSENSUS')
+        assert unambiguous_type_strain_count + unambiguous_unanimous_consensus_count == len(unambiguous_ncbi_sp)
                 
         self.logger.info(' - identified {:,} NCBI species.'.format(len(ncbi_species)))
         self.logger.info(' - identified {:,} ({:.2f}%) as unambiguous assignments.'.format(
@@ -1211,8 +1258,6 @@ class PMC_Validation(object):
         self.logger.info(' - identified {:,} ({:.2f}%) as GTDB synonyms.'.format(
                             len(ncbi_synonyms),
                             len(ncbi_synonyms) * 100.0 / len(ncbi_species)))
-                            
-        sys.exit(-1)
 
         # get species clusters with reassigned representative
         self.logger.info('Identifying species clusters with reassigned representatives.')
@@ -1327,4 +1372,4 @@ class PMC_Validation(object):
 
         # create table with modified GTDB species names for manual inspection
         self.logger.info('Creating table with modified GTDB species names.')
-        self.report_modified_species_names(final_taxonomy, prev_genomes, prev_to_new_rids)
+        self.report_modified_species_names(final_taxonomy, cur_genomes, prev_genomes, prev_to_new_rids)
