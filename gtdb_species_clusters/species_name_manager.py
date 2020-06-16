@@ -80,6 +80,20 @@ class SpeciesNameManager(object):
 
         return '{}_{}'.format(specific, next_suffix)
         
+    def add_suffixed_species(self, species):
+        """Account for species names when generating further placeholder names.
+        
+        This is required as species can be transferred between genera and will
+        retain their existing suffix. As such, we must track that this genera
+        now has a species name with a given suffix.
+        
+        (e.g., Lactobacillus_G kunkeei_A is transferred to Apilactobacillus 
+               as A. kunkeei_A, so the next suffixed A. kunkeei representative
+               must have a 'B' suffix.)
+        """
+        
+        self.taxon_suffix_manager.add_suffixed_species(species)
+        
     def _nontype_sp_epithet(self, new_cur_ncbi_sp_epithet, orig_prev_gtdb_genus):
         """Get appropriate and potentially suffixed species epithet for non-type genome."""
         

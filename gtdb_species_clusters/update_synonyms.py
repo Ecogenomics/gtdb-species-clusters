@@ -41,6 +41,7 @@ class UpdateSynonyms(object):
                     cur_gtdb_metadata_file,
                     uba_genome_paths,
                     qc_passed_file,
+                    ncbi_misclassified_file,
                     ncbi_genbank_assembly_file,
                     untrustworthy_type_file,
                     ani_af_rep_vs_nonrep,
@@ -68,11 +69,17 @@ class UpdateSynonyms(object):
         self.logger.info(' ... identified {:,} clusters spanning {:,} genomes.'.format(
                             len(cur_clusters),
                             sum([len(gids) + 1 for gids in cur_clusters.values()])))
-        
-        # identify NCBI species considered to be synonyms under the GTDB
+
+        # identified genomes with misclassified species assignments at NCBI
+        self.logger.info('Identify genomes with misclassified NCBI species assignments.')
         ncbi_species_mngr = NCBI_SpeciesManager(cur_genomes, cur_clusters, self.output_dir)
-        type_strain_synonyms = ncbi_species_mngr.identify_type_strain_synonyms()
-        consensus_synonyms = ncbi_species_mngr.identify_consensus_synonyms()
+        ncbi_misclassified_gids = ncbi_species_mngr.parse_ncbi_misclassified_table(ncbi_misclassified_file)
+        self.logger.info(' - identified {:,} genomes with erroneous NCBI species assignments'.format(
+                            len(ncbi_misclassified_gids)))
+                            
+        # identify NCBI species considered to be synonyms under the GTDB
+        type_strain_synonyms = ncbi_species_mngr.identify_type_strain_synonyms(ncbi_misclassified_gids)
+        consensus_synonyms = ncbi_species_mngr.identify_consensus_synonyms(ncbi_misclassified_gids)
 
         # read ANI and AF between representatives and non-representative genomes
         self.logger.info('Reading ANI and AF between representative and non-representative genomes.')

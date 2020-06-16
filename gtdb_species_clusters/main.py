@@ -496,6 +496,7 @@ class OptionsParser():
         check_file_exists(args.cur_gtdb_metadata_file)
         check_file_exists(args.uba_genome_paths)
         check_file_exists(args.qc_passed_file)
+        check_file_exists(args.ncbi_misclassified_file)
         check_file_exists(args.ncbi_genbank_assembly_file)
         check_file_exists(args.untrustworthy_type_file)
         check_file_exists(args.ani_af_rep_vs_nonrep)
@@ -510,6 +511,7 @@ class OptionsParser():
                 args.cur_gtdb_metadata_file,
                 args.uba_genome_paths,
                 args.qc_passed_file,
+                args.ncbi_misclassified_file,
                 args.ncbi_genbank_assembly_file,
                 args.untrustworthy_type_file,
                 args.ani_af_rep_vs_nonrep,
@@ -746,11 +748,13 @@ class OptionsParser():
         check_file_exists(args.cur_gtdb_metadata_file)
         check_file_exists(args.uba_genome_paths)
         check_file_exists(args.qc_passed_file)
+        check_file_exists(args.ncbi_misclassified_file)
         check_file_exists(args.ncbi_genbank_assembly_file)
         check_file_exists(args.untrustworthy_type_file)
         check_file_exists(args.synonym_file)
         check_file_exists(args.updated_species_reps)
         check_file_exists(args.gtdb_type_strains_ledger)
+        check_file_exists(args.species_classification_ledger)
         check_file_exists(args.sp_priority_ledger)
         check_file_exists(args.genus_priority_ledger)
         check_file_exists(args.specific_epithet_ledger)
@@ -766,11 +770,13 @@ class OptionsParser():
                 args.cur_gtdb_metadata_file,
                 args.uba_genome_paths,
                 args.qc_passed_file,
+                args.ncbi_misclassified_file,
                 args.ncbi_genbank_assembly_file,
                 args.untrustworthy_type_file,
                 args.synonym_file,
                 args.updated_species_reps,
                 args.gtdb_type_strains_ledger,
+                args.species_classification_ledger,
                 args.sp_priority_ledger,
                 args.genus_priority_ledger,
                 args.specific_epithet_ledger,
@@ -790,11 +796,13 @@ class OptionsParser():
         check_file_exists(args.cur_gtdb_metadata_file)
         check_file_exists(args.uba_genome_paths)
         check_file_exists(args.qc_passed_file)
-        check_file_exists(args.updated_species_reps_file)
+        check_file_exists(args.ncbi_misclassified_file)
         check_file_exists(args.ncbi_genbank_assembly_file)
         check_file_exists(args.untrustworthy_type_file)
         check_file_exists(args.synonym_file)
+        check_file_exists(args.updated_species_reps)
         check_file_exists(args.gtdb_type_strains_ledger)
+        check_file_exists(args.species_classification_ledger)
         check_file_exists(args.sp_priority_ledger)
         check_file_exists(args.genus_priority_ledger)
         check_file_exists(args.specific_epithet_ledger)
@@ -812,16 +820,19 @@ class OptionsParser():
                 args.cur_gtdb_metadata_file,
                 args.uba_genome_paths,
                 args.qc_passed_file,
-                args.updated_species_reps_file,
+                args.ncbi_misclassified_file,
                 args.ncbi_genbank_assembly_file,
                 args.untrustworthy_type_file,
                 args.synonym_file,
+                args.updated_species_reps,
                 args.gtdb_type_strains_ledger,
+                args.species_classification_ledger,
                 args.sp_priority_ledger,
                 args.genus_priority_ledger,
                 args.specific_epithet_ledger,
                 args.dsmz_bacnames_file,
-                args.ground_truth_test_cases)
+                args.ground_truth_test_cases,
+                args.skip_genus_checks)
         
         self.logger.info('Done.')
         

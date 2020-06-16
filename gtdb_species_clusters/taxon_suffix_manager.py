@@ -24,7 +24,9 @@ from collections import Counter
 
 from biolib.taxonomy import Taxonomy
 
-from gtdb_species_clusters.taxon_utils import canonical_taxon
+from gtdb_species_clusters.taxon_utils import (canonical_taxon,
+                                                specific_epithet,
+                                                taxon_suffix)
 
 
 class TaxonSuffixManager():
@@ -77,6 +79,30 @@ class TaxonSuffixManager():
                         if self._suffix_value(suffix) >= self._suffix_value(cur_suffix):
                             self.taxon_suffix[canonical_taxon] = suffix
 
+    def add_suffixed_species(self, species):
+        """Account for species names when generating further placeholder names.
+        
+        This is required as species can be transferred between genera and will
+        retain their existing suffix. As such, we must track that this genera
+        now has a species name with a given suffix.
+        
+        (e.g., Lactobacillus_G kunkeei_A is transferred to Apilactobacillus 
+               as A. kunkeei_A, so the next suffixed A. kunkeei representative
+               must have a 'B' suffix.)
+        """
+        
+        canonical_species = canonical_taxon(species)
+        
+        specific = specific_epithet(species)
+        suffix = taxon_suffix(specific)
+        
+        if canonical_species in self.taxon_suffix:
+            if self.is_higher_suffix(suffix, self.taxon_suffix[canonical_species]):
+                self.taxon_suffix[canonical_species] = suffix
+        else:
+            # add new canonical taxon to suffix map
+            self.taxon_suffix[canonical_species] = suffix
+        
     def highest_suffix(self, canonical_taxon):
         """Get highest suffix observed for a GTDB taxon."""
         

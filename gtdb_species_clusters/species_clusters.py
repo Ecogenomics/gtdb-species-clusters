@@ -228,30 +228,22 @@ class SpeciesClusters(object):
         self.logger.info(f' ... identified {new_sp:,} genomes not assigned to an existing GTDB species cluster')
 
         assert len(self.sp_clusters) == len(self.species_names)
+
+    def updated_representatives(self, new_sp_clusters):
+        """Determine the updated representative for each GTDB species cluster."""
         
-    def reassigned_rids(self, new_sp_clusters):
-        """Determine species clusters with new representatives."""
+        # get mapping between genomes and representative for 
+        # new GTDB species clusters
+        new_gid_to_rid = {}
+        for rid, cids in new_sp_clusters.items():
+            for cid in cids:
+                new_gid_to_rid[cid] = rid
 
-        old_to_new = {}
-        new_to_old = {}
-        for rid in new_sp_clusters:
-            if rid not in self.sp_clusters:
-                prev_rids = []
-                for gid in new_sp_clusters[rid]:
-                    if gid in self.sp_clusters:
-                        prev_rids.append(gid)
-                        break
-                        
-                if len(prev_rids) > 1:
-                    self.logger.error('New species cluster contains multiple previous representatives: {} -> {}'.format(
-                                        rid,
-                                        prev_rids))
-                    sys.exit(-1)
-                        
-                if len(prev_rids) == 1:
-                    prev_rid = prev_rids[0]
-                    old_to_new[prev_rid] = rid
-                    new_to_old[rid] = prev_rid
+        # get representative of species cluster containing
+        # each of the previous representatives
+        prev_to_new_rids = {}
+        for rid in self.sp_clusters:
+            prev_to_new_rids[rid] = new_gid_to_rid.get(rid, None)
 
-        return new_to_old, old_to_new
+        return prev_to_new_rids
         

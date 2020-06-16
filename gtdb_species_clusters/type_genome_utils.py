@@ -41,6 +41,84 @@ ClusteredGenome = namedtuple('ClusteredGenome', 'ani af gid')
 GenomeRadius = namedtuple('GenomeRadius', 'ani af neighbour_gid')
 
 
+def parse_updated_species_reps(updated_species_reps):
+    """Get map indicating the updating of GTDB representatives."""
+    
+    new_to_prev_rid = {}
+    with open(updated_species_reps) as f:
+        f.readline()
+        for line in f:
+            tokens = line.strip().split('\t')
+            
+            prev_rid = tokens[0]
+            new_rid = tokens[1]
+            
+            if new_rid.lower() != 'none':
+                new_to_prev_rid[new_rid] = prev_rid
+                
+    return new_to_prev_rid
+
+
+def resolve_merged_prev_representatives(cur_rid, prev_genomes, updated_gtdb_rids, prev_rids_in_cluster):
+    """Determine best representative to associated with new species cluster contains multiple previous representative.
+    
+    This association between previous and new representatives is used in some instances to establish
+    the most suitable name for a species cluster.        
+    """
+    
+    if cur_rid in prev_genomes:
+        # if current representative was a previous representative, 
+        # it is the most natural choice
+        return cur_rid
+    elif cur_rid in updated_gtdb_rids:
+        prev_rid = updated_gtdb_rids[cur_rid]
+        if prev_rid in prev_rids_in_cluster:
+            # makes sense to use the previous representative that was explicitly
+            # updated to the new, current representative
+            return prev_rid
+        else:
+            logging.getLogger('timestamp').error('[ERROR] Updated representative of cluster {} no longer contains the previous representative of cluster: {}'.format(
+                                cur_rid,
+                                prev_rid))
+            sys.exit(-1)
+    else:
+        logging.getLogger('timestamp').error('[ERROR] Updated representative of cluster {} contains multiple previous representative and situation could not be resolved: {}'.format(
+                                cur_rid,
+                                prev_rid))
+        sys.exit(-1)
+
+
+def infer_prev_gtdb_reps(prev_genomes, cur_clusters, updated_gtdb_rids):
+    """Infer previous GTDB representative for each current GTDB representative.
+    
+    This can't just be taken from the `updated_species_reps` file since the 
+    final results of de novo cluster can, in some rare cases, cause small movements 
+    in the genomes associated with each species clusters and the generation or loss of
+    a representative
+    """
+    
+    prev_rids = set(prev_genomes.sp_clusters)
+    new_to_prev_rid = {}
+    for cur_rid, cur_cids in cur_clusters.items():
+        prev_rids_in_cluster = prev_rids.intersection(cur_cids)
+        if len(prev_rids_in_cluster) == 1:
+            new_to_prev_rid[cur_rid] = prev_rids_in_cluster.pop()
+        elif len(prev_rids_in_cluster) > 1:
+            resolved_rid = resolve_merged_prev_representatives(cur_rid, 
+                                                                        prev_genomes, 
+                                                                        updated_gtdb_rids,
+                                                                        prev_rids_in_cluster)
+           
+            if resolved_rid:
+                logging.getLogger('timestamp').info(
+                    ' - cluster {} contains multiple previous representatives and has been associated with representative {}.'.format(
+                                    cur_rid, resolved_rid))
+              
+                new_to_prev_rid[cur_rid] = resolved_rid
+                    
+    return new_to_prev_rid
+    
+
 def check_ncbi_subsp(unfiltered_ncbi_taxonomy):
     """Determine if genome is the 'type strain of species' or 'type strain of subspecies'."""
     

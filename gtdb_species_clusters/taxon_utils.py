@@ -138,6 +138,12 @@ def generic_name(species_name):
     return generic.replace('s__', '')
     
     
+def is_latin_sp_epithet(sp_epithet):
+    """Check if specific epithet is Latin (non-placeholder)."""
+
+    return not is_placeholder_sp_epithet(sp_epithet)
+    
+    
 def is_placeholder_sp_epithet(sp_epithet):
     """Check if species epithet is a placeholder."""
     
@@ -209,6 +215,17 @@ def is_suffixed_sp_epithet(sp_epithet):
     return is_placeholder_sp_epithet(sp_epithet) and taxon_suffix(sp_epithet) is not None
 
 
+def taxon_type(sp_epithet):
+    """Determine if taxon is Latin, suffixed Latin, or alphanumeric."""
+    
+    if is_alphanumeric_taxon(sp_epithet):
+        return 'ALPHANUMERIC'
+    elif is_suffixed_taxon(sp_epithet):
+        return 'SUFFIXED_LATIN'
+    
+    return 'LATIN'
+    
+    
 def specific_epithet_type(sp_epithet):
     """Determine if specific name is Latin, suffixed Latin, or alphanumeric."""
     
