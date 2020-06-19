@@ -92,16 +92,18 @@ class TaxonSuffixManager():
         """
         
         canonical_species = canonical_taxon(species)
-        
-        specific = specific_epithet(species)
-        suffix = taxon_suffix(specific)
-        
-        if canonical_species in self.taxon_suffix:
-            if self.is_higher_suffix(suffix, self.taxon_suffix[canonical_species]):
-                self.taxon_suffix[canonical_species] = suffix
+        if canonical_species not in self.taxon_suffix:
+            self.taxon_suffix[canonical_species] = 'A'
         else:
-            # add new canonical taxon to suffix map
-            self.taxon_suffix[canonical_species] = suffix
+            specific = specific_epithet(species)
+            suffix = taxon_suffix(specific)
+            
+            if canonical_species in self.taxon_suffix:
+                if self.is_higher_suffix(suffix, self.taxon_suffix[canonical_species]):
+                    self.taxon_suffix[canonical_species] = suffix
+            else:
+                # add new canonical taxon to suffix map
+                self.taxon_suffix[canonical_species] = suffix
         
     def highest_suffix(self, canonical_taxon):
         """Get highest suffix observed for a GTDB taxon."""

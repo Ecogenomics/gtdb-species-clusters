@@ -740,6 +740,7 @@ class OptionsParser():
     def pmc_species_names(self, args):
         """Establish final species names based on manual curation."""
         
+        check_file_exists(args.curation_tree)
         check_file_exists(args.manual_taxonomy)
         check_file_exists(args.manual_sp_names)
         check_file_exists(args.pmc_custom_species)
@@ -762,7 +763,8 @@ class OptionsParser():
         make_sure_path_exists(args.output_dir)
 
         p = PMC_SpeciesNames(args.output_dir)
-        p.run(args.manual_taxonomy,
+        p.run(args.curation_tree,
+                args.manual_taxonomy,
                 args.manual_sp_names,
                 args.pmc_custom_species,
                 args.gtdb_clusters_file,

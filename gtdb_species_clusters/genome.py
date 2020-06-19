@@ -222,6 +222,9 @@ class Genome(object):
     def is_ncbi_type_subspecies(self):
         """Check if genome is a type strain of subspecies at NCBI."""
         
+        if 'untrustworthy as type' in self.excluded_from_refseq_note.lower():
+            return False
+        
         if self.ncbi_type_material:
             if self.ncbi_type_material.lower() in Genome.NCBI_TYPE_SPECIES:
                 if not self.is_ncbi_subspecies():

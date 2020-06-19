@@ -24,7 +24,8 @@ from biolib.taxonomy import Taxonomy
 
 from gtdb_species_clusters.genome import Genome
 from gtdb_species_clusters.species_priority_manager import SpeciesPriorityManager
-from gtdb_species_clusters.taxon_utils import (specific_epithet)
+from gtdb_species_clusters.taxon_utils import (specific_epithet,
+                                                is_placeholder_sp_epithet)
 from gtdb_species_clusters.type_genome_utils import symmetric_ani
 
 
@@ -36,6 +37,14 @@ class NCBI_SpeciesManager(object):
      - classify each NCBI species as unambiguous, ambiguous, or synonym
      - validate NCBI type strain genomes are restrcited to a single GTDB cluster
     """
+    
+    # NCBI species classifications
+    UNAMBIGUOUS = 'UNAMBIGUOUS'
+    AMBIGUOUS = 'AMBIGUOUS'
+    
+    # Assignment types for unambiguous species
+    MAJORITY_VOTE = 'MAJORITY_VOTE'
+    TYPE_STRAIN_GENOME = 'TYPE_STRAIN_GENOME'
 
     def __init__(self, cur_genomes, cur_clusters, output_dir):
         """Initialization."""
@@ -50,7 +59,7 @@ class NCBI_SpeciesManager(object):
         # lacking an NCBI species assignment. Ideally, all such cases 
         # would be caught ahead of time when initially parsing the NCBI
         # taxonomy so this only includes last minute additions.
-        self.forbidden_specific_names = set(['cyanobacterium'])
+        self.forbidden_specific_names = set(['cyanobacterium', 'Family'])
         
         # identify NCBI species with genomes assembled from type strain of species
         self.ncbi_sp_type_strain_genomes = cur_genomes.ncbi_sp_effective_type_genomes()
@@ -276,6 +285,53 @@ class NCBI_SpeciesManager(object):
                 
         return misclassified_gids
         
+    def ncbi_sp_gtdb_cluster_table(self, final_taxonomy):
+        """Create table indicating GTDB species clusters for each NCBI species."""
+        
+        # get map between genomes and representatives
+        gid_to_rid = {}
+        for rid, cids in self.cur_clusters.items():
+            for cid in cids:
+                gid_to_rid[cid] = rid
+                
+        # get genomes with NCBI species assignment
+        ncbi_species_gids = defaultdict(list)
+        for gid in self.cur_genomes:
+            if gid not in final_taxonomy:
+                continue # other domain
+                
+            ncbi_species = self.cur_genomes[gid].ncbi_taxa.species
+            ncbi_specific = specific_epithet(ncbi_species)
+            if ncbi_species != 's__' and ncbi_specific not in self.forbidden_specific_names:
+                    ncbi_species_gids[ncbi_species].append(gid)
+                    
+        # write out table
+        fout = open(os.path.join(self.output_dir, 'ncbi_sp_to_gtdb_cluster_map.tsv'), 'w')
+        fout.write('NCBI species\tNo. genomes\tNo. GTDB clusters\tHighest prevalence (%)\tGTDB species clusters\n')
+        
+        for ncbi_sp, gids in ncbi_species_gids.items():
+            gtdb_rep_list = [gid_to_rid[gid] for gid in gids]
+            gtdb_rep_count = Counter(gtdb_rep_list)
+            
+            gtdb_rep_str = []
+            for idx, (rid, count) in enumerate(gtdb_rep_count.most_common()):
+                gtdb_rep_str.append('{} ({}): {}'.format(
+                    final_taxonomy[rid][Taxonomy.SPECIES_INDEX],
+                    rid,
+                    count))
+                    
+                if idx == 0:
+                    highest_prevalence = count*100.0/len(gids)
+            
+            fout.write('{}\t{}\t{}\t{:.2f}\t{}\n'.format(
+                        ncbi_sp,
+                        len(gids),
+                        len(set(gtdb_rep_list)),
+                        highest_prevalence,
+                        '; '.join(gtdb_rep_str)))
+
+        fout.close()
+        
     def classify_ncbi_species(self, ncbi_synonyms, misclassified_gids):
         """Classify each NCBI species as either unambiguously, ambiguously, or synonym."""
 
@@ -292,7 +348,7 @@ class NCBI_SpeciesManager(object):
                 if gid not in misclassified_gids:
                     ncbi_species_gids[ncbi_species].append(gid)
                     ncbi_all_species_gids.add(gid)
-                    
+
         # process NCBI species with type strain genomes followed by 
         # remaining NCBI species
         ncbi_type_strain_species = []
@@ -313,7 +369,7 @@ class NCBI_SpeciesManager(object):
                     
         # establish if NCBI species can be unambiguously assigned to a GTDB species cluster
         fout = open(os.path.join(self.output_dir, 'ncbi_sp_classification.tsv'), 'w')
-        fout.write('NCBI species\tClassification\tAssignment type\tGTDB representative\t% NCBI species in cluster\t% cluster with NCBI species\tNCBI classifications in cluster\tNote\n')
+        fout.write('NCBI taxon\tClassification\tAssignment type\tGTDB representative\t% NCBI species in cluster\t% cluster with NCBI species\tNCBI classifications in cluster\tNote\n')
         unambiguous_ncbi_sp = {}
         ambiguous_ncbi_sp = set()
         unambiguous_rids = set()
@@ -339,10 +395,13 @@ class NCBI_SpeciesManager(object):
                     
                     if len(ncbi_any_sp_in_cluster) > 0:
                         ncbi_cur_sp_in_cluster_perc = len(ncbi_cur_sp_in_cluster)*100.0/len(ncbi_sp_gids)
+                        cluster_perc = len(ncbi_cur_sp_in_cluster)*100.0/len(ncbi_any_sp_in_cluster) 
                         
-                        if ncbi_cur_sp_in_cluster_perc > highest_sp_in_cluster_perc:
+                        if (ncbi_cur_sp_in_cluster_perc > highest_sp_in_cluster_perc
+                            or (ncbi_cur_sp_in_cluster_perc == highest_sp_in_cluster_perc
+                                and cluster_perc > highest_cluster_perc)):
                             highest_sp_in_cluster_perc = ncbi_cur_sp_in_cluster_perc
-                            highest_cluster_perc = len(ncbi_cur_sp_in_cluster)*100.0/len(ncbi_any_sp_in_cluster) 
+                            highest_cluster_perc = cluster_perc
                             highest_gtdb_rid = gtdb_rid
 
                 sp_in_cluster_threshold = 50
@@ -362,7 +421,7 @@ class NCBI_SpeciesManager(object):
                 if (highest_gtdb_rid not in unambiguous_rids
                     and highest_sp_in_cluster_perc > sp_in_cluster_threshold 
                     and highest_cluster_perc > cluster_threshold):
-                    unambiguous_ncbi_sp[ncbi_species] = (highest_gtdb_rid, 'UNANIMOUS_CONSENSUS')
+                    unambiguous_ncbi_sp[ncbi_species] = (highest_gtdb_rid, NCBI_SpeciesManager.MAJORITY_VOTE)
                 else:
                     ambiguous_ncbi_sp.add(ncbi_species) 
                                                         
@@ -373,8 +432,8 @@ class NCBI_SpeciesManager(object):
                 
                 fout.write('{}\t{}\t{}\t{}\t{:.2f}\t{:.2f}\t{}\t{}\n'.format(
                             ncbi_species,
-                            'UNAMBIGUOUS' if ncbi_species in unambiguous_ncbi_sp else 'AMBIGUOUS',
-                            'UNANIMOUS_CONSENSUS' if ncbi_species in unambiguous_ncbi_sp else 'AMBIGUOUS',
+                            NCBI_SpeciesManager.UNAMBIGUOUS if ncbi_species in unambiguous_ncbi_sp else NCBI_SpeciesManager.AMBIGUOUS,
+                            NCBI_SpeciesManager.MAJORITY_VOTE if ncbi_species in unambiguous_ncbi_sp else NCBI_SpeciesManager.AMBIGUOUS,
                             highest_gtdb_rid,
                             highest_sp_in_cluster_perc,
                             highest_cluster_perc,
@@ -383,7 +442,7 @@ class NCBI_SpeciesManager(object):
                             
             elif len(type_strain_rids) == 1:
                 gtdb_rid = type_strain_rids[0]
-                unambiguous_ncbi_sp[ncbi_species] = (gtdb_rid, 'TYPE_STRAIN_GENOME')
+                unambiguous_ncbi_sp[ncbi_species] = (gtdb_rid, NCBI_SpeciesManager.TYPE_STRAIN_GENOME)
                 unambiguous_rids.add(gtdb_rid)
                 
                 cids = self.cur_clusters[gtdb_rid]
@@ -399,8 +458,8 @@ class NCBI_SpeciesManager(object):
                 
                 fout.write('{}\t{}\t{}\t{}\t{:.2f}\t{:.2f}\t{}\t{}\n'.format(
                             ncbi_species,
-                            'UNAMBIGUOUS',
-                            'TYPE_STRAIN_GENOME',
+                            NCBI_SpeciesManager.UNAMBIGUOUS,
+                            NCBI_SpeciesManager.TYPE_STRAIN_GENOME,
                             gtdb_rid,
                             cur_sp_in_cluster_perc,
                             cluster_perc,
@@ -445,141 +504,180 @@ class NCBI_SpeciesManager(object):
             gtdb_rep_ncbi_sp_assignments[gtdb_rid] = ncbi_species
 
         return ncbi_all_species, unambiguous_ncbi_sp, ambiguous_ncbi_sp
-        
-    def classify_ncbi_species_consensus(self, ncbi_synonyms, misclassified_gids):
-        """Classify each NCBI species as either unambiguously, ambiguously, or synonym."""
 
-        # get genomes with NCBI species assignment
-        ncbi_all_species = set()
-        ncbi_species_gids = defaultdict(list)
-        ncbi_all_species_gids = set()
+    def classify_ncbi_subspecies(self):
+        """Classify each NCBI subspecies as either unambiguously or ambiguously."""
+        
+        # identify GTDB species cluster containing multiple type strain of subspecies genomes,
+        # and subspecies with multiple type strains in different GTDB clusters
+        gtdb_rid_type_subspecies = defaultdict(set)
+        ncbi_type_subspecies_rid = defaultdict(set)
+        for rid, cids in self.cur_clusters.items():
+            for cid in cids:
+                if self.cur_genomes[cid].is_ncbi_type_subspecies():
+                    ncbi_subspecies = self.cur_genomes[cid].ncbi_unfiltered_taxa.subspecies
+
+                    if ncbi_subspecies:
+                        ncbi_type_subspecies_rid[ncbi_subspecies].add(rid)
+                        gtdb_rid_type_subspecies[rid].add(ncbi_subspecies)
+
+        # get genomes with NCBI subspecies assignment
+        ncbi_all_subspecies = set()
+        ncbi_subspecies_gids = defaultdict(list)
+        ncbi_all_subspecies_gids = set()
         for gid in self.cur_genomes:
-            ncbi_species = self.cur_genomes[gid].ncbi_taxa.species
-            ncbi_specific = specific_epithet(ncbi_species)
-            if ncbi_species != 's__' and ncbi_specific not in self.forbidden_specific_names:
-                ncbi_all_species.add(ncbi_species)
-                
-                if gid not in misclassified_gids:
-                    ncbi_species_gids[ncbi_species].append(gid)
-                    ncbi_all_species_gids.add(gid)
+            ncbi_subspecies = self.cur_genomes[gid].ncbi_unfiltered_taxa.subspecies
+            if ncbi_subspecies:
+                ncbi_all_subspecies.add(ncbi_subspecies)
+                ncbi_subspecies_gids[ncbi_subspecies].append(gid)
+                ncbi_all_subspecies_gids.add(gid)
                     
-        # establish if NCBI species can be unambiguously assigned to a GTDB species cluster
-        fout = open(os.path.join(self.output_dir, 'ncbi_sp_classification.tsv'), 'w')
-        fout.write('NCBI species\tClassification\tAssignment type\tGTDB representative\t% NCBI species in cluster\t% cluster with NCBI species\tNCBI classifications in cluster\tNote\n')
-        unambiguous_ncbi_sp = {}
-        ambiguous_ncbi_sp = set()
-        for ncbi_species, ncbi_sp_gids in ncbi_species_gids.items():
-            if ncbi_species in ncbi_synonyms:
+        # process NCBI subspecies with type genomes followed by 
+        # remaining NCBI subspecies
+        ncbi_type_subspecies = []
+        ncbi_nontype_subspecies = []
+        for ncbi_subspecies, ncbi_sp_gids in ncbi_subspecies_gids.items():
+            has_type_genome = False
+            for gid in ncbi_sp_gids:
+                if self.cur_genomes[gid].is_ncbi_type_subspecies():
+                    has_type_genome = True
+                    break
+                    
+            if has_type_genome:
+                ncbi_type_subspecies.append(ncbi_subspecies)
+            else:
+                ncbi_nontype_subspecies.append(ncbi_subspecies)
+        self.logger.info(' - identified {:,} NCBI species with effective type strain genome and {:,} NCBI species without a type strain genome.'.format(
+                            len(ncbi_type_subspecies), len(ncbi_nontype_subspecies)))
+                    
+        # establish if NCBI subspecies can be unambiguously assigned to a GTDB species cluster
+        fout = open(os.path.join(self.output_dir, 'ncbi_subsp_classification.tsv'), 'w')
+        fout.write('NCBI taxon\tClassification\tAssignment type\tGTDB representative')
+        fout.write('\t% NCBI subspecies in cluster\t% cluster with NCBI subspecies\tNCBI classifications in cluster')
+        fout.write('\tType strains\tNote\n')
+        unambiguous_ncbi_subsp = {}
+        ambiguous_ncbi_subsp = set()
+        unambiguous_rids = set()
+        skipped_subspecies = 0
+        for ncbi_subspecies in ncbi_type_subspecies + ncbi_nontype_subspecies:
+            # do not consider cases such as Serratia marcescens subsp. marcescens,
+            # since this isn't a distinct subspecies of S. marcescens that might
+            # be promoted to a different species
+            specific = ncbi_subspecies.split()[1]
+            subsp = ncbi_subspecies.split()[-1]
+
+            if specific == subsp:
+                skipped_subspecies += 1
                 continue
+        
+            ncbi_subsp_gids = ncbi_subspecies_gids[ncbi_subspecies]
 
             # get type strains for NCBI species that are GTDB species representatives
-            type_strain_rids = [gid for gid in ncbi_sp_gids
-                                    if (self.cur_genomes[gid].is_effective_type_strain() and gid in self.cur_clusters)]
+            type_rids = ncbi_type_subspecies_rid[ncbi_subspecies]
 
-            if len(type_strain_rids) == 0:
-                highest_sp_in_cluster_perc = 0
+            if len(type_rids) == 0:
+                highest_subsp_in_cluster_perc = 0
                 highest_cluster_perc = 0
                 highest_gtdb_rid = None
                 for gtdb_rid, cids in self.cur_clusters.items():
                     assert gtdb_rid in cids
                     
-                    ncbi_cur_sp_in_cluster = cids.intersection(ncbi_sp_gids)
-                    ncbi_any_sp_in_cluster = cids.intersection(ncbi_all_species_gids)
+                    ncbi_cur_subsp_in_cluster = cids.intersection(ncbi_subsp_gids)
+                    ncbi_any_subsp_in_cluster = cids.intersection(ncbi_all_subspecies_gids)
                     
-                    if len(ncbi_any_sp_in_cluster) > 0:
-                        ncbi_cur_sp_in_cluster_perc = len(ncbi_cur_sp_in_cluster)*100.0/len(ncbi_sp_gids)
+                    if len(ncbi_any_subsp_in_cluster) > 0:
+                        ncbi_cur_sp_in_cluster_perc = len(ncbi_cur_subsp_in_cluster)*100.0/len(ncbi_subsp_gids)
+                        cluster_perc = len(ncbi_cur_subsp_in_cluster)*100.0/len(ncbi_any_subsp_in_cluster) 
                         
-                        if ncbi_cur_sp_in_cluster_perc > highest_sp_in_cluster_perc:
-                            highest_sp_in_cluster_perc = ncbi_cur_sp_in_cluster_perc
-                            highest_cluster_perc = len(ncbi_cur_sp_in_cluster)*100.0/len(ncbi_any_sp_in_cluster) 
+                        if (ncbi_cur_sp_in_cluster_perc > highest_subsp_in_cluster_perc
+                            or (ncbi_cur_sp_in_cluster_perc == highest_subsp_in_cluster_perc
+                                and cluster_perc > highest_cluster_perc)):
+                            highest_subsp_in_cluster_perc = ncbi_cur_sp_in_cluster_perc
+                            highest_cluster_perc = cluster_perc
                             highest_gtdb_rid = gtdb_rid
-                        
-                    if highest_sp_in_cluster_perc == 100:
-                        break
 
-                if highest_sp_in_cluster_perc == 100 and highest_cluster_perc == 100:
-                    unambiguous_ncbi_sp[ncbi_species] = (highest_gtdb_rid, 'UNANIMOUS_CONSENSUS')
+                if (len(gtdb_rid_type_subspecies[highest_gtdb_rid]) == 0 # if cluster contains a type subspecies, can't assign via majority vote
+                    and highest_gtdb_rid not in unambiguous_rids
+                    and highest_subsp_in_cluster_perc > 50 
+                    and highest_cluster_perc > 50):
+                    unambiguous_ncbi_subsp[ncbi_subspecies] = (highest_gtdb_rid, NCBI_SpeciesManager.MAJORITY_VOTE)
                 else:
-                    ambiguous_ncbi_sp.add(ncbi_species) 
+                    ambiguous_ncbi_subsp.add(ncbi_subspecies) 
                                                         
-                ncbi_sp_str = []
-                for sp, count in Counter([self.cur_genomes[gid].ncbi_taxa.species for gid in self.cur_clusters[highest_gtdb_rid]]).most_common():
-                    ncbi_sp_str.append('{} ({:,})'.format(sp, count))
-                ncbi_sp_str = '; '.join(ncbi_sp_str)
+                ncbi_subsp_str = []
+                for sp, count in Counter([self.cur_genomes[gid].ncbi_unfiltered_taxa.subspecies for gid in self.cur_clusters[highest_gtdb_rid]]).most_common():
+                    ncbi_subsp_str.append('{} ({:,})'.format(sp, count))
+                ncbi_subsp_str = '; '.join(ncbi_subsp_str)
                 
-                fout.write('{}\t{}\t{}\t{}\t{:.2f}\t{:.2f}\t{}\t{}\n'.format(
-                            ncbi_species,
-                            'UNAMBIGUOUS' if ncbi_species in unambiguous_ncbi_sp else 'AMBIGUOUS',
-                            'UNANIMOUS_CONSENSUS' if ncbi_species in unambiguous_ncbi_sp else 'AMBIGUOUS',
+                fout.write('{}\t{}\t{}\t{}\t{:.2f}\t{:.2f}\t{}\t{}\t{}\n'.format(
+                            ncbi_subspecies,
+                            NCBI_SpeciesManager.UNAMBIGUOUS if ncbi_subspecies in unambiguous_ncbi_subsp else NCBI_SpeciesManager.AMBIGUOUS,
+                            NCBI_SpeciesManager.MAJORITY_VOTE if ncbi_subspecies in unambiguous_ncbi_subsp else NCBI_SpeciesManager.AMBIGUOUS,
                             highest_gtdb_rid,
-                            highest_sp_in_cluster_perc,
+                            highest_subsp_in_cluster_perc,
                             highest_cluster_perc,
-                            ncbi_sp_str,
-                            ''))
+                            ncbi_subsp_str,
+                            '',''))
                             
-            elif len(type_strain_rids) == 1:
-                gtdb_rid = type_strain_rids[0]
-                unambiguous_ncbi_sp[ncbi_species] = (gtdb_rid, 'TYPE_STRAIN_GENOME')
+            elif (len(type_rids) == 1
+                    and len(gtdb_rid_type_subspecies[list(type_rids)[0]]) == 1): # Ideally, should allow clusters with multiple type subspecies and resolve by priority
+                
+                gtdb_rid = type_rids.pop()
+
+                unambiguous_ncbi_subsp[ncbi_subspecies] = (gtdb_rid, NCBI_SpeciesManager.TYPE_STRAIN_GENOME)
+                unambiguous_rids.add(gtdb_rid)
                 
                 cids = self.cur_clusters[gtdb_rid]
-                ncbi_cur_sp_in_cluster = cids.intersection(ncbi_sp_gids)
-                ncbi_any_sp_in_cluster = cids.intersection(ncbi_all_species_gids)
-                cur_sp_in_cluster_perc = len(ncbi_cur_sp_in_cluster)*100.0/len(ncbi_sp_gids)
-                cluster_perc = len(ncbi_cur_sp_in_cluster)*100.0/len(ncbi_any_sp_in_cluster)
+                ncbi_cur_subsp_in_cluster = cids.intersection(ncbi_subsp_gids)
+                ncbi_any_subsp_in_cluster = cids.intersection(ncbi_all_subspecies_gids)
+                cur_sp_in_cluster_perc = len(ncbi_cur_subsp_in_cluster)*100.0/len(ncbi_subsp_gids)
+                cluster_perc = len(ncbi_cur_subsp_in_cluster)*100.0/len(ncbi_any_subsp_in_cluster)
                 
-                ncbi_sp_str = []
-                for sp, count in Counter([self.cur_genomes[gid].ncbi_taxa.species for gid in self.cur_clusters[gtdb_rid]]).most_common():
-                    ncbi_sp_str.append('{} ({:,})'.format(sp, count))
-                ncbi_sp_str = '; '.join(ncbi_sp_str)
+                ncbi_subsp_str = []
+                for sp, count in Counter([self.cur_genomes[gid].ncbi_unfiltered_taxa.subspecies for gid in self.cur_clusters[gtdb_rid]]).most_common():
+                    ncbi_subsp_str.append('{} ({:,})'.format(sp, count))
+                ncbi_subsp_str = '; '.join(ncbi_subsp_str)
                 
-                fout.write('{}\t{}\t{}\t{}\t{:.2f}\t{:.2f}\t{}\t{}\n'.format(
-                            ncbi_species,
-                            'UNAMBIGUOUS',
-                            'TYPE_STRAIN_GENOME',
+                type_strain_gids = [cid for cid in self.cur_clusters[gtdb_rid] if self.cur_genomes[cid].is_ncbi_type_subspecies()]
+                
+                fout.write('{}\t{}\t{}\t{}\t{:.2f}\t{:.2f}\t{}\t{}\t{}\n'.format(
+                            ncbi_subspecies,
+                            NCBI_SpeciesManager.UNAMBIGUOUS,
+                            NCBI_SpeciesManager.TYPE_STRAIN_GENOME,
                             gtdb_rid,
                             cur_sp_in_cluster_perc,
                             cluster_perc,
-                            ncbi_sp_str,
+                            ncbi_subsp_str,
+                            ','.join(type_strain_gids),
                             ''))
             else:
-                self.logger.error('Multiple GTDB species clusters represented by type strain genomes of {}: {}'.format(
-                    ncbi_species, type_strain_rids))
-                sys.exit(-1)
+                if len(type_rids) > 1:
+                    warn_str = 'Multiple GTDB species clusters contain type genomes of {}: {}'.format(
+                                            ncbi_subspecies, 
+                                            type_rids)
+                    self.logger.warning(warn_str)
+                else:
+                    warn_str = 'GTDB species clusters contain multiple subspecies with type strain.'
                 
-        # get NCBI synonyms
-        for ncbi_species, ncbi_sp_gids in ncbi_species_gids.items():
-            if ncbi_species not in ncbi_synonyms:
-                continue
+                ambiguous_ncbi_subsp.add(ncbi_subspecies)
+                fout.write('{}\t{}\t{}\t{}\t{:.2f}\t{:.2f}\t{}\t{}\t{}\n'.format(
+                            ncbi_subspecies,
+                            NCBI_SpeciesManager.UNAMBIGUOUS if ncbi_subspecies in unambiguous_ncbi_subsp else NCBI_SpeciesManager.AMBIGUOUS,
+                            NCBI_SpeciesManager.MAJORITY_VOTE if ncbi_subspecies in unambiguous_ncbi_subsp else NCBI_SpeciesManager.AMBIGUOUS,
+                            'n/a',
+                            0,
+                            0,
+                            'n/a',
+                            'n/a',
+                            warn_str))
 
-            fout.write('{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\n'.format(
-                            ncbi_species,
-                            'SYNONYM',
-                            'SYNONYM',
-                            'n/a',
-                            'n/a',
-                            'n/a',
-                            'n/a',
-                            'Synonym of {} under GTDB'.format(ncbi_synonyms[ncbi_species])))
-                            
         fout.close()
         
         # sanity check results
-        assert set(unambiguous_ncbi_sp).intersection(ncbi_synonyms) == set()
-        assert set(ambiguous_ncbi_sp).intersection(ncbi_synonyms) == set()
-        assert set(unambiguous_ncbi_sp).intersection(ambiguous_ncbi_sp) == set()
-        assert set(ncbi_all_species) - set(unambiguous_ncbi_sp) - set(ambiguous_ncbi_sp) - set(ncbi_synonyms) == set()
+        assert set(unambiguous_ncbi_subsp).intersection(ambiguous_ncbi_subsp) == set()
+        assert len(ncbi_all_subspecies) == len(unambiguous_ncbi_subsp) + len(ambiguous_ncbi_subsp) + skipped_subspecies
 
-        gtdb_rep_ncbi_sp_assignments = {}
-        for ncbi_species, (gtdb_rid, classification) in unambiguous_ncbi_sp.items():
-            if gtdb_rid in gtdb_rep_ncbi_sp_assignments:
-                self.logger.error('GTDB representative {} assigned to multiple unambiguous NCBI species: {} {}'.format(
-                                    gtdb_rid,
-                                    gtdb_rep_ncbi_sp_assignments[gtdb_rid],
-                                    ncbi_species))
-                sys.exit(-1)
-            gtdb_rep_ncbi_sp_assignments[gtdb_rid] = ncbi_species
-
-        return ncbi_all_species, unambiguous_ncbi_sp, ambiguous_ncbi_sp
+        return ncbi_all_subspecies, unambiguous_ncbi_subsp, ambiguous_ncbi_subsp
         
     def parse_ncbi_classification_table(self, ncbi_classification_table):
         """Parse NCBI classification table."""
@@ -590,7 +688,7 @@ class NCBI_SpeciesManager(object):
         with open(ncbi_classification_table) as f:
             header = f.readline().strip().split('\t')
             
-            ncbi_sp_idx = header.index('NCBI species')
+            ncbi_sp_idx = header.index('NCBI taxon')
             classification_idx = header.index('Classification')
             assignment_idx = header.index('Assignment type')
             rid_idx = header.index('GTDB representative')
@@ -602,12 +700,11 @@ class NCBI_SpeciesManager(object):
                 ncbi_all_sp.add(ncbi_sp)
                 
                 classification = tokens[classification_idx]
-                if classification == 'UNAMBIGUOUS':
+                if classification == NCBI_SpeciesManager.UNAMBIGUOUS:
                     gtdb_rid = tokens[rid_idx]
                     assignment_type = tokens[assignment_idx]
                     unambiguous_ncbi_sp[ncbi_sp] = (gtdb_rid, assignment_type)
-                elif classification == 'AMBIGUOUS':
+                elif classification == NCBI_SpeciesManager.AMBIGUOUS:
                     ambiguous_ncbi_sp.add(ncbi_sp)
                     
         return ncbi_all_sp, unambiguous_ncbi_sp, ambiguous_ncbi_sp
-            

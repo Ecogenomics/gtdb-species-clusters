@@ -18,6 +18,7 @@
 import os
 import csv
 import sys
+import logging
 from copy import deepcopy
 from itertools import takewhile
 from collections import defaultdict, namedtuple
@@ -26,6 +27,50 @@ import biolib.seq_io as seq_io
 from biolib.taxonomy import Taxonomy
 
 from gtdb_species_clusters.genome_utils import canonical_gid
+
+
+def ncbi_to_gtdb_synonyms(ncbi_synonym_file, final_gtdb_taxonomy):
+    """Convert synonyms defined in terms of NCBI species to GTDB species."""
+    
+    # parse NCBI synonyms
+    ncbi_synonyms = {}
+    with open(ncbi_synonym_file) as f:
+        headers = f.readline().strip().split('\t')
+        
+        ncbi_sp_index = headers.index('NCBI species')
+        rid_index = headers.index('GTDB representative')
+        ncbi_synonym_index = headers.index('NCBI synonym')
+        synonym_gid_index = headers.index('Highest-quality synonym genome')
+        
+        for line in f:
+            tokens = line.strip().split('\t')
+            
+            ncbi_species = tokens[ncbi_sp_index]
+            rid = tokens[rid_index]
+            ncbi_synonym = tokens[ncbi_synonym_index]
+            synonym_gid = tokens[synonym_gid_index]
+            
+            ncbi_synonyms[synonym_gid] = (rid, ncbi_species, ncbi_synonym)
+
+    # convert to GTDB synonyms
+    gtdb_synonyms = {}
+    for synonym_gid, (rid, ncbi_species, ncbi_synonym) in ncbi_synonyms.items():
+        if rid not in final_gtdb_taxonomy:
+            continue # must be from other domain
+            
+        gtdb_species = final_gtdb_taxonomy[rid][Taxonomy.SPECIES_INDEX]
+        gtdb_specific = specific_epithet(gtdb_species)
+        ncbi_specific = specific_epithet(ncbi_species)
+
+        gtdb_synonyms[ncbi_synonym] = gtdb_species
+
+        if not test_same_epithet(gtdb_specific, ncbi_specific):
+            logging.getLogger('timestamp').warning('Specific name of species with synonyms differs between GTDB and NCBI for {}: {} {}'.format(
+                                                    rid,
+                                                    gtdb_species,
+                                                    ncbi_species))
+    
+    return gtdb_synonyms
 
 
 def longest_common_prefix(*s):
@@ -352,12 +397,15 @@ def sort_by_naming_priority(rids_of_interest,
         if rid not in rids_of_interest:
             continue
             
+        ncbi_genus = cur_genomes[rid].ncbi_taxa.genus
         ncbi_sp = cur_genomes[rid].ncbi_taxa.species
+        gtdb_genus = cur_genomes[rid].gtdb_taxa.genus
         gtdb_sp = cur_genomes[rid].gtdb_taxa.species
         
         if rid in mc_species:
             manual_curation.append(rid)
-        elif cur_genomes[rid].is_gtdb_type_species():
+        elif (cur_genomes[rid].is_gtdb_type_species()
+                and gtdb_genus == ncbi_genus):
             type_species.append(rid)
         elif cur_genomes[rid].is_effective_type_strain():
             type_strains.append(rid)

@@ -556,6 +556,7 @@ if __name__ == '__main__':
     pmc_species_names_parser = subparsers.add_parser('pmc_species_names',
                                         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
                                         description='Establish final species names based on manual curation.')
+    pmc_species_names_parser.add_argument('curation_tree', help="manually curated tree to relabel with final species names")
     pmc_species_names_parser.add_argument('manual_taxonomy', help="file with manually curated taxonomy (u_replace_generic: taxonomy_updated_sp.tsv)")
     pmc_species_names_parser.add_argument('manual_sp_names', help="file indicating species names explicitly set by manually curated (u_replace_generic: manual_species_names.tsv)")
     pmc_species_names_parser.add_argument('pmc_custom_species', help="file indicating post-curation, manual species assignments that are hard to automatically generate")

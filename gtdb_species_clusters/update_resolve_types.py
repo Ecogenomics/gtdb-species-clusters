@@ -421,7 +421,7 @@ class ResolveTypes(object):
 
         multi_type_strains_sp = [ncbi_sp for ncbi_sp, gids in sp_type_strain_genomes.items() if len(gids) > 1]
         self.logger.info(f' ... identified {len(multi_type_strains_sp):,} NCBI species with multiple assemblies indicated as being type strain genomes.')
-        
+
         # sort by number of genome assemblies
         self.logger.info('Calculating ANI between type strain genomes in each species.')
         
