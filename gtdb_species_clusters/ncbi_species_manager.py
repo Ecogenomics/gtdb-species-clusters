@@ -46,7 +46,7 @@ class NCBI_SpeciesManager(object):
     MAJORITY_VOTE = 'MAJORITY_VOTE'
     TYPE_STRAIN_GENOME = 'TYPE_STRAIN_GENOME'
 
-    def __init__(self, cur_genomes, cur_clusters, output_dir):
+    def __init__(self, cur_genomes, cur_clusters, mc_species, output_dir):
         """Initialization."""
 
         self.logger = logging.getLogger('timestamp')
@@ -66,9 +66,9 @@ class NCBI_SpeciesManager(object):
         self.logger.info(' - identified effective type strain genomes for {:,} NCBI species.'.format(
                             len(self.ncbi_sp_type_strain_genomes)))
                             
-        self.validate_type_strain_clustering()
+        self.validate_type_strain_clustering(mc_species)
         
-    def validate_type_strain_clustering(self):
+    def validate_type_strain_clustering(self, mc_species):
         """Validate that all type strain genomes for an NCBI species occur in a single GTDB cluster."""
 
         self.logger.info('Verifying that all type strain genomes for a NCBI species occur in a single GTDB cluster.')
@@ -80,6 +80,19 @@ class NCBI_SpeciesManager(object):
                 
         for ncbi_sp, type_gids in self.ncbi_sp_type_strain_genomes.items():
             gtdb_rids = set([rid_map[gid] for gid in type_gids])
+            
+            gtdb_rids = set()
+            for gid in type_gids:
+                rid = rid_map[gid]
+                ncbi_specific = specific_epithet(self.cur_genomes[rid].ncbi_taxa.species)
+                if (rid in mc_species 
+                    and specific_epithet(mc_species[rid]) != ncbi_specific):
+                    # skip this genome as it has been manually changed, likely
+                    # to resolve this NCBI species having multiple type strain genomes
+                    continue
+                    
+                gtdb_rids.add(rid)
+            
             if len(gtdb_rids) > 1:
                 self.logger.error('Type strain genomes from NCBI species {} were assigned to {:,} GTDB species clusters: {}.'.format(
                                     ncbi_sp,

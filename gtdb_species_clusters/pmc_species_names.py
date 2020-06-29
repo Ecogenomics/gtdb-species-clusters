@@ -39,7 +39,8 @@ from gtdb_species_clusters.ncbi_species_manager import NCBI_SpeciesManager
 from gtdb_species_clusters.genome_utils import canonical_gid
 from gtdb_species_clusters.type_genome_utils import (read_clusters,
                                                         parse_updated_species_reps,
-                                                        infer_prev_gtdb_reps)
+                                                        infer_prev_gtdb_reps,
+                                                        parse_manual_sp_curation_files)
 from gtdb_species_clusters.taxon_utils import (generic_name,
                                                 specific_epithet,
                                                 canonical_taxon,
@@ -142,10 +143,9 @@ class PMC_SpeciesNames(object):
         ncbi_specific = specific_epithet(ncbi_sp)
         
         if ncbi_sp not in unambiguous_ncbi_sp or rid != unambiguous_ncbi_sp[ncbi_sp][0]:
-            self.logger.error('NCBI species {} represented by type strain genome {} not designated as an unambiguous NCBI species.'.format(
+            self.logger.warning('NCBI species {} represented by type strain genome {} not designated as an unambiguous NCBI species.'.format(
                                 ncbi_sp,
                                 rid))
-            sys.exit(-1)
 
         note = ''
         final_sp = gtdb_species
@@ -194,6 +194,7 @@ class PMC_SpeciesNames(object):
                                             ncbi_misclassified_gids,
                                             unambiguous_sp_rids,
                                             unambiguous_subsp_rids,
+                                            ncbi_species_type_strain_rid,
                                             ncbi_synonyms,
                                             cur_gtdb_sp,
                                             case_count):
@@ -268,14 +269,28 @@ class PMC_SpeciesNames(object):
                 # a new placeholder name is required
                 ncbi_species = cur_genomes[rid].ncbi_taxa.species
                 ncbi_specific = specific_epithet(ncbi_species)
-                if ncbi_specific and ncbi_specific not in self.forbidden_specific_names and rid not in ncbi_misclassified_gids:
-                    # based placeholder off NCBI species assignment of representative
+                
+                # if genome is considered to have an erroneous NCBI
+                # species name, determine if it is at least in the 
+                # same GTDB family
+                misclassified_diff_family = False
+                if rid in ncbi_misclassified_gids:
+                    gtdb_family = final_taxonomy[rid][Taxonomy.FAMILY_INDEX]
+                    type_rid = ncbi_species_type_strain_rid[ncbi_species]
+                    type_strain_gtdb_family = final_taxonomy[type_rid][Taxonomy.FAMILY_INDEX]
+                    if gtdb_family != type_strain_gtdb_family:
+                        misclassified_diff_family = True
+
+                if (ncbi_specific 
+                    and ncbi_specific not in self.forbidden_specific_names 
+                    and not misclassified_diff_family):
+                    # base placeholder off NCBI species assignment of representative
                     note = 'Generated Latin-suffix name from NCBI species assignment'
                     suffixed_specific_name = self.sp_name_mngr.suffixed_placeholder_sp_epithet(gtdb_generic, ncbi_specific)
                     final_species = 's__{} {}'.format(gtdb_generic, suffixed_specific_name)
                 else:
                     # representative lacks a NCBI species assignment so create a numeric name
-                    note = 'Generated alphanumeric name as representative lacks an NCBI species assignment'
+                    note = 'Generated alphanumeric name as representative lacks an NCBI species assignment or NCBI family considered misclassified'
                     final_species = self.create_numeric_sp_placeholder(rid, gtdb_generic)
 
         return final_species, note
@@ -344,24 +359,16 @@ class PMC_SpeciesNames(object):
         # defer to assignments in species classification ledger unless they
         # actively conflict with other assignments, in which case manual
         # curation is required
-        fout = open('ledger_rep_updates.tsv', 'w')
-        fout.write('Genome ID in ledger\tRepresentive ID of cluster\tLedger species\tNCBI species of ledger genome\tNCBI species of representative\tProposed GTDB species\n') 
+        fout = open('species_classification_ledger_updates.tsv', 'w')
+        fout.write('Genome ID in ledger\tRepresentive ID of cluster')
+        fout.write('\tLedger species\tGTDB species name after applying ledger\tSame as ledger\tGTDB species name before applying ledger')
+        fout.write('\tNCBI species of ledger genome\tNCBI species of representative\n') 
         for gid, mc_species in gtdb_sp_ledger.items():
             if gid not in gtdb_gid_to_rid:
                 self.logger.warning('Species classification genome {} no longer present in GTDB.'.format(gid))
                 continue
                 
             rid = gtdb_gid_to_rid[gid]
-            
-            if gid != rid:
-                fout.write('{}\t{}\t{}\t{}\t{}\t{}\n'.format(
-                                gid,
-                                rid,
-                                mc_species,
-                                cur_genomes[gid].ncbi_taxa.species,
-                                cur_genomes[rid].ncbi_taxa.species,
-                                final_taxonomy[rid][Taxonomy.SPECIES_INDEX]))
-                    
 
             gtdb_species = final_taxonomy[rid][Taxonomy.SPECIES_INDEX]
             gtdb_generic = generic_name(gtdb_species)
@@ -388,6 +395,16 @@ class PMC_SpeciesNames(object):
                 else:
                     self.logger.warning('Species classification ledger entry for {} resulted in active change to Latin name of cluster now represented by {}: {} -> {}'.format(
                                             gid, rid, gtdb_species, mc_species))
+                                            
+            fout.write('{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\n'.format(
+                                gid,
+                                rid,
+                                mc_species,
+                                final_taxonomy[rid][Taxonomy.SPECIES_INDEX],
+                                mc_species == final_taxonomy[rid][Taxonomy.SPECIES_INDEX],
+                                gtdb_species,
+                                cur_genomes[gid].ncbi_taxa.species,
+                                cur_genomes[rid].ncbi_taxa.species))
 
         fout.close()
                 
@@ -494,9 +511,6 @@ class PMC_SpeciesNames(object):
                                         cur_gtdb_sp)
 
         for rid in type_species_rids:
-            if rid == 'G001884735':
-                print('!!!HERE!!!', rid, cur_genomes[rid].is_gtdb_type_species())
-                
             case = 'TYPE_SPECIES_OF_GENUS'
             final_sp, note = self.set_type_species(rid,
                                                     final_taxonomy, 
@@ -538,6 +552,13 @@ class PMC_SpeciesNames(object):
         unambiguous_subsp_rids = {}
         for ncbi_subsp, (rid, assignment_type) in unambiguous_ncbi_subsp.items():
             unambiguous_subsp_rids[rid] = ncbi_subsp
+            
+        ncbi_species_type_strain_rid = {}
+        for rid, cids in cur_clusters.items():
+            for cid in cids:
+                if cur_genomes[cid].is_effective_type_strain():
+                    ncbi_sp = cur_genomes[cid].ncbi_taxa.species
+                    ncbi_species_type_strain_rid[ncbi_sp] = rid
 
         for rid in binomial_rids + placeholder_rids:
             case = 'NONTYPE_SPECIES_CLUSTER'
@@ -550,6 +571,7 @@ class PMC_SpeciesNames(object):
                                                                     ncbi_misclassified_gids,
                                                                     unambiguous_sp_rids,
                                                                     unambiguous_subsp_rids,
+                                                                    ncbi_species_type_strain_rid,
                                                                     ncbi_synonyms,
                                                                     cur_gtdb_sp,
                                                                     case_count)
@@ -714,31 +736,7 @@ class PMC_SpeciesNames(object):
                             
         # read species names explicitly set via manual curation
         self.logger.info('Parsing manually-curated species.')
-        mc_species = {}
-        with open(manual_sp_names) as f:
-            f.readline()
-            for line in f:
-                tokens = line.strip().split('\t')
-                mc_species[tokens[0]] = tokens[2]
-        self.logger.info(' - identified manually-curated species names for {:,} genomes.'.format(
-                            len(mc_species)))
-                            
-        # read post-curation, manually defined species
-        self.logger.info('Parsing post-curation, manually-curated species.')
-        pmc_species = {}
-        with open(pmc_custom_species) as f:
-            f.readline()
-            for line in f:
-                tokens = line.strip().split('\t')
-                gid = tokens[0]
-                species = tokens[1]
-                if gid in mc_species:
-                    self.logger.warning('Manually-curated genome {} reassigned from {} to {}.'.format(
-                                            gid, mc_species[gid], species))
-                pmc_species[gid] = species
-                mc_species[gid] = species
-        self.logger.info(' - identified post-curation, manually-curated species names for {:,} genomes.'.format(
-                            len(pmc_species)))
+        mc_species = parse_manual_sp_curation_files(manual_sp_names, pmc_custom_species)
 
         # create previous and current GTDB genome sets
         self.logger.info('Creating previous GTDB genome set.')
@@ -809,7 +807,10 @@ class PMC_SpeciesNames(object):
                                                         dsmz_bacnames_file)
                                                         
         # establish state of NCBI species
-        ncbi_species_mngr = NCBI_SpeciesManager(cur_genomes, cur_clusters, self.output_dir)
+        ncbi_species_mngr = NCBI_SpeciesManager(cur_genomes, 
+                                                cur_clusters, 
+                                                mc_species,
+                                                self.output_dir)
         self.forbidden_specific_names = ncbi_species_mngr.forbidden_specific_names
         
         # get list of synonyms in order to restrict usage of species names

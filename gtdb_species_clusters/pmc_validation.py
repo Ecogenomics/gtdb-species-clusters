@@ -40,7 +40,8 @@ from gtdb_species_clusters.ncbi_species_manager import NCBI_SpeciesManager
 from gtdb_species_clusters.genome_utils import canonical_gid
 from gtdb_species_clusters.type_genome_utils import (read_clusters,
                                                         parse_updated_species_reps,
-                                                        infer_prev_gtdb_reps)
+                                                        infer_prev_gtdb_reps,
+                                                        parse_manual_sp_curation_files)
 from gtdb_species_clusters.taxon_utils import (generic_name,
                                                 specific_epithet,
                                                 canonical_taxon,
@@ -174,7 +175,7 @@ class PMC_Validation(object):
         invalid_type_strain = {}
         validated_count = 0
         for rid in final_taxonomy:
-            if rid in self.mc_gids:
+            if rid in self.mc_species:
                 continue
 
             if cur_genomes[rid].is_effective_type_strain():
@@ -229,26 +230,9 @@ class PMC_Validation(object):
             validated_count, 
             'Identified {:,} genomes with identical species names (Proposed GTDB species, NCBI species):'.format(len(invalid_dup_name)))
             
-    def validate_manually_curated_species(self, final_taxonomy, manual_sp_names, pmc_custom_species):
+    def validate_manually_curated_species(self, final_taxonomy, mc_species):
         """Validate final assignment of species that were set by manual curation."""
-        
-        # get expected species names with post-manual curation assignments 
-        # taken precedence
-        mc_species = {}
-        with open(manual_sp_names) as f:
-            f.readline()
-            for line in f:
-                tokens = line.strip().split('\t')
-                gid = tokens[0]
-                mc_species[gid] = tokens[2]
-                
-        with open(pmc_custom_species) as f:
-            f.readline()
-            for line in f:
-                tokens = line.strip().split('\t')
-                gid = tokens[0]
-                mc_species[gid] = tokens[1]
-        
+
         # read species names explicitly set via manual curation
         invalid_mc = {}
         validated_count = 0
@@ -262,8 +246,6 @@ class PMC_Validation(object):
             invalid_mc, 
             validated_count, 
             'Identified {:,} genomes that did not match manual curation (Proposed GTDB species, manually curated species):'.format(len(invalid_mc)))
-            
-        return mc_species
         
     def validate_type_strain_ledger(self, final_taxonomy, gtdb_type_strains_ledger):
         """Validating genomes in type strain ledger."""
@@ -332,6 +314,9 @@ class PMC_Validation(object):
         invalid_sp = {}
         validated_count = 0
         for gid in gtdb_sp_ledger:
+            if gid in self.mc_species:
+                continue
+                
             if gid in final_taxonomy:
                 gtdb_species = final_taxonomy[gid][Taxonomy.SPECIES_INDEX]
                 gtdb_specific = specific_epithet(gtdb_species)
@@ -496,7 +481,7 @@ class PMC_Validation(object):
         validated_count = 0
         suffix_count = 0
         for rid in final_taxonomy:
-            if rid in self.mc_gids:
+            if rid in self.mc_species:
                 continue
                 
             gtdb_species = final_taxonomy[rid][Taxonomy.SPECIES_INDEX]
@@ -514,12 +499,11 @@ class PMC_Validation(object):
                 prev_specific = specific_epithet(prev_species)
                 prev_suffix = taxon_suffix(prev_specific)
                 
-                if rid in ncbi_misclassified_gids:
-                    # specific name should be a placeholder
-                    if is_placeholder_sp_epithet(gtdb_specific):
-                        validated_count += 1
-                    else:
-                        invalid_suffix[rid] = (gtdb_species, prev_species, 'MISCLASSIFIED')
+                if not test_same_epithet(canonical_taxon(gtdb_specific), canonical_taxon(prev_specific)):
+                    # no need to match the placeholder suffix as the specific name 
+                    # has changed between releases and it isn't just a small change
+                    # indicative of a genus transfer
+                    validated_count += 1
                 elif prev_species == 's__':
                     # since genome has no previous GTDB assignment it should have a
                     # suffix higher than observed in the previous taxonomy
@@ -570,7 +554,7 @@ class PMC_Validation(object):
         invalid_suffix = {}
         validated_count = 0
         for rid in final_taxonomy:
-            if rid in self.mc_gids:
+            if rid in self.mc_species:
                 continue
                 
             gtdb_species = final_taxonomy[rid][Taxonomy.SPECIES_INDEX]
@@ -699,7 +683,7 @@ class PMC_Validation(object):
         validated_count = 0
         case_count = 0
         for rid in final_taxonomy:
-            if rid in self.mc_gids:
+            if rid in self.mc_species:
                 continue
                 
             gtdb_species = final_taxonomy[rid][Taxonomy.SPECIES_INDEX]
@@ -1092,7 +1076,7 @@ class PMC_Validation(object):
         invalid_unambiguous = {}
         validated_count = 0
         for ncbi_sp, (rid, assignment_type) in unambiguous_ncbi_sp.items():
-            if rid in self.mc_gids:
+            if rid in self.mc_species:
                 continue
                 
             if rid not in final_taxonomy:
@@ -1132,7 +1116,7 @@ class PMC_Validation(object):
         invalid_ambiguous = {}
         validated_count = 0
         for gid in final_taxonomy:
-            if gid in self.mc_gids:
+            if gid in self.mc_species:
                 continue
                 
             if (gid in unambiguous_sp_rids
@@ -1176,7 +1160,7 @@ class PMC_Validation(object):
         invalid_misclassified = {}
         validated_count = 0
         for gid in ncbi_misclassified_gids:
-            if gid in self.mc_gids:
+            if gid in self.mc_species:
                 continue
                 
             if gid in final_taxonomy:
@@ -1244,9 +1228,9 @@ class PMC_Validation(object):
         new_gtdb_species = final_taxonomy[new_rid][Taxonomy.SPECIES_INDEX]
         new_canonical_gtdb_species = canonical_species(new_gtdb_species)
 
-        if new_rid in self.mc_gids:
+        if new_rid in self.mc_species:
             specific_change_types.append('MANUAL_CURATION')
-            reasons.append('Changed by curators to reflect published literature')
+            reasons.append('Changed by curators')
             
         if (prev_rid_new_ncbi_species in gtdb_synonyms
             and gtdb_synonyms[prev_rid_new_ncbi_species] == new_gtdb_species):
@@ -1701,6 +1685,10 @@ class PMC_Validation(object):
         final_taxonomy = Taxonomy().read(final_taxonomy, use_canonical_gid=True)
         self.logger.info(' - identified taxonomy strings for {:,} genomes.'.format(
                             len(final_taxonomy)))
+                            
+        # read species names explicitly set via manual curation
+        self.logger.info('Parsing manually-curated species.')
+        self.mc_species = parse_manual_sp_curation_files(manual_sp_names, pmc_custom_species)
 
         # get priority of species and generic (genus) names
         sp_priority_mngr = SpeciesPriorityManager(sp_priority_ledger,
@@ -1777,7 +1765,10 @@ class PMC_Validation(object):
         curation_tree.calc_node_root_distances()
 
         # establish state of NCBI species
-        ncbi_species_mngr = NCBI_SpeciesManager(cur_genomes, cur_clusters, self.output_dir)
+        ncbi_species_mngr = NCBI_SpeciesManager(cur_genomes, 
+                                                cur_clusters, 
+                                                self.mc_species, 
+                                                self.output_dir)
         ncbi_species_mngr.ncbi_sp_gtdb_cluster_table(final_taxonomy)
         self.forbidden_specific_names = ncbi_species_mngr.forbidden_specific_names
         
@@ -1831,21 +1822,19 @@ class PMC_Validation(object):
         
         # validate manually-curated species names
         self.logger.info('Validating manually-curated species names.')
-        self.mc_gids = self.validate_manually_curated_species(final_taxonomy, 
-                                                                manual_sp_names, 
-                                                                pmc_custom_species)
+        self.validate_manually_curated_species(final_taxonomy, self.mc_species)
         
         # validate genomes in GTDB type strain ledger
         self.logger.info('Validating genomes in type strain ledger.')
         mc_type_strain = self.validate_type_strain_ledger(final_taxonomy, gtdb_type_strains_ledger)
-        self.mc_gids.update(mc_type_strain)
+        self.mc_species.update(mc_type_strain)
         
         # validate genomes in GTDB type strain ledger
         self.logger.info('Validating genomes in species classification ledger.')
         mc_sp_classification = self.validate_species_classification_ledger(final_taxonomy, 
                                                                             cur_clusters, 
                                                                             species_classification_ledger)
-        self.mc_gids.update(mc_sp_classification)
+        self.mc_species.update(mc_sp_classification)
 
         # validate genus and generic names are the same
         self.logger.info('Validating that genus and generic names are the same.')
