@@ -237,6 +237,9 @@ class PMC_Validation(object):
         invalid_mc = {}
         validated_count = 0
         for gid, mc_sp in mc_species.items():
+            if gid not in final_taxonomy:
+                continue # taxon from other domain
+                
             if final_taxonomy[gid][Taxonomy.SPECIES_INDEX] != mc_sp:
                 invalid_mc[gid] = (final_taxonomy[gid][Taxonomy.SPECIES_INDEX], mc_sp)
             else:

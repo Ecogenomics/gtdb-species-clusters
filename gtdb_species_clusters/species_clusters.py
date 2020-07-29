@@ -158,17 +158,17 @@ class SpeciesClusters(object):
         
         # read GTDB-Tk classifications for new and updated genomes
         gtdbtk_classifications = read_gtdbtk_classifications(gtdbtk_classify_file)
-        self.logger.info(f' ... identified {len(gtdbtk_classifications):,} classifications.')
+        self.logger.info(f' - identified {len(gtdbtk_classifications):,} classifications.')
         
         # get new and updated genomes in current GTDB release
         self.new_gids, self.updated_gids = read_cur_new_updated(genomes_new_updated_file)
-        self.logger.info(f' ... identified {len(self.new_gids):,} new and {len(self.updated_gids):,} updated genomes.')
+        self.logger.info(f' - identified {len(self.new_gids):,} new and {len(self.updated_gids):,} updated genomes.')
         
         # get list of genomes passing QC
         gids_pass_qc = read_qc_file(qc_passed_file)
         new_pass_qc = len(self.new_gids.intersection(gids_pass_qc))
         updated_pass_qc = len(self.updated_gids.intersection(gids_pass_qc))
-        self.logger.info(f' ... identified {new_pass_qc:,} new and {updated_pass_qc:,} updated genomes as passing QC.')
+        self.logger.info(f' - identified {new_pass_qc:,} new and {updated_pass_qc:,} updated genomes as passing QC.')
 
         # create mapping between species and representatives
         orig_sp_rid_map = {sp: rid for rid, sp in original_sp_clusters.species_names.items()}
@@ -225,7 +225,7 @@ class SpeciesClusters(object):
         print('failed_qc', failed_qc)
         print('prev_genome_count', prev_genome_count)
         
-        self.logger.info(f' ... identified {new_sp:,} genomes not assigned to an existing GTDB species cluster')
+        self.logger.info(f' - identified {new_sp:,} genomes not assigned to an existing GTDB species cluster')
 
         assert len(self.sp_clusters) == len(self.species_names)
 

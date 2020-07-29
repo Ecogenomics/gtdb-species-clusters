@@ -705,6 +705,53 @@ class PMC_SpeciesNames(object):
     
         return ncbi_subspecies, unambiguous_ncbi_subsp, ambiguous_ncbi_subsp
         
+    def write_gtdb_synonym_table(self, cur_genomes, final_taxonomy, ncbi_synonym_file, out_file):
+        """Write synonyms table with GTDB species names."""
+        
+        fout = open(out_file, 'w')
+        fout.write('Synonym type\tGTDB species\tNCBI species\tGTDB representative\tStrain IDs\tType sources\tPriority year')
+        fout.write('\tGTDB type species\tGTDB type strain\tNCBI assembly type')
+        fout.write('\tSynonym\tHighest-quality synonym genome\tSynonym strain IDs\tSynonym type sources\tSynonym priority year')
+        fout.write('\tSynonym GTDB type species\tSynonym GTDB type strain\tSynonym NCBI assembly type')
+        fout.write('\tANI\tAF\tNotes\n')
+        
+        with open(ncbi_synonym_file) as f:
+            header = f.readline().strip().split('\t')
+            
+            type_idx = header.index('Synonym type')
+            assert type_idx == 0
+            
+            rid_idx = header.index('GTDB representative')
+            synonym_genome_idx = header.index('Highest-quality synonym genome')
+            warning_idx = header.index('Warnings')
+
+            for line in f:
+                tokens = line.strip().split('\t')
+                
+                synonym_type = tokens[type_idx]
+                if synonym_type == 'CONSENSUS_SYNONYM':
+                    # HACK: renaming this as we eventually settled on using a
+                    # strict majority vote rule
+                    synonym_type = 'MAJORITY_VOTE_SYNONYM'
+                    
+                rid = tokens[rid_idx]
+                if rid in final_taxonomy: #other representative must be from other domain
+                    tokens[rid_idx] = cur_genomes.full_gid[tokens[rid_idx]]
+                    tokens[synonym_genome_idx] = cur_genomes.full_gid[tokens[synonym_genome_idx]]
+                    
+                    if len(tokens) > warning_idx and tokens[warning_idx]:
+                        self.logger.warning('Assuming synonym priority for {} ({}) has been fixed manually.'.format(
+                                                final_taxonomy[rid][Taxonomy.SPECIES_INDEX],
+                                                rid))
+                        tokens[warning_idx] = 'Incorrect priority establish manually and fixed accordingly'
+                    
+                    fout.write('{}\t{}\t{}\n'.format(
+                                synonym_type,
+                                final_taxonomy[rid][Taxonomy.SPECIES_INDEX],
+                                '\t'.join(tokens[1:])))
+                            
+        fout.close()
+        
     def run(self,
                 curation_tree,
                 manual_taxonomy,
@@ -718,7 +765,7 @@ class PMC_SpeciesNames(object):
                 ncbi_misclassified_file,
                 ncbi_genbank_assembly_file,
                 untrustworthy_type_file,
-                synonym_file,
+                ncbi_synonym_file,
                 updated_species_reps,
                 gtdb_type_strains_ledger,
                 species_classification_ledger,
@@ -815,7 +862,7 @@ class PMC_SpeciesNames(object):
         
         # get list of synonyms in order to restrict usage of species names
         self.logger.info('Reading GTDB synonyms.')
-        ncbi_synonyms = ncbi_species_mngr.parse_synonyms_table(synonym_file)
+        ncbi_synonyms = ncbi_species_mngr.parse_synonyms_table(ncbi_synonym_file)
         self.logger.info(' - identified {:,} synonyms from {:,} distinct species.'.format(
                             len(ncbi_synonyms),
                             len(set(ncbi_synonyms.values()))))
@@ -945,4 +992,8 @@ class PMC_SpeciesNames(object):
                                     suppress_leaf_node_labels=False,
                                     unquoted_underscores=True)
         self.logger.info('Updated curation tree written to: {}'.format(output_tree))
+        
+        # write synonym table with GTDB species names
+        out_file = os.path.join(self.output_dir, 'gtdb_synonyms_final.tsv')
+        self.write_gtdb_synonym_table(cur_genomes, final_taxonomy, ncbi_synonym_file, out_file)
         

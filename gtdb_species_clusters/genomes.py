@@ -39,6 +39,8 @@ class Genomes(object):
         self.genomic_files = {} # this should be removed, but the FastANI interface
                                 # currently requires data to be passed in as a dictionary
                                 
+        self.full_gid = {} # translate from canonical GID to NCBI accession
+                                
         self.user_uba_id_map = {}   # can be removed once UBA genomes are no longer part
                                     # of the archaeal genome set
                                     
@@ -418,6 +420,7 @@ class Genomes(object):
                 
                 ncbi_accn = line_split[genome_index]
                 gid = canonical_gid(ncbi_accn)
+                self.full_gid[gid] = ncbi_accn
 
                 if gid.startswith('U_'):
                     # check if genome has a UBA identifier

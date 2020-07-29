@@ -62,6 +62,7 @@ def print_help():
       u_sel_reps           -> Select representatives for all named species at NCBI 
       u_cluster_named_reps -> Cluster genomes to selected GTDB representatives
       u_cluster_de_novo    -> Infer de novo species clusters and representatives for remaining genomes
+      u_cluster_stats      -> Summary statistics indicating changes to GTDB species cluster membership
       u_ncbi_erroneous     -> Identify genomes with erroneous NCBI species assignments
       u_synonyms           -> Determine synonyms for validly or effectively published species
       u_genus_names        -> (???) Produce tables for updating genus names as a precursor for establish binomial species names
@@ -77,7 +78,7 @@ def print_help():
       pmc_check_type_strains -> Check for agreement between GTDB species and genomes assembled from type strain of species
       pmc_species_names      -> Establish final species names based on manual curation
       pmc_validate           -> Validate final species names
-      u_summary_stats        -> Summary statistics indicating changes to GTDB species clusters
+      pmc_name_stats         -> [TBD] Summary statistics indicating changes to GTDB species cluster names
       
     Inspect species clusters:
       merge_test      -> Produce information relevant to merging two sister species
@@ -401,6 +402,21 @@ if __name__ == '__main__':
     u_cluster_de_novo_parser.add_argument('-c', '--cpus', help='number of cpus', type=int, default=1)
     u_cluster_de_novo_parser.add_argument('--silent', help="suppress output", action='store_true')
     
+    # summary statistics indicating changes to GTDB species cluster membership
+    u_cluster_stats_parser = subparsers.add_parser('u_cluster_stats',
+                                        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+                                        description='Summary statistics indicating changes to GTDB species cluster membership.')
+    u_cluster_stats_parser.add_argument('gtdb_clusters_file', help="file indicating representatives of each GTDB species cluster (u_cluster_de_novo: gtdb_clusters_de_novo.tsv")
+    u_cluster_stats_parser.add_argument('prev_gtdb_metadata_file', help="file with GTDB metadata for previous GTDB release (TSV file)")
+    u_cluster_stats_parser.add_argument('cur_gtdb_metadata_file', help="file with GTDB metadata for current GTDB release (TSV file)")
+    u_cluster_stats_parser.add_argument('uba_genome_paths', help="file indicating path to genomic FASTA files for UBA genomes")
+    u_cluster_stats_parser.add_argument('qc_passed_file', help="file indicating genomes that have passed QC (u_qc_genomes: qc_passed.tsv)")
+    u_cluster_stats_parser.add_argument('ncbi_genbank_assembly_file', help="NCBI GenBank assembly file indicating potentially erroneous genomes")
+    u_cluster_stats_parser.add_argument('untrustworthy_type_file', help="file listing genomes that should be considered untrustworthy as type material (u_resolve_types: untrustworthy_type_material.tsv)")
+    u_cluster_stats_parser.add_argument('gtdb_type_strains_ledger', help="file listing genomes to consider as being the type strain for valid or effectively published species name")
+    u_cluster_stats_parser.add_argument('output_dir', help="output directory")
+    u_cluster_stats_parser.add_argument('--silent', help="suppress output", action='store_true')
+    
     # identify genomes with erroneous NCBI species assignments
     u_ncbi_erroneous_parser = subparsers.add_parser('u_ncbi_erroneous',
                                         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
@@ -607,24 +623,6 @@ if __name__ == '__main__':
     pmc_validate_parser.add_argument('output_dir', help="output directory")
     pmc_validate_parser.add_argument('--skip_genus_checks', action='store_true', help="skip tests related to validating genus/generic names")
     pmc_validate_parser.add_argument('--silent', help="suppress output", action='store_true')
-    
-    # summary statistics indicating changes to GTDB species clusters
-    u_summary_stats_parser = subparsers.add_parser('u_summary_stats',
-                                        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
-                                        description='Summary statistics indicating changes to GTDB species clusters.')
-    u_summary_stats_parser.add_argument('updated_sp_rep_file', help="file indicating changes to GTDB representatives (u_rep_actions: updated_species_reps.tsv")
-    u_summary_stats_parser.add_argument('gtdb_clusters_file', help="file indicating representatives of each GTDB species cluster (u_cluster_de_novo: gtdb_clusters_de_novo.tsv")
-    u_summary_stats_parser.add_argument('prev_gtdb_metadata_file', help="file with GTDB metadata for previous GTDB release (TSV file)")
-    u_summary_stats_parser.add_argument('cur_gtdb_metadata_file', help="file with GTDB metadata for current GTDB release (TSV file)")
-    u_summary_stats_parser.add_argument('uba_genome_paths', help="file indicating path to genomic FASTA files for UBA genomes")
-    u_summary_stats_parser.add_argument('qc_passed_file', help="file indicating genomes that have passed QC (u_qc_genomes: qc_passed.tsv)")
-    u_summary_stats_parser.add_argument('gtdbtk_classify_file', help="file with GTDB-Tk classifications for new and updated genomes")
-    u_summary_stats_parser.add_argument('ncbi_genbank_assembly_file', help="NCBI GenBank assembly file indicating potentially erroneous genomes")
-    u_summary_stats_parser.add_argument('untrustworthy_type_file', help="file listing genomes that should be considered untrustworthy as type material (u_resolve_types: untrustworthy_type_material.tsv)")
-    u_summary_stats_parser.add_argument('synonym_file', help="file with species names marked as synonyms (u_synonyms: synonyms.tsv)")
-    u_summary_stats_parser.add_argument('gtdb_type_strains_ledger', help="file listing genomes to consider as being the type strain for valid or effectively published species name")
-    u_summary_stats_parser.add_argument('output_dir', help="output directory")
-    u_summary_stats_parser.add_argument('--silent', help="suppress output", action='store_true')
 
     # compare current and previous representatives
     merge_test_parser = subparsers.add_parser('merge_test',

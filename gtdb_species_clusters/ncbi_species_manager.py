@@ -219,7 +219,7 @@ class NCBI_SpeciesManager(object):
         incorrect_priority = 0
         failed_type_strain_priority = 0
         for synonyms, synonym_type in [(type_strain_synonyms, 'TYPE_STRAIN_SYNONYM'), 
-                                        (consensus_synonyms, 'CONSENSUS_SYNONYM')]:
+                                        (consensus_synonyms, 'MAJORITY_VOTE_SYNONYM')]:
             for rid, synonym_ids in synonyms.items():
                 for gid in synonym_ids:
                     ani, af = symmetric_ani(ani_af, rid, gid)
@@ -309,14 +309,15 @@ class NCBI_SpeciesManager(object):
                 
         # get genomes with NCBI species assignment
         ncbi_species_gids = defaultdict(list)
-        for gid in self.cur_genomes:
-            if gid not in final_taxonomy:
+        for rid, cids in self.cur_clusters.items():
+            if rid not in final_taxonomy:
                 continue # other domain
                 
-            ncbi_species = self.cur_genomes[gid].ncbi_taxa.species
-            ncbi_specific = specific_epithet(ncbi_species)
-            if ncbi_species != 's__' and ncbi_specific not in self.forbidden_specific_names:
-                    ncbi_species_gids[ncbi_species].append(gid)
+            for cid in cids:
+                ncbi_species = self.cur_genomes[cid].ncbi_taxa.species
+                ncbi_specific = specific_epithet(ncbi_species)
+                if ncbi_species != 's__' and ncbi_specific not in self.forbidden_specific_names:
+                        ncbi_species_gids[ncbi_species].append(cid)
                     
         # write out table
         fout = open(os.path.join(self.output_dir, 'ncbi_sp_to_gtdb_cluster_map.tsv'), 'w')
@@ -325,7 +326,7 @@ class NCBI_SpeciesManager(object):
         for ncbi_sp, gids in ncbi_species_gids.items():
             gtdb_rep_list = [gid_to_rid[gid] for gid in gids]
             gtdb_rep_count = Counter(gtdb_rep_list)
-            
+
             gtdb_rep_str = []
             for idx, (rid, count) in enumerate(gtdb_rep_count.most_common()):
                 gtdb_rep_str.append('{} ({}): {}'.format(

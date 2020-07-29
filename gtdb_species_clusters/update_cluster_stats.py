@@ -29,8 +29,8 @@ from gtdb_species_clusters.type_genome_utils import read_clusters
 from gtdb_species_clusters.taxon_utils import is_placeholder_taxon
 
 
-class UpdateSummaryStats(object):
-    """Summary statistics indicating changes to GTDB species clusters."""
+class UpdateClusterStats(object):
+    """Summary statistics indicating changes to GTDB species cluster membership."""
 
     def __init__(self, output_dir):
         """Initialization."""
@@ -65,23 +65,20 @@ class UpdateSummaryStats(object):
                     
                 updated_rids[prev_rid] = new_rid
 
-        self.logger.info(f' ... identified {num_updated_rids:,} updated and {num_lost_rids:,} lost representatives.')
+        self.logger.info(f' - identified {num_updated_rids:,} updated and {num_lost_rids:,} lost representatives.')
         
         return updated_rids
 
     def run(self, 
-            updated_sp_rep_file,
             gtdb_clusters_file,
             prev_gtdb_metadata_file,
             cur_gtdb_metadata_file,
             uba_genome_paths,
             qc_passed_file,
-            gtdbtk_classify_file,
             ncbi_genbank_assembly_file,
             untrustworthy_type_file,
-            synonym_file,
             gtdb_type_strains_ledger):
-        """Summary statistics indicating changes to GTDB species clusters."""
+        """Summary statistics indicating changes to GTDB species cluster membership."""
 
         # create previous and current GTDB genome sets
         self.logger.info('Creating previous GTDB genome set.')
@@ -91,7 +88,7 @@ class UpdateSummaryStats(object):
                                                 uba_genome_file=uba_genome_paths,
                                                 ncbi_genbank_assembly_file=ncbi_genbank_assembly_file,
                                                 untrustworthy_type_ledger=untrustworthy_type_file)
-        self.logger.info(' ... previous genome set has {:,} species clusters spanning {:,} genomes.'.format(
+        self.logger.info(' - previous genome set has {:,} species clusters spanning {:,} genomes.'.format(
                             len(prev_genomes.sp_clusters),
                             prev_genomes.sp_clusters.total_num_genomes()))
 
@@ -104,12 +101,7 @@ class UpdateSummaryStats(object):
                                                 qc_passed_file=qc_passed_file,
                                                 ncbi_genbank_assembly_file=ncbi_genbank_assembly_file,
                                                 untrustworthy_type_ledger=untrustworthy_type_file)
-        self.logger.info(f' ... current genome set contains {len(cur_genomes):,} genomes.')
-        
-        # update current genomes with GTDB-Tk classifications
-        self.logger.info('Updating current genomes with GTDB-Tk classifications.')
-        num_updated, num_ncbi_sp = cur_genomes.set_gtdbtk_classification(gtdbtk_classify_file, prev_genomes)
-        self.logger.info(f' ... set GTDB taxa for {num_updated:,} genomes with {num_ncbi_sp:,} genomes using NCBI genus and species name.')
+        self.logger.info(f' - current genome set contains {len(cur_genomes):,} genomes.')
         
         # report changes in genome sets
         self.logger.info('Comparing previous and current genome sets.')
@@ -118,17 +110,14 @@ class UpdateSummaryStats(object):
         num_same_genomes = len(prev_gids.intersection(new_gids))
         num_lost_genomes = len(prev_gids - new_gids)
         num_new_genomes = len(new_gids - prev_gids)
-        self.logger.info(f' ... identified {num_same_genomes:,} genomes as being present in both genome sets.')
-        self.logger.info(f' ... identified {num_lost_genomes:,} genomes as being lost from the previous genome set.')
-        self.logger.info(f' ... identified {num_new_genomes:,} genomes as being new to the current genome set.')
- 
-        # get changes to representatives of previous GTDB species clusters
-        updated_rids = self._parse_updated_sp_reps(updated_sp_rep_file)
-        
+        self.logger.info(f' - identified {num_same_genomes:,} genomes as being present in both genome sets.')
+        self.logger.info(f' - identified {num_lost_genomes:,} genomes as being lost from the previous genome set.')
+        self.logger.info(f' - identified {num_new_genomes:,} genomes as being new to the current genome set.')
+
         # get new GTDB species clusters
         self.logger.info('Reading current GTDB clusters.')
         new_clusters, _ = read_clusters(gtdb_clusters_file)
-        self.logger.info(' ... current genome set has {:,} species clusters spanning {:,} genomes.'.format(
+        self.logger.info(' - current genome set has {:,} species clusters spanning {:,} genomes.'.format(
                             len(new_clusters),
                             sum(len(cids) for cids in new_clusters.values())))
 
@@ -156,24 +145,28 @@ class UpdateSummaryStats(object):
                     
         self.logger.info(f'Verified all genome / cluster sets contain the same number of UBA genomes: {prev_uba_count:,}')
         assert prev_uba_count == cur_uba_count == new_uba_count
+        
+        # get mapping of previous GTDB representatives to new GTDB species clusters
+        self.logger.info('Mapping previous GTDB representatives to new representatives.')
+        prev_to_new_rid = prev_genomes.sp_clusters.updated_representatives(new_clusters)
+        self.logger.info(' - mapped {:,} previous representatives.'.format(len(prev_to_new_rid)))
+        
+        new_to_prev_rids = defaultdict(list)
+        for prev_rid, new_rid in prev_to_new_rid.items():
+            new_to_prev_rids[new_rid].append(prev_rid)
 
         # tabulate changes in GTDB species clusters
         self.logger.info('Calculating statistics of GTDB species clusters.')
         
         fout = open(os.path.join(self.output_dir, 'gtdb_sp_clusters_change_stats.tsv'), 'w')
-        fout.write('Previous representative\tPrevious name\tNew representative\tNew name\tRepresentative status\tName status')
-        fout.write('\tNo. previous genomes\tNo. current genomes\tNo. same\tNo. lost\tNo. new\tNo. migrated in\tNo. migrated out\tNote\n')
+        fout.write('New representative\tPrevious representative(s)\tPrevious name(s)\tRepresentative status')
+        fout.write('\tNo. previous genomes\tNo. current genomes\tNo. same\tNo. lost\tNo. new\tNo. migrated in\tNo. migrated out\n')
         
         rep_lost_count = 0
         rep_changed_count = 0
         rep_unchanged_count = 0
-        rep_merged_count = 0
-        
-        name_lost_count = 0
-        name_changed_count = 0
-        name_unchanged_count = 0
-        name_merged_count = 0
-        
+        rep_merger_count = 0
+
         prev_cluster_ids = set()
         total_num_same = 0
         total_num_lost = 0
@@ -181,94 +174,66 @@ class UpdateSummaryStats(object):
         total_num_migrated_in = 0
         total_num_migrated_out = 0
         
-        moved_in = defaultdict(int)
-        moved_out = defaultdict(int)
-        for prev_rid, prev_cids in prev_genomes.sp_clusters.items():
-            assert prev_rid in prev_cids
-            prev_gtdb_sp = prev_genomes[prev_rid].gtdb_taxa.species
-            new_gtdb_sp = 'n/a'
-            
-            new_rid = updated_rids[prev_rid]
+        for new_rid, prev_rids in new_to_prev_rids.items():
             prev_cluster_ids.add(new_rid)
-            note = ''
+            
+            prev_gtdb_sp = [prev_genomes[prev_rid].gtdb_taxa.species for prev_rid in prev_rids]
+            
+            prev_cids = set()
+            for prev_rid in prev_rids:
+                prev_cids.update(prev_genomes.sp_clusters[prev_rid])
+
             if new_rid is None:
                 new_rid = 'none'
-                new_sp = 'none'
                 rep_status = 'LOST'
-                name_status = 'LOST' # what does this mean; presumable a species name can be recycled elsewhere!
-                
                 new_cluster = set()
-                
-                rep_lost_count += 1
-                name_lost_count += 1
-            elif new_rid not in new_clusters:
-                # representative must have been merged when selecting
-                # representatives for NCBI species
-                merged_rid = new_rid_map[new_rid]
-                merged_sp = cur_genomes[merged_rid].gtdb_taxa.species
-                note = 'merged {} with representative {}'.format(merged_sp, merged_rid)
-                
-                new_rid = 'none'
-                rep_status = 'MERGED'
-                name_status = 'MERGED'
-                
-                new_cluster = set()
-                
-                rep_merged_count += 1
-                name_merged_count += 1
+                rep_lost_count += len(prev_rids)
             else:
-                new_gtdb_sp = cur_genomes[new_rid].gtdb_taxa.species
                 new_cluster = new_clusters[new_rid]
-                
-                if prev_rid == new_rid:
-                    rep_status = 'UNCHANGED'
-                    rep_unchanged_count += 1
+
+                if len(prev_rids) == 1:
+                    if prev_rids[0] == new_rid:
+                        rep_status = 'UNCHANGED'
+                        rep_unchanged_count += 1
+                    else:
+                        rep_status = 'CHANGED'
+                        rep_changed_count += 1
                 else:
-                    rep_status = 'CHANGED'
-                    rep_changed_count += 1
-                    
-                
-                if prev_gtdb_sp == new_gtdb_sp:
-                    name_status = 'UNCHANGED'
-                    name_unchanged_count += 1
-                else:
-                    name_status = 'CHANGED'
-                    name_changed_count += 1
+                    rep_status = 'MERGER'
+                    rep_merger_count += len(prev_rids)
             
-            fout.write('{}\t{}\t{}\t{}\t{}\t{}'.format(
-                        prev_rid,
-                        prev_gtdb_sp,
+            fout.write('{}\t{}\t{}\t{}'.format(
                         new_rid,
-                        new_gtdb_sp,
-                        rep_status,
-                        name_status))
+                        ', '.join(prev_rids),
+                        ', '.join(prev_gtdb_sp),
+                        rep_status))
             
             num_same = len(new_cluster.intersection(prev_cids))
-            num_lost = len(prev_cids - new_gids)
             num_new = len(new_cluster - prev_gids)
+            num_lost = len(prev_cids - new_gids)
+            
             num_migrated_in = len((new_cluster - prev_cids).intersection(prev_gids))
             num_migrated_out = len((prev_cids - new_cluster).intersection(new_gids))
+            
             assert len(new_cluster) == len(prev_cids) - num_lost + num_new + num_migrated_in - num_migrated_out
             assert len(prev_cids) == num_same + num_lost + num_migrated_out
             
-            moved_in[new_gtdb_sp] += num_migrated_in
-            moved_out[prev_gtdb_sp] += num_migrated_out
-            
-            fout.write('\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\n'.format(
+            fout.write('\t{}\t{}\t{}\t{}\t{}\t{}\t{}\n'.format(
                         len(prev_cids),
                         len(new_cluster),
                         num_same,
                         num_lost,
                         num_new,
                         num_migrated_in,
-                        num_migrated_out,
-                        note))
+                        num_migrated_out,))
                         
             total_num_same += num_same
             total_num_lost += num_lost
             total_num_new += num_new
             total_num_migrated_in += num_migrated_in
             total_num_migrated_out += num_migrated_out
+            
+        assert len(prev_genomes.sp_clusters) == rep_unchanged_count + rep_changed_count + rep_merger_count + rep_lost_count
 
         # add in new GTDB species clusters
         new_cluster_count = 0
@@ -278,16 +243,14 @@ class UpdateSummaryStats(object):
                 
             new_gtdb_sp = cur_genomes[new_rid].gtdb_taxa.species
             rep_status = 'NEW'
-            name_status = 'NEW'
             new_cluster_count += 1
             
-            fout.write('{}\t{}\t{}\t{}\t{}\t{}'.format(
+            fout.write('{}\t{}\t{}\t{}\t{}'.format(
                         'n/a',
                         'n/a',
                         new_rid,
                         new_gtdb_sp,
-                        rep_status,
-                        name_status))
+                        rep_status))
                         
             num_new = len(new_clusters[new_rid] - prev_gids)
             num_migrated_in = len(new_clusters[new_rid].intersection(prev_gids))
@@ -304,77 +267,41 @@ class UpdateSummaryStats(object):
                         
             total_num_new += num_new
             total_num_migrated_in += num_migrated_in
-            
-            moved_in[new_gtdb_sp] += num_migrated_in
-            
-        # report major movements
-        self.logger.info('Major movements into new species clusters:')
-        for idx, (sp, count) in enumerate(sorted(moved_in.items(), key = lambda kv: kv[1], reverse=True)):
-            print(sp, count)
-            if idx > 10:
-                break
-        print('Total', sum(moved_in.values()))
-            
-        self.logger.info('Major movements out of previous species clusters:')
-        num_out_placeholder = 0
-        for idx, (sp, count) in enumerate(sorted(moved_out.items(), key = lambda kv: kv[1], reverse=True)):
-            if idx < 10:
-                print(sp, count)
-            
-            if is_placeholder_taxon(sp):
-                num_out_placeholder += count
-        print('num_out_placeholder', num_out_placeholder)
-        print('Total', sum(moved_out.values()))
-            
-        # report genome statistics
-        num_union = len(new_gids.union(prev_gids))
+
         assert len(new_gids.union(prev_gids)) == total_num_same + total_num_lost + total_num_new + total_num_migrated_in
         assert total_num_migrated_in == total_num_migrated_out
-        self.logger.info(f'There were {len(prev_gids):,} genomes in the previous genome sets.')
-        self.logger.info(' ... identified {:,} ({:.2f}%) genomes that were assigned to same species cluster.'.format(
+        
+        # report genome statistics
+        assert len(prev_gids) == total_num_same + total_num_lost + total_num_migrated_in
+        self.logger.info(f'There were {len(prev_gids):,} genomes in the previous release.')
+        self.logger.info(' - identified {:,} ({:.2f}%) genomes that were assigned to same species cluster.'.format(
                             total_num_same,
                             total_num_same*100.0/len(prev_gids)))
-        self.logger.info(' ... identified {:,} ({:.2f}%) genomes that were lost from the species cluster.'.format(
+        self.logger.info(' - identified {:,} ({:.2f}%) genomes that were lost from the species cluster.'.format(
                             total_num_lost,
                             total_num_lost*100.0/len(prev_gids)))
-        self.logger.info(' ... identified {:,} ({:.2f}%) genomes that migrated between species cluster.'.format(
+        self.logger.info(' - identified {:,} ({:.2f}%) genomes that migrated between species cluster.'.format(
                             total_num_migrated_in,
                             total_num_migrated_in*100.0/len(prev_gids)))
-        self.logger.info(' ... identified {:,} new genomes which is a {:.2f}% increase.'.format(
+        self.logger.info('Identified {:,} new genomes which is a {:.2f}% increase.'.format(
                             total_num_new,
                             len(new_gids)*100.0/len(prev_gids) - 100))
 
         # report representative statistics
-        assert len(new_clusters) == len(prev_genomes.sp_clusters) + new_cluster_count - rep_lost_count  - rep_merged_count 
-        self.logger.info(f'There are {len(new_clusters):,} total GTDB species representatives.')
-        self.logger.info(' ... identified {:,} ({:.2f}%) unchanged representatives.'.format(
+        assert len(prev_genomes.sp_clusters) == rep_unchanged_count + rep_changed_count + rep_lost_count + rep_merger_count
+        self.logger.info(f'There were {len(prev_genomes.sp_clusters):,} previous GTDB species representatives.')
+        self.logger.info(' - identified {:,} ({:.2f}%) unchanged representatives.'.format(
                             rep_unchanged_count,
                             rep_unchanged_count*100.0/len(prev_genomes.sp_clusters)))
-        self.logger.info(' ... identified {:,} ({:.2f}%) changed representatives.'.format(
+        self.logger.info(' - identified {:,} ({:.2f}%) changed representatives.'.format(
                             rep_changed_count,
                             rep_changed_count*100.0/len(prev_genomes.sp_clusters)))
-        self.logger.info(' ... identified {:,} ({:.2f}%) lost representatives.'.format(
+        self.logger.info(' - identified {:,} ({:.2f}%) lost representatives.'.format(
                             rep_lost_count,
                             rep_lost_count*100.0/len(prev_genomes.sp_clusters)))
-        self.logger.info(' ... identified {:,} ({:.2f}%) merged representatives.'.format(
-                            rep_merged_count,
-                            rep_merged_count*100.0/len(prev_genomes.sp_clusters)))
-        self.logger.info(' ... identified {:,} new representatives which is a {:.2f}% increase.'.format(
+        self.logger.info(' - identified {:,} ({:.2f}%) merged representatives.'.format(
+                            rep_merger_count,
+                            rep_merger_count*100.0/len(prev_genomes.sp_clusters)))
+        self.logger.info('Identified {:,} new representatives which is a {:.2f}% increase.'.format(
                             new_cluster_count,
                             len(new_clusters)*100.0/len(prev_genomes.sp_clusters) - 100))
-
-        self.logger.info(' ... identified {:,} ({:.2f}%) cluster names.'.format(
-                            name_unchanged_count,
-                            name_unchanged_count*100.0/len(prev_genomes.sp_clusters)))
-        self.logger.info(' ... identified {:,} ({:.2f}%) changed cluster names.'.format(
-                            name_changed_count,
-                            name_changed_count*100.0/len(prev_genomes.sp_clusters)))
-        self.logger.info(' ... identified {:,} ({:.2f}%) lost cluster names.'.format(
-                            name_lost_count,
-                            name_lost_count*100.0/len(prev_genomes.sp_clusters)))
-        self.logger.info(' ... identified {:,} ({:.2f}%) merged cluster names.'.format(
-                            name_merged_count,
-                            name_merged_count*100.0/len(prev_genomes.sp_clusters)))
-        self.logger.info(' ... identified {:,} ({:.2f}%) new cluster names.'.format(
-                            new_cluster_count,
-                            new_cluster_count*100.0/len(prev_genomes.sp_clusters)))

@@ -46,6 +46,7 @@ from gtdb_species_clusters.update_cluster_named_reps import UpdateClusterNamedRe
 from gtdb_species_clusters.update_erroneous_ncbi import UpdateErroneousNCBI
 from gtdb_species_clusters.update_synonyms import UpdateSynonyms
 from gtdb_species_clusters.update_cluster_de_novo import UpdateClusterDeNovo
+from gtdb_species_clusters.update_cluster_stats import UpdateClusterStats
 from gtdb_species_clusters.update_genus_names import UpdateGenusNames
 from gtdb_species_clusters.update_curation_trees import UpdateCurationTrees
 from gtdb_species_clusters.update_species_init import UpdateSpeciesInit
@@ -55,7 +56,6 @@ from gtdb_species_clusters.pmc_check_type_species import PMC_CheckTypeSpecies
 from gtdb_species_clusters.pmc_check_type_strains import PMC_CheckTypeStrains
 from gtdb_species_clusters.pmc_species_names import PMC_SpeciesNames
 from gtdb_species_clusters.pmc_validation import PMC_Validation
-from gtdb_species_clusters.update_summary_stats import UpdateSummaryStats
 
 from gtdb_species_clusters.merge_test import MergeTest
 from gtdb_species_clusters.intra_sp_derep import IntraSpeciesDereplication
@@ -838,33 +838,27 @@ class OptionsParser():
         
         self.logger.info('Done.')
         
-    def u_summary_stats(self, args):
-        """Summary statistics indicating changes to GTDB species clusters."""
+    def u_cluster_stats(self, args):
+        """Summary statistics indicating changes to GTDB species cluster membership."""
         
-        check_file_exists(args.updated_sp_rep_file)
         check_file_exists(args.gtdb_clusters_file)
         check_file_exists(args.prev_gtdb_metadata_file)
         check_file_exists(args.cur_gtdb_metadata_file)
         check_file_exists(args.uba_genome_paths)
         check_file_exists(args.qc_passed_file)
-        check_file_exists(args.gtdbtk_classify_file)
         check_file_exists(args.ncbi_genbank_assembly_file)
         check_file_exists(args.untrustworthy_type_file)
-        check_file_exists(args.synonym_file)
         check_file_exists(args.gtdb_type_strains_ledger)
         make_sure_path_exists(args.output_dir)
 
-        p = UpdateSummaryStats(args.output_dir)
-        p.run(args.updated_sp_rep_file,
-                args.gtdb_clusters_file,
+        p = UpdateClusterStats(args.output_dir)
+        p.run(args.gtdb_clusters_file,
                 args.prev_gtdb_metadata_file,
                 args.cur_gtdb_metadata_file,
                 args.uba_genome_paths,
                 args.qc_passed_file,
-                args.gtdbtk_classify_file,
                 args.ncbi_genbank_assembly_file,
                 args.untrustworthy_type_file,
-                args.synonym_file,
                 args.gtdb_type_strains_ledger)
         
         self.logger.info('Done.')
@@ -1062,6 +1056,8 @@ class OptionsParser():
             self.u_synonyms(args)
         elif args.subparser_name == 'u_cluster_de_novo':
             self.u_cluster_de_novo(args)
+        elif args.subparser_name == 'u_cluster_stats':
+            self.u_cluster_stats(args)
         elif args.subparser_name == 'u_genus_names':
             self.u_genus_names(args)
         elif args.subparser_name == 'u_curation_trees':
@@ -1080,8 +1076,6 @@ class OptionsParser():
             self.pmc_species_names(args)
         elif args.subparser_name == 'pmc_validate':
             self.pmc_validate(args)
-        elif args.subparser_name == 'u_summary_stats':
-            self.u_summary_stats(args)
         elif args.subparser_name == 'merge_test':
             self.merge_test(args)
         elif args.subparser_name == 'intra_sp_derep':
