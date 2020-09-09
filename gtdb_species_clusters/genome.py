@@ -39,6 +39,7 @@ class Genome(object):
     gtdb_type_designation_sources: str
     gtdb_type_species_of_genus : bool
     gtdb_untrustworthy_as_type : bool
+    ncbi_untrustworthy_sp : bool
     ncbi_type_material: str
     ncbi_strain_identifiers: str
     ncbi_assembly_level: str

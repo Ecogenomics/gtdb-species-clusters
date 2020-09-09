@@ -59,6 +59,7 @@ from gtdb_species_clusters.pmc_validation import PMC_Validation
 
 from gtdb_species_clusters.merge_test import MergeTest
 from gtdb_species_clusters.intra_sp_derep import IntraSpeciesDereplication
+from gtdb_species_clusters.intra_genus_ani import IntraGenusANI
 
 from gtdb_species_clusters.exceptions import GTDB_Error
 
@@ -342,6 +343,7 @@ class OptionsParser():
         check_file_exists(args.gtdbtk_classify_file)
         check_file_exists(args.ncbi_genbank_assembly_file)
         check_file_exists(args.untrustworthy_type_file)
+        check_file_exists(args.disband_cluster_ledger)
         check_file_exists(args.gtdb_type_strains_ledger)
         make_sure_path_exists(args.output_dir)
         
@@ -354,6 +356,7 @@ class OptionsParser():
                 args.gtdbtk_classify_file,
                 args.ncbi_genbank_assembly_file,
                 args.untrustworthy_type_file,
+                args.disband_cluster_ledger,
                 args.gtdb_type_strains_ledger)
         
         self.logger.info('Done.')
@@ -372,6 +375,8 @@ class OptionsParser():
         check_file_exists(args.untrustworthy_type_file)
         check_file_exists(args.gtdb_type_strains_ledger)
         check_file_exists(args.sp_priority_ledger)
+        check_file_exists(args.genus_priority_ledger)
+        check_file_exists(args.dsmz_bacnames_file)
         make_sure_path_exists(args.output_dir)
         
         p = RepActions(args.ani_cache_file, args.cpus, args.output_dir)
@@ -387,7 +392,9 @@ class OptionsParser():
                 args.ncbi_genbank_assembly_file,
                 args.untrustworthy_type_file,
                 args.gtdb_type_strains_ledger,
-                args.sp_priority_ledger)
+                args.sp_priority_ledger,
+                args.genus_priority_ledger,
+                args.dsmz_bacnames_file)
         
         self.logger.info('Done.')
         
@@ -403,7 +410,10 @@ class OptionsParser():
         check_file_exists(args.ncbi_genbank_assembly_file)
         check_file_exists(args.untrustworthy_type_file)
         check_file_exists(args.gtdb_type_strains_ledger)
+        check_file_exists(args.ncbi_untrustworthy_sp_ledger)
         check_file_exists(args.sp_priority_ledger)
+        check_file_exists(args.genus_priority_ledger)
+        check_file_exists(args.dsmz_bacnames_file)
         make_sure_path_exists(args.output_dir)
         
         p = UpdateSelectRepresentatives(args.ani_cache_file, 
@@ -418,7 +428,10 @@ class OptionsParser():
                 args.ncbi_genbank_assembly_file,
                 args.untrustworthy_type_file,
                 args.gtdb_type_strains_ledger,
-                args.sp_priority_ledger)
+                args.ncbi_untrustworthy_sp_ledger,
+                args.sp_priority_ledger,
+                args.genus_priority_ledger,
+                args.dsmz_bacnames_file)
         
         self.logger.info('Done.')
         
@@ -882,7 +895,6 @@ class OptionsParser():
     def intra_sp_derep(self, args):
         """Dereplicate GTDB species clusters using ANI/AF criteria."""
         
-        check_file_exists(args.gtdb_clusters_file)
         check_file_exists(args.gtdb_metadata_file)
         check_file_exists(args.genomic_path_file)
         check_file_exists(args.uba_gid_table)
@@ -895,7 +907,26 @@ class OptionsParser():
                                         args.ani_cache_file, 
                                         args.cpus, 
                                         args.output_dir)
-        p.run(args.gtdb_clusters_file,
+        p.run(args.gtdb_metadata_file,
+                args.genomic_path_file,
+                args.uba_gid_table)
+        
+        self.logger.info('Done.')
+        
+    def intra_genus_ani(self, args):
+        """Calculate intra-genus ANI/AF values between GTDB representative genomes."""
+        
+        check_file_exists(args.gtdb_metadata_file)
+        check_file_exists(args.genomic_path_file)
+        check_file_exists(args.uba_gid_table)
+        
+        make_sure_path_exists(args.output_dir)
+        
+        p = IntraGenusANI(args.ani_cache_file, 
+                            args.cpus, 
+                            args.output_dir)
+                            
+        p.run(args.target_genus,
                 args.gtdb_metadata_file,
                 args.genomic_path_file,
                 args.uba_gid_table)
@@ -1080,6 +1111,8 @@ class OptionsParser():
             self.merge_test(args)
         elif args.subparser_name == 'intra_sp_derep':
             self.intra_sp_derep(args)
+        elif args.subparser_name == 'intra_genus_ani':
+            self.intra_genus_ani(args)
         elif args.subparser_name == 'rep_compare':
             self.rep_compare(args)
         elif args.subparser_name == 'cluster_stats':

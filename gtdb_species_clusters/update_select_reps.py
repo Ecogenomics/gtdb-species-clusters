@@ -691,7 +691,9 @@ class UpdateSelectRepresentatives(object):
                                         ncbi_proxy,
                                         ncbi_type_subsp,
                                         ncbi_reps,
-                                        sp_priority_ledger):
+                                        sp_priority_ledger,
+                                        genus_priority_ledger,
+                                        dsmz_bacnames_file):
         """Resolve representatives that have ANI neighbours deemed to be too close."""
 
         self.logger.info('Resolving {:,} representatives with neighbours within a {:.1f}% ANI radius and >= {:.2f} AF.'.format(
@@ -742,8 +744,10 @@ class UpdateSelectRepresentatives(object):
         for cur_type_status in ['DN', 'TSS', 'NR', 'NP', 'NT', 'TS']:
             if cur_type_status == 'TS':
                 # greedily exclude representatives in reverse order of priority
-                sp_priority_mngr = SpeciesPriorityManager(sp_priority_ledger)
-                sorted_gids = sp_priority_mngr.sort_by_priority(cur_genomes, 
+                sp_priority_mngr = SpeciesPriorityManager(sp_priority_ledger,
+                                                            genus_priority_ledger,
+                                                            dsmz_bacnames_file)
+                sorted_gids = sp_priority_mngr.sort_by_sp_priority(cur_genomes, 
                                                                         type_status[cur_type_status], 
                                                                         reverse=True)
             else:
@@ -931,6 +935,9 @@ class UpdateSelectRepresentatives(object):
         sp_genome_count = defaultdict(int)
         sp_cluster_count = defaultdict(int)
         for gid in cur_genomes:
+            if cur_genomes[gid].ncbi_untrustworthy_sp:
+                continue
+                
             ncbi_sp = cur_genomes[gid].ncbi_taxa.species
             sp_genome_count[ncbi_sp] += 1
             sp_gids[ncbi_sp].add(gid)
@@ -938,7 +945,7 @@ class UpdateSelectRepresentatives(object):
             if updated_sp_clusters.get_representative(gid) is not None:
                 sp_cluster_count[ncbi_sp] += 1
                 
-        # determine if NCBI species should is not represented by current
+        # determine if NCBI species is not represented by current
         # GTDB species clusters
         unrepresented_ncbi_sp = set()
         type_count = 0
@@ -992,7 +999,10 @@ class UpdateSelectRepresentatives(object):
                     ncbi_genbank_assembly_file,
                     untrustworthy_type_file,
                     gtdb_type_strains_ledger,
-                    sp_priority_ledger):
+                    ncbi_untrustworthy_sp_ledger,
+                    sp_priority_ledger,
+                    genus_priority_ledger,
+                    dsmz_bacnames_file):
         """Select GTDB type genomes for named species."""
         
         # read updated GTDB species clusters
@@ -1012,7 +1022,8 @@ class UpdateSelectRepresentatives(object):
                                                 uba_genome_file=uba_genome_paths,
                                                 qc_passed_file=qc_passed_file,
                                                 ncbi_genbank_assembly_file=ncbi_genbank_assembly_file,
-                                                untrustworthy_type_ledger=untrustworthy_type_file)
+                                                untrustworthy_type_ledger=untrustworthy_type_file,
+                                                ncbi_untrustworthy_sp_ledger=ncbi_untrustworthy_sp_ledger)
         self.logger.info(f' ... current genome set contains {len(cur_genomes):,} genomes.')
         
         # get path to previous and current genomic FASTA files
@@ -1128,7 +1139,7 @@ class UpdateSelectRepresentatives(object):
         for cur_sp in dup_sp:
             # This does happen and indicates that an existing GTDB species name will need to be updated.
             # e.g., GTDB R89 has a Idiomarina aestuarii species cluster, but this is not represented by a 
-            # type strain genome. IN R95, there is a type strain genome for I. aestuarii, but this does
+            # type strain genome. In R95, there is a type strain genome for I. aestuarii, but this does
             # not cluster in the existing species cluster. The current I. aestuarii cluster needs a new
             # name since it is incorrect based on the type strain genome.
             self.logger.warning('{} is represented by both {} and {}.'.format(
@@ -1164,7 +1175,9 @@ class UpdateSelectRepresentatives(object):
                                                             ncbi_proxy,
                                                             ncbi_type_subsp,
                                                             ncbi_reps,
-                                                            sp_priority_ledger)
+                                                            sp_priority_ledger,
+                                                            genus_priority_ledger,
+                                                            dsmz_bacnames_file)
                                                             
         self.write_final_reps(cur_genomes,
                                 all_rep_genomes, 

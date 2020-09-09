@@ -329,8 +329,7 @@ class IntraSpeciesDereplication(object):
 
         return derep_genomes
 
-    def run(self, gtdb_clusters_file,
-                    gtdb_metadata_file,
+    def run(self, gtdb_metadata_file,
                     genomic_path_file,
                     uba_gid_table):
         """Dereplicate GTDB species clusters using ANI/AF criteria."""
@@ -345,7 +344,7 @@ class IntraSpeciesDereplication(object):
                 else:
                     self.user_id_map[tokens[0]] = tokens[1]
         
-        # create previous and current GTDB genome sets
+        # create GTDB genome sets
         self.logger.info('Creating GTDB genome set.')
         genomes = Genomes()
         genomes.load_from_metadata_file(gtdb_metadata_file,

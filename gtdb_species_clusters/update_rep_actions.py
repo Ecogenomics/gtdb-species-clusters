@@ -184,7 +184,7 @@ class RepActions(object):
         genomic_lost_rids = self.rep_change_gids(rep_change_summary_file, 
                                                     'GENOMIC_CHANGE', 
                                                     'LOST')
-        self.logger.info(f' ... identified {len(genomic_lost_rids):,} genomes.')
+        self.logger.info(f' - identified {len(genomic_lost_rids):,} genomes.')
         
         # calculate ANI between previous and current genomes
         for prev_rid, prev_gtdb_sp in genomic_lost_rids.items():
@@ -220,6 +220,34 @@ class RepActions(object):
                                         action, 
                                         params))
         
+    def action_disband_cluster(self, 
+                                rep_change_summary_file,
+                                prev_genomes, 
+                                cur_genomes,
+                                new_updated_sp_clusters):
+        """Handle species clusters explicitly indicated as needing to be disbanded."""
+
+        # get genomes with specific changes
+        self.logger.info('Identifying species explicitly marked to be disbanded.')
+        disbanded_rids = self.rep_change_gids(rep_change_summary_file, 
+                                                    'DISBANDED_CHECK', 
+                                                    'TRUE')
+        self.logger.info(f' - identified {len(disbanded_rids):,} genomes.')
+        
+        # calculate ANI between previous and current genomes
+        for prev_rid, prev_gtdb_sp in disbanded_rids.items():
+            params = {}
+            action = 'EXPLICIT_UPDATE:DISBANDED'
+            self.update_rep(prev_rid, None, action)
+                
+            self.action_log.write('{}\t{}\t{}\t{}\n'.format(
+                                        prev_rid, 
+                                        prev_gtdb_sp, 
+                                        action, 
+                                        params))
+                                        
+        return disbanded_rids
+                                        
     def action_genomic_update(self, 
                                 rep_change_summary_file,
                                 prev_genomes, 
@@ -232,7 +260,7 @@ class RepActions(object):
         genomic_update_gids = self.rep_change_gids(rep_change_summary_file, 
                                                     'GENOMIC_CHANGE', 
                                                     'UPDATED')
-        self.logger.info(f' ... identified {len(genomic_update_gids):,} genomes.')
+        self.logger.info(f' - identified {len(genomic_update_gids):,} genomes.')
         
         # calculate ANI between previous and current genomes
         assembly_score_change = []
@@ -294,7 +322,7 @@ class RepActions(object):
                                         action, 
                                         params))
                                         
-        self.logger.info(' ... change in assembly score for updated genomes: {:.2f} +/- {:.2f}'.format(
+        self.logger.info(' - change in assembly score for updated genomes: {:.2f} +/- {:.2f}'.format(
                             np_mean(assembly_score_change),
                             np_std(assembly_score_change)))
 
@@ -310,7 +338,7 @@ class RepActions(object):
         ncbi_type_species_lost = self.rep_change_gids(rep_change_summary_file, 
                                                     'TYPE_STRAIN_CHANGE', 
                                                     'LOST')
-        self.logger.info(f' ... identified {len(ncbi_type_species_lost):,} genomes.')
+        self.logger.info(f' - identified {len(ncbi_type_species_lost):,} genomes.')
 
         for prev_rid, prev_gtdb_sp in ncbi_type_species_lost.items():
             # check that genome hasn't been lost which should
@@ -370,7 +398,7 @@ class RepActions(object):
         domain_changed = self.rep_change_gids(rep_change_summary_file, 
                                                     'DOMAIN_CHECK', 
                                                     'REASSIGNED')
-        self.logger.info(f' ... identified {len(domain_changed):,} genomes.')
+        self.logger.info(f' - identified {len(domain_changed):,} genomes.')
 
         for prev_rid, prev_gtdb_sp in domain_changed.items():
             action = 'DOMAIN_CHECK:REASSIGNED'
@@ -388,7 +416,8 @@ class RepActions(object):
     def action_improved_rep(self, 
                             prev_genomes, 
                             cur_genomes, 
-                            new_updated_sp_clusters):
+                            new_updated_sp_clusters,
+                            disbanded_rids):
         """Check if representative should be replace with higher quality genome."""
 
         self.logger.info('Identifying improved representatives for GTDB species clusters.')
@@ -401,8 +430,8 @@ class RepActions(object):
         afs = []
         improved_reps = {}
         for idx, (prev_rid, cids) in enumerate(new_updated_sp_clusters.clusters()):
-            if prev_rid not in cur_genomes:
-                # indicates genome has been lost
+            if prev_rid not in cur_genomes or prev_rid in disbanded_rids:
+                # indicates genome has been lost or disbanded
                 continue
 
             prev_gtdb_sp = new_updated_sp_clusters.get_species(prev_rid)
@@ -432,7 +461,7 @@ class RepActions(object):
                 
                 if (cur_genomes[prev_updated_rid].is_gtdb_type_strain()
                     and cur_genomes[prev_updated_rid].ncbi_taxa.specific_epithet != cur_genomes[new_rid].ncbi_taxa.specific_epithet
-                    and self.sp_priority_mngr.has_priority(cur_genomes, prev_updated_rid, new_rid)):
+                    and self.sp_priority_mngr.test_species_priority(cur_genomes, prev_updated_rid, new_rid)):
                     # GTDB species cluster should not be moved to a different type strain genome 
                     # that has lower naming priority
                     self.logger.warning('Reassignments to type strain genome with lower naming priority is not allowed: {}/{}/{}, {}/{}/{}'.format(
@@ -495,13 +524,13 @@ class RepActions(object):
                 improved_reps[prev_rid] = (new_rid, action)
 
         sys.stdout.write('\n')
-        self.logger.info(f' ... identified {len(improved_reps):,} species with improved representatives.')
-        self.logger.info(f'   ... {num_gtdb_ncbi_type_sp:,} replaced with GTDB/NCBI genome from type strain.')
-        self.logger.info(f'   ... {num_gtdb_type_sp:,} replaced with GTDB genome from type strain.')
-        self.logger.info(f'   ... {num_ncbi_type_sp:,} replaced with NCBI genome from type strain.')
-        self.logger.info(f'   ... {num_isolate:,} replaced MAG/SAG with isolate.')
-        self.logger.info(f'   ... {num_complete:,} replaced with complete genome assembly.')
-        self.logger.info(f' ... ANI = {np_mean(anis):.2f} +/- {np_std(anis):.2f}%; AF = {np_mean(afs)*100:.2f} +/- {np_std(afs)*100:.2f}%.')
+        self.logger.info(f' - identified {len(improved_reps):,} species with improved representatives.')
+        self.logger.info(f'   - {num_gtdb_ncbi_type_sp:,} replaced with GTDB/NCBI genome from type strain.')
+        self.logger.info(f'   - {num_gtdb_type_sp:,} replaced with GTDB genome from type strain.')
+        self.logger.info(f'   - {num_ncbi_type_sp:,} replaced with NCBI genome from type strain.')
+        self.logger.info(f'   - {num_isolate:,} replaced MAG/SAG with isolate.')
+        self.logger.info(f'   - {num_complete:,} replaced with complete genome assembly.')
+        self.logger.info(f' - ANI = {np_mean(anis):.2f} +/- {np_std(anis):.2f}%; AF = {np_mean(afs)*100:.2f} +/- {np_std(afs)*100:.2f}%.')
         
         return improved_reps
         
@@ -569,9 +598,9 @@ class RepActions(object):
                 if highest_priority_gid is None:
                     highest_priority_gid = hq_gid
                 else:
-                    highest_priority_gid, note = self.sp_priority_mngr.priority(cur_genomes, 
-                                                                                highest_priority_gid, 
-                                                                                hq_gid)
+                    highest_priority_gid, note = self.sp_priority_mngr.species_priority(cur_genomes, 
+                                                                                        highest_priority_gid, 
+                                                                                        hq_gid)
                     
             # check if representative should be updated
             if highest_priority_gid != updated_rid:
@@ -630,14 +659,14 @@ class RepActions(object):
                                                 
         fout.close()
 
-        self.logger.info(f' ... identified {num_higher_priority:,} species with representative changed to genome with higher nomenclatural priority.')
-        self.logger.info(' ... change in assembly score for new representatives: {:.2f} +/- {:.2f}'.format(
+        self.logger.info(f' - identified {num_higher_priority:,} species with representative changed to genome with higher nomenclatural priority.')
+        self.logger.info(' - change in assembly score for new representatives: {:.2f} +/- {:.2f}'.format(
                             np_mean(assembly_score_change),
                             np_std(assembly_score_change)))
-        self.logger.info(' ... ANI: {:.2f} +/- {:.2f}'.format(
+        self.logger.info(' - ANI: {:.2f} +/- {:.2f}'.format(
                             np_mean(anis),
                             np_std(anis)))
-        self.logger.info(' ... AF: {:.2f} +/- {:.2f}'.format(
+        self.logger.info(' - AF: {:.2f} +/- {:.2f}'.format(
                             np_mean(afs),
                             np_std(afs)))
 
@@ -677,7 +706,7 @@ class RepActions(object):
             
         fout.close()
 
-        self.logger.info(f' ... wrote {num_clusters:,} clusters.')
+        self.logger.info(f' - wrote {num_clusters:,} clusters.')
 
     def run(self, 
             rep_change_summary_file,
@@ -692,7 +721,9 @@ class RepActions(object):
             ncbi_genbank_assembly_file,
             untrustworthy_type_file,
             gtdb_type_strains_ledger,
-            sp_priority_ledger):
+            sp_priority_ledger,
+            genus_priority_ledger,
+            dsmz_bacnames_file):
         """Perform initial actions required for changed representatives."""
         
         # create previous and current GTDB genome sets
@@ -703,7 +734,7 @@ class RepActions(object):
                                                 uba_genome_file=uba_genome_paths,
                                                 ncbi_genbank_assembly_file=ncbi_genbank_assembly_file,
                                                 untrustworthy_type_ledger=untrustworthy_type_file)
-        self.logger.info(' ... previous genome set has {:,} species clusters spanning {:,} genomes.'.format(
+        self.logger.info(' - previous genome set has {:,} species clusters spanning {:,} genomes.'.format(
                             len(prev_genomes.sp_clusters),
                             prev_genomes.sp_clusters.total_num_genomes()))
 
@@ -716,7 +747,7 @@ class RepActions(object):
                                                 qc_passed_file=qc_passed_file,
                                                 ncbi_genbank_assembly_file=ncbi_genbank_assembly_file,
                                                 untrustworthy_type_ledger=untrustworthy_type_file)
-        self.logger.info(f' ... current genome set contains {len(cur_genomes):,} genomes.')
+        self.logger.info(f' - current genome set contains {len(cur_genomes):,} genomes.')
 
         # get path to previous and current genomic FASTA files
         self.logger.info('Reading path to previous and current genomic FASTA files.')
@@ -739,13 +770,20 @@ class RepActions(object):
                             new_updated_sp_clusters.total_num_genomes()))
                             
         # initialize species priority manager
-        self.sp_priority_mngr = SpeciesPriorityManager(sp_priority_ledger)
+        self.sp_priority_mngr = SpeciesPriorityManager(sp_priority_ledger,
+                                                        genus_priority_ledger,
+                                                        dsmz_bacnames_file)
 
         # take required action for each changed representatives
         self.action_genomic_lost(rep_change_summary_file,
                                     prev_genomes, 
                                     cur_genomes,
                                     new_updated_sp_clusters)
+                                    
+        disbanded_rids = self.action_disband_cluster(rep_change_summary_file,
+                                                        prev_genomes, 
+                                                        cur_genomes,
+                                                        new_updated_sp_clusters)
 
         self.action_genomic_update(rep_change_summary_file,
                                     prev_genomes, 
@@ -764,7 +802,8 @@ class RepActions(object):
         if True: #***
             improved_reps = self.action_improved_rep(prev_genomes, 
                                                     cur_genomes,
-                                                    new_updated_sp_clusters)
+                                                    new_updated_sp_clusters,
+                                                    disbanded_rids)
                                                     
             pickle.dump(improved_reps, open(os.path.join(self.output_dir, 'improved_reps.pkl'), 'wb'))
         else:
@@ -794,6 +833,8 @@ class RepActions(object):
                 new_rid, action = self.new_reps[rid]
                 if new_rid is not None:
                     fout.write(f'{rid}\t{new_rid}\t{action}\tREPLACED\n')
+                elif rid in disbanded_rids:
+                    fout.write(f'{rid}\t{new_rid}\t{action}\tDISBANDED\n') 
                 else:
                     fout.write(f'{rid}\t{new_rid}\t{action}\tLOST\n') 
             else:

@@ -209,10 +209,13 @@ class Genomes(object):
         return type_strain_genomes
         
     def named_ncbi_species(self):
-        """Get genomes in valid or effectively published, including Candidatus, species in NCBI taxonomy."""
+        """Get genomes with valid or effectively published, including Candidatus, trusted species names in NCBI taxonomy."""
         
         named_ncbi_sp = defaultdict(set)
         for gid in self.genomes:
+            if self.genomes[gid].ncbi_untrustworthy_sp:
+                continue
+                
             if not is_placeholder_taxon(self.genomes[gid].ncbi_taxa.species):
                 named_ncbi_sp[self.genomes[gid].ncbi_taxa.species].add(gid)
 
@@ -247,6 +250,18 @@ class Genomes(object):
                 untrustworthy_as_type.add(canonical_gid(tokens[0]))
             
         return untrustworthy_as_type
+        
+    def parse_ncbi_untrustworthy_sp_ledger(self, ncbi_untrustworthy_sp_ledger):
+        """Determine genomes that should be considered as having untrustworthy NCBI species assignments."""
+        
+        untrustworthy_ncbi_sp = set()
+        with open(ncbi_untrustworthy_sp_ledger) as f:
+            f.readline()
+            for line in f:
+                tokens = line.strip().split('\t')
+                untrustworthy_ncbi_sp.add(canonical_gid(tokens[0]))
+            
+        return untrustworthy_ncbi_sp
         
     def set_gtdbtk_classification(self, gtdbtk_classify_file, prev_genomes):
         """Update classification of genomes based on GTDB-Tk results."""
@@ -329,7 +344,8 @@ class Genomes(object):
                                 uba_genome_file=None,
                                 qc_passed_file=None,
                                 ncbi_genbank_assembly_file=None,
-                                untrustworthy_type_ledger=None):
+                                untrustworthy_type_ledger=None,
+                                ncbi_untrustworthy_sp_ledger=None):
         """Create genome set from file(s)."""
         
         pass_qc_gids = set()
@@ -367,6 +383,11 @@ class Genomes(object):
         if untrustworthy_type_ledger:
             untrustworthy_as_type = self.parse_untrustworthy_type_ledger(untrustworthy_type_ledger)
             self.logger.info(f' - identified {len(untrustworthy_as_type):,} genomes annotated as untrustworthy as type.')
+        
+        untrustworthy_ncbi_sp = set()
+        if ncbi_untrustworthy_sp_ledger:
+            untrustworthy_ncbi_sp = self.parse_ncbi_untrustworthy_sp_ledger(ncbi_untrustworthy_sp_ledger)
+            self.logger.info(f' - identified {len(untrustworthy_ncbi_sp):,} genomes annotated as having untrustworthy NCBI species assignments.')
 
         with open(metadata_file, encoding='utf-8') as f:
             headers = f.readline().strip().split('\t')
@@ -501,6 +522,7 @@ class Genomes(object):
                                             gtdb_type_sources,
                                             gtdb_type_species_of_genus,
                                             gid in untrustworthy_as_type,
+                                            gid in untrustworthy_ncbi_sp,
                                             ncbi_type,
                                             ncbi_strain_identifiers,
                                             ncbi_asm_level,

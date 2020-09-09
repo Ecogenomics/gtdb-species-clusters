@@ -59,7 +59,7 @@ def print_help():
       u_resolve_types      -> Resolve cases where a species has multiple genomes assembled from the type strain
       u_rep_changes        -> Identify lost, updated, reassigned, and unchanged species representatives
       u_rep_actions        -> Perform initial actions required for changed representatives
-      u_sel_reps           -> Select representatives for all named species at NCBI 
+      u_sel_reps           -> Select representatives for all named species at NCBI
       u_cluster_named_reps -> Cluster genomes to selected GTDB representatives
       u_cluster_de_novo    -> Infer de novo species clusters and representatives for remaining genomes
       u_cluster_stats      -> Summary statistics indicating changes to GTDB species cluster membership
@@ -83,7 +83,7 @@ def print_help():
     Inspect species clusters:
       merge_test      -> Produce information relevant to merging two sister species
       intra_sp_derep  -> Dereplicate GTDB species clusters using ANI/AF criteria
-      intra_genus_ani -> Calculate intra-genus ANI/AF values between GTDB genomes
+      intra_genus_ani -> Calculate intra-genus ANI/AF values between GTDB representative genomes
     
     Other:
       rep_compare         -> Compare current and previous representatives
@@ -316,6 +316,7 @@ if __name__ == '__main__':
     u_rep_changes_parser.add_argument('gtdbtk_classify_file', help="file with GTDB-Tk classifications for new and updated genomes")
     u_rep_changes_parser.add_argument('ncbi_genbank_assembly_file', help="NCBI GenBank assembly file indicating potentially erroneous genomes")
     u_rep_changes_parser.add_argument('untrustworthy_type_file', help="file listing genomes that should be considered untrustworthy as type material (u_resolve_types_parser: untrustworthy_type_material.tsv)")
+    u_rep_changes_parser.add_argument('disband_cluster_ledger', help="file listing GTDB cluster declared to be erroneous that should be disbanded")
     u_rep_changes_parser.add_argument('gtdb_type_strains_ledger', help="file listing genomes to consider as being the type strain for valid or effectively published species name")
     u_rep_changes_parser.add_argument('output_dir', help="output directory")
     u_rep_changes_parser.add_argument('--silent', help="suppress output", action='store_true')
@@ -337,6 +338,8 @@ if __name__ == '__main__':
     u_rep_actions_parser.add_argument('untrustworthy_type_file', help="file listing genomes that should be considered untrustworthy as type material (u_resolve_types_parser: untrustworthy_type_material.tsv)")
     u_rep_actions_parser.add_argument('gtdb_type_strains_ledger', help="file listing genomes to consider as being the type strain for valid or effectively published species name")
     u_rep_actions_parser.add_argument('sp_priority_ledger', help="file resolving nomenclatural priority of species names")
+    u_rep_actions_parser.add_argument('genus_priority_ledger', help="file resolving nomenclatural priority of genus names")
+    u_rep_actions_parser.add_argument('dsmz_bacnames_file', help="table from lpsn.dsmz.de with nomenclature information")
     u_rep_actions_parser.add_argument('output_dir', help="output directory")
     u_rep_actions_parser.add_argument('--ani_cache_file', help='file with precomputed ANI and AF values')
     u_rep_actions_parser.add_argument('-c', '--cpus', help='number of cpus', type=int, default=1)
@@ -355,7 +358,10 @@ if __name__ == '__main__':
     u_sel_reps_parser.add_argument('ncbi_genbank_assembly_file', help="NCBI GenBank assembly file indicating potentially erroneous genomes")
     u_sel_reps_parser.add_argument('untrustworthy_type_file', help="file listing genomes that should be considered untrustworthy as type material (u_resolve_types: untrustworthy_type_material.tsv)")
     u_sel_reps_parser.add_argument('gtdb_type_strains_ledger', help="file listing genomes to consider as being the type strain for valid or effectively published species name")
+    u_sel_reps_parser.add_argument('ncbi_untrustworthy_sp_ledger', help="file listing genomes with NCBI species assignments deemed to be untrustworthy")
     u_sel_reps_parser.add_argument('sp_priority_ledger', help="file resolving nomenclatural priority of species names")
+    u_sel_reps_parser.add_argument('genus_priority_ledger', help="file resolving nomenclatural priority of genus names")
+    u_sel_reps_parser.add_argument('dsmz_bacnames_file', help="table from lpsn.dsmz.de with nomenclature information")
     u_sel_reps_parser.add_argument('output_dir', help="output directory")
     u_sel_reps_parser.add_argument('--ani_cache_file', help='file with precomputed ANI and AF values')
     u_sel_reps_parser.add_argument('-c', '--cpus', help='number of cpus', type=int, default=1)
@@ -642,7 +648,7 @@ if __name__ == '__main__':
                                         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
                                         description='Dereplicate GTDB species clusters using ANI/AF criteria.')
     intra_sp_derep_parser.add_argument('gtdb_clusters_file', help="file indicating representatives of each GTDB species cluster (u_cluster_de_novo: gtdb_clusters_de_novo.tsv)")
-    intra_sp_derep_parser.add_argument('gtdb_metadata_file', help="file with GTDB metadata for previous GTDB release (TSV file)")
+    intra_sp_derep_parser.add_argument('gtdb_metadata_file', help="file with metadata for GTDB genomes (TSV file)")
     intra_sp_derep_parser.add_argument('genomic_path_file', help="file indicating  path to previous genomic FASTA files for genomes")
     intra_sp_derep_parser.add_argument('uba_gid_table', help="file indicating translation of UBA genome IDs")
     intra_sp_derep_parser.add_argument('output_dir', help="output directory")
@@ -653,10 +659,18 @@ if __name__ == '__main__':
     intra_sp_derep_parser.add_argument('-c', '--cpus', help='number of cpus', type=int, default=1)
     intra_sp_derep_parser.add_argument('--silent', help="suppress output", action='store_true')
     
-    # calculate intra-genus ANI/AF values between GTDB genomes
+    # calculate intra-genus ANI/AF values between GTDB representative genomes
     intra_genus_ani_parser = subparsers.add_parser('intra_genus_ani',
                                         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
-                                        description='Calculate intra-genus ANI/AF values between GTDB genomes.')
+                                        description='Calculate intra-genus ANI/AF values between GTDB representative genomes.')
+    intra_genus_ani_parser.add_argument('target_genus', help="genus of interest (e.g., g__Enterobacter)")
+    intra_genus_ani_parser.add_argument('gtdb_metadata_file', help="file with metadata for GTDB genomes (TSV file)")
+    intra_genus_ani_parser.add_argument('genomic_path_file', help="file indicating  path to previous genomic FASTA files for genomes")
+    intra_genus_ani_parser.add_argument('uba_gid_table', help="file indicating translation of UBA genome IDs")
+    intra_genus_ani_parser.add_argument('output_dir', help="output directory")
+    intra_genus_ani_parser.add_argument('--ani_cache_file', help='file with precomputed ANI and AF values')
+    intra_genus_ani_parser.add_argument('-c', '--cpus', help='number of cpus', type=int, default=1)
+    intra_genus_ani_parser.add_argument('--silent', help="suppress output", action='store_true')
 
 
     # compare current and previous representatives

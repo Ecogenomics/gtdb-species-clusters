@@ -25,7 +25,7 @@ from collections import defaultdict, namedtuple
 from numpy import (mean as np_mean)
 
 from gtdb_species_clusters.common import read_gtdb_metadata
-
+from gtdb_species_clusters.genome_utils import  canonical_gid
 
 NCBI_TYPE_SPECIES = set(['assembly from type material', 
                         'assembly from neotype material',
@@ -40,6 +40,19 @@ GTDB_NOT_TYPE_MATERIAL = set(['not type material'])
 ClusteredGenome = namedtuple('ClusteredGenome', 'ani af gid')
 GenomeRadius = namedtuple('GenomeRadius', 'ani af neighbour_gid')
 
+
+def parse_disbanded_cluster_ledger(disbanded_cluster_ledger):
+    """Parse file indicating GTDB species clusters to be disbanded."""
+    
+    disbanded = set()
+    with open(disbanded_cluster_ledger) as f:
+        f.readline()
+        for line in f:
+            tokens = line.strip().split('\t')
+            disbanded.add(canonical_gid(tokens[0]))
+            
+    return disbanded
+    
 
 def parse_manual_sp_curation_files(manual_sp_names, pmc_custom_species):
     """Parse files indicating manually curated species names."""

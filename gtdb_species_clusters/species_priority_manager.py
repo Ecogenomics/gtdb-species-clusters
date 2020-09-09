@@ -233,7 +233,7 @@ class SpeciesPriorityManager(object):
             and cur_genomes[gid2].is_gtdb_type_strain()):
             return False
             
-        priority_gid, note = self.priority(cur_genomes, gid1, gid2)
+        priority_gid, note = self.species_priority(cur_genomes, gid1, gid2)
         
         if priority_gid == gid1:
             return True
@@ -243,7 +243,7 @@ class SpeciesPriorityManager(object):
     def _sp_priority_sort(self, gid1, gid2):
         """Sort genomes by priority."""
         
-        priority_gid, note = self.priority(self.cur_genomes, gid1, gid2)
+        priority_gid, note = self.species_priority(self.cur_genomes, gid1, gid2)
         if priority_gid == gid1:
             return -1
             
