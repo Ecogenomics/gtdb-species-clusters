@@ -60,31 +60,32 @@ def parse_manual_sp_curation_files(manual_sp_names, pmc_custom_species):
     # read species names explicitly set via manual curation
     logging.getLogger('timestamp').info('Parsing manually-curated species.')
     mc_species = {}
-    with open(manual_sp_names) as f:
-        f.readline()
-        for line in f:
-            tokens = line.strip().split('\t')
-            mc_species[tokens[0]] = tokens[2]
+    if not (manual_sp_names is None or manual_sp_names.lower() == 'none'):
+        with open(manual_sp_names) as f:
+            f.readline()
+            for line in f:
+                tokens = line.strip().split('\t')
+                mc_species[tokens[0]] = tokens[2]
     logging.getLogger('timestamp').info(' - identified manually-curated species names for {:,} genomes.'.format(
                         len(mc_species)))
                         
     # read post-curation, manually defined species
     logging.getLogger('timestamp').info('Parsing post-curation, manually-curated species.')
     pmc_species = 0
-    with open(pmc_custom_species) as f:
-        f.readline()
-        for line in f:
-            tokens = line.strip().split('\t')
-            gid = tokens[0]
-            species = tokens[1]
-            if gid in mc_species:
-                logging.getLogger('timestamp').warning('Manually-curated genome {} reassigned from {} to {}.'.format(
-                                        gid, mc_species[gid], species))
-            pmc_species += 1
-            mc_species[gid] = species
+    if not (pmc_custom_species is None or pmc_custom_species.lower() == 'none'):
+        with open(pmc_custom_species) as f:
+            f.readline()
+            for line in f:
+                tokens = line.strip().split('\t')
+                gid = tokens[0]
+                species = tokens[1]
+                if gid in mc_species:
+                    logging.getLogger('timestamp').warning('Manually-curated genome {} reassigned from {} to {}.'.format(
+                                            gid, mc_species[gid], species))
+                pmc_species += 1
+                mc_species[gid] = species
     logging.getLogger('timestamp').info(' - identified post-curation, manually-curated species names for {:,} genomes.'.format(
                         pmc_species))
-                        
                         
     return mc_species
 

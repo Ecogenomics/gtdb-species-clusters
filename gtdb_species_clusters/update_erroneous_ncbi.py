@@ -27,15 +27,11 @@ from numpy import (mean as np_mean, std as np_std)
 
 from biolib.taxonomy import Taxonomy
 
-from gtdb_species_clusters.mash import Mash
-from gtdb_species_clusters.fastani import FastANI
-
 from gtdb_species_clusters.genomes import Genomes
 
 from gtdb_species_clusters.species_name_manager import SpeciesNameManager
 from gtdb_species_clusters.species_priority_manager import SpeciesPriorityManager
 from gtdb_species_clusters.specific_epithet_manager import SpecificEpithetManager
-from gtdb_species_clusters.ncbi_species_manager import NCBI_SpeciesManager
 from gtdb_species_clusters.genome_utils import canonical_gid
 from gtdb_species_clusters.type_genome_utils import (read_clusters, symmetric_ani)
 from gtdb_species_clusters.taxon_utils import (generic_name,
@@ -55,18 +51,11 @@ from gtdb_species_clusters.taxon_utils import (generic_name,
 class UpdateErroneousNCBI(object):
     """Identify genomes with erroneous NCBI species assignments."""
 
-    def __init__(self, 
-                    ani_ncbi_erroneous,
-                    ani_cache_file, 
-                    cpus, 
-                    output_dir):
+    def __init__(self, output_dir):
         """Initialization."""
         
         self.output_dir = output_dir
         self.logger = logging.getLogger('timestamp')
-        
-        self.ani_ncbi_erroneous = ani_ncbi_erroneous
-        self.fastani = FastANI(ani_cache_file, cpus)
         
     def identify_misclassified_genomes_cluster(self, cur_genomes, cur_clusters):
         """Identify genomes with erroneous NCBI species assignments, based on GTDB clustering of type strain genomes."""
@@ -176,8 +165,5 @@ class UpdateErroneousNCBI(object):
                             sum([len(gids) + 1 for gids in cur_clusters.values()])))
         
         # identify genomes with erroneous NCBI species assignments
-        self.logger.info('Identifying genomes with erroneous NCBI species assignments as established by ANI type strain genomes.')
-        self.identify_misclassified_genomes_ani(cur_genomes, cur_clusters)
-        
         self.logger.info('Identifying genomes with erroneous NCBI species assignments as established by GTDB cluster of type strain genomes.')
         self.identify_misclassified_genomes_cluster(cur_genomes, cur_clusters)

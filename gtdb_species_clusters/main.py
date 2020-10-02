@@ -47,7 +47,6 @@ from gtdb_species_clusters.update_erroneous_ncbi import UpdateErroneousNCBI
 from gtdb_species_clusters.update_synonyms import UpdateSynonyms
 from gtdb_species_clusters.update_cluster_de_novo import UpdateClusterDeNovo
 from gtdb_species_clusters.update_cluster_stats import UpdateClusterStats
-from gtdb_species_clusters.update_genus_names import UpdateGenusNames
 from gtdb_species_clusters.update_curation_trees import UpdateCurationTrees
 from gtdb_species_clusters.update_species_init import UpdateSpeciesInit
 
@@ -484,10 +483,7 @@ class OptionsParser():
         check_file_exists(args.dsmz_bacnames_file)
         make_sure_path_exists(args.output_dir)
         
-        p = UpdateErroneousNCBI(args.ani_ncbi_erroneous,
-                            args.ani_cache_file, 
-                            args.cpus, 
-                            args.output_dir)
+        p = UpdateErroneousNCBI(args.output_dir)
         p.run(args.gtdb_clusters_file,
                 args.cur_gtdb_metadata_file,
                 args.cur_genomic_path_file,
@@ -543,7 +539,6 @@ class OptionsParser():
         check_file_exists(args.cur_genomic_path_file)
         check_file_exists(args.uba_genome_paths)
         check_file_exists(args.qc_passed_file)
-        check_file_exists(args.gtdbtk_classify_file)
         check_file_exists(args.ncbi_genbank_assembly_file)
         check_file_exists(args.untrustworthy_type_file)
         check_file_exists(args.ani_af_rep_vs_nonrep)
@@ -560,44 +555,10 @@ class OptionsParser():
                 args.cur_genomic_path_file,
                 args.uba_genome_paths,
                 args.qc_passed_file,
-                args.gtdbtk_classify_file,
                 args.ncbi_genbank_assembly_file,
                 args.untrustworthy_type_file,
                 args.ani_af_rep_vs_nonrep,
                 args.gtdb_type_strains_ledger)
-        
-        self.logger.info('Done.')
-        
-    def u_genus_names(self, args):
-        """Update genus names as a precursor for establish binomial species names."""
-        
-        check_file_exists(args.gtdb_clusters_file)
-        check_file_exists(args.prev_gtdb_metadata_file)
-        check_file_exists(args.cur_gtdb_metadata_file)
-        check_file_exists(args.uba_genome_paths)
-        check_file_exists(args.qc_passed_file)
-        check_file_exists(args.gtdbtk_classify_file)
-        check_file_exists(args.ncbi_genbank_assembly_file)
-        check_file_exists(args.untrustworthy_type_file)
-        check_file_exists(args.gtdb_type_strains_ledger)
-        check_file_exists(args.sp_priority_ledger)
-        check_file_exists(args.gtdb_taxa_updates_ledger)
-        check_file_exists(args.dsmz_bacnames_file)
-        make_sure_path_exists(args.output_dir)
-
-        p = UpdateGenusNames(args.output_dir)
-        p.run(args.gtdb_clusters_file,
-                args.prev_gtdb_metadata_file,
-                args.cur_gtdb_metadata_file,
-                args.uba_genome_paths,
-                args.qc_passed_file,
-                args.gtdbtk_classify_file,
-                args.ncbi_genbank_assembly_file,
-                args.untrustworthy_type_file,
-                args.gtdb_type_strains_ledger,
-                args.sp_priority_ledger,
-                args.gtdb_taxa_updates_ledger,
-                args.dsmz_bacnames_file)
         
         self.logger.info('Done.')
         
@@ -750,6 +711,53 @@ class OptionsParser():
         
         self.logger.info('Done.')
         
+    def u_pmc_species_names(self, args):
+        """Refine species names using post-manual curation rules."""
+        
+        check_file_exists(args.taxonomy_init)
+        #check_file_exists(args.manual_sp_file)
+        check_file_exists(args.gtdb_clusters_file)
+        check_file_exists(args.prev_gtdb_metadata_file)
+        check_file_exists(args.cur_gtdb_metadata_file)
+        check_file_exists(args.uba_genome_paths)
+        check_file_exists(args.qc_passed_file)
+        check_file_exists(args.ncbi_misclassified_file)
+        check_file_exists(args.ncbi_genbank_assembly_file)
+        check_file_exists(args.untrustworthy_type_file)
+        check_file_exists(args.synonym_file)
+        check_file_exists(args.updated_species_reps)
+        check_file_exists(args.gtdb_type_strains_ledger)
+        check_file_exists(args.species_classification_ledger)
+        check_file_exists(args.sp_priority_ledger)
+        check_file_exists(args.genus_priority_ledger)
+        check_file_exists(args.specific_epithet_ledger)
+        check_file_exists(args.dsmz_bacnames_file)
+        make_sure_path_exists(args.output_dir)
+
+        p = PMC_SpeciesNames(args.output_dir)
+        p.run(None,
+                args.taxonomy_init,
+                None,
+                args.manual_sp_file,
+                args.gtdb_clusters_file,
+                args.prev_gtdb_metadata_file,
+                args.cur_gtdb_metadata_file,
+                args.uba_genome_paths,
+                args.qc_passed_file,
+                args.ncbi_misclassified_file,
+                args.ncbi_genbank_assembly_file,
+                args.untrustworthy_type_file,
+                args.synonym_file,
+                args.updated_species_reps,
+                args.gtdb_type_strains_ledger,
+                args.species_classification_ledger,
+                args.sp_priority_ledger,
+                args.genus_priority_ledger,
+                args.specific_epithet_ledger,
+                args.dsmz_bacnames_file)
+        
+        self.logger.info('Done.')
+    
     def pmc_species_names(self, args):
         """Establish final species names based on manual curation."""
         
@@ -1089,12 +1097,12 @@ class OptionsParser():
             self.u_cluster_de_novo(args)
         elif args.subparser_name == 'u_cluster_stats':
             self.u_cluster_stats(args)
-        elif args.subparser_name == 'u_genus_names':
-            self.u_genus_names(args)
         elif args.subparser_name == 'u_curation_trees':
             self.u_curation_trees(args)
         elif args.subparser_name == 'u_species_init':
             self.u_species_init(args)
+        elif args.subparser_name == 'u_pmc_species_names':
+            self.u_pmc_species_names(args)
         elif args.subparser_name == 'pmc_manual_species':
             self.pmc_manual_species(args)
         elif args.subparser_name == 'pmc_replace_generic':

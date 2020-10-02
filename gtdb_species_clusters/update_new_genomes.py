@@ -86,7 +86,7 @@ class NewGenomes(object):
                 gtdb_rep[canonical_gid(gid)] = line_split[gtdb_rep_index]
                 ncbi_genome_category[canonical_gid(gid)] = line_split[ncbi_genome_cat_index]
                 
-        self.logger.info(f' ... identified {len(prev_accns):,} genomes.')
+        self.logger.info(f' - identified {len(prev_accns):,} genomes.')
                             
         # get genomes in current release
         self.logger.info('Reading current GTDB genomes.')
@@ -101,7 +101,7 @@ class NewGenomes(object):
                         continue
                         
                     cur_accns[canonical_gid(gid)] = gid
-        self.logger.info(f' ... identified {len(cur_accns):,} genomes.')
+        self.logger.info(f' - identified {len(cur_accns):,} genomes.')
         
         # get equivalent GenBank and RefSeq genome assemblies
         self.logger.info('Determining identical GenBank and RefSeq accessions.')
@@ -142,8 +142,8 @@ class NewGenomes(object):
             
         lost_gids = set(prev_accns) - set(cur_accns)
         num_lost_gtdb_reps = sum([1 for gid in lost_gids if gtdb_rep[gid] == 't'])
-        self.logger.info(f' ... identified {len(new_gids):,} new, {len(updated_gids):,} updated, and {len(lost_gids):,} lost genomes.')
-        self.logger.info(f' ... {num_lost_gtdb_reps:,} lost genomes were GTDB representatives.')
+        self.logger.info(f' - identified {len(new_gids):,} new, {len(updated_gids):,} updated, and {len(lost_gids):,} lost genomes.')
+        self.logger.info(f' - {num_lost_gtdb_reps:,} lost genomes were GTDB representatives.')
 
         # get path to current GTDB genome directories
         self.logger.info('Identifying path to genomic files for current GTDB genomes.')
@@ -169,8 +169,8 @@ class NewGenomes(object):
                 #***if not os.path.exists(genomic_file):
                 #***    self.logger.warning('Genomic file not found: {}'.format(genomic_file))
                 
-        self.logger.info(f' ... identified genomic file for {len(cur_genome_files):,} genomes.')
-        self.logger.info(f' ... skipped {skipped_genomes:,} genomes without GTDB metadata.')
+        self.logger.info(f' - identified genomic file for {len(cur_genome_files):,} genomes.')
+        self.logger.info(f' - skipped {skipped_genomes:,} genomes without GTDB metadata.')
         
         # write out new or modified genome IDs
         self.logger.info('Writing out and verifying path to new and updated genomic FASTA files.')

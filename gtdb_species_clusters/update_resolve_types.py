@@ -377,7 +377,7 @@ class ResolveTypes(object):
         # get species in LTP reference database
         self.logger.info('Determining species defined in LTP reference database.')
         ltp_defined_species = self.ltp_defined_species(ltp_taxonomy_file)
-        self.logger.info(f' ... identified {len(ltp_defined_species):,} species.')
+        self.logger.info(f' - identified {len(ltp_defined_species):,} species.')
         
         # create current GTDB genome sets
         self.logger.info('Creating current GTDB genome set.')
@@ -390,7 +390,7 @@ class ResolveTypes(object):
                                                 ncbi_genbank_assembly_file=ncbi_genbank_assembly_file,
                                                 untrustworthy_type_ledger=untrustworthy_type_ledger)
         cur_genomes.load_genomic_file_paths(cur_genomic_path_file)
-        self.logger.info(f' ... current genome set contains {len(cur_genomes):,} genomes.')
+        self.logger.info(f' - current genome set contains {len(cur_genomes):,} genomes.')
 
         # parsing genomes manually established to be untrustworthy as type
         self.logger.info('Determining genomes manually annotated as untrustworthy as type.')
@@ -406,7 +406,7 @@ class ResolveTypes(object):
                 
                 gid = canonical_gid(tokens[0])
                 manual_untrustworthy_types[gid] = (tokens[ncbi_sp_index], tokens[reason_index])
-        self.logger.info(f' ... identified {len(manual_untrustworthy_types):,} genomes manually annotated as untrustworthy as type.')
+        self.logger.info(f' - identified {len(manual_untrustworthy_types):,} genomes manually annotated as untrustworthy as type.')
 
         # identify NCBI species with multiple genomes assembled from type strain of species
         self.logger.info('Determining number of type strain genomes in each NCBI species.')
@@ -420,7 +420,7 @@ class ResolveTypes(object):
                     sp_type_strain_genomes[ncbi_sp].add(gid)
 
         multi_type_strains_sp = [ncbi_sp for ncbi_sp, gids in sp_type_strain_genomes.items() if len(gids) > 1]
-        self.logger.info(f' ... identified {len(multi_type_strains_sp):,} NCBI species with multiple assemblies indicated as being type strain genomes.')
+        self.logger.info(f' - identified {len(multi_type_strains_sp):,} NCBI species with multiple assemblies indicated as being type strain genomes.')
 
         # sort by number of genome assemblies
         self.logger.info('Calculating ANI between type strain genomes in each species.')
@@ -712,13 +712,13 @@ class ResolveTypes(object):
         fout_untrustworthy.close()
         
         self.logger.info(f'Identified {num_divergent:,} species with 1 or more divergent type strain genomes.')
-        self.logger.info(f' ... resolved {ncbi_ltp_resolved:,} species by removing NCBI `untrustworthy as type` genomes with a conflicting LTP 16S rRNA classifications.')
-        self.logger.info(f' ... resolved {ltp_resolved:,} species by considering conflicting LTP 16S rRNA classifications.')
-        self.logger.info(f' ... resolved {intra_ani_resolved:,} species by considering intra-specific ANI values.')
-        self.logger.info(f' ... resolved {gtdb_family_resolved:,} species by considering conflicting GTDB family classifications.')
-        self.logger.info(f' ... resolved {gtdb_genus_resolved:,} species by considering conflicting GTDB genus classifications.')
-        self.logger.info(f' ... resolved {gtdb_sp_resolved:,} species by considering conflicting GTDB species classifications.')
-        self.logger.info(f' ... resolved {ncbi_type_resolved:,} species by considering type material designations at NCBI.')
+        self.logger.info(f' - resolved {ncbi_ltp_resolved:,} species by removing NCBI `untrustworthy as type` genomes with a conflicting LTP 16S rRNA classifications.')
+        self.logger.info(f' - resolved {ltp_resolved:,} species by considering conflicting LTP 16S rRNA classifications.')
+        self.logger.info(f' - resolved {intra_ani_resolved:,} species by considering intra-specific ANI values.')
+        self.logger.info(f' - resolved {gtdb_family_resolved:,} species by considering conflicting GTDB family classifications.')
+        self.logger.info(f' - resolved {gtdb_genus_resolved:,} species by considering conflicting GTDB genus classifications.')
+        self.logger.info(f' - resolved {gtdb_sp_resolved:,} species by considering conflicting GTDB species classifications.')
+        self.logger.info(f' - resolved {ncbi_type_resolved:,} species by considering type material designations at NCBI.')
 
         if unresolved_sp_count > 0:
             self.logger.warning(f'There are {unresolved_sp_count:,} unresolved species with multiple type strain genomes.')

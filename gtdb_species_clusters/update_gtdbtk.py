@@ -48,7 +48,7 @@ class GTDB_Tk(object):
         # get list of genomes passing QC
         self.logger.info('Reading genomes passing QC.')
         gids_pass_qc = read_qc_file(qc_passed_file)
-        self.logger.info(f' ... identified {len(gids_pass_qc):,} genomes.')
+        self.logger.info(f' - identified {len(gids_pass_qc):,} genomes.')
         
         # get path to genomes passing QC
         self.logger.info('Reading path to genomic file for new/updated genomes passing QC.')
@@ -67,7 +67,7 @@ class GTDB_Tk(object):
                 if gid in gids_pass_qc:
                     gf = line_split[genomic_file_index]
                     genomic_files.append((gid, gf))
-        self.logger.info(f' ... identified {len(genomic_files):,} of {total_count:,} genomes as passing QC.')
+        self.logger.info(f' - identified {len(genomic_files):,} of {total_count:,} genomes as passing QC.')
         
         # process genomes with GTDB-Tk in batches
         for batch_idx, start in enumerate(range(0, len(genomic_files), batch_size)):

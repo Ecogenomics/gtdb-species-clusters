@@ -17,7 +17,7 @@
 
 ### Cases to improve or verify:
 # G002915575: given the name s__RIT-PI-d sp002915575, but should be s__Superficieibacter electus
-# G003123745: given the names__F0332 sp003123745, but should be s__Ancrocorticia populi
+# G003123745: given the name s__F0332 sp003123745, but should be s__Ancrocorticia populi
 
 ### Required changes:
 # - all initially proposed names need to be unique so they will be decorated on the curation tree. If a name isn't unique and the species 
@@ -281,8 +281,8 @@ class UpdateSpeciesInit(object):
             cluster_sp_names[rid] = proposed_gtdb_sp
             used_sp_names[proposed_gtdb_sp] = rid
        
-        self.logger.info(f' ... updated name of {num_updates:,} GTDB clusters.')
-        self.logger.warning(f' ... GTDB genus did not reflect type species of genus for {num_conflicting_type_sp:,} species clusters.')
+        self.logger.info(f' - updated name of {num_updates:,} GTDB clusters.')
+        self.logger.warning(f' - GTDB genus did not reflect type species of genus for {num_conflicting_type_sp:,} species clusters.')
 
     def name_type_strain_clusters(self,
                                     rids_by_naming_priority,
@@ -395,10 +395,10 @@ class UpdateSpeciesInit(object):
             cluster_sp_names[rid] = proposed_gtdb_sp
             used_sp_names[proposed_gtdb_sp] = rid
             
-        self.logger.info(f' ... updated name of {num_updates:,} GTDB clusters.')
-        self.logger.warning(f' ... GTDB generic name does not reflect type strain of species and NCBI genus assignment changed this release for {num_conflicting_generic:,} species clusters.')
-        self.logger.warning(f' ... GTDB specific name does not reflect type strain of species for {num_conflicting_specific:,} species clusters.')
-        self.logger.warning(f' ... same name assigned to {dup_name_count:,} species clusters.')
+        self.logger.info(f' - updated name of {num_updates:,} GTDB clusters.')
+        self.logger.warning(f' - GTDB generic name does not reflect type strain of species and NCBI genus assignment changed this release for {num_conflicting_generic:,} species clusters.')
+        self.logger.warning(f' - GTDB specific name does not reflect type strain of species for {num_conflicting_specific:,} species clusters.')
+        self.logger.warning(f' - same name assigned to {dup_name_count:,} species clusters.')
         
     def name_binomial_clusters(self,
                                 rids_by_naming_priority,
@@ -429,10 +429,7 @@ class UpdateSpeciesInit(object):
                 
             if ncbi_sp in synonyms:
                 ncbi_sp = synonyms[ncbi_sp]
-                
-            if rid == 'G000974745':
-                print('***', rid, cur_genomes[rid].gtdb_taxa.species, ncbi_sp, ncbi_sp in synonyms)
-                
+
             # update GTDB generic name only if unassigned, and
             # GTDB specific name only if no other species has 
             # this assignment in the genus
@@ -501,8 +498,8 @@ class UpdateSpeciesInit(object):
             cluster_sp_names[rid] = proposed_gtdb_sp
             used_sp_names[proposed_gtdb_sp] = rid
             
-        self.logger.info(f' ... updated name of {num_updates:,} GTDB clusters.')
-        self.logger.warning(f' ... same name assigned to {dup_name_count:,} species clusters.')
+        self.logger.info(f' - updated name of {num_updates:,} GTDB clusters.')
+        self.logger.warning(f' - same name assigned to {dup_name_count:,} species clusters.')
         
     def name_placeholder_clusters(self,
                                     rids_by_naming_priority,
@@ -560,8 +557,8 @@ class UpdateSpeciesInit(object):
             cluster_sp_names[rid] = proposed_gtdb_sp
             used_sp_names[proposed_gtdb_sp] = rid
             
-        self.logger.info(f' ... updated name of {num_updates:,} GTDB clusters.')
-        self.logger.warning(f' ... same name assigned to {dup_name_count:,} species clusters.')
+        self.logger.info(f' - updated name of {num_updates:,} GTDB clusters.')
+        self.logger.warning(f' - same name assigned to {dup_name_count:,} species clusters.')
 
     def  _sort_by_naming_priority(self, 
                                     clusters,
@@ -638,7 +635,7 @@ class UpdateSpeciesInit(object):
                     # that do not actually have a binomial species name
                     ncbi_sp_type_strain_genomes[ncbi_sp].add(gid)
                     
-        self.logger.info(' ... identified effective type strain genomes for {:,} NCBI species.'.format(
+        self.logger.info(' - identified effective type strain genomes for {:,} NCBI species.'.format(
                             len(ncbi_sp_type_strain_genomes)))
 
         # verify that type genomes for a species are contained in a 
@@ -680,7 +677,7 @@ class UpdateSpeciesInit(object):
                                         synonyms)
 
         num_type_species = len(cluster_sp_names)
-        self.logger.info(f' ... assigned {num_type_species:,} name from type species.')
+        self.logger.info(f' - assigned {num_type_species:,} name from type species.')
 
         # determine names for species clusters represented by a validly
         # or effectively published species name with a designated type strain
@@ -695,7 +692,7 @@ class UpdateSpeciesInit(object):
                                         synonyms)
         num_type_strains = len(cluster_sp_names) - num_type_species
         total_sp_names = len(cluster_sp_names)
-        self.logger.info(f' ... assigned {num_type_strains:,} names from type strains and {total_sp_names:,} total names.')
+        self.logger.info(f' - assigned {num_type_strains:,} names from type strains and {total_sp_names:,} total names.')
 
         # determine name for species clusters where a NCBI-define 
         # binomial latin name exists, but there is no designated type strain
@@ -710,7 +707,7 @@ class UpdateSpeciesInit(object):
                                     synonyms)
         num_assigned = len(cluster_sp_names) - total_sp_names
         total_sp_names = len(cluster_sp_names)
-        self.logger.info(f' ... assigned {num_assigned:,} additional names and {total_sp_names:,} total names.')
+        self.logger.info(f' - assigned {num_assigned:,} additional names and {total_sp_names:,} total names.')
             
         # determine names for remaining clusters which should all have a
         # placeholder name 
@@ -724,7 +721,7 @@ class UpdateSpeciesInit(object):
                                         synonyms)
         num_assigned = len(cluster_sp_names) - total_sp_names
         total_sp_names = len(cluster_sp_names)
-        self.logger.info(f' ... assigned {num_assigned:,} additional names and {total_sp_names:,} total names.')
+        self.logger.info(f' - assigned {num_assigned:,} additional names and {total_sp_names:,} total names.')
     
         self.sp_curation_log.close()
         
@@ -856,7 +853,7 @@ class UpdateSpeciesInit(object):
                                                 uba_genome_file=uba_genome_paths,
                                                 ncbi_genbank_assembly_file=ncbi_genbank_assembly_file,
                                                 untrustworthy_type_ledger=untrustworthy_type_file)
-        self.logger.info(' ... previous genome set has {:,} species clusters spanning {:,} genomes.'.format(
+        self.logger.info(' - previous genome set has {:,} species clusters spanning {:,} genomes.'.format(
                             len(prev_genomes.sp_clusters),
                             prev_genomes.sp_clusters.total_num_genomes()))
 
@@ -869,14 +866,14 @@ class UpdateSpeciesInit(object):
                                                 qc_passed_file=qc_passed_file,
                                                 ncbi_genbank_assembly_file=ncbi_genbank_assembly_file,
                                                 untrustworthy_type_ledger=untrustworthy_type_file)
-        self.logger.info(f' ... current genome set contains {len(cur_genomes):,} genomes.')
+        self.logger.info(f' - current genome set contains {len(cur_genomes):,} genomes.')
         
         cur_genomes.set_prev_gtdb_classifications(prev_genomes)
         
         # update current genomes with GTDB-Tk classifications
         self.logger.info('Updating current genomes with GTDB-Tk classifications.')
         num_updated, num_ncbi_sp = cur_genomes.set_gtdbtk_classification(gtdbtk_classify_file, prev_genomes)
-        self.logger.info(f' ... set GTDB taxa for {num_updated:,} genomes with {num_ncbi_sp:,} genomes using NCBI genus and species name.')
+        self.logger.info(f' - set GTDB taxa for {num_updated:,} genomes with {num_ncbi_sp:,} genomes using NCBI genus and species name.')
         
         # get path to previous and current genomic FASTA files
         self.logger.info('Reading path to previous and current genomic FASTA files.')
@@ -888,7 +885,7 @@ class UpdateSpeciesInit(object):
         # read named GTDB species clusters
         self.logger.info('Reading GTDB species clusters.')
         cur_clusters, rep_radius = read_clusters(gtdb_clusters_file)
-        self.logger.info(' ... identified {:,} clusters spanning {:,} genomes.'.format(
+        self.logger.info(' - identified {:,} clusters spanning {:,} genomes.'.format(
                             len(cur_clusters),
                             sum([len(gids) + 1 for gids in cur_clusters.values()])))
                             
@@ -903,26 +900,29 @@ class UpdateSpeciesInit(object):
                     fout.write('{}\n'.format(cur_genomes[rid].ncbi_accn))
                     genome_count += 1
                         
-            self.logger.info(f' ... identified {genome_count:,} {domain} reference genomes.')
+            self.logger.info(f' - identified {genome_count:,} {domain} reference genomes.')
             fout.close()
             
         # read ledger with explicit names for type strain genomes
         self.logger.info('Parsing GTDB type strain ledger.')
         gtdb_type_strain_ledger = self.parse_gtdb_type_strain_ledger(gtdb_type_strains_ledger, cur_genomes)
-        self.logger.info(' ... identified {:,} genomes in ledger.'.format(len(gtdb_type_strain_ledger)))
+        self.logger.info(' - identified {:,} genomes in ledger.'.format(len(gtdb_type_strain_ledger)))
 
         # get list of synonyms in order to restrict usage of species names
         self.logger.info('Reading GTDB synonyms.')
-        ncbi_species_mngr = NCBI_SpeciesManager(cur_genomes, cur_clusters, self.output_dir)
+        ncbi_species_mngr = NCBI_SpeciesManager(cur_genomes, 
+                                                cur_clusters, 
+                                                {},
+                                                self.output_dir)
         synonyms = ncbi_species_mngr.parse_synonyms_table(synonym_file)
-        self.logger.info(' ... identified {:,} synonyms from {:,} distinct species.'.format(
+        self.logger.info(' - identified {:,} synonyms from {:,} distinct species.'.format(
                             len(synonyms),
                             len(set(synonyms.values()))))
 
        # get explicit updates to previous GTDB taxa
         self.logger.info('Reading explicit taxa updates.')
         explicit_taxon_updates = self._parse_explicit_taxa_updates(gtdb_taxa_updates_ledger)
-        self.logger.info(f' ... identified {len(explicit_taxon_updates):,} updates.')
+        self.logger.info(f' - identified {len(explicit_taxon_updates):,} updates.')
         
         self.logger.info('Updating current genomes to reflect explicit taxa updates.')
         update_count = 0
@@ -940,7 +940,7 @@ class UpdateSpeciesInit(object):
                         new_sp = cur_genomes[gid].gtdb_taxa.species.replace(cur_taxon[3:], new_taxon[3:])
                         cur_genomes[gid].gtdb_taxa.set_taxa(rank_index+1, new_sp)
                 
-        self.logger.info(f' ... updated {update_count:,} genomes.')
+        self.logger.info(f' - updated {update_count:,} genomes.')
 
         # create species name manager
         self.logger.info('Initializing species name manager.')

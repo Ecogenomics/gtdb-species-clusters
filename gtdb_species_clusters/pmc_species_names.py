@@ -67,7 +67,7 @@ class PMC_SpeciesNames(object):
 
     def key_taxon(self, gid, taxonomy):
         """Get key taxon for determine species assignments."""
-        
+
         genus = taxonomy[gid][Taxonomy.GENUS_INDEX]
         species = taxonomy[gid][Taxonomy.SPECIES_INDEX]
         generic = generic_name(species)
@@ -138,7 +138,7 @@ class PMC_SpeciesNames(object):
 
         gtdb_genus, gtdb_species, gtdb_generic, gtdb_specific = self.key_taxon(rid, 
                                                                                 final_taxonomy)
-                                                                                
+
         ncbi_sp = cur_genomes[rid].ncbi_taxa.species
         ncbi_specific = specific_epithet(ncbi_sp)
         
@@ -149,7 +149,11 @@ class PMC_SpeciesNames(object):
 
         note = ''
         final_sp = gtdb_species
-        if not test_same_epithet(canonical_taxon(gtdb_specific), ncbi_specific):
+        if ncbi_sp == 's__':
+            # Genome lacks species assignment at NCBI so it being a type strain must
+            # have been manually asserted
+            pass
+        elif not test_same_epithet(canonical_taxon(gtdb_specific), ncbi_specific):
             # specific epithets disagree which should never occur for type strains,
             # so changing this to the NCBI proposed specific epithet
             case_count['INCONGRUENT_TYPE_STRAIN'] += 1
@@ -251,7 +255,7 @@ class PMC_SpeciesNames(object):
                 else:
                     self.logger.error('Manual curation require to resolve name of genome {} as proposed name {} was assigned previously.'.format(
                                         rid, final_species))
-                    sys.exit(-1)
+                    
         elif rid in unambiguous_subsp_rids:
             # subspecies name can be promoted to the specific epithet of the assigned GTDB species name
             note = 'Subspecies promoted to specific epithet'
@@ -288,6 +292,10 @@ class PMC_SpeciesNames(object):
                     note = 'Generated Latin-suffix name from NCBI species assignment'
                     suffixed_specific_name = self.sp_name_mngr.suffixed_placeholder_sp_epithet(gtdb_generic, ncbi_specific)
                     final_species = 's__{} {}'.format(gtdb_generic, suffixed_specific_name)
+                    
+                    if rid == 'G002096675': #***
+                        print('####', rid, suffixed_specific_name, final_species)
+
                 else:
                     # representative lacks a NCBI species assignment so create a numeric name
                     note = 'Generated alphanumeric name as representative lacks an NCBI species assignment or NCBI family considered misclassified'
@@ -491,8 +499,7 @@ class PMC_SpeciesNames(object):
                                         prev_genomes, 
                                         cur_genomes, 
                                         mc_species)
-        (manual_curation_rids, type_species_rids, type_strains_rids, binomial_rids, placeholder_rids) = rtn
-        sorted_rids = manual_curation_rids + type_species_rids + type_strains_rids + binomial_rids + placeholder_rids
+        manual_curation_rids, type_species_rids, type_strains_rids, binomial_rids, placeholder_rids = rtn
 
         # establish final name for each GTDB species cluster
         case_count = defaultdict(int)
@@ -524,7 +531,7 @@ class PMC_SpeciesNames(object):
                                         note,
                                         final_taxonomy, 
                                         cur_gtdb_sp)
-                                        
+
         for rid in type_strains_rids:
             case = 'TYPE_STRAIN_OF_SPECIES'
             final_sp, note = self.set_type_strain(rid,
@@ -539,7 +546,7 @@ class PMC_SpeciesNames(object):
                                         note,
                                         final_taxonomy, 
                                         cur_gtdb_sp)
-                                        
+
         # resolve type strain genomes with the same name
         resolved_type_strain_gids = self.resolve_duplicate_type_strain_species(final_taxonomy, 
                                                                                 cur_genomes)
@@ -584,6 +591,8 @@ class PMC_SpeciesNames(object):
                                         cur_gtdb_sp)
                                         
         self.final_name_log.close()
+        
+        print('####', 'A: final_taxonomy', final_taxonomy['G002096675'])
 
         for case, count in case_count.items():
             print('{}\t{}'.format(case, count))
@@ -602,6 +611,8 @@ class PMC_SpeciesNames(object):
                                                     species_classification_ledger,
                                                     manual_curation_rids)
 
+        print('####', 'B: final_taxonomy', final_taxonomy['G002096675'])
+        
         return final_taxonomy
 
     def parse_gtdb_type_strain_ledger(self, gtdb_type_strains_ledger, cur_genomes):
@@ -752,6 +763,51 @@ class PMC_SpeciesNames(object):
                             
         fout.close()
         
+    def update_curation_tree(self, curation_tree, final_taxonomy):
+        """Update curation tree wtih finalized species names."""
+        
+        self.logger.info('Reading curation tree.')
+        curation_tree = dendropy.Tree.get_from_path(curation_tree, 
+                                                    schema='newick', 
+                                                    rooting='force-rooted', 
+                                                    preserve_underscores=True)
+                                                    
+        # strip species labels
+        for node in curation_tree.postorder_node_iter():
+            support, taxon_label, aux_info = parse_label(node.label)
+            if taxon_label:
+                none_sp_taxa = [t.strip() for t in taxon_label.split(';') if not t.strip().startswith('s__')]
+                node.label = create_label(support, '; '.join(none_sp_taxa), aux_info)
+                                                    
+        # put new species labels in tree
+        processed_rids = set()
+        for leaf in curation_tree.leaf_node_iter():
+            rid = leaf.taxon.label
+            if not rid.startswith('D-'):
+                sp_curation_node = leaf.parent_node
+                support, taxon_label, aux_info = parse_label(sp_curation_node.label)
+
+                taxa = []
+                if taxon_label:
+                    if 's__' in taxon_label:
+                        print(rid, taxon_label)
+                    taxa = [t.strip() for t in taxon_label.split(';')]
+
+                node_taxa =  taxa + [final_taxonomy[rid][Taxonomy.SPECIES_INDEX]]
+                sp_curation_node.label = create_label(support, '; '.join(node_taxa), aux_info)
+                processed_rids.add(rid)
+                
+        assert processed_rids == set(final_taxonomy)
+
+        # write new tree to file
+        output_tree = os.path.join(self.output_dir, 'curation_tree.final_species.tree')
+        curation_tree.write_to_path(output_tree, 
+                                    schema='newick', 
+                                    suppress_rooting=True,
+                                    suppress_leaf_node_labels=False,
+                                    unquoted_underscores=True)
+        self.logger.info('Updated curation tree written to: {}'.format(output_tree))
+        
     def run(self,
                 curation_tree,
                 manual_taxonomy,
@@ -782,8 +838,8 @@ class PMC_SpeciesNames(object):
                             len(mc_taxonomy)))
                             
         # read species names explicitly set via manual curation
-        self.logger.info('Parsing manually-curated species.')
-        mc_species = parse_manual_sp_curation_files(manual_sp_names, pmc_custom_species)
+        mc_species = parse_manual_sp_curation_files(manual_sp_names, 
+                                                    pmc_custom_species)
 
         # create previous and current GTDB genome sets
         self.logger.info('Creating previous GTDB genome set.')
@@ -896,16 +952,16 @@ class PMC_SpeciesNames(object):
 
         # establish appropriate species names for GTDB clusters with new representatives
         final_taxonomy = self.finalize_species_names(mc_taxonomy, 
-                                                    mc_species,
-                                                    cur_clusters,
-                                                    new_to_prev_rid,
-                                                    prev_genomes, 
-                                                    cur_genomes,
-                                                    ncbi_misclassified_gids,
-                                                    unambiguous_ncbi_sp, 
-                                                    unambiguous_ncbi_subsp,
-                                                    ncbi_synonyms,
-                                                    species_classification_ledger)
+                                                        mc_species,
+                                                        cur_clusters,
+                                                        new_to_prev_rid,
+                                                        prev_genomes, 
+                                                        cur_genomes,
+                                                        ncbi_misclassified_gids,
+                                                        unambiguous_ncbi_sp, 
+                                                        unambiguous_ncbi_subsp,
+                                                        ncbi_synonyms,
+                                                        species_classification_ledger)
                                         
         # write out final taxonomy
         final_taxonomy_file = os.path.join(self.output_dir, 'final_taxonomy.tsv')
@@ -951,48 +1007,9 @@ class PMC_SpeciesNames(object):
         fout.close()
         
         # re-decorate curation tree
-        self.logger.info('Reading curation tree.')
-        curation_tree = dendropy.Tree.get_from_path(curation_tree, 
-                                                    schema='newick', 
-                                                    rooting='force-rooted', 
-                                                    preserve_underscores=True)
-                                                    
-        # strip species labels
-        for node in curation_tree.postorder_node_iter():
-            support, taxon_label, aux_info = parse_label(node.label)
-            if taxon_label:
-                none_sp_taxa = [t.strip() for t in taxon_label.split(';') if not t.strip().startswith('s__')]
-                node.label = create_label(support, '; '.join(none_sp_taxa), aux_info)
-                                                    
-        # put new species labels in tree
-        processed_rids = set()
-        for leaf in curation_tree.leaf_node_iter():
-            rid = leaf.taxon.label
-            if not rid.startswith('D-'):
-                sp_curation_node = leaf.parent_node
-                support, taxon_label, aux_info = parse_label(sp_curation_node.label)
+        if curation_tree is not None:
+            self.update_curation_tree(curation_tree, final_taxonomy)
 
-                taxa = []
-                if taxon_label:
-                    if 's__' in taxon_label:
-                        print(rid, taxon_label)
-                    taxa = [t.strip() for t in taxon_label.split(';')]
-
-                node_taxa =  taxa + [final_taxonomy[rid][Taxonomy.SPECIES_INDEX]]
-                sp_curation_node.label = create_label(support, '; '.join(node_taxa), aux_info)
-                processed_rids.add(rid)
-                
-        assert processed_rids == set(final_taxonomy)
-
-        # write new tree to file
-        output_tree = os.path.join(self.output_dir, 'curation_tree.final_species.tree')
-        curation_tree.write_to_path(output_tree, 
-                                    schema='newick', 
-                                    suppress_rooting=True,
-                                    suppress_leaf_node_labels=False,
-                                    unquoted_underscores=True)
-        self.logger.info('Updated curation tree written to: {}'.format(output_tree))
-        
         # write synonym table with GTDB species names
         out_file = os.path.join(self.output_dir, 'gtdb_synonyms_final.tsv')
         self.write_gtdb_synonym_table(cur_genomes, final_taxonomy, ncbi_synonym_file, out_file)

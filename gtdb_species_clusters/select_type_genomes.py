@@ -1315,7 +1315,7 @@ class SelectTypeGenomes(object):
                             print(f'[WARNING] NCBI and GTDB domains disagree in domain report: {gid}')
                             
                             if ncbi_domain != domain and domain != 'None':
-                                print(f' ... NCBI domain {ncbi_domain} also disagrees with predicted domain {domain}.')
+                                print(f' - NCBI domain {ncbi_domain} also disagrees with predicted domain {domain}.')
                             
                     if marker_perc[gid] > 25 and abs(bac_perc - ar_perc) > 5:
                         if domain != gtdb_domain and domain != 'None':

@@ -76,7 +76,7 @@ class PMC_CheckTypeStrains(object):
                                                 qc_passed_file=qc_passed_file,
                                                 ncbi_genbank_assembly_file=ncbi_genbank_assembly_file,
                                                 untrustworthy_type_ledger=untrustworthy_type_file)
-        self.logger.info(f' ... current genome set contains {len(cur_genomes):,} genomes.')
+        self.logger.info(f' - current genome set contains {len(cur_genomes):,} genomes.')
         
         # get all GTDB species represented by a type strain:
         gtdb_type_species = set()

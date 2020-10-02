@@ -49,7 +49,7 @@ class UpdateCurationTrees(object):
             for gid in prev_genomes:
                 ncbi_taxa = prev_genomes[gid].ncbi_taxa.get_taxa(rank_index)
                 prev_ncbi_taxa.add(ncbi_taxa)
-            self.logger.info(' ... identified {:,} NCBI taxa in previous GTDB release.'.format(
+            self.logger.info(' - identified {:,} NCBI taxa in previous GTDB release.'.format(
                                 len(prev_ncbi_taxa)))
             
             # get NCBI taxa in current GTDB release
@@ -60,12 +60,12 @@ class UpdateCurationTrees(object):
                 cur_ncbi_taxa.add(ncbi_taxa)
                 
                 taxon_domain[ncbi_taxa] = cur_genomes[rid].ncbi_taxa.domain
-            self.logger.info(' ... identified {:,} NCBI taxa in current GTDB release.'.format(
+            self.logger.info(' - identified {:,} NCBI taxa in current GTDB release.'.format(
                                 len(cur_ncbi_taxa)))
             
             # determine new NCBI taxa
             new_ncbi_taxa = cur_ncbi_taxa - prev_ncbi_taxa
-            self.logger.info(' ... identified {:,} NCBI taxa that are new to the current GTDB release.'.format(
+            self.logger.info(' - identified {:,} NCBI taxa that are new to the current GTDB release.'.format(
                                 len(new_ncbi_taxa)))
                                 
             # determine genomes from new NCBI taxa
@@ -107,7 +107,7 @@ class UpdateCurationTrees(object):
         prev_genomes = Genomes()
         prev_genomes.load_from_metadata_file(prev_gtdb_metadata_file,
                                                 uba_genome_file=uba_genome_paths)
-        self.logger.info(' ... previous genome set has {:,} species clusters spanning {:,} genomes.'.format(
+        self.logger.info(' - previous genome set has {:,} species clusters spanning {:,} genomes.'.format(
                             len(prev_genomes.sp_clusters),
                             prev_genomes.sp_clusters.total_num_genomes()))
 
@@ -117,12 +117,12 @@ class UpdateCurationTrees(object):
                                                 create_sp_clusters=False,
                                                 uba_genome_file=uba_genome_paths,
                                                 qc_passed_file=qc_passed_file)
-        self.logger.info(f' ... current genome set contains {len(cur_genomes):,} genomes.')
+        self.logger.info(f' - current genome set contains {len(cur_genomes):,} genomes.')
         
         # read named GTDB species clusters
         self.logger.info('Reading GTDB species clusters.')
         cur_clusters, _ = read_clusters(gtdb_clusters_file)
-        self.logger.info(' ... identified {:,} clusters spanning {:,} genomes.'.format(
+        self.logger.info(' - identified {:,} clusters spanning {:,} genomes.'.format(
                             len(cur_clusters),
                             sum([len(gids) + 1 for gids in cur_clusters.values()])))
 

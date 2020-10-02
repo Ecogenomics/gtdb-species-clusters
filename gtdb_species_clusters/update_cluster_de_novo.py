@@ -292,18 +292,6 @@ class UpdateClusterDeNovo(object):
             for gid in all_reps:
                 clusters[gid] = []
 
-            if False: #***
-                mash_ani_pairs = []
-                for gid in nonrep_gids:
-                    if gid in mash_ani:
-                        for rid in clusters:
-                            if mash_ani[gid].get(rid, 0) >= self.min_mash_ani:
-                                n_gid = cur_genomes.user_uba_id_map.get(gid, gid)
-                                n_rid = cur_genomes.user_uba_id_map.get(rid, rid)
-                                if n_gid != n_rid:
-                                    mash_ani_pairs.append((n_gid, n_rid))
-                                    mash_ani_pairs.append((n_rid, n_gid))
-                                    
             mash_ani_pairs = []
             for qid in mash_ani:
                 n_qid = cur_genomes.user_uba_id_map.get(qid, qid)
@@ -347,12 +335,12 @@ class UpdateClusterDeNovo(object):
                 else:
                     self.logger.warning('Failed to assign genome {} to representative.'.format(cur_gid))
                     if closest_rep_gid:
-                        self.logger.warning(' ...closest_rep_gid = {}'.format(closest_rep_gid))
-                        self.logger.warning(' ...closest_rep_ani = {:.2f}'.format(closest_rep_ani))
-                        self.logger.warning(' ...closest_rep_af = {:.2f}'.format(closest_rep_af))
-                        self.logger.warning(' ...closest rep radius = {:.2f}'.format(final_cluster_radius[closest_rep_gid].ani))
+                        self.logger.warning(' - closest_rep_gid = {}'.format(closest_rep_gid))
+                        self.logger.warning(' - closest_rep_ani = {:.2f}'.format(closest_rep_ani))
+                        self.logger.warning(' - closest_rep_af = {:.2f}'.format(closest_rep_af))
+                        self.logger.warning(' - closest rep radius = {:.2f}'.format(final_cluster_radius[closest_rep_gid].ani))
                     else:
-                        self.logger.warning(' ...no representative with an AF >{:.2f} identified.'.format(self.af_sp))
+                        self.logger.warning(' - no representative with an AF >{:.2f} identified.'.format(self.af_sp))
                  
                 statusStr = '-> Assigned {:,} of {:,} ({:.2f}%) genomes.'.format(idx+1, 
                                                                                     len(nonrep_gids), 
@@ -393,7 +381,7 @@ class UpdateClusterDeNovo(object):
                                                 qc_passed_file=qc_passed_file,
                                                 ncbi_genbank_assembly_file=ncbi_genbank_assembly_file,
                                                 untrustworthy_type_ledger=untrustworthy_type_file)
-        self.logger.info(f' ... current genome set contains {len(cur_genomes):,} genomes.')
+        self.logger.info(f' - current genome set contains {len(cur_genomes):,} genomes.')
 
         # get path to previous and current genomic FASTA files
         self.logger.info('Reading path to current genomic FASTA files.')
@@ -403,8 +391,8 @@ class UpdateClusterDeNovo(object):
         # determine representatives and genomes clustered to each representative
         self.logger.info('Reading named GTDB species clusters.')
         named_rep_gids, rep_clustered_gids, rep_radius = self._parse_named_clusters(named_cluster_file)
-        self.logger.info(' ... identified {:,} representative genomes.'.format(len(named_rep_gids)))
-        self.logger.info(' ... identified {:,} clustered genomes.'.format(len(rep_clustered_gids)))
+        self.logger.info(' - identified {:,} representative genomes.'.format(len(named_rep_gids)))
+        self.logger.info(' - identified {:,} clustered genomes.'.format(len(rep_clustered_gids)))
         
         # determine genomes left to be clustered
         unclustered_gids = set(cur_genomes.genomes.keys()) - named_rep_gids - rep_clustered_gids

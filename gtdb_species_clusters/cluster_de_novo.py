@@ -369,12 +369,12 @@ class ClusterDeNovo(object):
             else:
                 self.logger.warning('Failed to assign genome %s to representative.' % cur_gid)
                 if closest_rep_gid:
-                    self.logger.warning(' ...closest_rep_gid = %s' % closest_rep_gid)
-                    self.logger.warning(' ...closest_rep_ani = %.2f' % closest_rep_ani)
-                    self.logger.warning(' ...closest_rep_af = %.2f' % closest_rep_af)
-                    self.logger.warning(' ...closest rep radius = %.2f' % final_cluster_radius[closest_rep_gid].ani)
+                    self.logger.warning(' - closest_rep_gid = %s' % closest_rep_gid)
+                    self.logger.warning(' - closest_rep_ani = %.2f' % closest_rep_ani)
+                    self.logger.warning(' - closest_rep_af = %.2f' % closest_rep_af)
+                    self.logger.warning(' - closest rep radius = %.2f' % final_cluster_radius[closest_rep_gid].ani)
                 else:
-                    self.logger.warning(' ...no representative with an AF >%.2f identified.' % self.af_sp)
+                    self.logger.warning(' - no representative with an AF >%.2f identified.' % self.af_sp)
              
             statusStr = '-> Assigned %d of %d (%.2f%%) genomes.'.ljust(86) % (idx+1, 
                                                                                 len(genomes_to_cluster), 

@@ -128,6 +128,8 @@ class RepChanges(object):
         num_rep_changes = 0
         first_type_strain = set()
         
+        disbanded_count = 0
+        
         for prev_rid, prev_gtdb_sp in prev_genomes.sp_clusters.species():
             fout_summary.write(f'{prev_rid}\t{prev_gtdb_sp}\t{len(prev_genomes.sp_clusters[prev_rid])}')
             if prev_rid in cur_genomes:
@@ -189,6 +191,7 @@ class RepChanges(object):
                     
                 # check if GTDB species cluster is flagged to be disbanded
                 if prev_rid in disbanded_rids:
+                    disbanded_count += 1
                     fout_summary.write('\tTRUE')
                     fout_detailed.write('{}\t{}\tEXPLICIT_UPDATE:DISBANDED\t\n'.format(
                                             prev_rid,
@@ -273,5 +276,4 @@ class RepChanges(object):
         self.logger.info(f'  unchanged: {len(unchanged_domain):,} ({unchanged_domain_perc:.1f}%)')
         self.logger.info(f'  reassigned: {len(changed_domain):,} ({changed_domain_perc:.1f}%)')
         
-        print('first_type_strain', len(first_type_strain))
-        
+        self.logger.info('Identified {:,} GTDB clusters to be disbanded.'.format(disbanded_count))

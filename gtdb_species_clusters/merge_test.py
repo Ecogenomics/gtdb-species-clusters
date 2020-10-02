@@ -100,7 +100,7 @@ class MergeTest(object):
         genomes = Genomes()
         genomes.load_from_metadata_file(gtdb_metadata_file)
         genomes.load_genomic_file_paths(genome_path_file)
-        self.logger.info(' ... identified {:,} species clusters spanning {:,} genomes.'.format(
+        self.logger.info(' - identified {:,} species clusters spanning {:,} genomes.'.format(
                             len(genomes.sp_clusters),
                             genomes.sp_clusters.total_num_genomes()))
                             
@@ -121,10 +121,10 @@ class MergeTest(object):
             self.logger.error(f'Unable to find representative genome for {species2}.')
             sys.exit(-1)
             
-        self.logger.info(' ... identified {:,} genomes in {}.'.format(
+        self.logger.info(' - identified {:,} genomes in {}.'.format(
                             len(genomes.sp_clusters[gid1]),
                             species1))
-        self.logger.info(' ... identified {:,} genomes in {}.'.format(
+        self.logger.info(' - identified {:,} genomes in {}.'.format(
                             len(genomes.sp_clusters[gid2]),
                             species2))
 
@@ -141,7 +141,7 @@ class MergeTest(object):
             if genomes[rid].gtdb_genus == genus1:
                 reps_in_genera.add(rid)
         
-        self.logger.info(f' ... identified {len(reps_in_genera):,} representatives.')
+        self.logger.info(f' - identified {len(reps_in_genera):,} representatives.')
         
         # calculate ANI between genomes
         self.logger.info(f'Calculating ANI to {species1}.')

@@ -113,7 +113,7 @@ class QcGenomes(object):
         cur_genomes.load_from_metadata_file(metadata_file,
                                                 create_sp_clusters=False,
                                                 uba_genome_file=cur_uba_gid_file)
-        self.logger.info(f' ...current genome set contains {len(cur_genomes):,} genomes.')
+        self.logger.info(f' - current genome set contains {len(cur_genomes):,} genomes.')
 
         # parse genomes flagged as exceptions from QC
         qc_exceptions = set()

@@ -75,7 +75,7 @@ class PMC_CheckTypeSpecies(object):
                                                 qc_passed_file=qc_passed_file,
                                                 ncbi_genbank_assembly_file=ncbi_genbank_assembly_file,
                                                 untrustworthy_type_ledger=untrustworthy_type_file)
-        self.logger.info(f' ... current genome set contains {len(cur_genomes):,} genomes.')
+        self.logger.info(f' - current genome set contains {len(cur_genomes):,} genomes.')
 
         # establish appropriate species names for GTDB clusters with new representatives
         self.logger.info('Identifying type species genomes with incongruent GTDB genus assignments.')

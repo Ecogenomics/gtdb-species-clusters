@@ -61,18 +61,21 @@ class UpdateSynonyms(object):
                                                 qc_passed_file=qc_passed_file,
                                                 ncbi_genbank_assembly_file=ncbi_genbank_assembly_file,
                                                 untrustworthy_type_ledger=untrustworthy_type_file)
-        self.logger.info(f' ... current genome set contains {len(cur_genomes):,} genomes.')
+        self.logger.info(f' - current genome set contains {len(cur_genomes):,} genomes.')
         
         # read named GTDB species clusters
         self.logger.info('Reading named and previous placeholder GTDB species clusters.')
         cur_clusters, rep_radius = read_clusters(gtdb_clusters_file)
-        self.logger.info(' ... identified {:,} clusters spanning {:,} genomes.'.format(
+        self.logger.info(' - identified {:,} clusters spanning {:,} genomes.'.format(
                             len(cur_clusters),
                             sum([len(gids) + 1 for gids in cur_clusters.values()])))
 
         # identified genomes with misclassified species assignments at NCBI
         self.logger.info('Identify genomes with misclassified NCBI species assignments.')
-        ncbi_species_mngr = NCBI_SpeciesManager(cur_genomes, cur_clusters, self.output_dir)
+        ncbi_species_mngr = NCBI_SpeciesManager(cur_genomes, 
+                                                cur_clusters, 
+                                                {}, # no manually-curated GTDB species assignments at this point
+                                                self.output_dir)
         ncbi_misclassified_gids = ncbi_species_mngr.parse_ncbi_misclassified_table(ncbi_misclassified_file)
         self.logger.info(' - identified {:,} genomes with erroneous NCBI species assignments'.format(
                             len(ncbi_misclassified_gids)))

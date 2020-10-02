@@ -205,7 +205,6 @@ class UpdateClusterNamedReps(object):
             clusters[rep_id] = []
             
         num_clustered = 0
-        non_reps = ['G003634515'] #***
         for idx, non_rid in enumerate(non_reps):
             if idx % 100 == 0:
                 sys.stdout.write('==> Processed {:,} of {:,} genomes [no. clustered = {:,}].\r'.format(
@@ -276,7 +275,7 @@ class UpdateClusterNamedReps(object):
                                                 qc_passed_file=qc_passed_file,
                                                 ncbi_genbank_assembly_file=ncbi_genbank_assembly_file,
                                                 untrustworthy_type_ledger=untrustworthy_type_file)
-        self.logger.info(f' ... current genome set contains {len(cur_genomes):,} genomes.')
+        self.logger.info(f' - current genome set contains {len(cur_genomes):,} genomes.')
 
         # get path to previous and current genomic FASTA files
         self.logger.info('Reading path to current genomic FASTA files.')
@@ -306,8 +305,8 @@ class UpdateClusterNamedReps(object):
         # calculate ANI between representative and non-representative genomes
         self.logger.info('Calculating ANI between representative and non-representative genomes.')
         ani_af = self._calculate_ani(cur_genomes, rep_gids, rep_mash_sketch_file)
-        self.logger.info(' ... ANI values determined for {:,} query genomes.'.format(len(ani_af)))
-        self.logger.info(' ... ANI values determined for {:,} genome pairs.'.format(
+        self.logger.info(' - ANI values determined for {:,} query genomes.'.format(len(ani_af)))
+        self.logger.info(' - ANI values determined for {:,} genome pairs.'.format(
                             sum([len(ani_af[qid]) for qid in ani_af])))
 
         # cluster remaining genomes to representatives

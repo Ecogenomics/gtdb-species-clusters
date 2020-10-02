@@ -565,6 +565,9 @@ class RepActions(object):
                 
             # check if representative has already been updated
             updated_rid = self.get_updated_rid(prev_rid)
+            if updated_rid is None: 
+                # indicates genome has explicitly been flagged to be disbanded
+                continue
 
             type_strain_sp = set([cur_genomes[gid].ncbi_taxa.species for gid in type_strain_gids])
             if len(type_strain_sp) == 1 and updated_rid in type_strain_gids:
@@ -756,7 +759,7 @@ class RepActions(object):
         cur_genomes.load_genomic_file_paths(cur_genomic_path_file)
         cur_genomes.load_genomic_file_paths(uba_genome_paths)
 
-        # created expanded previous GTDB species clusters
+        # create expanded previous GTDB species clusters
         new_updated_sp_clusters = SpeciesClusters()
 
         self.logger.info('Creating species clusters of new and updated genomes based on GTDB-Tk classifications.')

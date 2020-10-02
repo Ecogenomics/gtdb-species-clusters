@@ -582,7 +582,7 @@ class UpdateSelectRepresentatives(object):
                             mash_ani_pairs.append((q, r))
                             mash_ani_pairs.append((r, q))
                     
-            self.logger.info(' ... identified {:,} genome pairs with a Mash ANI >= {:.1f}%.'.format(len(mash_ani_pairs), self.min_mash_ani))
+            self.logger.info(' - identified {:,} genome pairs with a Mash ANI >= {:.1f}%.'.format(len(mash_ani_pairs), self.min_mash_ani))
 
             # compare genomes in the same GTDB or NCBI genus
             self.logger.info('Using GTDB and NCBI taxonomy to identify intra-genus pairs.')
@@ -607,7 +607,7 @@ class UpdateSelectRepresentatives(object):
                         genus_ani_pairs.add((rep_idA, rep_idB))
                         genus_ani_pairs.add((rep_idB, rep_idA))
             
-            self.logger.info(' ... identified {:,} genome pairs within the same genus.'.format(len(genus_ani_pairs)))
+            self.logger.info(' - identified {:,} genome pairs within the same genus.'.format(len(genus_ani_pairs)))
             
             # calculate ANI between pairs
             gid_pairs = genus_ani_pairs.union(mash_ani_pairs)
@@ -926,8 +926,8 @@ class UpdateSelectRepresentatives(object):
         ncbi_species = cur_genomes.named_ncbi_species()
         type_strain_genomes = cur_genomes.get_ncbi_type_strain_genomes()
         ncbi_sp_with_type_strains = len(set(ncbi_species).intersection(type_strain_genomes))
-        self.logger.info(f' ... identified {len(ncbi_species):,} named NCBI species.')
-        self.logger.info(f' ... identified {ncbi_sp_with_type_strains:,} named NCBI species with type strain genomes.')
+        self.logger.info(f' - identified {len(ncbi_species):,} named NCBI species.')
+        self.logger.info(f' - identified {ncbi_sp_with_type_strains:,} named NCBI species with type strain genomes.')
         
         # count number of genomes assigned to each named NCBI species
         # and number of these genomes already in GTDB species clusters
@@ -984,9 +984,9 @@ class UpdateSelectRepresentatives(object):
                                                 sp_genome_count[ncbi_sp],
                                                 ncbi_sp))
                 
-        self.logger.info(f' ... identified {type_count:,} unrepresented NCBI species with type strain genomes.')
-        self.logger.info(f' ... identified {nontype_count:,} unrepresented NCBI species without type strain genomes.')
-        self.logger.info(f' ... identified {len(unrepresented_ncbi_sp):,} total unrepresented NCBI species.')
+        self.logger.info(f' - identified {type_count:,} unrepresented NCBI species with type strain genomes.')
+        self.logger.info(f' - identified {nontype_count:,} unrepresented NCBI species without type strain genomes.')
+        self.logger.info(f' - identified {len(unrepresented_ncbi_sp):,} total unrepresented NCBI species.')
 
         return unrepresented_ncbi_sp
  
@@ -1009,7 +1009,7 @@ class UpdateSelectRepresentatives(object):
         self.logger.info('Reading updated GTDB species clusters.')
         updated_sp_clusters = SpeciesClusters()
         updated_sp_clusters.load_from_sp_cluster_file(updated_sp_cluster_file)
-        self.logger.info(' ... identified {:,} updated species clusters spanning {:,} genomes.'.format(
+        self.logger.info(' - identified {:,} updated species clusters spanning {:,} genomes.'.format(
                             len(updated_sp_clusters),
                             updated_sp_clusters.total_num_genomes()))
 
@@ -1024,7 +1024,7 @@ class UpdateSelectRepresentatives(object):
                                                 ncbi_genbank_assembly_file=ncbi_genbank_assembly_file,
                                                 untrustworthy_type_ledger=untrustworthy_type_file,
                                                 ncbi_untrustworthy_sp_ledger=ncbi_untrustworthy_sp_ledger)
-        self.logger.info(f' ... current genome set contains {len(cur_genomes):,} genomes.')
+        self.logger.info(f' - current genome set contains {len(cur_genomes):,} genomes.')
         
         # get path to previous and current genomic FASTA files
         self.logger.info('Reading path to current genomic FASTA files.')
