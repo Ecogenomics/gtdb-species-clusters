@@ -269,6 +269,7 @@ class OptionsParser():
         check_file_exists(args.cur_uba_gid_file)
         check_file_exists(args.cur_genbank_assembly_file)
         check_file_exists(args.cur_gtdb_domain_report)
+        check_file_exists(args.gtdb_type_strains_ledger)
         check_file_exists(args.qc_exception_file)
         make_sure_path_exists(args.output_dir)
 
@@ -278,6 +279,7 @@ class OptionsParser():
                         args.cur_uba_gid_file,
                         args.cur_genbank_assembly_file,
                         args.cur_gtdb_domain_report,
+                        args.gtdb_type_strains_ledger,
                         args.qc_exception_file,
                         args.min_comp,
                         args.max_cont,
@@ -831,6 +833,7 @@ class OptionsParser():
         check_file_exists(args.specific_epithet_ledger)
         check_file_exists(args.dsmz_bacnames_file)
         check_file_exists(args.ground_truth_test_cases)
+        check_file_exists(args.dsmz_sp_metadata_file)
         make_sure_path_exists(args.output_dir)
 
         p = PMC_Validation(args.output_dir)
@@ -855,6 +858,7 @@ class OptionsParser():
                 args.specific_epithet_ledger,
                 args.dsmz_bacnames_file,
                 args.ground_truth_test_cases,
+                args.dsmz_sp_metadata_file,
                 args.skip_genus_checks)
         
         self.logger.info('Done.')

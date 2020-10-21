@@ -92,9 +92,12 @@ def test_same_epithet(epithet1, epithet2):
         return False
         
     lcp = longest_common_prefix(epithet1, epithet2)
-    if len(lcp) >= max(len(epithet1), len(epithet2)) - 3:
+    if ((len(lcp) >= max(len(epithet1), len(epithet2)) - 3)
+        and lcp != epithet1 and lcp != epithet2):
         # a small change to the suffix presumably reflecting
-        # a change in the gender of the genus
+        # a change in the gender of the genus. The lcp != epithet1/2
+        # tests ensure the lcp is not just a substring of one of the
+        # epithets (e.g., humilis and humi)
         return True
         
     return False

@@ -97,15 +97,7 @@ class PMC_Validation(object):
         if len(invalid_cases) > 0:
             print(description)
             for gid in invalid_cases:
-                if len(invalid_cases[gid]) == 3:
-                    f1, f2, f3 = invalid_cases[gid]
-                    print('{}\t{}\t{}\t{}'.format(gid, f1, f2, f3))
-                elif len(invalid_cases[gid]) == 2:
-                    f1, f2 = invalid_cases[gid]
-                    print('{}\t{}\t{}'.format(gid, f1, f2))
-                else:
-                    f = invalid_cases[gid]
-                    print('{}\t{}'.format(gid, f))
+                print('{}'.format('\t'.join([str(f) for f in invalid_cases[gid]])))
             print('')
     
     def validate_genus_generic_match(self, final_taxonomy):
@@ -207,7 +199,143 @@ class PMC_Validation(object):
             invalid_type_strain, 
             validated_count, 
             'Identified {:,} invalid type strain genomes (Proposed GTDB species, NCBI species):'.format(len(invalid_type_strain)))
+
+    def validate_dsmz_correct_names(self, final_taxonomy, cur_genomes, dsmz_sp_correct_names, dsmz_sp_synonyms):
+        """Validate that GTDB is using the 'correct' names as specified at DSMZ/LPSN."""
+        
+        fout = open(os.path.join(self.output_dir, 'validate_dsmz_correct_sp.tsv'), 'w')
+        fout.write('Genome ID\tGTDB species\tDSMZ correct species\tDSMZ synonyms\tGeneric change\tSpecific change\n')
+        
+        incorrect_names = {}
+        validated_count = 0
+        for rid in final_taxonomy:
+            gtdb_sp = final_taxonomy[rid][Taxonomy.SPECIES_INDEX]
+            if is_placeholder_taxon(gtdb_sp):
+                continue
+                
+            gtdb_generic = generic_name(gtdb_sp)
+            gtdb_specific = specific_epithet(gtdb_sp)
+                
+            if gtdb_sp in dsmz_sp_correct_names:
+                # check if the GTDB species name is considered the correct name at DSMZ
+                dsmz_corr_sp = dsmz_sp_correct_names[gtdb_sp]
+                if gtdb_sp != dsmz_corr_sp:
+                    dsmz_corr_incongruent = True
+                    
+                    # check if the GTDB name is just a subspecies promotion
+                    if 'subsp.' in dsmz_corr_sp:
+                        dsmz_subsp = dsmz_corr_sp.split('subsp.')[1].strip()
+                        if dsmz_subsp == gtdb_specific:
+                            dsmz_corr_incongruent = False
+                        
+                    if dsmz_corr_incongruent:
+                        row = (rid,
+                                gtdb_sp, 
+                                dsmz_corr_sp, 
+                                dsmz_corr_sp in dsmz_sp_synonyms[gtdb_sp],
+                                gtdb_generic != generic_name(dsmz_corr_sp),
+                                gtdb_specific != specific_epithet(dsmz_corr_sp))
+                        incorrect_names[rid] = row
+                        fout.write('{}\n'.format('\t'.join([str(f) for f in row])))
+                else:
+                    validated_count += 1
+                    
+        self.report_validation(
+            incorrect_names, 
+            validated_count, 
+            'Identified {:,} GTDB species that disagrees with correct species names at DSMZ/LPSN (GTDB species, DSMZ correct species, DSMZ synonyms, Generic change, Specific change):'.format(len(incorrect_names)))
             
+        fout.close()
+
+    def validate_genus_transfer_specific_epithet(self, 
+                                                    final_taxonomy, 
+                                                    cur_genomes, 
+                                                    dsmz_sp_correct_names, 
+                                                    dsmz_sp_synonyms):
+        """Validate transferred species do not use a specific epithet already validated for the new species."""
+        
+        fout = open(os.path.join(self.output_dir, 'validate_epithet_genus_transfer.tsv'), 'w')
+        fout.write('Genome ID\tGTDB species\tNCBI species\tDSMZ species\n')
+        
+        manual_check = {}
+        validated_count = 0
+        for rid in final_taxonomy:
+            if rid in self.mc_species:
+                continue
+                
+            gtdb_sp = final_taxonomy[rid][Taxonomy.SPECIES_INDEX]
+            if is_placeholder_taxon(gtdb_sp):
+                # this is always acceptable as the GTDB species is either
+                # from a placeholder genus or has a placeholder specific epithet
+                continue 
+                
+            gtdb_genus = final_taxonomy[rid][Taxonomy.GENUS_INDEX]
+            gtdb_generic = generic_name(gtdb_sp)
+            gtdb_specific = specific_epithet(gtdb_sp)
+
+            ncbi_genus = cur_genomes[rid].ncbi_taxa.genus
+            if ncbi_genus == 'g__':
+                continue
+            ncbi_sp = cur_genomes[rid].ncbi_taxa.species.replace('[', '').replace(']', '')
+
+            # check if genome has been transfered to a new genus
+            potential_issue = False
+            if gtdb_genus != ncbi_genus:
+                if gtdb_sp == ncbi_sp:
+                    # this *should* never happen, but NCBI doesn't always
+                    # have consistent genus and generic names for genomes!
+                    pass
+                elif gtdb_sp == dsmz_sp_correct_names.get(ncbi_sp, None):
+                    # GTDB assignment reflects the 'correct name' as 
+                    # indicated at DSMZ so this is a valid (and expected)
+                    # genus transfer
+                    pass
+                elif ncbi_sp == dsmz_sp_correct_names.get(gtdb_sp, None):
+                    # It appears the GTDB is using an older name that isn't
+                    # considered correct by DSMZ, but that this is otherwise
+                    # an acceptable genus transfer.
+                    pass
+                elif gtdb_sp in dsmz_sp_synonyms.get(ncbi_sp, []):
+                    # GTDB assignment is the current name at DSMZ and
+                    # NCBI is using a later synonym
+                    pass
+                else:
+                    # check if GTDB species name has already been proposed
+                    # and thus retaining the specific name after the genus
+                    # transfer may be incorrect
+                    # (e.g. G003007735 is Methylarcula marina at NCBI, but transferred into 
+                    # Paracoccus under the GTDB. However, P. marinus is already a validated 
+                    # name so setting the GTDB species to P. marinus would be incorrect.)
+                    
+                    matched_dsmz_sp = None
+                    if gtdb_sp in dsmz_sp_correct_names:
+                        potential_issue = True
+                        matched_dsmz_sp = gtdb_sp
+                    else:
+                        # need to check if a DSMZ species name exists that only differs in terms
+                        # of changes to the suffix of the specific epithet due to the gender of
+                        # the genus
+                        for dsmz_sp in dsmz_sp_correct_names:
+                            dsmz_generic = generic_name(dsmz_sp)
+                            dsmz_specific = specific_epithet(dsmz_sp)
+                            if dsmz_generic == gtdb_generic and test_same_epithet(gtdb_specific, dsmz_specific):
+                                potential_issue = True
+                                matched_dsmz_sp = dsmz_sp
+                                break
+                            
+            if potential_issue:
+                manual_check[rid] = (rid, gtdb_sp, ncbi_sp, matched_dsmz_sp)
+                fout.write(f'{rid}\t{gtdb_sp}\t{ncbi_sp}\t{matched_dsmz_sp}\n')
+            else:
+                validated_count += 1
+                    
+        self.report_validation(
+            manual_check, 
+            validated_count, 
+            'Identified {:,} genomes with GTDB assignments that may be invalid after genus transfer (Proposed GTDB species, NCBI species, DSMZ species):'.format(len(manual_check)))
+
+        fout.close()
+    
     def validate_unique_species_names(self, final_taxonomy, cur_genomes):
         """Validate that species names are unique."""
         
@@ -1680,8 +1808,45 @@ class PMC_Validation(object):
                 specific_epithet_ledger,
                 dsmz_bacnames_file,
                 ground_truth_test_cases,
+                dsmz_sp_metadata_file,
                 skip_genus_checks):
         """Validate final species names."""
+        
+        # read DSMZ species metadata
+        self.logger.info('Parsing DSMZ species metadata.')
+        dsmz_sp_correct_names = {}
+        dsmz_sp_synonyms = defaultdict(set)
+        with open(dsmz_sp_metadata_file, encoding='utf-8') as f:
+            header = f.readline().strip().split('\t')
+            
+            correct_name_idx = header.index('correct_name')
+            synonyms_idx = header.index('synonyms')
+
+            for line in f:
+                tokens = line.strip().split('\t')
+                
+                dsmz_sp = 's__' + tokens[0]
+                if 'subsp.' in dsmz_sp or '[' in dsmz_sp:
+                    continue
+
+                correct_sp_name = tokens[correct_name_idx]
+                if correct_sp_name.lower() == 'none':
+                    dsmz_sp_correct_names[dsmz_sp] = dsmz_sp
+                else:
+                    dsmz_sp_correct_names[dsmz_sp] = 's__' + correct_sp_name
+                    
+                synonym = tokens[synonyms_idx]
+                if synonym.lower() != 'none':
+                    synonym_tokens = synonym.split('||')
+                    for synonym_token in synonym_tokens:
+                        for token in synonym_token.strip().split(';'):
+                            field, value = token.strip().split(':')
+                            if field == 'synonym':
+                                synonym_sp = 's__' + value.replace('"', '')
+                                dsmz_sp_synonyms[synonym_sp].add(dsmz_sp)
+                                dsmz_sp_synonyms[dsmz_sp].add(synonym_sp)
+                    
+        self.logger.info(' - identified {:,} DSMZ species.'.format(len(dsmz_sp_correct_names)))
         
         # read manually-curated taxonomy
         self.logger.info('Parsing final taxonomy.')
@@ -1818,6 +1983,19 @@ class PMC_Validation(object):
                             check_duplicate_names=True,
                             check_capitalization=True,
                             report_errors=True)
+                            
+        # validate that GTDB is using the 'correct' names as specified at DSMZ/LPSN
+        self.validate_dsmz_correct_names(final_taxonomy, 
+                                            cur_genomes, 
+                                            dsmz_sp_correct_names,
+                                            dsmz_sp_synonyms)
+                            
+        # validate that transferred species do not use a specific epithet which 
+        # has already been validated for the species
+        self.validate_genus_transfer_specific_epithet(final_taxonomy,
+                                                        cur_genomes,
+                                                        dsmz_sp_correct_names,
+                                                        dsmz_sp_synonyms)
                             
         # validate that all species names are unique
         self.logger.info('Validating that species names are unique.')

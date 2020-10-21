@@ -95,6 +95,7 @@ class QcGenomes(object):
                 cur_uba_gid_file,
                 ncbi_genbank_assembly_file,
                 gtdb_domain_report,
+                gtdb_type_strains_ledger,
                 qc_exception_file,
                 min_comp,
                 max_cont,
@@ -112,7 +113,9 @@ class QcGenomes(object):
         cur_genomes = Genomes()
         cur_genomes.load_from_metadata_file(metadata_file,
                                                 create_sp_clusters=False,
-                                                uba_genome_file=cur_uba_gid_file)
+                                                uba_genome_file=cur_uba_gid_file,
+                                                gtdb_type_strains_ledger=gtdb_type_strains_ledger,
+                                                ncbi_genbank_assembly_file=ncbi_genbank_assembly_file)
         self.logger.info(f' - current genome set contains {len(cur_genomes):,} genomes.')
 
         # parse genomes flagged as exceptions from QC
@@ -139,7 +142,7 @@ class QcGenomes(object):
         
         header = 'Accession\tNCBI species\tGTDB taxonomy'
         header += '\tCompleteness (%)\tContamination (%)\tQuality\tStrain heterogeneity at 100%'
-        header += '\tMarkers (%)\tNo. contigs\tN50 contigs\tAmbiguous bases'
+        header += '\tMarkers (%)\tNo. contigs\tN50 contigs\tAmbiguous bases\tScore'
         
         fout_retained.write(header + '\tNote\tNCBI exclude from RefSeq\n')
         fout_failed.write(header)
@@ -165,15 +168,16 @@ class QcGenomes(object):
             if passed_qc or gid in qc_exceptions:
                 pass_qc_gids.add(gid)
                 fout_retained.write('%s\t%s\t%s' % (gid, cur_genomes[gid].ncbi_taxa.species, cur_genomes[gid].gtdb_taxa))
-                fout_retained.write('\t%.2f\t%.2f\t%.2f\t%s\t%.2f\t%d\t%d\t%d\t%s\t%s\n' % (
+                fout_retained.write('\t%.2f\t%.2f\t%.2f\t%s\t%.2f\t%d\t%d\t%d\t%.2f\t%s\t%s\n' % (
                                         cur_genomes[gid].comp,
                                         cur_genomes[gid].cont,
-                                        cur_genomes[gid].comp-5*cur_genomes[gid].cont,
+                                        cur_genomes[gid].comp - 5*cur_genomes[gid].cont,
                                         ('%.2f' % cur_genomes[gid].strain_heterogeneity_100) if cur_genomes[gid].strain_heterogeneity_100 else '-',
                                         marker_perc[gid],
                                         cur_genomes[gid].contig_count,
                                         cur_genomes[gid].contig_n50,
                                         cur_genomes[gid].ambiguous_bases,
+                                        cur_genomes[gid].score_type_strain(),
                                         'Passed QC' if passed_qc else 'Flagged as exception',
                                         excluded_from_refseq_note.get(gid, '')))
             else:
