@@ -314,14 +314,17 @@ class Genome(object):
 
         # set base quality so genomes have the following priority order:
         #  GTDB type strain genome
-        #  NCBI assembled from type material
+        #  NCBI type strain genome
         #  NCBI representative
+        #  Type strain of subspecies
         q = 0
         if self.is_gtdb_type_strain():
-            q = 1e5
+            q = 1e6
         elif self.is_ncbi_type_strain():
-            q = 1e4
+            q = 1e5
         elif self.is_ncbi_representative():
+            q = 1e4
+        elif self.is_gtdb_type_subspecies() or self.is_ncbi_subspecies():
             q = 1e3
 
         q += self.score_assembly()

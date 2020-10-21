@@ -590,7 +590,7 @@ class PMC_Validation(object):
         validated_count = 0
         for genus, type_species in genus_gtdb_type_species.items():
             if len(type_species) > 1:
-                invalid_num_type_species[genus] = ', '.join([str(gtdb_ncbi_sp) for gtdb_ncbi_sp in type_species])
+                invalid_num_type_species[genus] = [', '.join([str(gtdb_ncbi_sp) for gtdb_ncbi_sp in type_species])]
             else:
                 validated_count += 1
 
