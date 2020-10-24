@@ -266,7 +266,6 @@ class OptionsParser():
         """Quality check new and updated genomes."""
         
         check_file_exists(args.cur_gtdb_metadata_file)
-        check_file_exists(args.cur_uba_gid_file)
         check_file_exists(args.cur_genbank_assembly_file)
         check_file_exists(args.cur_gtdb_domain_report)
         check_file_exists(args.gtdb_type_strains_ledger)
@@ -276,7 +275,6 @@ class OptionsParser():
         try:
             p = QcGenomes()
             p.run(args.cur_gtdb_metadata_file,
-                        args.cur_uba_gid_file,
                         args.cur_genbank_assembly_file,
                         args.cur_gtdb_domain_report,
                         args.gtdb_type_strains_ledger,

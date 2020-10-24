@@ -40,11 +40,6 @@ class Genomes(object):
                                 # currently requires data to be passed in as a dictionary
                                 
         self.full_gid = {} # translate from canonical GID to NCBI accession
-                                
-        self.user_uba_id_map = {}   # can be removed once UBA genomes are no longer part
-                                    # of the archaeal genome set
-                                    
-        self.uba_user_id_map = {}
         
         self.logger = logging.getLogger('timestamp')
 
@@ -62,13 +57,11 @@ class Genomes(object):
     def __getitem__(self, gid):
         """Get genome."""
         
-        gid = self.user_uba_id_map.get(gid, gid)
         return self.genomes[gid]
         
     def __contains__(self, gid):
         """Check if genome is in genome set."""
-        
-        gid = self.user_uba_id_map.get(gid, gid)
+
         return gid in self.genomes
 
     def __len__(self):
@@ -341,7 +334,6 @@ class Genomes(object):
                                 genus_exception_file=None,
                                 gtdb_type_strains_ledger=None,
                                 create_sp_clusters=True,
-                                uba_genome_file=None,
                                 qc_passed_file=None,
                                 ncbi_genbank_assembly_file=None,
                                 untrustworthy_type_ledger=None,
@@ -357,14 +349,6 @@ class Genomes(object):
                     pass_qc_gids.add(line_split[0].strip())
             self.logger.info(f' - identified {len(pass_qc_gids):,} genomes passing QC.')
                     
-        valid_uba_ids = set()
-        if uba_genome_file:
-            with open(uba_genome_file) as f:
-                for line in f:
-                    line_split = line.strip().split('\t')
-                    valid_uba_ids.add(line_split[0].strip())
-            self.logger.info(f' - identified {len(valid_uba_ids):,} UBA genomes to retain.')
-
         gtdb_type_strains = set()
         if gtdb_type_strains_ledger:
             with open(gtdb_type_strains_ledger) as f:
@@ -434,7 +418,6 @@ class Genomes(object):
                 # concerns over republishing this information
                 lpsn_priority_index = headers.index('lpsn_priority_year')
                 dsmz_priority_index = headers.index('dsmz_priority_year')
-                straininfo_priority_index = headers.index('straininfo_priority_year')
 
             for line in f:
                 line_split = line.strip().split('\t')
@@ -444,19 +427,7 @@ class Genomes(object):
                 self.full_gid[gid] = ncbi_accn
 
                 if gid.startswith('U_'):
-                    # check if genome has a UBA identifier
-                    org_name_index = headers.index('organism_name')
-                    org_name = line_split[org_name_index]
-                    if '(UBA' in org_name:
-                        uba_id = org_name[org_name.find('(')+1:-1]
-                        if uba_id in valid_uba_ids:
-                            self.user_uba_id_map[gid] = uba_id
-                            self.uba_user_id_map[uba_id] = gid
-                            gid = uba_id
-                        else:
-                            continue # retain only valid UBA genomes
-                    else:
-                        continue # skip non-UBA user genomes
+                    continue
                         
                 if pass_qc_gids and gid not in pass_qc_gids:
                     continue
@@ -505,11 +476,9 @@ class Genomes(object):
                 if 'lpsn_priority_year' in headers:
                     lpsn_priority_year = self._convert_int(line_split[lpsn_priority_index], Genome.NO_PRIORITY_YEAR)
                     dsmz_priority_year = self._convert_int(line_split[dsmz_priority_index], Genome.NO_PRIORITY_YEAR)
-                    straininfo_priority_year = self._convert_int(line_split[straininfo_priority_index], Genome.NO_PRIORITY_YEAR)
                 else:
                     lpsn_priority_year = Genome.NO_PRIORITY_YEAR
                     dsmz_priority_year = Genome.NO_PRIORITY_YEAR
-                    straininfo_priority_year = Genome.NO_PRIORITY_YEAR
 
                 self.genomes[gid] = Genome(gid,
                                             ncbi_accn,
@@ -545,8 +514,7 @@ class Genomes(object):
                                             ncbi_unspanned_gaps,
                                             ncbi_spanned_gaps,
                                             lpsn_priority_year,
-                                            dsmz_priority_year,
-                                            straininfo_priority_year)
+                                            dsmz_priority_year)
                                             
         self._apply_ncbi_taxonomy_ledgers(species_exception_file,
                                             genus_exception_file)

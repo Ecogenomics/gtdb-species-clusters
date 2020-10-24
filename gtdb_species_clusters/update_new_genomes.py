@@ -149,6 +149,7 @@ class NewGenomes(object):
         self.logger.info('Identifying path to genomic files for current GTDB genomes.')
         cur_genome_files = {}
         skipped_genomes = 0
+        fout = open(os.path.join(self.output_dir, 'skipped_genomes.tsv'), 'w')
         with open(cur_genome_paths) as f:
             for line in f:
                 line_split = line.strip().split('\t')
@@ -161,6 +162,7 @@ class NewGenomes(object):
                     # a genome may not be part of the GTDB release
                     # (e.g., genome has no NCBI taxonomy information)
                     skipped_genomes += 1
+                    fout.write(gid + '\n')
                     continue
 
                 assembly_id = os.path.basename(os.path.normpath(genome_path))
@@ -168,6 +170,8 @@ class NewGenomes(object):
                 cur_genome_files[gid] = genomic_file
                 #***if not os.path.exists(genomic_file):
                 #***    self.logger.warning('Genomic file not found: {}'.format(genomic_file))
+                
+        fout.close()
                 
         self.logger.info(f' - identified genomic file for {len(cur_genome_files):,} genomes.')
         self.logger.info(f' - skipped {skipped_genomes:,} genomes without GTDB metadata.')

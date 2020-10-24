@@ -63,7 +63,6 @@ class Genome(object):
     ncbi_spanned_gaps: int
     lpsn_priority_year: int
     dsmz_priority_year: int
-    straininfo_priority_year: int
     
     NCBI_TYPE_SPECIES = set(['assembly from type material', 
                                 'assembly from neotype material',
@@ -298,8 +297,6 @@ class Genome(object):
         """Get year of priority for type strains of species."""
 
         priority = min(self.lpsn_priority_year, self.dsmz_priority_year)
-        if priority == Genome.NO_PRIORITY_YEAR:
-            priority = self.straininfo_priority_year
                 
         return priority
         

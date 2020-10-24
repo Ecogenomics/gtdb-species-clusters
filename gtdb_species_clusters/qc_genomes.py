@@ -48,7 +48,6 @@ class QcGenomes(object):
                 line_split = line.strip().split('\t')
                 
                 gid = canonical_gid(line_split[0])
-                gid = cur_genomes.user_uba_id_map.get(gid, gid)
                 bac_perc = float(line_split[bac_marker_perc_index])
                 ar_perc = float(line_split[ar_marker_perc_index])
 
@@ -71,9 +70,7 @@ class QcGenomes(object):
             for line in f:
                 line_split = line.strip().split('\t')
                 
-                gid = canonical_gid(line_split[0])
-                gid = cur_genomes.user_uba_id_map.get(gid, gid)
-                
+                gid = canonical_gid(line_split[0])               
                 if gid not in pass_qc_gids:
                     continue
                 
@@ -92,7 +89,6 @@ class QcGenomes(object):
 
     def run(self, 
                 metadata_file,
-                cur_uba_gid_file,
                 ncbi_genbank_assembly_file,
                 gtdb_domain_report,
                 gtdb_type_strains_ledger,
@@ -113,7 +109,6 @@ class QcGenomes(object):
         cur_genomes = Genomes()
         cur_genomes.load_from_metadata_file(metadata_file,
                                                 create_sp_clusters=False,
-                                                uba_genome_file=cur_uba_gid_file,
                                                 gtdb_type_strains_ledger=gtdb_type_strains_ledger,
                                                 ncbi_genbank_assembly_file=ncbi_genbank_assembly_file)
         self.logger.info(f' - current genome set contains {len(cur_genomes):,} genomes.')

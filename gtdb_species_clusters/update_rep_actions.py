@@ -480,27 +480,42 @@ class RepActions(object):
                 params['af'] = af
                 params['new_assembly_quality'] = cur_genomes[new_rid].score_assembly()
                 params['prev_assembly_quality'] = cur_genomes[prev_updated_rid].score_assembly()
-                params['new_gtdb_type_strain'] = cur_genomes[new_rid].is_gtdb_type_strain()
-                params['prev_gtdb_type_strain'] = cur_genomes[prev_updated_rid].is_gtdb_type_strain()
-                params['new_ncbi_type_strain'] = cur_genomes[new_rid].is_ncbi_type_strain()
-                params['prev_ncbi_type_strain'] = cur_genomes[prev_updated_rid].is_ncbi_type_strain()
+                params['new_gtdb_type_of_species'] = cur_genomes[new_rid].is_gtdb_type_strain()
+                params['prev_gtdb_type_of_species'] = cur_genomes[prev_updated_rid].is_gtdb_type_strain()
+                params['new_ncbi_type_of_species'] = cur_genomes[new_rid].is_ncbi_type_strain()
+                params['prev_ncbi_type_of_species'] = cur_genomes[prev_updated_rid].is_ncbi_type_strain()
+                params['new_gtdb_type_of_subsp'] = cur_genomes[new_rid].is_gtdb_type_subspecies()
+                params['prev_gtdb_type_of_subsp'] = cur_genomes[prev_updated_rid].is_gtdb_type_subspecies()
+                params['new_ncbi_type_of_subsp'] = cur_genomes[new_rid].is_ncbi_type_subspecies()
+                params['prev_ncbi_type_of_subsp'] = cur_genomes[prev_updated_rid].is_ncbi_type_subspecies()
 
                 anis.append(ani)
                 afs.append(af)
 
                 improvement_list = []
-                gtdb_type_improv = cur_genomes[new_rid].is_gtdb_type_strain() and not cur_genomes[prev_updated_rid].is_gtdb_type_strain()
-                ncbi_type_improv = cur_genomes[new_rid].is_ncbi_type_strain() and not cur_genomes[prev_updated_rid].is_ncbi_type_strain()
-
-                if gtdb_type_improv and ncbi_type_improv:
+                gtdb_type_sp_improv = cur_genomes[new_rid].is_gtdb_type_strain() and not cur_genomes[prev_updated_rid].is_gtdb_type_strain()
+                ncbi_type_sp_improv = cur_genomes[new_rid].is_ncbi_type_strain() and not cur_genomes[prev_updated_rid].is_ncbi_type_strain()
+                if gtdb_type_sp_improv and ncbi_type_sp_improv:
                     num_gtdb_ncbi_type_sp += 1
-                    improvement_list.append('replaced with genome from type strain according to GTDB and NCBI')
-                elif gtdb_type_improv:
+                    improvement_list.append('replaced with genome from type strain of species according to GTDB and NCBI')
+                elif gtdb_type_sp_improv:
                     num_gtdb_type_sp += 1
-                    improvement_list.append('replaced with genome from type strain according to GTDB')
-                elif ncbi_type_improv:
+                    improvement_list.append('replaced with genome from type strain of species according to GTDB')
+                elif ncbi_type_sp_improv:
                     num_ncbi_type_sp += 1
-                    improvement_list.append('replaced with genome from type strain according to NCBI')
+                    improvement_list.append('replaced with genome from type strain of species according to NCBI')
+                    
+                gtdb_type_subsp_improv = cur_genomes[new_rid].is_gtdb_type_subspecies() and not cur_genomes[prev_updated_rid].is_gtdb_type_subspecies()
+                ncbi_type_subsp_improv = cur_genomes[new_rid].is_ncbi_type_subspecies() and not cur_genomes[prev_updated_rid].is_ncbi_type_subspecies()
+                if gtdb_type_subsp_improv and ncbi_type_subsp_improv:
+                    num_gtdb_ncbi_type_sp += 1
+                    improvement_list.append('replaced with genome from type strain of subspecies according to GTDB and NCBI')
+                elif gtdb_type_subsp_improv:
+                    num_gtdb_type_sp += 1
+                    improvement_list.append('replaced with genome from type strain of subspecies according to GTDB')
+                elif ncbi_type_subsp_improv:
+                    num_ncbi_type_sp += 1
+                    improvement_list.append('replaced with genome from type strain of subspecies according to NCBI')
 
                 if cur_genomes[new_rid].is_isolate() and not cur_genomes[prev_updated_rid].is_isolate():
                     num_isolate += 1
