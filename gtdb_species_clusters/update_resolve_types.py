@@ -481,7 +481,7 @@ class ResolveTypes(object):
         gtdb_sp_resolved = 0
         ltp_resolved = 0
         
-        use_pickled_results = False #***
+        use_pickled_results = True #***
         if use_pickled_results:
             self.logger.warning('Using previously calculated ANI results in: {}'.format(self.ani_pickle_dir))
         
@@ -667,23 +667,6 @@ class ResolveTypes(object):
                             if other_sp:
                                 self.logger.warning(f'Genome {gid} marked as untrustworthy, but this conflicts with high confidence LTP 16S rRNA assignment.')
                                 
-                    # remove genomes marked as untrustworthy as type at NCBI if one or more potential type strain genomes remaining
-                    ncbi_untrustworthy_gids = set([gid for gid in type_gids if 'untrustworthy as type' in cur_genomes[gid].excluded_from_refseq_note])
-                    if len(type_gids - set(untrustworthy_gids) - ncbi_untrustworthy_gids) >= 1:
-                        for gid in ncbi_untrustworthy_gids:
-                            untrustworthy_gids[gid] = "Genome annotated as `untrustworthy as type` at NCBI and there are other potential type strain genomes available"
-
-                    # report cases where genomes marked as untrustworthy as type at NCBI are being retained as potential type strain genomes
-                    num_ncbi_untrustworthy = len(ncbi_untrustworthy_gids)
-                    if num_ncbi_untrustworthy != len(type_gids):
-                        for gid in type_gids:
-                            if (gid not in untrustworthy_gids 
-                                and 'untrustworthy as type' in cur_genomes[gid].excluded_from_refseq_note):
-                                self.logger.warning("Retaining genome {} from {} despite being marked as `untrustworthy as type` at NCBI [{:,} of {:,} considered untrustworthy].".format(
-                                                        gid, 
-                                                        ncbi_sp,
-                                                        num_ncbi_untrustworthy,
-                                                        len(type_gids)))
                 else:
                     note = 'Species is unresolved; manual curation is required!'
                     unresolved_sp_count += 1
@@ -705,6 +688,24 @@ class ResolveTypes(object):
                                     cur_genomes[gid].excluded_from_refseq_note,
                                     cur_genomes[gid].ncbi_taxa,
                                     cur_genomes[gid].gtdb_taxa))
+                                    
+            # remove genomes marked as untrustworthy as type at NCBI if one or more potential type strain genomes remaining
+            ncbi_untrustworthy_gids = set([gid for gid in type_gids if 'untrustworthy as type' in cur_genomes[gid].excluded_from_refseq_note])
+            if len(type_gids - set(untrustworthy_gids) - ncbi_untrustworthy_gids) >= 1:
+                for gid in ncbi_untrustworthy_gids:
+                    untrustworthy_gids[gid] = "Genome annotated as `untrustworthy as type` at NCBI and there are other potential type strain genomes available"
+
+            # report cases where genomes marked as untrustworthy as type at NCBI are being retained as potential type strain genomes
+            num_ncbi_untrustworthy = len(ncbi_untrustworthy_gids)
+            #***if num_ncbi_untrustworthy != len(type_gids):
+            for gid in type_gids:
+                if (gid not in untrustworthy_gids 
+                    and 'untrustworthy as type' in cur_genomes[gid].excluded_from_refseq_note):
+                    self.logger.warning("Retaining genome {} from {} despite being marked as `untrustworthy as type` at NCBI [{:,} of {:,} considered untrustworthy].".format(
+                                            gid, 
+                                            ncbi_sp,
+                                            num_ncbi_untrustworthy,
+                                            len(type_gids)))
 
             for gid in type_gids:
                 ltp_species = self.ltp_species(gid, ltp_metadata)
