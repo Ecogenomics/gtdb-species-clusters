@@ -117,14 +117,6 @@ class FastANI(object):
         """Extract genome ID from path to genomic file."""
         
         genome_id = ntpath.basename(genome_path)
-        if genome_id.startswith('GCA_') or genome_id.startswith('GCF_'):
-            genome_id = '_'.join(genome_id.split('_')[0:2])
-            if genome_id.startswith('GCA_'):
-                genome_id = 'GB_' + genome_id
-            else:
-                genome_id = 'RS_' + genome_id
-        else:
-            genome_id = '_'.join(genome_id.split('_')[0:2])
             
         return canonical_gid(genome_id)
         

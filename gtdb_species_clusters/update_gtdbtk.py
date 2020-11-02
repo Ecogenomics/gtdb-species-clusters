@@ -19,6 +19,7 @@ import os
 import sys
 import argparse
 import logging
+import ntpath
 from collections import defaultdict
 
 from biolib.external.execute import check_dependencies
@@ -35,6 +36,9 @@ class GTDB_Tk(object):
         check_dependencies(['gtdbtk'])
         
         self.cpus = cpus
+        if self.cpus > 64:
+            self.logger.error('Testing indicates pplacer will stale if used with more than 64 CPUs.')
+            sys.exit(-1)
         
         self.output_dir = output_dir
         self.logger = logging.getLogger('timestamp')
@@ -53,6 +57,7 @@ class GTDB_Tk(object):
         # get path to genomes passing QC
         self.logger.info('Reading path to genomic file for new/updated genomes passing QC.')
         genomic_files = []
+        ncbi_gids = set()
         total_count = 0
         with open(genomes_new_updated_file, encoding='utf-8') as f:
             header = f.readline().strip().split('\t')
@@ -67,37 +72,80 @@ class GTDB_Tk(object):
                 if gid in gids_pass_qc:
                     gf = line_split[genomic_file_index]
                     genomic_files.append((gid, gf))
+                    ncbi_gids.add(gid)
         self.logger.info(f' - identified {len(genomic_files):,} of {total_count:,} genomes as passing QC.')
         
+        # create batch files
+        genome_batch_files = []
+        batch_dir = os.path.join(self.output_dir, 'genome_batch_files')
+        if os.path.exists(batch_dir):
+            self.logger.warning(f'Using existing genome batch files in {batch_dir}.')
+            for f in os.listdir(batch_dir):
+                genome_batch_files.append(os.path.join(batch_dir, f))
+                
+            # check if there are genomes not already in a batch file. Ideally,
+            # this would never happen, but sometimes we process past this step
+            # and then identify genomes missing in the database. These need to 
+            # be put into a batch file for processing.
+            missing_gids = set(ncbi_gids)
+            last_batch_idx = 0
+            for batch_file in os.listdir(batch_dir):
+                idx = int(batch_file.split('_')[1].replace('.lst', ''))
+                if idx > last_batch_idx:
+                    last_batch_idx = idx
+                    
+                with open(os.path.join(batch_dir, batch_file)) as f:
+                    for line in f:
+                        tokens = line.strip().split('\t')
+                        missing_gids.discard(tokens[1])
+            
+            if len(missing_gids) > 0:
+                genome_batch_file = os.path.join(batch_dir, f'genomes_{last_batch_idx+1}.lst')
+                genome_batch_files.append(genome_batch_file)
+                self.logger.info('Added the batch file {} with {:,} genomes.'.format(
+                                    genome_batch_file,
+                                    len(missing_gids)))
+
+                fout = open(genome_batch_file, 'w')
+                for gid, gf in genomic_files:
+                    if gid in missing_gids:
+                        fout.write('{}\t{}\n'.format(gf, gid))
+                fout.close()
+        else:
+            os.makedirs(batch_dir)
+            for batch_idx, start in enumerate(range(0, len(genomic_files), batch_size)):
+                genome_batch_file = os.path.join(batch_dir, f'genomes_{batch_idx}.lst')
+                genome_batch_files.append(genome_batch_file)
+                
+                fout = open(genome_batch_file, 'w')
+                for i in range(start, start+batch_size):
+                    if i < len(genomic_files):
+                        gid, gf = genomic_files[i]
+                        fout.write('{}\t{}\n'.format(gf, gid))
+                fout.close()
+            
         # process genomes with GTDB-Tk in batches
-        for batch_idx, start in enumerate(range(0, len(genomic_files), batch_size)):
-            batch_dir = os.path.join(self.output_dir, 'batch_{}'.format(batch_idx))
-            if os.path.exists(batch_dir):
-                self.logger.warning(f'Skipping {batch_dir} as directory already exists.')
+        for genome_batch_file in genome_batch_files:
+            batch_idx = ntpath.basename(genome_batch_file).split('_')[1].replace('.lst', '')
+            out_dir = os.path.join(self.output_dir, f'gtdbtk_batch{batch_idx}')
+            if os.path.exists(out_dir):
+                self.logger.warning(f'Skipping genome batch {batch_idx} as output directory already exists.')
                 continue
                 
-            os.makedirs(batch_dir)
-                
-            genome_list_file = os.path.join(batch_dir, 'genomes.lst')
-            fout = open(genome_list_file, 'w')
-            for i in range(start, start+batch_size):
-                if i < len(genomic_files):
-                    gid, gf = genomic_files[i]
-                    fout.write('{}\t{}\n'.format(gf, gid))
-            fout.close()
-            
+            os.makedirs(out_dir)
             cmd = 'gtdbtk classify_wf --cpus {} --force --batchfile {} --out_dir {}'.format(
                     self.cpus,
-                    genome_list_file,
-                    batch_dir)
+                    genome_batch_file,
+                    out_dir)
             print(cmd)
             os.system(cmd)
             
         # combine summary files
         fout = open(os.path.join(self.output_dir, 'gtdbtk_classify.tsv'), 'w')
         bHeader = True
+        gtdbtk_processed = set()
         for batch_dir in os.listdir(self.output_dir):
-            if not batch_dir.startswith('batch_'):
+            if not batch_dir.startswith('gtdbtk_batch'):
                 continue
                 
             batch_dir = os.path.join(self.output_dir, batch_dir)
@@ -113,7 +161,23 @@ class GTDB_Tk(object):
                         bHeader = False
                         
                     for line in f:
-                        fout.write(line)
+                        tokens = line.strip().split('\t')
+                        gid = tokens[0]
+                        if gid in ncbi_gids:
+                            # Ideally, this shouldn't be necessary, but 
+                            # sometimes we process past this step and then 
+                            # identify genomes missing in the database. This 
+                            # can result in GTDB-Tk having been applied to 
+                            # genomes that looked like they were "new", but 
+                            # really were just erroneously missing from the
+                            # database.
+                            fout.write(line)
+                            gtdbtk_processed.add(gid)
         
         fout.close()
         
+        self.logger.info('Identified {:,} genomes as being processed by GTDB-Tk.'.format(len(gtdbtk_processed)))
+        skipped_gids = ncbi_gids - gtdbtk_processed
+        if len(skipped_gids) > 0:
+            self.logger.warning('Identified {:,} genomes as being skipped by GTDB-Tk.'.format(
+                                    len(skipped_gids)))

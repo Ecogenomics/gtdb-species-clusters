@@ -29,6 +29,71 @@ from biolib.taxonomy import Taxonomy
 from gtdb_species_clusters.genome_utils import canonical_gid
 
 
+def parse_lpsn_gss_file(lpsn_gss_metadata_file):
+    """Parse LPSN GSS (genus-species-subspecies) metadata."""
+    
+    # get mapping between record numbers and LPSN taxa
+    lpsn_record_taxon_map = {}
+    with open(lpsn_gss_metadata_file, encoding='utf-8') as f:
+        csv_reader = csv.reader(f)
+
+        for line_num, tokens in enumerate(csv_reader):
+            if line_num == 0:
+                genus_idx = tokens.index('genus_name')
+                sp_idx = tokens.index('sp_epithet')
+                subsp_idx = tokens.index('subsp_epithet')
+                record_no_idx = tokens.index('record_no')
+            else:
+                if tokens[genus_idx] != '' and  tokens[sp_idx] != '' and tokens[subsp_idx] != '':
+                    taxon = 's__{} {} {}'.format(tokens[genus_idx].strip(), tokens[sp_idx].strip(), tokens[subsp_idx].strip())
+                elif tokens[genus_idx] != '' and  tokens[sp_idx] != '':
+                    taxon = 's__{} {}'.format(tokens[genus_idx].strip(), tokens[sp_idx].strip())
+                else:
+                    taxon = 'g__{}'.format(tokens[genus_idx].strip())
+
+                lpsn_record_taxon_map[tokens[record_no_idx]] = taxon
+        
+    # get synonyms and names considered correct at LPSN 
+    lpsn_sp_correct_names = {}
+    lpsn_sp_synonyms = defaultdict(set)
+    with open(lpsn_gss_metadata_file, encoding='utf-8') as f:
+        csv_reader = csv.reader(f)
+
+        for line_num, tokens in enumerate(csv_reader):
+            if line_num == 0:
+                genus_idx = tokens.index('genus_name')
+                sp_idx = tokens.index('sp_epithet')
+                subsp_idx = tokens.index('subsp_epithet')
+                status_idx = tokens.index('status')
+                type_idx = tokens.index('nomenclatural_type')
+                record_no_idx = tokens.index('record_no')
+                record_lnk_idx = tokens.index('record_lnk')
+            else:
+                if tokens[genus_idx] != '' and  tokens[sp_idx] != '' and tokens[subsp_idx] != '':
+                    # process subspecies
+                    pass
+                elif tokens[genus_idx] != '' and  tokens[sp_idx] != '':
+                    # process species
+                    taxon = 's__{} {}'.format(tokens[genus_idx].strip(), tokens[sp_idx].strip())
+                    
+                    if 'correct name' in tokens[status_idx]:
+                        assert tokens[record_lnk_idx] == ''
+                        lpsn_sp_correct_names[taxon] = taxon
+                    elif tokens[record_lnk_idx] != '':
+                        # for species, this should link to the correct name for
+                        # a species according to LPSN
+                        lpsn_sp_correct_names[taxon] = lpsn_record_taxon_map[tokens[record_lnk_idx]]
+                        
+                    if 'synonym' in tokens[status_idx] and tokens[record_lnk_idx] != '':
+                        synonym_sp = lpsn_record_taxon_map[tokens[record_lnk_idx]]
+                        lpsn_sp_synonyms[taxon].add(synonym_sp)
+                else:
+                    # process genus
+                    pass
+                    
+    return lpsn_sp_correct_names, lpsn_sp_synonyms
+
+                                
 def ncbi_to_gtdb_synonyms(ncbi_synonym_file, final_gtdb_taxonomy):
     """Convert synonyms defined in terms of NCBI species to GTDB species."""
     

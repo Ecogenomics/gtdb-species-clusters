@@ -817,7 +817,6 @@ class OptionsParser():
         check_file_exists(args.gtdb_clusters_file)
         check_file_exists(args.prev_gtdb_metadata_file)
         check_file_exists(args.cur_gtdb_metadata_file)
-        check_file_exists(args.uba_genome_paths)
         check_file_exists(args.qc_passed_file)
         check_file_exists(args.ncbi_misclassified_file)
         check_file_exists(args.ncbi_genbank_assembly_file)
@@ -831,7 +830,7 @@ class OptionsParser():
         check_file_exists(args.specific_epithet_ledger)
         check_file_exists(args.dsmz_bacnames_file)
         check_file_exists(args.ground_truth_test_cases)
-        check_file_exists(args.dsmz_sp_metadata_file)
+        check_file_exists(args.lpsn_gss_metadata_file)
         make_sure_path_exists(args.output_dir)
 
         p = PMC_Validation(args.output_dir)
@@ -842,7 +841,6 @@ class OptionsParser():
                 args.gtdb_clusters_file,
                 args.prev_gtdb_metadata_file,
                 args.cur_gtdb_metadata_file,
-                args.uba_genome_paths,
                 args.qc_passed_file,
                 args.ncbi_misclassified_file,
                 args.ncbi_genbank_assembly_file,
@@ -856,7 +854,7 @@ class OptionsParser():
                 args.specific_epithet_ledger,
                 args.dsmz_bacnames_file,
                 args.ground_truth_test_cases,
-                args.dsmz_sp_metadata_file,
+                args.lpsn_gss_metadata_file,
                 args.skip_genus_checks)
         
         self.logger.info('Done.')

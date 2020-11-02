@@ -160,7 +160,9 @@ class NewGenomes(object):
                 
                 if gid not in cur_accns:
                     # a genome may not be part of the GTDB release
-                    # (e.g., genome has no NCBI taxonomy information)
+                    # (e.g., genome has no NCBI taxonomy information
+                    # or Prodigal failed to call genes such as for 
+                    # GCA_000716285.1)
                     skipped_genomes += 1
                     fout.write(gid + '\n')
                     continue

@@ -366,7 +366,7 @@ class Genomes(object):
         untrustworthy_as_type = set()
         if untrustworthy_type_ledger:
             untrustworthy_as_type = self.parse_untrustworthy_type_ledger(untrustworthy_type_ledger)
-            self.logger.info(f' - identified {len(untrustworthy_as_type):,} genomes annotated as untrustworthy as type.')
+            self.logger.info(f' - identified {len(untrustworthy_as_type):,} genomes manually annotated as untrustworthy as type.')
         
         untrustworthy_ncbi_sp = set()
         if ncbi_untrustworthy_sp_ledger:
