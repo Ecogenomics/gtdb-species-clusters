@@ -38,7 +38,6 @@ class RepChanges(object):
     def run(self, 
             prev_gtdb_metadata_file,
             cur_gtdb_metadata_file,
-            cur_uba_gid_file,
             genomes_new_updated_file,
             qc_passed_file,
             gtdbtk_classify_file,
@@ -53,7 +52,6 @@ class RepChanges(object):
         prev_genomes = Genomes()
         prev_genomes.load_from_metadata_file(prev_gtdb_metadata_file,
                                                 gtdb_type_strains_ledger=gtdb_type_strains_ledger,
-                                                uba_genome_file=cur_uba_gid_file,
                                                 ncbi_genbank_assembly_file=ncbi_genbank_assembly_file,
                                                 untrustworthy_type_ledger=untrustworthy_type_file)
         self.logger.info(f' - previous genome set contains {len(prev_genomes):,} genomes.')
@@ -66,7 +64,6 @@ class RepChanges(object):
         cur_genomes.load_from_metadata_file(cur_gtdb_metadata_file,
                                                 gtdb_type_strains_ledger=gtdb_type_strains_ledger,
                                                 create_sp_clusters=False,
-                                                uba_genome_file=cur_uba_gid_file,
                                                 qc_passed_file=qc_passed_file,
                                                 ncbi_genbank_assembly_file=ncbi_genbank_assembly_file,
                                                 untrustworthy_type_ledger=untrustworthy_type_file)

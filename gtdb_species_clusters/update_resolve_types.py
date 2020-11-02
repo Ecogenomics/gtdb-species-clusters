@@ -481,7 +481,7 @@ class ResolveTypes(object):
         gtdb_sp_resolved = 0
         ltp_resolved = 0
         
-        use_pickled_results = True #***
+        use_pickled_results = False #***
         if use_pickled_results:
             self.logger.warning('Using previously calculated ANI results in: {}'.format(self.ani_pickle_dir))
         
@@ -640,33 +640,6 @@ class ResolveTypes(object):
                     if untrustworthy_gtdb_sp_match and not trusted_gtdb_sp_match:
                         prev_gtdb_sp_conflicts += 1
                         gtdb_resolved_sp_conflict = True
-
-                    # write results to file
-                    for gid, reason in untrustworthy_gids.items():
-                        ltp_species = self.ltp_species(gid, ltp_metadata)
-                        
-                        if 'untrustworthy as type' in cur_genomes[gid].excluded_from_refseq_note:
-                            reason += "; considered `untrustworthy as type` at NCBI"
-                        fout_untrustworthy.write('{}\t{}\t{}\t{}\t{}\n'.format(gid,
-                                                                                ncbi_sp,
-                                                                                cur_genomes[gid].gtdb_taxa.species,
-                                                                                ' / '.join(ltp_species),
-                                                                                reason))
-                                                                                
-                        # Sanity check that if the untrustworthy genome has an LTP to only the
-                        # expected species, that all other genomes also have a hit to the 
-                        # expected species (or potentially no hit). Otherwise, more consideration
-                        # should be given to the genome with the conflicting LTP hit.
-                        if len(ltp_species) == 1 and ncbi_sp in ltp_species:
-                            other_sp = set()
-                            for test_gid in type_gids:
-                                ltp_species = self.ltp_species(test_gid, ltp_metadata)
-                                if ltp_species and ncbi_sp not in ltp_species:
-                                    other_sp.update(ltp_species)
-                                
-                            if other_sp:
-                                self.logger.warning(f'Genome {gid} marked as untrustworthy, but this conflicts with high confidence LTP 16S rRNA assignment.')
-                                
                 else:
                     note = 'Species is unresolved; manual curation is required!'
                     unresolved_sp_count += 1
@@ -697,7 +670,6 @@ class ResolveTypes(object):
 
             # report cases where genomes marked as untrustworthy as type at NCBI are being retained as potential type strain genomes
             num_ncbi_untrustworthy = len(ncbi_untrustworthy_gids)
-            #***if num_ncbi_untrustworthy != len(type_gids):
             for gid in type_gids:
                 if (gid not in untrustworthy_gids 
                     and 'untrustworthy as type' in cur_genomes[gid].excluded_from_refseq_note):
@@ -706,7 +678,34 @@ class ResolveTypes(object):
                                             ncbi_sp,
                                             num_ncbi_untrustworthy,
                                             len(type_gids)))
+                                            
+            # write out genomes identified as being untrustworthy
+            for gid, reason in untrustworthy_gids.items():
+                ltp_species = self.ltp_species(gid, ltp_metadata)
+                
+                if 'untrustworthy as type' in cur_genomes[gid].excluded_from_refseq_note:
+                    reason += "; considered `untrustworthy as type` at NCBI"
+                fout_untrustworthy.write('{}\t{}\t{}\t{}\t{}\n'.format(gid,
+                                                                        ncbi_sp,
+                                                                        cur_genomes[gid].gtdb_taxa.species,
+                                                                        ' / '.join(ltp_species),
+                                                                        reason))
+                                                                        
+                # Sanity check that if the untrustworthy genome has an LTP to only the
+                # expected species, that all other genomes also have a hit to the 
+                # expected species (or potentially no hit). Otherwise, more consideration
+                # should be given to the genome with the conflicting LTP hit.
+                if len(ltp_species) == 1 and ncbi_sp in ltp_species:
+                    other_sp = set()
+                    for test_gid in type_gids:
+                        ltp_species = self.ltp_species(test_gid, ltp_metadata)
+                        if ltp_species and ncbi_sp not in ltp_species:
+                            other_sp.update(ltp_species)
+                        
+                    if other_sp:
+                        self.logger.warning(f'Genome {gid} marked as untrustworthy, but this conflicts with high confidence LTP 16S rRNA assignment.')
 
+            # write out information about all type genomes
             for gid in type_gids:
                 ltp_species = self.ltp_species(gid, ltp_metadata)
                     

@@ -336,7 +336,6 @@ class OptionsParser():
 
         check_file_exists(args.prev_gtdb_metadata_file)
         check_file_exists(args.cur_gtdb_metadata_file)
-        check_file_exists(args.cur_uba_gid_file)
         check_file_exists(args.genomes_new_updated_file)
         check_file_exists(args.qc_passed_file)
         check_file_exists(args.gtdbtk_classify_file)
@@ -349,7 +348,6 @@ class OptionsParser():
         p = RepChanges(args.output_dir)
         p.run(args.prev_gtdb_metadata_file,
                 args.cur_gtdb_metadata_file,
-                args.cur_uba_gid_file,
                 args.genomes_new_updated_file,
                 args.qc_passed_file,
                 args.gtdbtk_classify_file,
