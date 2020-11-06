@@ -47,6 +47,12 @@ def canonical_gid(gid):
     return gid
     
     
+def same_assembly_verssion(ncbi_accn1, ncbi_accn2):
+    """Check if NCBi accessions have same version number."""
+    
+    return int(ncbi_accn1.split('.')[1]) == int(ncbi_accn2.split('.')[1])
+    
+    
 def select_highest_quality(gids, cur_genomes):
     """Select highest quality genome."""
     
@@ -93,6 +99,24 @@ def exclude_from_refseq(genbank_assembly_file):
                 excluded_from_refseq_note[gid] = line_split[exclude_index]
     
     return excluded_from_refseq_note
+    
+    
+def parse_ncbi_bioproject(genbank_assembly_file):
+    """Parse BioProject field from NCBI assembly files."""
+    
+    bioproject = {}
+    with open(genbank_assembly_file, encoding='utf-8') as f:
+        for line in f:
+            if line[0] == '#':
+                if line.startswith('# assembly_accession'):
+                    header = line.strip().split('\t')
+                    bioproject_index = header.index('bioproject')
+            else:
+                line_split = line.strip('\n\r').split('\t')
+                gid = canonical_gid(line_split[0])
+                bioproject[gid] = line_split[bioproject_index]
+    
+    return bioproject
     
     
 def read_qc_file(qc_file):

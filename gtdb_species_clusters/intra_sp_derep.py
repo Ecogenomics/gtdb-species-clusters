@@ -34,7 +34,6 @@ from gtdb_species_clusters.fastani import FastANI
 from gtdb_species_clusters.genomes import Genomes
 from gtdb_species_clusters.type_genome_utils import (ClusteredGenome,
                                                         GenomeRadius,
-                                                        symmetric_ani,
                                                         write_rep_radius,
                                                         write_clusters)
                                                         
@@ -264,7 +263,7 @@ class IntraSpeciesDereplication(object):
             # determine if genome clusters with existing representative
             clustered = False
             for rid in sp_reps:
-                ani, af = symmetric_ani(ani_af, gid, rid)
+                ani, af = FastANI.symmetric_ani(ani_af, gid, rid)
 
                 if ani >= self.derep_ani and af >= self.derep_af:
                     clustered = True
@@ -289,7 +288,7 @@ class IntraSpeciesDereplication(object):
             max_ani = 0
             max_af = 0
             for rid in sp_reps:
-                ani, af = symmetric_ani(ani_af, gid, rid)
+                ani, af = FastANI.symmetric_ani(ani_af, gid, rid)
                 if ((ani > max_ani and af >= self.derep_af)
                         or (ani == max_ani and af >= max_af and af >= self.derep_af)):
                     max_ani = ani

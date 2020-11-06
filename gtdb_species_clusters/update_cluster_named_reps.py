@@ -43,7 +43,6 @@ from gtdb_species_clusters.genome_utils import (canonical_gid,
                                                 exclude_from_refseq)
 
 from gtdb_species_clusters.type_genome_utils import (GenomeRadius,
-                                                        symmetric_ani,
                                                         write_rep_radius,
                                                         write_clusters)
                                                         
@@ -223,7 +222,7 @@ class UpdateClusterNamedReps(object):
                 if rid not in ani_af[non_rid]:
                     continue
 
-                ani, af = symmetric_ani(ani_af, rid, non_rid)
+                ani, af = FastANI.symmetric_ani(ani_af, rid, non_rid)
 
                 if af >= self.af_sp:
                     if ani > closest_ani or (ani == closest_ani and af > closest_af):
@@ -256,13 +255,13 @@ class UpdateClusterNamedReps(object):
     def run(self, named_rep_file,
                     cur_gtdb_metadata_file,
                     cur_genomic_path_file,
-                    uba_genome_paths,
                     qc_passed_file,
                     ncbi_genbank_assembly_file,
                     untrustworthy_type_file,
                     rep_mash_sketch_file,
                     rep_ani_file,
-                    gtdb_type_strains_ledger):
+                    gtdb_type_strains_ledger,
+                    ncbi_env_bioproject_ledger):
         """Cluster genomes to selected GTDB representatives."""
         
         # create current GTDB genome sets
@@ -270,17 +269,15 @@ class UpdateClusterNamedReps(object):
         cur_genomes = Genomes()
         cur_genomes.load_from_metadata_file(cur_gtdb_metadata_file,
                                                 gtdb_type_strains_ledger=gtdb_type_strains_ledger,
-                                                create_sp_clusters=False,
-                                                uba_genome_file=uba_genome_paths,
                                                 qc_passed_file=qc_passed_file,
                                                 ncbi_genbank_assembly_file=ncbi_genbank_assembly_file,
-                                                untrustworthy_type_ledger=untrustworthy_type_file)
+                                                untrustworthy_type_ledger=untrustworthy_type_file,
+                                                ncbi_env_bioproject_ledger=ncbi_env_bioproject_ledger)
         self.logger.info(f' - current genome set contains {len(cur_genomes):,} genomes.')
 
         # get path to previous and current genomic FASTA files
         self.logger.info('Reading path to current genomic FASTA files.')
         cur_genomes.load_genomic_file_paths(cur_genomic_path_file)
-        cur_genomes.load_genomic_file_paths(uba_genome_paths)
 
         # get representative genomes
         rep_gids = set()

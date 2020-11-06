@@ -33,7 +33,7 @@ from gtdb_species_clusters.species_name_manager import SpeciesNameManager
 from gtdb_species_clusters.species_priority_manager import SpeciesPriorityManager
 from gtdb_species_clusters.specific_epithet_manager import SpecificEpithetManager
 from gtdb_species_clusters.genome_utils import canonical_gid
-from gtdb_species_clusters.type_genome_utils import (read_clusters, symmetric_ani)
+from gtdb_species_clusters.type_genome_utils import read_clusters
 from gtdb_species_clusters.taxon_utils import (generic_name,
                                                 specific_epithet,
                                                 canonical_taxon,

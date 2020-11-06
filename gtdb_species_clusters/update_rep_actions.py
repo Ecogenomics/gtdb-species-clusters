@@ -28,9 +28,8 @@ from gtdb_species_clusters.fastani import FastANI
 from gtdb_species_clusters.genomes import Genomes
 from gtdb_species_clusters.species_clusters import SpeciesClusters
 from gtdb_species_clusters.species_priority_manager import SpeciesPriorityManager
-from gtdb_species_clusters.type_genome_utils import symmetric_ani
 from gtdb_species_clusters.taxon_utils import is_placeholder_taxon
-from gtdb_species_clusters.genome_utils import select_highest_quality
+from gtdb_species_clusters.genome_utils import select_highest_quality, parse_ncbi_bioproject
 
 
 class RepActions(object):
@@ -84,16 +83,26 @@ class RepActions(object):
                                 prev_genomes,
                                 cur_genomes):
         """Identify genome in cluster with highest balanced ANI score to genomic file of representative in previous GTDB release."""
+        
+        # calculate ANI to all genomes in species
+        gid_pairs = []
+        genome_paths = {}
+        for cid in sp_cids:
+            gid_pairs.append((f'{prev_rid}-P', f'{cid}-C'))
+            gid_pairs.append((f'{cid}-C', f'{prev_rid}-P'))
+            genome_paths[f'{prev_rid}-P'] = prev_genomes[prev_rid].genomic_file
+            genome_paths[f'{cid}-C'] = cur_genomes[cid].genomic_file
+            
+        ani_af = self.fastani.pairs(gid_pairs, genome_paths, report_progress=True, check_cache=True)
 
+        # determine highest ANI score
         max_score = -1e6
         max_rid = None
         max_ani = None
         max_af = None
         for cid in sp_cids:
-            ani, af = self.fastani.symmetric_ani_cached(f'{prev_rid}-P', f'{cid}-C', 
-                                                        prev_genomes[prev_rid].genomic_file, 
-                                                        cur_genomes[cid].genomic_file)
-
+            ani, af = FastANI.symmetric_ani(ani_af, f'{prev_rid}-P', f'{cid}-C')
+            
             cur_score = cur_genomes[cid].score_ani(ani)
             if (cur_score > max_score
                 or (cur_score == max_score and ani > max_ani)):
@@ -127,7 +136,7 @@ class RepActions(object):
         max_ani = None
         max_af = None
         for cid in sp_cids:
-            ani, af = symmetric_ani(ani_af, prev_rid, cid)
+            ani, af = FastANI.symmetric_ani(ani_af, prev_rid, cid)
 
             cur_score = cur_genomes[cid].score_ani(ani)
             if cur_score > max_score:
@@ -334,7 +343,7 @@ class RepActions(object):
         """Handle representatives which have lost type strain genome status."""
         
         # get genomes with new NCBI species assignments
-        self.logger.info('Identifying representative that lost type strain genome status.')
+        self.logger.info('Identifying representatives that lost type strain genome status.')
         ncbi_type_species_lost = self.rep_change_gids(rep_change_summary_file, 
                                                     'TYPE_STRAIN_CHANGE', 
                                                     'LOST')
@@ -373,9 +382,9 @@ class RepActions(object):
                 params['new_assembly_quality'] = cur_genomes[new_rid].score_assembly()
                 params['prev_assembly_quality'] = prev_genomes[prev_rid].score_assembly()
 
-                params['new_rid_strain_ids'] = prev_genomes[new_rid].ncbi_strain_identifiers
-                params['new_rid_gtdb_type_designation'] = prev_genomes[new_rid].gtdb_type_designation
-                params['new_rid_gtdb_type_designation_sources'] = prev_genomes[new_rid].gtdb_type_designation_sources
+                params['new_rid_strain_ids'] = cur_genomes[new_rid].ncbi_strain_identifiers
+                params['new_rid_gtdb_type_designation'] = cur_genomes[new_rid].gtdb_type_designation
+                params['new_rid_gtdb_type_designation_sources'] = cur_genomes[new_rid].gtdb_type_designation_sources
 
                 self.update_rep(prev_rid, new_rid, action)
             else:
@@ -417,10 +426,14 @@ class RepActions(object):
                             prev_genomes, 
                             cur_genomes, 
                             new_updated_sp_clusters,
-                            disbanded_rids):
+                            disbanded_rids,
+                            ncbi_genbank_assembly_file):
         """Check if representative should be replace with higher quality genome."""
 
         self.logger.info('Identifying improved representatives for GTDB species clusters.')
+        
+        ncbi_bioproject = parse_ncbi_bioproject(ncbi_genbank_assembly_file)
+        
         num_gtdb_ncbi_type_sp = 0
         num_gtdb_type_sp = 0
         num_ncbi_type_sp = 0
@@ -429,6 +442,7 @@ class RepActions(object):
         anis = []
         afs = []
         improved_reps = {}
+        ncbi_bioproject_count = defaultdict(int)
         for idx, (prev_rid, cids) in enumerate(new_updated_sp_clusters.clusters()):
             if prev_rid not in cur_genomes or prev_rid in disbanded_rids:
                 # indicates genome has been lost or disbanded
@@ -520,6 +534,8 @@ class RepActions(object):
                 if cur_genomes[new_rid].is_isolate() and not cur_genomes[prev_updated_rid].is_isolate():
                     num_isolate += 1
                     improvement_list.append('MAG/SAG replaced with isolate')
+                    if new_rid in ncbi_bioproject:
+                        ncbi_bioproject_count[ncbi_bioproject[new_rid]] += 1
 
                 if cur_genomes[new_rid].is_complete_genome() and not cur_genomes[prev_updated_rid].is_complete_genome():
                     num_complete += 1
@@ -547,6 +563,12 @@ class RepActions(object):
         self.logger.info(f'   - {num_complete:,} replaced with complete genome assembly.')
         self.logger.info(f' - ANI = {np_mean(anis):.2f} +/- {np_std(anis):.2f}%; AF = {np_mean(afs)*100:.2f} +/- {np_std(afs)*100:.2f}%.')
         
+        # report NCBI BioProject resulting in large numbers of GTDB reps being replaced with presumed isolates
+        for bioproject, count in ncbi_bioproject_count.items():
+            if count >= 2:
+                self.logger.warning('BioProject {} responsible for {:,} representatives being replaced with presumed isolates. Should verify these genomes are isolates.'.format(
+                                        bioproject, count))
+        
         return improved_reps
         
     def action_naming_priority(self,
@@ -557,7 +579,7 @@ class RepActions(object):
         
         self.logger.info('Identifying genomes with naming priority in GTDB species clusters.')
         
-        out_file = os.path.join(self.output_dir, 'update_priority.tsv')
+        out_file = os.path.join(self.output_dir, 'updated_naming_priority.tsv')
         fout = open(out_file, 'w')
         fout.write('NCBI species\tGTDB species\tRepresentative\tStrain IDs\tRepresentative type sources\tPriority year\tGTDB type species\tGTDB type strain\tNCBI assembly type')
         fout.write('\tNCBI synonym\tGTDB synonym\tSynonym genome\tSynonym strain IDs\tSynonym type sources\tPriority year\tGTDB type species\tGTDB type strain\tSynonym NCBI assembly type')
@@ -604,6 +626,7 @@ class RepActions(object):
                 #self.logger.warning('Type strain genomes: {}'.format(','.join(type_strain_gids)))
 
             # find highest priority genome
+            note = ''
             for sp in type_strain_sp:
                 if sp == updated_sp:
                     continue
@@ -732,7 +755,6 @@ class RepActions(object):
             prev_genomic_path_file,
             cur_gtdb_metadata_file,
             cur_genomic_path_file,
-            uba_genome_paths,
             genomes_new_updated_file,
             qc_passed_file,
             gtdbtk_classify_file,
@@ -741,7 +763,8 @@ class RepActions(object):
             gtdb_type_strains_ledger,
             sp_priority_ledger,
             genus_priority_ledger,
-            dsmz_bacnames_file):
+            ncbi_env_bioproject_ledger,
+            lpsn_gss_file):
         """Perform initial actions required for changed representatives."""
         
         # create previous and current GTDB genome sets
@@ -749,9 +772,9 @@ class RepActions(object):
         prev_genomes = Genomes()
         prev_genomes.load_from_metadata_file(prev_gtdb_metadata_file,
                                                 gtdb_type_strains_ledger=gtdb_type_strains_ledger,
-                                                uba_genome_file=uba_genome_paths,
                                                 ncbi_genbank_assembly_file=ncbi_genbank_assembly_file,
-                                                untrustworthy_type_ledger=untrustworthy_type_file)
+                                                untrustworthy_type_ledger=untrustworthy_type_file,
+                                                ncbi_env_bioproject_ledger=ncbi_env_bioproject_ledger)
         self.logger.info(' - previous genome set has {:,} species clusters spanning {:,} genomes.'.format(
                             len(prev_genomes.sp_clusters),
                             prev_genomes.sp_clusters.total_num_genomes()))
@@ -761,24 +784,22 @@ class RepActions(object):
         cur_genomes.load_from_metadata_file(cur_gtdb_metadata_file,
                                                 gtdb_type_strains_ledger=gtdb_type_strains_ledger,
                                                 create_sp_clusters=False,
-                                                uba_genome_file=uba_genome_paths,
                                                 qc_passed_file=qc_passed_file,
                                                 ncbi_genbank_assembly_file=ncbi_genbank_assembly_file,
-                                                untrustworthy_type_ledger=untrustworthy_type_file)
+                                                untrustworthy_type_ledger=untrustworthy_type_file,
+                                                ncbi_env_bioproject_ledger=ncbi_env_bioproject_ledger)
         self.logger.info(f' - current genome set contains {len(cur_genomes):,} genomes.')
 
         # get path to previous and current genomic FASTA files
         self.logger.info('Reading path to previous and current genomic FASTA files.')
         prev_genomes.load_genomic_file_paths(prev_genomic_path_file)
-        prev_genomes.load_genomic_file_paths(uba_genome_paths)
         cur_genomes.load_genomic_file_paths(cur_genomic_path_file)
-        cur_genomes.load_genomic_file_paths(uba_genome_paths)
 
         # create expanded previous GTDB species clusters
         new_updated_sp_clusters = SpeciesClusters()
 
         self.logger.info('Creating species clusters of new and updated genomes based on GTDB-Tk classifications.')
-        new_updated_sp_clusters.create_expanded_clusters(prev_genomes.sp_clusters,
+        new_updated_sp_clusters.create_expanded_clusters(prev_genomes,
                                                             genomes_new_updated_file,
                                                             qc_passed_file,
                                                             gtdbtk_classify_file)
@@ -790,7 +811,8 @@ class RepActions(object):
         # initialize species priority manager
         self.sp_priority_mngr = SpeciesPriorityManager(sp_priority_ledger,
                                                         genus_priority_ledger,
-                                                        dsmz_bacnames_file)
+                                                        lpsn_gss_file,
+                                                        self.output_dir)
 
         # take required action for each changed representatives
         self.action_genomic_lost(rep_change_summary_file,
@@ -821,7 +843,8 @@ class RepActions(object):
             improved_reps = self.action_improved_rep(prev_genomes, 
                                                     cur_genomes,
                                                     new_updated_sp_clusters,
-                                                    disbanded_rids)
+                                                    disbanded_rids,
+                                                    ncbi_genbank_assembly_file)
                                                     
             pickle.dump(improved_reps, open(os.path.join(self.output_dir, 'improved_reps.pkl'), 'wb'))
         else:
@@ -840,6 +863,35 @@ class RepActions(object):
         num_replaced_rids = sum([1 for v in self.new_reps.values() if v[0] is not None])
         self.logger.info(f'Identified {num_retired_sp:,} retired species.')
         self.logger.info(f'Identified {num_replaced_rids:,} species with a modified representative genome.')
+        
+        fout = open(os.path.join(self.output_dir, 'gtdb_type_sp_untrustworthy_at_ncbi.tsv'), 'w')
+        fout.write('Genome ID\tGTDB species\tNCBI species\tSame species\tSame genus\tSame family\tGTDB taxonomy\tNCBI taxonomy\n')
+        num_gtdb_type_sp_untrustworthy_at_ncbi = 0
+        num_diff_sp = 0
+        for prev_rid in prev_genomes.sp_clusters:
+            new_rid, action = self.new_reps.get(prev_rid, [prev_rid, None])
+            if new_rid is None:
+                continue
+                
+            if cur_genomes[new_rid].is_gtdb_type_strain() and cur_genomes[new_rid].is_ncbi_untrustworthy_as_type():
+                num_gtdb_type_sp_untrustworthy_at_ncbi += 1
+                fout.write('{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\n'.format(
+                            new_rid, 
+                            cur_genomes[new_rid].gtdb_taxa.species, 
+                            cur_genomes[new_rid].ncbi_taxa.species,
+                            cur_genomes[new_rid].gtdb_taxa.species == cur_genomes[new_rid].ncbi_taxa.species,
+                            cur_genomes[new_rid].gtdb_taxa.genus == cur_genomes[new_rid].ncbi_taxa.genus,
+                            cur_genomes[new_rid].gtdb_taxa.family == cur_genomes[new_rid].ncbi_taxa.family,
+                            cur_genomes[new_rid].gtdb_taxa,
+                            cur_genomes[new_rid].ncbi_taxa))
+                            
+                if cur_genomes[new_rid].gtdb_taxa.species != cur_genomes[new_rid].ncbi_taxa.species:
+                    num_diff_sp += 1
+        
+        fout.close()
+        self.logger.info(f'Identified {num_gtdb_type_sp_untrustworthy_at_ncbi:,} type strain representatives considered untrustworthy as type at NCBI.') 
+        if num_diff_sp > 0:
+            self.logger.warning(f' - {num_diff_sp:,} genomes have incongruent GTDB and NCBI species assignments.') 
         
         self.action_log.close()
 

@@ -44,7 +44,8 @@ class RepChanges(object):
             ncbi_genbank_assembly_file,
             untrustworthy_type_file,
             disband_cluster_ledger,
-            gtdb_type_strains_ledger):
+            gtdb_type_strains_ledger,
+            ncbi_env_bioproject_ledger):
         """Identify species representatives that have changed from previous release."""
         
         # create previous and current GTDB genome sets
@@ -53,7 +54,8 @@ class RepChanges(object):
         prev_genomes.load_from_metadata_file(prev_gtdb_metadata_file,
                                                 gtdb_type_strains_ledger=gtdb_type_strains_ledger,
                                                 ncbi_genbank_assembly_file=ncbi_genbank_assembly_file,
-                                                untrustworthy_type_ledger=untrustworthy_type_file)
+                                                untrustworthy_type_ledger=untrustworthy_type_file,
+                                                ncbi_env_bioproject_ledger=ncbi_env_bioproject_ledger)
         self.logger.info(f' - previous genome set contains {len(prev_genomes):,} genomes.')
         self.logger.info(' - previous genome set has {:,} species clusters spanning {:,} genomes.'.format(
                             len(prev_genomes.sp_clusters),
@@ -66,7 +68,8 @@ class RepChanges(object):
                                                 create_sp_clusters=False,
                                                 qc_passed_file=qc_passed_file,
                                                 ncbi_genbank_assembly_file=ncbi_genbank_assembly_file,
-                                                untrustworthy_type_ledger=untrustworthy_type_file)
+                                                untrustworthy_type_ledger=untrustworthy_type_file,
+                                                ncbi_env_bioproject_ledger=ncbi_env_bioproject_ledger)
         self.logger.info(f' - current genome set contains {len(cur_genomes):,} genomes.')
 
         # get previous and current genomes from type strains
@@ -83,7 +86,7 @@ class RepChanges(object):
         # create expanded previous GTDB species clusters
         self.logger.info('Creating species clusters of new and updated genomes based on GTDB-Tk classifications.')
         new_updated_sp_clusters = SpeciesClusters()
-        new_updated_sp_clusters.create_expanded_clusters(prev_genomes.sp_clusters,
+        new_updated_sp_clusters.create_expanded_clusters(prev_genomes,
                                                             genomes_new_updated_file,
                                                             qc_passed_file,
                                                             gtdbtk_classify_file)

@@ -17,6 +17,7 @@
 
 import os
 import sys
+import csv
 import logging
 import functools
 from collections import defaultdict
@@ -31,14 +32,23 @@ class SpeciesPriorityManager(object):
     def __init__(self, 
                     species_priority_ledger, 
                     genus_priority_ledger, 
-                    dsmz_bacnames_file):
+                    lpsn_gss_file,
+                    output_dir):
         """Initialization."""
 
         self.logger = logging.getLogger('timestamp')
         
+        self._fout_amiguous_priority = open(os.path.join(output_dir, 'amiguous_sp_priority.tsv'), 'w')
+        self._fout_amiguous_priority.write('NCBI species A\tNCBI species B\tPriority year A\tPriority year B\tGTDB type strain A\tGTDB type strain B\n')
+        
         self._parse_sp_priority_ledger(species_priority_ledger)
         self._parse_genus_priority_ledger(genus_priority_ledger)
-        self._parse_dsmz_bacnames(dsmz_bacnames_file)
+        self._parse_lpsn_gss(lpsn_gss_file)
+
+    def __del__(self):
+        """Destructor."""
+        
+        self._fout_amiguous_priority.close()
 
     def _parse_sp_priority_ledger(self, species_priority_ledger):
         """Parse manually resolved priority cases."""
@@ -69,7 +79,10 @@ class SpeciesPriorityManager(object):
                 assert spA.startswith('s__')
                 assert spB.startswith('s__')
                 assert priority_sp.startswith('s__')
-                assert priority_sp in [spA, spB]
+                if priority_sp not in [spA, spB]:
+                    self.logger.error('Error in species priority ledger. Species {} cannot have priority for {} and {}.'.format(
+                                        priority_sp, spA, spB))
+                    sys.exit(-1)
                 
                 self.manual_sp_priority[spA][spB] = priority_sp
                 self.manual_sp_priority[spB][spA] = priority_sp
@@ -112,34 +125,39 @@ class SpeciesPriorityManager(object):
                 
         self.logger.info(f' - identified {num_cases:,} manually resolved cases.')
         
-    def _parse_dsmz_bacnames(self, dsmz_bacnames_file):
-        """Parse priority information from LPSN at DSMZ."""
+    def _parse_lpsn_gss(self, lpsn_gss_file):
+        """Parse priority information from LPSN metadata file."""
         
+        genus_priority_count = 0
         self._genus_priority = {}
-        with open(dsmz_bacnames_file, encoding='utf-8', errors='ignore') as f:
-            header = f.readline().strip().split('\t')
-            
-            genus_index = header.index('GENUS')
-            sp_index = header.index('SPECIES')
-            status_index = header.index('STATUS')
-            author_index = header.index('AUTHORS')
-            
-            for line in f:
-                tokens = line.strip().split('\t')
-                
-                genus = tokens[genus_index].strip().replace('"', '')
-                status = tokens[status_index].strip().replace('"', '')
-                authors = tokens[author_index].strip().replace('"', '')
-                if authors.startswith('('):
-                    authors = authors[authors.find(')')+1:].strip()
+        with open(lpsn_gss_file, encoding='utf-8', errors='ignore') as f:
+            csv_reader = csv.reader(f)
 
-                for idx, ch in enumerate(authors): 
-                    if ch.isdigit():
-                        year = int(authors[idx:idx+4])
-                        break
+            for line_num, tokens in enumerate(csv_reader):
+                if line_num == 0:
+                    genus_index = tokens.index('genus_name')
+                    status_index = tokens.index('status')
+                    author_index = tokens.index('authors')
+                    record_no_index = tokens.index('record_no')
+                else:
+                    genus = tokens[genus_index].strip().replace('"', '')
+                    status = tokens[status_index].strip().replace('"', '')
+                    authors = tokens[author_index].strip().replace('"', '')
+                    record_no = int(tokens[record_no_index])
 
-                if status.startswith('gen. nov.') or status.startswith('genus'):
-                    self._genus_priority['g__' + genus] = year
+                    if authors.startswith('('):
+                        authors = authors[authors.find(')')+1:].strip()
+
+                    for idx, ch in enumerate(authors): 
+                        if ch.isdigit():
+                            year = int(authors[idx:idx+4])
+                            break
+
+                    if 'gen. nov.' in [t.strip() for t in status.split(';')]:
+                        self._genus_priority['g__' + genus] = year
+                        genus_priority_count += 1
+                        
+        self.logger.info(f' - establish genus priority for {genus_priority_count:,} genera using LPSN GSS metadata.')
 
     def genus_priority_year(self, genus):
         """Determine year of priority for genus."""
@@ -214,7 +232,14 @@ class SpeciesPriorityManager(object):
             self.logger.error('Species need to be manually resolved in priority ledger: {}: {} / {} / {}, {}: {} / {} / {}'.format(
                                 gid1, sp1, cur_genomes[gid1].is_gtdb_type_strain(), cur_genomes[gid1].is_effective_type_strain(),
                                 gid2, sp2, cur_genomes[gid2].is_gtdb_type_strain(), cur_genomes[gid2].is_effective_type_strain()))
-            #***sys.exit(-1)
+
+            self._fout_amiguous_priority.write('{}\t{}\t{}\t{}\t{}\t{}\n'.format(
+                    sp1, sp2, 
+                    self.species_priority_year(cur_genomes, gid1),
+                    self.species_priority_year(cur_genomes, gid2),
+                    cur_genomes[gid1].is_gtdb_type_strain(),
+                    cur_genomes[gid2].is_gtdb_type_strain()))
+
             return gid1, 'error: ambiguous priority date' #***
             
         priority_sp = self.manual_sp_priority[sp1][sp2]

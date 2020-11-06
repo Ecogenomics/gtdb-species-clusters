@@ -24,6 +24,7 @@ from gtdb_species_clusters.genome_utils import (canonical_gid,
                                                 exclude_from_refseq)
 
 from gtdb_species_clusters.genomes import Genomes
+from gtdb_species_clusters.genome_utils import same_assembly_verssion
 
 
 class QcGenomes(object):
@@ -82,17 +83,19 @@ class QcGenomes(object):
 
                 if not gid.startswith('U'):
                     if ncbi_domain != gtdb_domain and ncbi_domain != 'None':
-                        print(f'[WARNING] NCBI ({ncbi_domain}) and GTDB ({gtdb_domain}) domains disagree in domain report (Bac = {bac_perc:.1f}%; Ar = {ar_perc:.1f}%): {gid}')
+                        self.logger.warning(f'NCBI ({ncbi_domain}) and GTDB ({gtdb_domain}) domains disagree in domain report (Bac = {bac_perc:.1f}%; Ar = {ar_perc:.1f}%): {gid}')
 
                     if domain != gtdb_domain and domain != 'None':
-                        print(f'[WARNING] GTDB and predicted domain (Bac = {bac_perc:.1f}%; Ar = {ar_perc:.1f}%) disagree in domain report: {gid}')
+                        self.logger.warning(f'GTDB and predicted domain (Bac = {bac_perc:.1f}%; Ar = {ar_perc:.1f}%) disagree in domain report: {gid}')
 
-    def run(self, 
-                metadata_file,
+    def run(self,
+                prev_gtdb_metadata_file,
+                cur_gtdb_metadata_file,
                 ncbi_genbank_assembly_file,
                 gtdb_domain_report,
                 gtdb_type_strains_ledger,
                 qc_exception_file,
+                ncbi_env_bioproject_ledger,
                 min_comp,
                 max_cont,
                 min_quality,
@@ -103,14 +106,27 @@ class QcGenomes(object):
                 max_ambiguous,
                 output_dir):
         """Quality check all potential GTDB genomes."""
+        
+        
+        # create previous and current GTDB genome sets
+        self.logger.info('Creating previous GTDB genome set.')
+        prev_genomes = Genomes()
+        prev_genomes.load_from_metadata_file(prev_gtdb_metadata_file,
+                                                gtdb_type_strains_ledger=gtdb_type_strains_ledger,
+                                                ncbi_genbank_assembly_file=ncbi_genbank_assembly_file,
+                                                ncbi_env_bioproject_ledger=ncbi_env_bioproject_ledger)
+        self.logger.info(f' - previous genome set contains {len(prev_genomes):,} genomes.')
+        self.logger.info(' - previous genome set has {:,} species clusters spanning {:,} genomes.'.format(
+                            len(prev_genomes.sp_clusters),
+                            prev_genomes.sp_clusters.total_num_genomes()))
 
-        # create current GTDB genome sets
         self.logger.info('Creating current GTDB genome set.')
         cur_genomes = Genomes()
-        cur_genomes.load_from_metadata_file(metadata_file,
-                                                create_sp_clusters=False,
+        cur_genomes.load_from_metadata_file(cur_gtdb_metadata_file,
                                                 gtdb_type_strains_ledger=gtdb_type_strains_ledger,
-                                                ncbi_genbank_assembly_file=ncbi_genbank_assembly_file)
+                                                create_sp_clusters=False,
+                                                ncbi_genbank_assembly_file=ncbi_genbank_assembly_file,
+                                                ncbi_env_bioproject_ledger=ncbi_env_bioproject_ledger)
         self.logger.info(f' - current genome set contains {len(cur_genomes):,} genomes.')
 
         # parse genomes flagged as exceptions from QC
@@ -137,9 +153,9 @@ class QcGenomes(object):
         
         header = 'Accession\tNCBI species\tGTDB taxonomy'
         header += '\tCompleteness (%)\tContamination (%)\tQuality\tStrain heterogeneity at 100%'
-        header += '\tMarkers (%)\tNo. contigs\tN50 contigs\tAmbiguous bases\tScore'
+        header += '\tMarkers (%)\tNo. contigs\tN50 contigs\tAmbiguous bases'
         
-        fout_retained.write(header + '\tNote\tNCBI exclude from RefSeq\n')
+        fout_retained.write(header + '\tScore\tNote\tNCBI exclude from RefSeq\n')
         fout_failed.write(header)
         fout_failed.write('\tFailed completeness\tFailed contamination\tFailed quality')
         fout_failed.write('\tFailed marker percentage\tFailed no. contigs\tFailed N50 contigs')
@@ -149,6 +165,7 @@ class QcGenomes(object):
         failed_qc_gids = set()
         for gid in cur_genomes:
             failed_tests = defaultdict(int)
+
             passed_qc = cur_genomes[gid].pass_qc(marker_perc[gid],
                                                     min_comp,
                                                     max_cont,
@@ -351,3 +368,21 @@ class QcGenomes(object):
         self.logger.info('Genomes from NCBI species filtered by each criterion:')
         for test in sorted(failed_tests_cumulative):
             self.logger.info(f'{test}: {failed_tests_cumulative[test]:,}')
+            
+        # sanity check QC results by identifying any genomes that passed QC last release, but
+        # have now been flagged as failing QC. This should rarely, if ever, happen unless the
+        # genomic data of the assembly has been updated.
+        unexpected_qc_fail = []
+        for gid in prev_genomes:
+            if gid in cur_genomes:
+                if not same_assembly_verssion(prev_genomes[gid].ncbi_accn, cur_genomes[gid].ncbi_accn):
+                    # genome assembly has changed so QC status is not expected to be the same_assembly_verssion
+                    continue
+                    
+                if gid in failed_qc_gids:
+                    unexpected_qc_fail.append(gid)
+                    
+        if len(unexpected_qc_fail) > 0:
+            self.logger.warning('Identified {:,} genomes that passed QC in previous GTDB release, that failed QC in this release.'.format(
+                                    len(unexpected_qc_fail)))
+            self.logger.warning(' - examples: {}'.format(','.join(unexpected_qc_fail[0:10])))

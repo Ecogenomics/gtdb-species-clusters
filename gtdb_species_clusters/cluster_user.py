@@ -36,8 +36,7 @@ from gtdb_species_clusters.genome_utils import read_genome_path
                                     
 from gtdb_species_clusters.type_genome_utils import (GenomeRadius,
                                                         read_quality_metadata,
-                                                        read_clusters,
-                                                        symmetric_ani)
+                                                        read_clusters)
                                     
 from gtdb_species_clusters.fastani import FastANI
 from gtdb_species_clusters.mash import Mash
@@ -124,7 +123,7 @@ class ClusterUser(object):
                     closest_rep_ani = 0
                     closest_rep_af = 0
                     for rep_gid in sp_clusters:
-                        ani, af = symmetric_ani(ani_af, cur_gid, rep_gid)
+                        ani, af = FastANI.symmetric_ani(ani_af, cur_gid, rep_gid)
                         
                         if af >= self.af_sp:
                             if ani > closest_rep_ani or (ani == closest_rep_ani and af > closest_rep_af):

@@ -23,7 +23,7 @@ from collections import defaultdict
 from gtdb_species_clusters.genome import Genome
 from gtdb_species_clusters.taxa import Taxa
 from gtdb_species_clusters.species_clusters import SpeciesClusters
-from gtdb_species_clusters.genome_utils import canonical_gid, exclude_from_refseq, read_gtdbtk_classifications
+from gtdb_species_clusters.genome_utils import canonical_gid, exclude_from_refseq, parse_ncbi_bioproject, read_gtdbtk_classifications
 from gtdb_species_clusters.taxon_utils import is_placeholder_taxon
 
 
@@ -337,7 +337,8 @@ class Genomes(object):
                                 qc_passed_file=None,
                                 ncbi_genbank_assembly_file=None,
                                 untrustworthy_type_ledger=None,
-                                ncbi_untrustworthy_sp_ledger=None):
+                                ncbi_untrustworthy_sp_ledger=None,
+                                ncbi_env_bioproject_ledger=None):
         """Create genome set from file(s)."""
         
         pass_qc_gids = set()
@@ -361,12 +362,20 @@ class Genomes(object):
                     
         excluded_from_refseq_note = {}
         if ncbi_genbank_assembly_file:
+            ncbi_bioproject = parse_ncbi_bioproject(ncbi_genbank_assembly_file)
             excluded_from_refseq_note = exclude_from_refseq(ncbi_genbank_assembly_file)
+            
+        ncbi_env_bioproject = set()
+        with open(ncbi_env_bioproject_ledger) as f:
+            f.readline()
+            for line in f:
+                tokens = line.strip().split('\t')
+                ncbi_env_bioproject.add(tokens[0].strip())
             
         untrustworthy_as_type = set()
         if untrustworthy_type_ledger:
             untrustworthy_as_type = self.parse_untrustworthy_type_ledger(untrustworthy_type_ledger)
-            self.logger.info(f' - identified {len(untrustworthy_as_type):,} genomes manually annotated as untrustworthy as type.')
+            self.logger.info(f' - identified {len(untrustworthy_as_type):,} genomes annotated as untrustworthy as type by GTDB.')
         
         untrustworthy_ncbi_sp = set()
         if ncbi_untrustworthy_sp_ledger:
@@ -450,6 +459,12 @@ class Genomes(object):
                 ncbi_genome_representation = line_split[ncbi_genome_representation_index]
                 ncbi_refseq_cat = line_split[ncbi_refseq_cat_index]
                 ncbi_genome_cat = line_split[ncbi_genome_cat_index]
+                
+                if ncbi_bioproject.get(gid, None) in ncbi_env_bioproject: #***
+                    # HACK to force genomes from MAG mining projects 
+                    # to be indicated as MAGs which are currently
+                    # not correctly annotated at NCBI
+                    ncbi_genome_cat = 'derived from environmental source'
                 
                 comp = float(line_split[comp_index])
                 cont = float(line_split[cont_index])

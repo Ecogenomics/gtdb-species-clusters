@@ -33,7 +33,6 @@ from gtdb_species_clusters.fastani import FastANI
 from gtdb_species_clusters.genomes import Genomes
 from gtdb_species_clusters.type_genome_utils import (ClusteredGenome,
                                                         GenomeRadius,
-                                                        symmetric_ani,
                                                         write_rep_radius,
                                                         write_clusters)
                                                         
@@ -114,7 +113,7 @@ class UpdateClusterDeNovo(object):
                 if rep_gid not in ani_af[nonrep_gid]:
                     continue
                     
-                ani, af = symmetric_ani(ani_af, nonrep_gid, rep_gid)
+                ani, af = FastANI.symmetric_ani(ani_af, nonrep_gid, rep_gid)
 
                 if ani > nonrep_radius[nonrep_gid].ani and af >= self.af_sp:
                     nonrep_radius[nonrep_gid] = GenomeRadius(ani = ani, 
@@ -202,7 +201,7 @@ class UpdateClusterDeNovo(object):
                     closest_rep_ani = 0
                     closest_rep_af = 0
                     for rep_gid in clusters:
-                        ani, af = symmetric_ani(ani_af, cur_gid, rep_gid)
+                        ani, af = FastANI.symmetric_ani(ani_af, cur_gid, rep_gid)
 
                         if af >= self.af_sp:
                             if ani > closest_rep_ani or (ani == closest_rep_ani and af > closest_rep_af):
@@ -320,7 +319,7 @@ class UpdateClusterDeNovo(object):
                 closest_rep_ani = 0
                 closest_rep_af = 0
                 for rep_gid in clusters:
-                    ani, af = symmetric_ani(ani_af, cur_gid, rep_gid)
+                    ani, af = FastANI.symmetric_ani(ani_af, cur_gid, rep_gid)
                     
                     if ani >= final_cluster_radius[rep_gid].ani and af >= self.af_sp:
                         if ani > closest_rep_ani or (ani == closest_rep_ani and af > closest_rep_af):
@@ -363,12 +362,12 @@ class UpdateClusterDeNovo(object):
     def run(self, named_cluster_file,
                     cur_gtdb_metadata_file,
                     cur_genomic_path_file,
-                    uba_genome_paths,
                     qc_passed_file,
                     ncbi_genbank_assembly_file,
                     untrustworthy_type_file,
                     ani_af_rep_vs_nonrep,
-                    gtdb_type_strains_ledger):
+                    gtdb_type_strains_ledger,
+                    ncbi_env_bioproject_ledger):
         """Infer de novo species clusters and representatives for remaining genomes."""
         
         # create current GTDB genome sets
@@ -377,16 +376,15 @@ class UpdateClusterDeNovo(object):
         cur_genomes.load_from_metadata_file(cur_gtdb_metadata_file,
                                                 gtdb_type_strains_ledger=gtdb_type_strains_ledger,
                                                 create_sp_clusters=False,
-                                                uba_genome_file=uba_genome_paths,
                                                 qc_passed_file=qc_passed_file,
                                                 ncbi_genbank_assembly_file=ncbi_genbank_assembly_file,
-                                                untrustworthy_type_ledger=untrustworthy_type_file)
+                                                untrustworthy_type_ledger=untrustworthy_type_file,
+                                                ncbi_env_bioproject_ledger=ncbi_env_bioproject_ledger)
         self.logger.info(f' - current genome set contains {len(cur_genomes):,} genomes.')
 
         # get path to previous and current genomic FASTA files
         self.logger.info('Reading path to current genomic FASTA files.')
         cur_genomes.load_genomic_file_paths(cur_genomic_path_file)
-        cur_genomes.load_genomic_file_paths(uba_genome_paths)
 
         # determine representatives and genomes clustered to each representative
         self.logger.info('Reading named GTDB species clusters.')

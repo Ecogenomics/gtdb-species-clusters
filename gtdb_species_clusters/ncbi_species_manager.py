@@ -26,7 +26,7 @@ from gtdb_species_clusters.genome import Genome
 from gtdb_species_clusters.species_priority_manager import SpeciesPriorityManager
 from gtdb_species_clusters.taxon_utils import (specific_epithet,
                                                 is_placeholder_sp_epithet)
-from gtdb_species_clusters.type_genome_utils import symmetric_ani
+from gtdb_species_clusters.fastani import FastANI
 
 
 class NCBI_SpeciesManager(object):
@@ -222,7 +222,7 @@ class NCBI_SpeciesManager(object):
                                         (consensus_synonyms, 'MAJORITY_VOTE_SYNONYM')]:
             for rid, synonym_ids in synonyms.items():
                 for gid in synonym_ids:
-                    ani, af = symmetric_ani(ani_af, rid, gid)
+                    ani, af = FastANI.symmetric_ani(ani_af, rid, gid)
 
                     fout.write(synonym_type)
                     fout.write('\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}'.format(

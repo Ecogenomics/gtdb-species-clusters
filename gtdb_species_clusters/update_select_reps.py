@@ -44,7 +44,6 @@ from gtdb_species_clusters.genomes import Genomes
 from gtdb_species_clusters.species_clusters import SpeciesClusters
                                     
 from gtdb_species_clusters.genome_utils import select_highest_quality
-from gtdb_species_clusters.type_genome_utils import symmetric_ani
                                     
 from gtdb_species_clusters.species_priority_manager import SpeciesPriorityManager
 
@@ -78,7 +77,7 @@ class UpdateSelectRepresentatives(object):
         # calculate mean ANI of all genome pairs
         anis = []
         for gid1, gid2 in combinations(gids, 2):
-            ani, af = symmetric_ani(ani_af, gid1, gid2)
+            ani, af = FastANI.symmetric_ani(ani_af, gid1, gid2)
             if ani > 0:
                 anis.append(ani)
                 
@@ -95,7 +94,7 @@ class UpdateSelectRepresentatives(object):
             if gid1 == gid2:
                 ani_neighbours[gid1] += 1
             else:
-                ani, af = symmetric_ani(ani_af, gid1, gid2)
+                ani, af = FastANI.symmetric_ani(ani_af, gid1, gid2)
                 if ani >= mean_ani - std_ani:
                     ani_neighbours[gid1] += 1
                     
@@ -577,10 +576,8 @@ class UpdateSelectRepresentatives(object):
                 for rid in mash_ani[qid]:
                     if mash_ani[qid][rid] >= self.min_mash_ani:
                         if qid != rid:
-                            q = cur_genomes.user_uba_id_map.get(qid, qid)
-                            r = cur_genomes.user_uba_id_map.get(rid, rid)
-                            mash_ani_pairs.append((q, r))
-                            mash_ani_pairs.append((r, q))
+                            mash_ani_pairs.append((qid, rid))
+                            mash_ani_pairs.append((rid, qid))
                     
             self.logger.info(' - identified {:,} genome pairs with a Mash ANI >= {:.1f}%.'.format(len(mash_ani_pairs), self.min_mash_ani))
 
@@ -677,7 +674,7 @@ class UpdateSelectRepresentatives(object):
                     print(cur_gid, neighbour_gid)
                     print('cur_gid in all_rep_genomes', cur_gid in all_rep_genomes)
                     print('neighbour_gid in all_rep_genomes', neighbour_gid in all_rep_genomes)
-                    sys.exit(-1)
+                    #sys.exit(-1) #***
         
         return ani_neighbours
 
@@ -693,7 +690,7 @@ class UpdateSelectRepresentatives(object):
                                         ncbi_reps,
                                         sp_priority_ledger,
                                         genus_priority_ledger,
-                                        dsmz_bacnames_file):
+                                        lpsn_gss_file):
         """Resolve representatives that have ANI neighbours deemed to be too close."""
 
         self.logger.info('Resolving {:,} representatives with neighbours within a {:.1f}% ANI radius and >= {:.2f} AF.'.format(
@@ -746,7 +743,8 @@ class UpdateSelectRepresentatives(object):
                 # greedily exclude representatives in reverse order of priority
                 sp_priority_mngr = SpeciesPriorityManager(sp_priority_ledger,
                                                             genus_priority_ledger,
-                                                            dsmz_bacnames_file)
+                                                            lpsn_gss_file,
+                                                            self.output_dir)
                 sorted_gids = sp_priority_mngr.sort_by_sp_priority(cur_genomes, 
                                                                         type_status[cur_type_status], 
                                                                         reverse=True)
@@ -882,12 +880,12 @@ class UpdateSelectRepresentatives(object):
                 if n_gid in excluded_gids:
                     continue
                     
-                ani, af = symmetric_ani(ani_af, ex_gid, n_gid)
+                ani, af = FastANI.symmetric_ani(ani_af, ex_gid, n_gid)
                 if ani > closest_ani:
                     closest_ani = ani
                     closest_gid = n_gid
 
-            ani, af = symmetric_ani(ani_af, ex_gid, closest_gid)
+            ani, af = FastANI.symmetric_ani(ani_af, ex_gid, closest_gid)
 
             fout.write('{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}'.format(
                         cur_genomes[closest_gid].ncbi_taxa.species,
@@ -993,7 +991,6 @@ class UpdateSelectRepresentatives(object):
     def run(self, updated_sp_cluster_file,
                     cur_gtdb_metadata_file,
                     cur_genomic_path_file,
-                    uba_genome_paths,
                     qc_passed_file,
                     gtdbtk_classify_file,
                     ncbi_genbank_assembly_file,
@@ -1002,7 +999,8 @@ class UpdateSelectRepresentatives(object):
                     ncbi_untrustworthy_sp_ledger,
                     sp_priority_ledger,
                     genus_priority_ledger,
-                    dsmz_bacnames_file):
+                    ncbi_env_bioproject_ledger,
+                    lpsn_gss_file):
         """Select GTDB type genomes for named species."""
         
         # read updated GTDB species clusters
@@ -1019,17 +1017,16 @@ class UpdateSelectRepresentatives(object):
         cur_genomes.load_from_metadata_file(cur_gtdb_metadata_file,
                                                 gtdb_type_strains_ledger=gtdb_type_strains_ledger,
                                                 create_sp_clusters=False,
-                                                uba_genome_file=uba_genome_paths,
                                                 qc_passed_file=qc_passed_file,
                                                 ncbi_genbank_assembly_file=ncbi_genbank_assembly_file,
                                                 untrustworthy_type_ledger=untrustworthy_type_file,
-                                                ncbi_untrustworthy_sp_ledger=ncbi_untrustworthy_sp_ledger)
+                                                ncbi_untrustworthy_sp_ledger=ncbi_untrustworthy_sp_ledger,
+                                                ncbi_env_bioproject_ledger=ncbi_env_bioproject_ledger)
         self.logger.info(f' - current genome set contains {len(cur_genomes):,} genomes.')
         
         # get path to previous and current genomic FASTA files
         self.logger.info('Reading path to current genomic FASTA files.')
         cur_genomes.load_genomic_file_paths(cur_genomic_path_file)
-        cur_genomes.load_genomic_file_paths(uba_genome_paths)
         
         # determine new NCBI species requiring a GTDB representative to be selected
         self.logger.info('Determining NCBI species unrepresented by GTDB species clusters.')
@@ -1177,7 +1174,7 @@ class UpdateSelectRepresentatives(object):
                                                             ncbi_reps,
                                                             sp_priority_ledger,
                                                             genus_priority_ledger,
-                                                            dsmz_bacnames_file)
+                                                            lpsn_gss_file)
                                                             
         self.write_final_reps(cur_genomes,
                                 all_rep_genomes, 

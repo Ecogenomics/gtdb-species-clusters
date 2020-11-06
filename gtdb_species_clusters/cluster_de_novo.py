@@ -45,7 +45,6 @@ from gtdb_species_clusters.taxon_utils import (read_gtdb_taxonomy,
 from gtdb_species_clusters.type_genome_utils import (GenomeRadius,
                                             quality_score,
                                             read_quality_metadata,
-                                            symmetric_ani,
                                             write_clusters,
                                             write_rep_radius)
                                     
@@ -154,7 +153,7 @@ class ClusterDeNovo(object):
                 if type_gid not in ani_af[nontype_gid]:
                     continue
                     
-                ani, af = symmetric_ani(ani_af, nontype_gid, type_gid)
+                ani, af = FastANI.symmetric_ani(ani_af, nontype_gid, type_gid)
 
                 if ani > nontype_radius[nontype_gid].ani and af >= self.af_sp:
                     nontype_radius[nontype_gid] = GenomeRadius(ani = ani, 
@@ -247,7 +246,7 @@ class ClusterDeNovo(object):
                     closest_rep_ani = 0
                     closest_rep_af = 0
                     for rep_gid in clusters:
-                        ani, af = symmetric_ani(ani_af, cur_gid, rep_gid)
+                        ani, af = FastANI.symmetric_ani(ani_af, cur_gid, rep_gid)
 
                         if af >= self.af_sp:
                             if ani > closest_rep_ani or (ani == closest_rep_ani and af > closest_rep_af):
@@ -354,7 +353,7 @@ class ClusterDeNovo(object):
             closest_rep_ani = 0
             closest_rep_af = 0
             for rep_gid in clusters:
-                ani, af = symmetric_ani(ani_af, cur_gid, rep_gid)
+                ani, af = FastANI.symmetric_ani(ani_af, cur_gid, rep_gid)
                 
                 if ani >= final_cluster_radius[rep_gid].ani and af >= self.af_sp:
                     if ani > closest_rep_ani or (ani == closest_rep_ani and af > closest_rep_af):
@@ -508,7 +507,7 @@ class ClusterDeNovo(object):
             anis = []
             afs = []
             for cluster_id in clusters[gid]:
-                ani, af = symmetric_ani(ani_af, gid, cluster_id)
+                ani, af = FastANI.symmetric_ani(ani_af, gid, cluster_id)
                 anis.append(ani)
                 afs.append(af)
             

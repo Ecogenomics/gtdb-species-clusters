@@ -39,8 +39,7 @@ from numpy import (mean as np_mean,
 from gtdb_species_clusters.genome_utils import read_genome_path, canonical_gid
 from gtdb_species_clusters.taxon_utils import read_gtdb_taxonomy, read_gtdb_ncbi_taxonomy
                                     
-from gtdb_species_clusters.type_genome_utils import (GenomeRadius,
-                                                        symmetric_ani)
+from gtdb_species_clusters.type_genome_utils import GenomeRadius
                                             
 from gtdb_species_clusters.mash import Mash
 from gtdb_species_clusters.fastani import FastANI
@@ -99,7 +98,7 @@ class ClusterStats(object):
                 if rid not in cur_ani_cache:
                     continue
                     
-                ani, af = symmetric_ani(self.fastani.ani_cache, gid, rid)
+                ani, af = FastANI.symmetric_ani(self.fastani.ani_cache, gid, rid)
                 if af >= self.af_sp and ani >= cluster_radius[rid].ani:
                     nonrep_rep_count[gid].add((rid, ani))
                     
@@ -174,7 +173,7 @@ class ClusterStats(object):
                     
                 ani, af = ('n/a', 'n/a')
                 if qid in ani_af and rid in ani_af[qid]:
-                    ani, af = symmetric_ani(ani_af, qid, rid)
+                    ani, af = FastANI.symmetric_ani(ani_af, qid, rid)
 
                     if ani > closest_ani:
                         closest_ani = ani
@@ -274,7 +273,7 @@ class ClusterStats(object):
                     ani_af = self.fastani.ani_cache
                 
                 # calculate statistics
-                anis = [symmetric_ani(ani_af, cid, rid)[0] for cid in cids]
+                anis = [FastANI.symmetric_ani(ani_af, cid, rid)[0] for cid in cids]
 
                 stats[rid] = self.RepStats(min_ani = min(anis),
                                             mean_ani = np_mean(anis),
@@ -341,7 +340,7 @@ class ClusterStats(object):
                     for i, gid1 in enumerate(gids):
                         for j, gid2 in enumerate(gids):
                             if i < j:
-                                ani, af = symmetric_ani(ani_af, gid1, gid2)
+                                ani, af = FastANI.symmetric_ani(ani_af, gid1, gid2)
                                 dist_mat[i, j] = 100 - ani
                                 dist_mat[j, i] = 100 - ani
 
@@ -353,10 +352,10 @@ class ClusterStats(object):
                     # individual species cluster
                     medoid_gid = rid
                     
-                mean_ani_to_medoid = np_mean([symmetric_ani(ani_af, gid, medoid_gid)[0] 
+                mean_ani_to_medoid = np_mean([FastANI.symmetric_ani(ani_af, gid, medoid_gid)[0] 
                                                 for gid in gids if gid != medoid_gid])
                                                 
-                mean_ani_to_rep = np_mean([symmetric_ani(ani_af, gid, rid)[0] 
+                mean_ani_to_rep = np_mean([FastANI.symmetric_ani(ani_af, gid, rid)[0] 
                                                 for gid in gids if gid != rid])
                                                 
                 if mean_ani_to_medoid < mean_ani_to_rep:
@@ -366,14 +365,14 @@ class ClusterStats(object):
                 # calculate statistics
                 anis = []
                 for gid1, gid2 in combinations(gids, 2):
-                    ani, af = symmetric_ani(ani_af, gid1, gid2)
+                    ani, af = FastANI.symmetric_ani(ani_af, gid1, gid2)
                     anis.append(ani)
                     
                 stats[rid] = self.PairwiseStats(min_ani = min(anis),
                                                 mean_ani = np_mean(anis),
                                                 std_ani = np_std(anis),
                                                 median_ani = np_median(anis),
-                                                ani_to_medoid = symmetric_ani(ani_af, rid, medoid_gid)[0],
+                                                ani_to_medoid = FastANI.symmetric_ani(ani_af, rid, medoid_gid)[0],
                                                 mean_ani_to_medoid = mean_ani_to_medoid,
                                                 mean_ani_to_rep = mean_ani_to_rep,
                                                 ani_below_95 = sum([1 for ani in anis if ani < 95]))

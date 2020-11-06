@@ -46,8 +46,7 @@ from gtdb_species_clusters.species_name_manager import SpeciesNameManager
 from gtdb_species_clusters.species_priority_manager import SpeciesPriorityManager
 from gtdb_species_clusters.ncbi_species_manager import NCBI_SpeciesManager
 from gtdb_species_clusters.genome_utils import canonical_gid
-from gtdb_species_clusters.type_genome_utils import (symmetric_ani, 
-                                                        read_clusters, 
+from gtdb_species_clusters.type_genome_utils import (read_clusters, 
                                                         write_clusters, 
                                                         write_rep_radius)
 from gtdb_species_clusters.taxon_utils import (generic_name,
@@ -784,7 +783,7 @@ class UpdateSpeciesInit(object):
             anis = []
             afs = []
             for cluster_id in clusters[gid]:
-                ani, af = symmetric_ani(ani_af, gid, cluster_id)
+                ani, af = FastANI.symmetric_ani(ani_af, gid, cluster_id)
                 anis.append(ani)
                 afs.append(af)
             

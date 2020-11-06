@@ -32,7 +32,6 @@ from biolib.external.execute import check_dependencies
 from numpy import (mean as np_mean)
 
 from gtdb_species_clusters.taxon_utils import read_gtdb_taxonomy
-from gtdb_species_clusters.type_genome_utils import symmetric_ani
 from gtdb_species_clusters.fastani import FastANI
 from gtdb_species_clusters.genomes import Genomes
 
@@ -57,7 +56,7 @@ class MergeTest(object):
         
         results = {}
         for qid in ani_af[rid]:
-            ani, af = symmetric_ani(ani_af, rid, qid)
+            ani, af = FastANI.symmetric_ani(ani_af, rid, qid)
             results[qid] = (ani, af)
             
         self.logger.info(f'Closest 5 species to {species} ({rid}):')
@@ -83,7 +82,7 @@ class MergeTest(object):
         
         ani_radius = 100
         for gid in merged_sp_cluster:
-            ani, af = symmetric_ani(merged_ani_af1, rid, gid)
+            ani, af = FastANI.symmetric_ani(merged_ani_af1, rid, gid)
             if ani < ani_radius:
                 ani_radius = ani
                 af_radius = af
@@ -163,7 +162,7 @@ class MergeTest(object):
         # report results
         ani12, af12 = ani_af1[gid1][gid2]
         ani21, af21 = ani_af2[gid2][gid1]
-        ani, af = symmetric_ani(ani_af1, gid1, gid2)
+        ani, af = FastANI.symmetric_ani(ani_af1, gid1, gid2)
         
         self.logger.info(f'{species1} ({gid1}) -> {species2} ({gid2}): ANI={ani12:.1f}%, AF={af12:.2f}')
         self.logger.info(f'{species2} ({gid2}) -> {species1} ({gid1}): ANI={ani21:.1f}%, AF={af21:.2f}')

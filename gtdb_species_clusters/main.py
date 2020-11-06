@@ -265,20 +265,24 @@ class OptionsParser():
     def u_qc_genomes(self, args):
         """Quality check new and updated genomes."""
         
+        check_file_exists(args.prev_gtdb_metadata_file)
         check_file_exists(args.cur_gtdb_metadata_file)
         check_file_exists(args.cur_genbank_assembly_file)
         check_file_exists(args.cur_gtdb_domain_report)
         check_file_exists(args.gtdb_type_strains_ledger)
         check_file_exists(args.qc_exception_file)
+        check_file_exists(args.ncbi_env_bioproject_ledger)
         make_sure_path_exists(args.output_dir)
 
         try:
             p = QcGenomes()
-            p.run(args.cur_gtdb_metadata_file,
+            p.run(args.prev_gtdb_metadata_file,
+                        args.cur_gtdb_metadata_file,
                         args.cur_genbank_assembly_file,
                         args.cur_gtdb_domain_report,
                         args.gtdb_type_strains_ledger,
                         args.qc_exception_file,
+                        args.ncbi_env_bioproject_ledger,
                         args.min_comp,
                         args.max_cont,
                         args.min_quality,
@@ -304,6 +308,7 @@ class OptionsParser():
         check_file_exists(args.ltp_taxonomy_file)
         check_file_exists(args.gtdb_type_strains_ledger)
         check_file_exists(args.untrustworthy_type_ledger)
+        check_file_exists(args.ncbi_env_bioproject_ledger)
         make_sure_path_exists(args.output_dir)
         
         p = ResolveTypes(args.ani_cache_file, args.cpus, args.output_dir)
@@ -313,7 +318,8 @@ class OptionsParser():
                 args.ncbi_genbank_assembly_file,
                 args.ltp_taxonomy_file,
                 args.gtdb_type_strains_ledger,
-                args.untrustworthy_type_ledger)
+                args.untrustworthy_type_ledger,
+                args.ncbi_env_bioproject_ledger)
         
         self.logger.info('Done.')
         
@@ -343,6 +349,7 @@ class OptionsParser():
         check_file_exists(args.untrustworthy_type_file)
         check_file_exists(args.disband_cluster_ledger)
         check_file_exists(args.gtdb_type_strains_ledger)
+        check_file_exists(args.ncbi_env_bioproject_ledger)
         make_sure_path_exists(args.output_dir)
         
         p = RepChanges(args.output_dir)
@@ -354,7 +361,8 @@ class OptionsParser():
                 args.ncbi_genbank_assembly_file,
                 args.untrustworthy_type_file,
                 args.disband_cluster_ledger,
-                args.gtdb_type_strains_ledger)
+                args.gtdb_type_strains_ledger,
+                args.ncbi_env_bioproject_ledger)
         
         self.logger.info('Done.')
         
@@ -364,7 +372,6 @@ class OptionsParser():
         check_file_exists(args.rep_change_summary_file)
         check_file_exists(args.prev_genomic_path_file)
         check_file_exists(args.cur_genomic_path_file)
-        check_file_exists(args.uba_genome_paths)
         check_file_exists(args.genomes_new_updated_file)
         check_file_exists(args.qc_passed_file)
         check_file_exists(args.gtdbtk_classify_file)
@@ -373,7 +380,8 @@ class OptionsParser():
         check_file_exists(args.gtdb_type_strains_ledger)
         check_file_exists(args.sp_priority_ledger)
         check_file_exists(args.genus_priority_ledger)
-        check_file_exists(args.dsmz_bacnames_file)
+        check_file_exists(args.ncbi_env_bioproject_ledger)
+        check_file_exists(args.lpsn_gss_file)
         make_sure_path_exists(args.output_dir)
         
         p = RepActions(args.ani_cache_file, args.cpus, args.output_dir)
@@ -382,7 +390,6 @@ class OptionsParser():
                 args.prev_genomic_path_file,
                 args.cur_gtdb_metadata_file,
                 args.cur_genomic_path_file,
-                args.uba_genome_paths,
                 args.genomes_new_updated_file,
                 args.qc_passed_file,
                 args.gtdbtk_classify_file,
@@ -391,7 +398,8 @@ class OptionsParser():
                 args.gtdb_type_strains_ledger,
                 args.sp_priority_ledger,
                 args.genus_priority_ledger,
-                args.dsmz_bacnames_file)
+                args.ncbi_env_bioproject_ledger,
+                args.lpsn_gss_file)
         
         self.logger.info('Done.')
         
@@ -401,7 +409,6 @@ class OptionsParser():
         check_file_exists(args.updated_sp_cluster_file)
         check_file_exists(args.cur_gtdb_metadata_file)
         check_file_exists(args.cur_genomic_path_file)
-        check_file_exists(args.uba_genome_paths)
         check_file_exists(args.qc_passed_file)
         check_file_exists(args.gtdbtk_classify_file)
         check_file_exists(args.ncbi_genbank_assembly_file)
@@ -410,7 +417,8 @@ class OptionsParser():
         check_file_exists(args.ncbi_untrustworthy_sp_ledger)
         check_file_exists(args.sp_priority_ledger)
         check_file_exists(args.genus_priority_ledger)
-        check_file_exists(args.dsmz_bacnames_file)
+        check_file_exists(args.ncbi_env_bioproject_ledger)
+        check_file_exists(args.lpsn_gss_file)
         make_sure_path_exists(args.output_dir)
         
         p = UpdateSelectRepresentatives(args.ani_cache_file, 
@@ -419,7 +427,6 @@ class OptionsParser():
         p.run(args.updated_sp_cluster_file,
                 args.cur_gtdb_metadata_file,
                 args.cur_genomic_path_file,
-                args.uba_genome_paths,
                 args.qc_passed_file,
                 args.gtdbtk_classify_file,
                 args.ncbi_genbank_assembly_file,
@@ -428,7 +435,8 @@ class OptionsParser():
                 args.ncbi_untrustworthy_sp_ledger,
                 args.sp_priority_ledger,
                 args.genus_priority_ledger,
-                args.dsmz_bacnames_file)
+                args.ncbi_env_bioproject_ledger,
+                args.lpsn_gss_file)
         
         self.logger.info('Done.')
         
@@ -438,13 +446,13 @@ class OptionsParser():
         check_file_exists(args.named_rep_file)
         check_file_exists(args.cur_gtdb_metadata_file)
         check_file_exists(args.cur_genomic_path_file)
-        check_file_exists(args.uba_genome_paths)
         check_file_exists(args.qc_passed_file)
         check_file_exists(args.ncbi_genbank_assembly_file)
         check_file_exists(args.untrustworthy_type_file)
         check_file_exists(args.rep_mash_sketch_file)
         check_file_exists(args.rep_ani_file)
         check_file_exists(args.gtdb_type_strains_ledger)
+        check_file_exists(args.ncbi_env_bioproject_ledger)
         make_sure_path_exists(args.output_dir)
         
         p = UpdateClusterNamedReps(args.ani_sp,
@@ -455,13 +463,13 @@ class OptionsParser():
         p.run(args.named_rep_file,
                 args.cur_gtdb_metadata_file,
                 args.cur_genomic_path_file,
-                args.uba_genome_paths,
                 args.qc_passed_file,
                 args.ncbi_genbank_assembly_file,
                 args.untrustworthy_type_file,
                 args.rep_mash_sketch_file,
                 args.rep_ani_file,
-                args.gtdb_type_strains_ledger)
+                args.gtdb_type_strains_ledger,
+                args.ncbi_env_bioproject_ledger)
         
         self.logger.info('Done.')
         
@@ -471,7 +479,6 @@ class OptionsParser():
         check_file_exists(args.gtdb_clusters_file)
         check_file_exists(args.cur_gtdb_metadata_file)
         check_file_exists(args.cur_genomic_path_file)
-        check_file_exists(args.uba_genome_paths)
         check_file_exists(args.qc_passed_file)
         check_file_exists(args.ncbi_genbank_assembly_file)
         check_file_exists(args.untrustworthy_type_file)
@@ -485,7 +492,6 @@ class OptionsParser():
         p.run(args.gtdb_clusters_file,
                 args.cur_gtdb_metadata_file,
                 args.cur_genomic_path_file,
-                args.uba_genome_paths,
                 args.qc_passed_file,
                 args.ncbi_genbank_assembly_file,
                 args.untrustworthy_type_file,
@@ -501,7 +507,6 @@ class OptionsParser():
         
         check_file_exists(args.gtdb_clusters_file)
         check_file_exists(args.cur_gtdb_metadata_file)
-        check_file_exists(args.uba_genome_paths)
         check_file_exists(args.qc_passed_file)
         check_file_exists(args.ncbi_misclassified_file)
         check_file_exists(args.ncbi_genbank_assembly_file)
@@ -516,7 +521,6 @@ class OptionsParser():
         p = UpdateSynonyms(args.output_dir)
         p.run(args.gtdb_clusters_file,
                 args.cur_gtdb_metadata_file,
-                args.uba_genome_paths,
                 args.qc_passed_file,
                 args.ncbi_misclassified_file,
                 args.ncbi_genbank_assembly_file,
@@ -535,12 +539,12 @@ class OptionsParser():
         check_file_exists(args.named_cluster_file)
         check_file_exists(args.cur_gtdb_metadata_file)
         check_file_exists(args.cur_genomic_path_file)
-        check_file_exists(args.uba_genome_paths)
         check_file_exists(args.qc_passed_file)
         check_file_exists(args.ncbi_genbank_assembly_file)
         check_file_exists(args.untrustworthy_type_file)
         check_file_exists(args.ani_af_rep_vs_nonrep)
         check_file_exists(args.gtdb_type_strains_ledger)
+        check_file_exists(args.ncbi_env_bioproject_ledger)
         make_sure_path_exists(args.output_dir)
         
         p = UpdateClusterDeNovo(args.ani_sp,
@@ -551,12 +555,12 @@ class OptionsParser():
         p.run(args.named_cluster_file,
                 args.cur_gtdb_metadata_file,
                 args.cur_genomic_path_file,
-                args.uba_genome_paths,
                 args.qc_passed_file,
                 args.ncbi_genbank_assembly_file,
                 args.untrustworthy_type_file,
                 args.ani_af_rep_vs_nonrep,
-                args.gtdb_type_strains_ledger)
+                args.gtdb_type_strains_ledger,
+                args.ncbi_env_bioproject_ledger)
         
         self.logger.info('Done.')
         

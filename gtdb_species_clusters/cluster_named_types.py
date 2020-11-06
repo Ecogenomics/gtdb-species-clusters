@@ -40,7 +40,6 @@ from gtdb_species_clusters.taxon_utils import (read_gtdb_taxonomy,
                                                 read_gtdb_ncbi_taxonomy)
                                     
 from gtdb_species_clusters.type_genome_utils import (GenomeRadius,
-                                            symmetric_ani,
                                             write_clusters,
                                             write_rep_radius)
                                     
@@ -198,7 +197,7 @@ class ClusterNamedTypes(object):
                 if type_gid not in ani_af[nontype_gid]:
                     continue
 
-                ani, af = symmetric_ani(ani_af, type_gid, nontype_gid)
+                ani, af = FastANI.symmetric_ani(ani_af, type_gid, nontype_gid)
                 
                 if af >= self.af_sp:
                     if ani > closest_ani or (ani == closest_ani and af > closest_af):

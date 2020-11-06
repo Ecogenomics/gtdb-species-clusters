@@ -182,33 +182,6 @@ def check_ncbi_subsp(unfiltered_ncbi_taxonomy):
 
     return True
 
-
-def symmetric_ani(ani_af, gid1, gid2):
-    """Calculate symmetric ANI statistics between genomes."""
-    
-    if gid1 == gid2:
-        return 100.0, 1.0
-    
-    if (gid1 not in ani_af
-        or gid2 not in ani_af 
-        or gid1 not in ani_af[gid2]
-        or gid2 not in ani_af[gid1]):
-        return 0.0, 0.0
-    
-    cur_ani, cur_af = ani_af[gid1][gid2]
-    rev_ani, rev_af = ani_af[gid2][gid1]
-    
-    # ANI should be the larger of the two values as this
-    # is the most conservative circumscription and reduces the
-    # change of creating polyphyletic species clusters
-    ani = max(rev_ani, cur_ani)
-    
-    # AF should be the larger of the two values in order to 
-    # accomodate incomplete and contaminated genomes
-    af = max(rev_af, cur_af)
-    
-    return ani, af
-    
     
 def quality_score(gids, quality_metadata):
     """"Calculate quality score for genomes."""

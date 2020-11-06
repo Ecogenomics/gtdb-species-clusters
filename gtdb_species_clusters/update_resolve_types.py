@@ -31,7 +31,6 @@ from gtdb_species_clusters.fastani import FastANI
 from gtdb_species_clusters.genomes import Genomes
 from gtdb_species_clusters.genome_utils import canonical_gid, exclude_from_refseq
 from gtdb_species_clusters.taxon_utils import generic_name, specific_epithet, canonical_taxon
-from gtdb_species_clusters.type_genome_utils import symmetric_ani
 
 
 class ResolveTypes(object):
@@ -389,7 +388,8 @@ class ResolveTypes(object):
                 ncbi_genbank_assembly_file,
                 ltp_taxonomy_file,
                 gtdb_type_strains_ledger,
-                untrustworthy_type_ledger):
+                untrustworthy_type_ledger,
+                ncbi_env_bioproject_ledger):
         """Resolve cases where a species has multiple genomes assembled from the type strain."""
         
         # get species in LTP reference database
@@ -405,7 +405,8 @@ class ResolveTypes(object):
                                                 create_sp_clusters=False,
                                                 qc_passed_file=qc_passed_file,
                                                 ncbi_genbank_assembly_file=ncbi_genbank_assembly_file,
-                                                untrustworthy_type_ledger=untrustworthy_type_ledger)
+                                                untrustworthy_type_ledger=untrustworthy_type_ledger,
+                                                ncbi_env_bioproject_ledger=ncbi_env_bioproject_ledger)
         cur_genomes.load_genomic_file_paths(cur_genomic_path_file)
         self.logger.info(f' - current genome set contains {len(cur_genomes):,} genomes.')
 
@@ -514,7 +515,7 @@ class ResolveTypes(object):
             gid_afs = defaultdict(lambda: {})
             all_similar = True
             for gid1, gid2 in combinations(type_gids, 2):
-                ani, af = symmetric_ani(ani_af, gid1, gid2)
+                ani, af = FastANI.symmetric_ani(ani_af, gid1, gid2)
                 if ani < 99 or af < 0.65:
                     all_similar = False
                     

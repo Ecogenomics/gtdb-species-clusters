@@ -180,6 +180,11 @@ class Genome(object):
         
         return self.gtdb_type_designation in Genome.GTDB_TYPE_SUBSPECIES
         
+    def is_ncbi_untrustworthy_as_type(self):
+        """Check if genome considered untrustworthy as type material by NCBI."""
+        
+        return 'untrustworthy as type' in self.excluded_from_refseq_note.lower()
+        
     def is_ncbi_type_strain(self):
         """Check if genome is a type strain genome at NCBI."""
         
@@ -195,7 +200,7 @@ class Genome(object):
         
         if self.ncbi_type_material:
             if self.ncbi_type_material.lower() in Genome.NCBI_TYPE_SPECIES:
-                if 'untrustworthy as type' in self.excluded_from_refseq_note.lower():
+                if self.is_ncbi_untrustworthy_as_type():
                     return False
                     
                 if not self.is_ncbi_subspecies():
@@ -222,7 +227,7 @@ class Genome(object):
     def is_ncbi_type_subspecies(self):
         """Check if genome is a type strain of subspecies at NCBI."""
         
-        if 'untrustworthy as type' in self.excluded_from_refseq_note.lower():
+        if self.is_ncbi_untrustworthy_as_type():
             return False
         
         if self.ncbi_type_material:

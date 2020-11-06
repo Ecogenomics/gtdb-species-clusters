@@ -51,7 +51,6 @@ from gtdb_species_clusters.type_genome_utils import (NCBI_TYPE_SPECIES,
                                             GTDB_NOT_TYPE_MATERIAL,
                                             check_ncbi_subsp,
                                             gtdb_type_strain_of_species,
-                                            symmetric_ani,
                                             quality_score)
                                     
 from gtdb_species_clusters.fastani import FastANI
@@ -219,7 +218,7 @@ class SelectTypeGenomes(object):
         # calculate mean ANI of all genome pairs
         anis = []
         for gid1, gid2 in combinations(gids, 2):
-            ani, af = symmetric_ani(ani_af, gid1, gid2)
+            ani, af = FastANI.symmetric_ani(ani_af, gid1, gid2)
             if ani > 0:
                 anis.append(ani)
                 
@@ -236,7 +235,7 @@ class SelectTypeGenomes(object):
             if gid1 == gid2:
                 ani_neighbours[gid1] += 1
             else:
-                ani, af = symmetric_ani(ani_af, gid1, gid2)
+                ani, af = FastANI.symmetric_ani(ani_af, gid1, gid2)
                 if ani >= mean_ani - std_ani:
                     ani_neighbours[gid1] += 1
                     
@@ -986,7 +985,7 @@ class SelectTypeGenomes(object):
                 af = max(rev_af, cur_af)
                 
                 # sanity check
-                test_ani, test_af = symmetric_ani(ani_af, gid1, gid2)
+                test_ani, test_af = FastANI.symmetric_ani(ani_af, gid1, gid2)
                 assert(test_ani == ani)
                 assert(test_af == af)
                 
@@ -1258,7 +1257,7 @@ class SelectTypeGenomes(object):
                 if n_gid in excluded_gids:
                     continue
                     
-                ani, af = symmetric_ani(ani_af, ex_gid, n_gid)
+                ani, af = FastANI.symmetric_ani(ani_af, ex_gid, n_gid)
                 if ani > closest_ani:
                     closest_ani = ani
                     closest_gid = n_gid
@@ -1266,7 +1265,7 @@ class SelectTypeGenomes(object):
             closest_sp = gid_to_species[closest_gid]
             ex_sp = gid_to_species[ex_gid]
 
-            ani, af = symmetric_ani(ani_af, ex_gid, closest_gid)
+            ani, af = FastANI.symmetric_ani(ani_af, ex_gid, closest_gid)
 
             fout.write('%s\t%s\t%s\t%s\t%s\t%s' % (
                         closest_sp,

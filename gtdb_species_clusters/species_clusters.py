@@ -148,7 +148,7 @@ class SpeciesClusters(object):
                         self.genome_rid[cid] = rid
                     
     def create_expanded_clusters(self, 
-                                original_sp_clusters,
+                                prev_genomes,
                                 genomes_new_updated_file,
                                 qc_passed_file,
                                 gtdbtk_classify_file):
@@ -171,6 +171,7 @@ class SpeciesClusters(object):
         self.logger.info(f' - identified {new_pass_qc:,} new and {updated_pass_qc:,} updated genomes as passing QC.')
 
         # create mapping between species and representatives
+        original_sp_clusters = prev_genomes.sp_clusters
         orig_sp_rid_map = {sp: rid for rid, sp in original_sp_clusters.species_names.items()}
         
         # create mapping between all genomes and species
@@ -181,16 +182,8 @@ class SpeciesClusters(object):
                 orig_gid_sp_map[cid] = sp
                                 
         # expand species clusters
-        failed_qc = 0
         new_sp = 0
-        prev_genome_count = 0
         for gid, taxa in gtdbtk_classifications.items():
-            if gid not in gids_pass_qc:
-                # ***HACK: this should not be necessary, except GTDB-Tk was run external
-                # of complete workflow for R95
-                failed_qc += 1
-                continue
-                
             sp = taxa[6]
             if sp == 's__':
                 new_sp += 1
@@ -208,22 +201,15 @@ class SpeciesClusters(object):
                 
                 orig_sp = orig_gid_sp_map[gid]
                 if orig_sp != sp:
-                    self.logger.warning(f'Updated genomes {gid} reassigned from {orig_sp} to {sp}.')
-                    sys.exit(-1)
-                    # Really, should handle this case. This will be fine so long as the genomes
-                    # isn't a species representative. If a species representative has changed to
-                    # the point where it no longer clusters with its previous genome that requires
-                    # some real thought.
+                    if prev_genomes[gid].is_gtdb_sp_rep():
+                        self.logger.warning(f'Updated GTDB representative {gid} reassigned from {orig_sp} to {sp} (manual inspection required to ensure this is properly resolved).')
+                        #sys.exit(-1)
+                        # If a GTDB species representative has changed to the point where
+                        # it no longer clusters with its previous genome this requires
+                        # some thought to ensure this situation is being handled.
             else:
-                # ***HACK: should be an error except GTDB-Tk was run external to workflow in R95
-                #self.logger.error(f"Genome {gid} specified in GTDB-Tk results is neither 'new' or 'updated'")
-                #sys.exit(-1)
-                prev_genome_count += 1
-
-        # ***HACK: this should not be necessary, except GTDB-Tk was run external
-        # of complete workflow for R95
-        print('failed_qc', failed_qc)
-        print('prev_genome_count', prev_genome_count)
+                self.logger.error(f"Genome {gid} specified in GTDB-Tk results is neither 'new' or 'updated'")
+                sys.exit(-1)
         
         self.logger.info(f' - identified {new_sp:,} genomes not assigned to an existing GTDB species cluster')
 

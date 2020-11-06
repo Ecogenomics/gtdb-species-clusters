@@ -34,7 +34,6 @@ from gtdb_species_clusters.fastani import FastANI
 from gtdb_species_clusters.genomes import Genomes
 from gtdb_species_clusters.type_genome_utils import (ClusteredGenome,
                                                         GenomeRadius,
-                                                        symmetric_ani,
                                                         write_rep_radius,
                                                         write_clusters)
                                                         
@@ -108,7 +107,7 @@ class IntraGenusANI(object):
         fout.write('Query ID\tQuery species\tTarget ID\tTarget species\tANI\tAF\n')
         for qid in target_gids:
             for rid in target_gids:
-                ani, af = symmetric_ani(ani_af, qid, rid)
+                ani, af = FastANI.symmetric_ani(ani_af, qid, rid)
                 
                 fout.write('{}\t{}\t{}\t{}\t{:.3f}\t{:.3f}\n'.format(
                             qid,
