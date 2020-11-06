@@ -27,16 +27,8 @@ from biolib.external.execute import check_dependencies
 from biolib.taxonomy import Taxonomy
 from biolib.newick import parse_label
 
-from gtdb_species_clusters.qc_genomes import QcGenomes
-from gtdb_species_clusters.mash import Mash
-from gtdb_species_clusters.select_type_genomes import SelectTypeGenomes
-from gtdb_species_clusters.cluster_named_types import ClusterNamedTypes
-from gtdb_species_clusters.cluster_de_novo import ClusterDeNovo
-from gtdb_species_clusters.cluster_user import ClusterUser
-from gtdb_species_clusters.tree_gids import TreeGIDs
-from gtdb_species_clusters.cluster_stats import ClusterStats
-
 from gtdb_species_clusters.update_new_genomes import NewGenomes
+from gtdb_species_clusters.update_qc_genomes import QcGenomes
 from gtdb_species_clusters.update_resolve_types import ResolveTypes
 from gtdb_species_clusters.update_gtdbtk import GTDB_Tk
 from gtdb_species_clusters.update_rep_changes import RepChanges
@@ -59,6 +51,7 @@ from gtdb_species_clusters.pmc_validation import PMC_Validation
 from gtdb_species_clusters.merge_test import MergeTest
 from gtdb_species_clusters.intra_sp_derep import IntraSpeciesDereplication
 from gtdb_species_clusters.intra_genus_ani import IntraGenusANI
+from gtdb_species_clusters.cluster_stats import ClusterStats
 
 from gtdb_species_clusters.exceptions import GTDB_Error
 
@@ -67,178 +60,6 @@ class OptionsParser():
     def __init__(self):
         """Initialization"""
         self.logger = logging.getLogger()
-        
-    def qc_genomes(self, args):
-        """Quality check all potential GTDB genomes."""
-        
-        check_file_exists(args.gtdb_metadata_file)
-        check_file_exists(args.ncbi_genbank_assembly_file)
-        check_file_exists(args.gtdb_domain_report)
-        check_file_exists(args.qc_exception_file)
-        check_file_exists(args.species_exception_file)
-        make_sure_path_exists(args.output_dir)
-
-        try:
-            p = QcGenomes(args.ncbi_genbank_assembly_file,
-                        args.gtdb_domain_report,
-                        args.qc_exception_file,
-                        args.species_exception_file,
-                        args.min_comp,
-                        args.max_cont,
-                        args.min_quality,
-                        args.sh_exception,
-                        args.min_perc_markers,
-                        args.max_contigs,
-                        args.min_N50,
-                        args.max_ambiguous,
-                        args.output_dir)
-        except GTDB_Error as e:
-            print(e.message)
-            raise SystemExit
-
-        self.logger.info('Quality checking information written to: %s' % args.output_dir)
-        
-    def select_type_genomes(self, args):
-        """Select representative genomes for named species."""
-
-        check_file_exists(args.qc_file)
-        check_file_exists(args.gtdb_metadata_file)
-        check_file_exists(args.genome_path_file)
-        check_file_exists(args.prev_rep_file)
-        check_file_exists(args.ncbi_refseq_assembly_file)
-        check_file_exists(args.ncbi_genbank_assembly_file)
-        check_file_exists(args.gtdb_domain_report)
-        check_file_exists(args.species_exception_file)
-        check_file_exists(args.gtdb_type_genome_file)
-        make_sure_path_exists(args.output_dir)
-
-        try:
-            p = SelectTypeGenomes(args.ani_cache_file, args.cpus, args.output_dir)
-            p.run(args.qc_file,
-                        args.gtdb_metadata_file,
-                        args.ltp_blast_file,
-                        args.genome_path_file,
-                        args.prev_rep_file,
-                        args.ncbi_refseq_assembly_file,
-                        args.ncbi_genbank_assembly_file,
-                        args.gtdb_domain_report,
-                        args.species_exception_file,
-                        args.gtdb_type_genome_file)
-        except GTDB_Error as e:
-            print(e.message)
-            raise SystemExit
-
-        self.logger.info('GTDB type genomes written to: %s' % args.output_dir)
-
-    def cluster_named_types(self, args):
-        """Cluster genomes to selected GTDB type genomes."""
-
-        check_file_exists(args.qc_file)
-        check_file_exists(args.gtdb_metadata_file)
-        check_file_exists(args.genome_path_file)
-        check_file_exists(args.named_type_genome_file)
-        check_file_exists(args.type_genome_ani_file)
-        check_file_exists(args.species_exception_file)
-        make_sure_path_exists(args.output_dir)
-
-        try:
-            p = ClusterNamedTypes(args.ani_sp,
-                                    args.af_sp,
-                                    args.ani_cache_file, 
-                                    args.cpus,
-                                    args.output_dir)
-            p.run(args.qc_file,
-                    args.gtdb_metadata_file,
-                    args.genome_path_file,
-                    args.named_type_genome_file,
-                    args.type_genome_ani_file,
-                    args.mash_sketch_file,
-                    args.species_exception_file)
-        except GTDB_Error as e:
-            print(e.message)
-            raise SystemExit
-
-        self.logger.info('Clustering results written to: %s' % args.output_dir)
-        
-    def cluster_de_novo(self, args):
-        """Infer de novo species clusters and type genomes for remaining genomes."""
-
-        check_file_exists(args.qc_file)
-        check_file_exists(args.gtdb_metadata_file)
-        check_file_exists(args.gtdb_user_genomes_file)
-        check_file_exists(args.genome_path_file)
-        check_file_exists(args.type_genome_cluster_file)
-        check_file_exists(args.type_genome_synonym_file)
-        check_file_exists(args.ncbi_refseq_assembly_file)
-        check_file_exists(args.ncbi_genbank_assembly_file)
-        check_file_exists(args.ani_af_nontype_vs_type)
-        check_file_exists(args.species_exception_file)
-        make_sure_path_exists(args.output_dir)
-
-        try:
-            p = ClusterDeNovo(args.ani_sp,
-                                    args.af_sp,
-                                    args.ani_cache_file, 
-                                    args.cpus,
-                                    args.output_dir)
-            p.run(args.qc_file,
-                        args.gtdb_metadata_file,
-                        args.gtdb_user_genomes_file,
-                        args.genome_path_file,
-                        args.type_genome_cluster_file,
-                        args.type_genome_synonym_file,
-                        args.ncbi_refseq_assembly_file,
-                        args.ncbi_genbank_assembly_file,
-                        args.ani_af_nontype_vs_type,
-                        args.species_exception_file,
-                        args.rnd_type_genome)
-        except GTDB_Error as e:
-            print(e.message)
-            raise SystemExit
-
-        self.logger.info('Clustering results written to: %s' % args.output_dir)
-        
-    def cluster_user(self, args):
-        """Cluster User genomes to GTDB species clusters."""
-
-        check_file_exists(args.gtdb_metadata_file)
-        check_file_exists(args.genome_path_file)
-        check_file_exists(args.final_cluster_file)
-        make_sure_path_exists(args.output_dir)
-
-        try:
-            p = ClusterUser(args.ani_cache_file, 
-                                args.cpus,
-                                args.output_dir)
-            p.run(args.gtdb_metadata_file,
-                        args.genome_path_file,
-                        args.final_cluster_file)
-        except GTDB_Error as e:
-            print(e.message)
-            raise SystemExit
-
-        self.logger.info('Clustering results written to: %s' % args.output_dir)
-        
-    def tree_gids(self, args):
-        """Determine genome IDs for test/validation tree."""
-
-        check_file_exists(args.qc_file)
-        check_file_exists(args.gtdb_metadata_file)
-        check_file_exists(args.gtdb_final_clusters)
-        check_file_exists(args.species_exception_file)
-
-        try:
-            p = TreeGIDs()
-            p.run(args.qc_file,
-                    args.gtdb_metadata_file,
-                    args.gtdb_final_clusters,
-                    args.species_exception_file,
-                    args.output_dir)
-        except GTDB_Error as e:
-            print(e.message)
-            raise SystemExit
-
-        self.logger.info('Results written to: %s' % args.output_dir)
             
     def u_new_genomes(self, args):
         """Identify new and updated genomes."""
@@ -1061,21 +882,7 @@ class OptionsParser():
 
         logging.basicConfig(format='', level=logging.INFO)
 
-        if args.subparser_name == 'qc_genomes':
-            self.qc_genomes(args)
-        elif args.subparser_name == 'mash_dist':
-            self.mash_dist(args)
-        elif args.subparser_name == 'select_type_genomes':
-            self.select_type_genomes(args)
-        elif args.subparser_name == 'cluster_named_types':
-            self.cluster_named_types(args)
-        elif args.subparser_name == 'cluster_de_novo':
-            self.cluster_de_novo(args)
-        elif args.subparser_name == 'cluster_user':
-            self.cluster_user(args)
-        elif args.subparser_name == 'tree_gids':
-            self.tree_gids(args)
-        elif args.subparser_name == 'u_new_genomes':
+        if args.subparser_name == 'u_new_genomes':
             self.u_new_genomes(args)
         elif args.subparser_name == 'u_qc_genomes':
             self.u_qc_genomes(args)

@@ -110,10 +110,13 @@ class SpeciesClusters(object):
     def update_sp_cluster(self, rid, gid, sp_name):
         """Update species cluster."""
         
+        if(rid in self.species_names 
+                and self.species_names[rid] != sp_name):
+            self.logger.error('GTDB representative {} appears to have two names: {} {}'.format(
+                                rid, self.species_names[rid], sp_name))
+            sys.exit(-1)
+        
         self.sp_clusters[rid].add(gid)
-        assert(rid not in self.species_names 
-                or self.species_names[rid] == sp_name)
-                
         self.species_names[rid] = sp_name
         self.genome_rid[gid] = rid
         self.genome_rid[rid] = rid
