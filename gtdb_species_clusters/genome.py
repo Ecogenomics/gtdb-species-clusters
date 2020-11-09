@@ -156,6 +156,11 @@ class Genome(object):
                 
         return False
         
+    def is_gtdb_untrustworthy_as_type(self):
+        """Check if genoem considered untrustworthy as type material by GTDB."""
+        
+        return self.gtdb_untrustworthy_as_type
+        
     def is_gtdb_type_species(self):
         """Check if genome is a type species of genus in GTDB."""
         
@@ -326,7 +331,7 @@ class Genome(object):
             q = 1e5
         elif self.is_ncbi_representative():
             q = 1e4
-        elif self.is_gtdb_type_subspecies() or self.is_ncbi_subspecies():
+        elif self.is_gtdb_type_subspecies() or self.is_ncbi_type_subspecies():
             q = 1e3
 
         q += self.score_assembly()

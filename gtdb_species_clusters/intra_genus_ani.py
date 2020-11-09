@@ -57,30 +57,16 @@ class IntraGenusANI(object):
         self.logger = logging.getLogger('timestamp')
 
         self.fastani = FastANI(ani_cache_file, cpus)
-        
-        self.user_id_map = {}
 
     def run(self, target_genus,
                     gtdb_metadata_file,
-                    genomic_path_file,
-                    uba_gid_table):
+                    genomic_path_file):
         """Dereplicate GTDB species clusters using ANI/AF criteria."""
-        
-        # map user IDs to UBA IDs
-        with open(uba_gid_table) as f:
-            for line in f:
-                tokens = line.strip().split('\t')
-                
-                if len(tokens) == 3:
-                    self.user_id_map[tokens[0]] = tokens[2]
-                else:
-                    self.user_id_map[tokens[0]] = tokens[1]
         
         # create GTDB genome sets
         self.logger.info('Creating GTDB genome set.')
         genomes = Genomes()
-        genomes.load_from_metadata_file(gtdb_metadata_file,
-                                        uba_genome_file=uba_gid_table)
+        genomes.load_from_metadata_file(gtdb_metadata_file)
         genomes.load_genomic_file_paths(genomic_path_file)
         self.logger.info(' - genome set has {:,} species clusters spanning {:,} genomes.'.format(
                             len(genomes.sp_clusters),

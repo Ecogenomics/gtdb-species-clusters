@@ -201,12 +201,13 @@ class NCBI_SpeciesManager(object):
                             ani_af,
                             sp_priority_ledger,
                             genus_priority_ledger,
-                            dsmz_bacnames_file):
+                            lpsn_gss_file):
         """Create table indicating species names that should be considered synonyms."""
         
         sp_priority_mngr = SpeciesPriorityManager(sp_priority_ledger,
                                                     genus_priority_ledger,
-                                                    dsmz_bacnames_file)
+                                                    lpsn_gss_file,
+                                                    self.output_dir)
 
         out_file = os.path.join(self.output_dir, 'synonyms.tsv')
         fout = open(out_file, 'w')

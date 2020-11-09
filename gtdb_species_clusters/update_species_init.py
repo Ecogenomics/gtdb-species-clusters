@@ -831,7 +831,6 @@ class UpdateSpeciesInit(object):
                 prev_genomic_path_file,
                 cur_gtdb_metadata_file,
                 cur_genomic_path_file,
-                uba_genome_paths,
                 qc_passed_file,
                 gtdbtk_classify_file,
                 ncbi_genbank_assembly_file,
@@ -841,7 +840,8 @@ class UpdateSpeciesInit(object):
                 sp_priority_ledger,
                 genus_priority_ledger,
                 gtdb_taxa_updates_ledger,
-                dsmz_bacnames_file):
+                ncbi_env_bioproject_ledger,
+                lpsn_gss_file):
         """Produce initial best guess at GTDB species clusters."""
 
         # create previous and current GTDB genome sets
@@ -849,9 +849,9 @@ class UpdateSpeciesInit(object):
         prev_genomes = Genomes()
         prev_genomes.load_from_metadata_file(prev_gtdb_metadata_file,
                                                 gtdb_type_strains_ledger=gtdb_type_strains_ledger,
-                                                uba_genome_file=uba_genome_paths,
                                                 ncbi_genbank_assembly_file=ncbi_genbank_assembly_file,
-                                                untrustworthy_type_ledger=untrustworthy_type_file)
+                                                untrustworthy_type_ledger=untrustworthy_type_file,
+                                                ncbi_env_bioproject_ledger=ncbi_env_bioproject_ledger)
         self.logger.info(' - previous genome set has {:,} species clusters spanning {:,} genomes.'.format(
                             len(prev_genomes.sp_clusters),
                             prev_genomes.sp_clusters.total_num_genomes()))
@@ -861,10 +861,10 @@ class UpdateSpeciesInit(object):
         cur_genomes.load_from_metadata_file(cur_gtdb_metadata_file,
                                                 gtdb_type_strains_ledger=gtdb_type_strains_ledger,
                                                 create_sp_clusters=False,
-                                                uba_genome_file=uba_genome_paths,
                                                 qc_passed_file=qc_passed_file,
                                                 ncbi_genbank_assembly_file=ncbi_genbank_assembly_file,
-                                                untrustworthy_type_ledger=untrustworthy_type_file)
+                                                untrustworthy_type_ledger=untrustworthy_type_file,
+                                                ncbi_env_bioproject_ledger=ncbi_env_bioproject_ledger)
         self.logger.info(f' - current genome set contains {len(cur_genomes):,} genomes.')
         
         cur_genomes.set_prev_gtdb_classifications(prev_genomes)
@@ -877,9 +877,7 @@ class UpdateSpeciesInit(object):
         # get path to previous and current genomic FASTA files
         self.logger.info('Reading path to previous and current genomic FASTA files.')
         prev_genomes.load_genomic_file_paths(prev_genomic_path_file)
-        prev_genomes.load_genomic_file_paths(uba_genome_paths)
         cur_genomes.load_genomic_file_paths(cur_genomic_path_file)
-        cur_genomes.load_genomic_file_paths(uba_genome_paths)
         
         # read named GTDB species clusters
         self.logger.info('Reading GTDB species clusters.')
@@ -950,7 +948,7 @@ class UpdateSpeciesInit(object):
         # initialize species priority manager
         self.sp_priority_mngr = SpeciesPriorityManager(sp_priority_ledger,
                                                         genus_priority_ledger,
-                                                        dsmz_bacnames_file)
+                                                        lpsn_gss_file)
  
         # establish appropriate species names for GTDB clusters with new representatives
         self.update_species_names(cur_clusters,

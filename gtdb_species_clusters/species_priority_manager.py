@@ -213,7 +213,7 @@ class SpeciesPriorityManager(object):
             return gid2, 'effective type strain'
         elif (not cur_genomes[gid1].is_effective_type_strain() 
                 and not cur_genomes[gid2].is_effective_type_strain()):
-            # neither genome it effective type strain
+            # neither genome is effective type strain
             hq_gid = select_highest_quality([gid1, gid2], cur_genomes)
             return hq_gid, 'highest quality genome'
         elif (cur_genomes[gid1].is_exclusively_effective_type_strain() 
@@ -221,12 +221,18 @@ class SpeciesPriorityManager(object):
             # both genomes are only effective, but not validated type material
             hq_gid = select_highest_quality([gid1, gid2], cur_genomes)
             return hq_gid, 'highest quality genome'
+        
+        sp1 = cur_genomes[gid1].ncbi_taxa.species
+        sp2 = cur_genomes[gid2].ncbi_taxa.species
+        if sp1 == sp2:
+            # genomes are from the same NCBI species so have the same naming priority,
+            # so resolve ordering using genome quality
+            hq_gid = select_highest_quality([gid1, gid2], cur_genomes)
+            return hq_gid, 'highest quality genome'
 
         # both genomes are type strain of species, but priority
         # is ambiguous using just publication date so species need
         # to be in the priority ledger
-        sp1 = cur_genomes[gid1].ncbi_taxa.species
-        sp2 = cur_genomes[gid2].ncbi_taxa.species
         if sp1 not in self.manual_sp_priority or sp2 not in self.manual_sp_priority[sp1]:
             self.logger.error('Ambiguous priority based on publication date.')
             self.logger.error('Species need to be manually resolved in priority ledger: {}: {} / {} / {}, {}: {} / {} / {}'.format(
@@ -240,7 +246,9 @@ class SpeciesPriorityManager(object):
                     cur_genomes[gid1].is_gtdb_type_strain(),
                     cur_genomes[gid2].is_gtdb_type_strain()))
 
-            return gid1, 'error: ambiguous priority date' #***
+            # arbitrarily resolve naming priority based on genome quality
+            hq_gid = select_highest_quality([gid1, gid2], cur_genomes)
+            return hq_gid, 'error: ambiguous priority date' #***
             
         priority_sp = self.manual_sp_priority[sp1][sp2]
         if sp1 == priority_sp:

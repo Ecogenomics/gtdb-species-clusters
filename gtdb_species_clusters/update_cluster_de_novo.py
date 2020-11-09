@@ -148,12 +148,9 @@ class UpdateClusterDeNovo(object):
         mash_ani_pairs = []
         for qid in mash_ani:
             for rid in mash_ani[qid]:
-                if mash_ani[qid][rid] >= self.min_mash_ani:
-                    n_qid = cur_genomes.user_uba_id_map.get(qid, qid)
-                    n_rid = cur_genomes.user_uba_id_map.get(rid, rid)
-                    if n_qid != n_rid:
-                        mash_ani_pairs.append((n_qid, n_rid))
-                        mash_ani_pairs.append((n_rid, n_qid))
+                if qid != rid and mash_ani[qid][rid] >= self.min_mash_ani:
+                    mash_ani_pairs.append((qid, rid))
+                    mash_ani_pairs.append((rid, qid))
                 
         self.logger.info('Identified {:,} genome pairs with a Mash ANI >= {:.1f}%.'.format(
                             len(mash_ani_pairs), 
@@ -293,17 +290,15 @@ class UpdateClusterDeNovo(object):
 
             mash_ani_pairs = []
             for qid in mash_ani:
-                n_qid = cur_genomes.user_uba_id_map.get(qid, qid)
-                assert n_qid in nonrep_gids
+                assert qid in nonrep_gids
                 
                 for rid in mash_ani[qid]:
-                    n_rid = cur_genomes.user_uba_id_map.get(rid, rid)
-                    assert n_rid in all_reps
+                    assert rid in all_reps
                     
                     if (mash_ani[qid][rid] >= self.min_mash_ani
-                        and n_qid != n_rid):
-                        mash_ani_pairs.append((n_qid, n_rid))
-                        mash_ani_pairs.append((n_rid, n_qid))
+                        and qid != rid):
+                        mash_ani_pairs.append((qid, rid))
+                        mash_ani_pairs.append((rid, qid))
                             
             self.logger.info('Calculating ANI between {:,} species clusters and {:,} unclustered genomes ({:,} pairs):'.format(
                                 len(clusters), 
@@ -321,7 +316,14 @@ class UpdateClusterDeNovo(object):
                 for rep_gid in clusters:
                     ani, af = FastANI.symmetric_ani(ani_af, cur_gid, rep_gid)
                     
-                    if ani >= final_cluster_radius[rep_gid].ani and af >= self.af_sp:
+                    isclose_abs_tol = 1e-4
+                    if (ani >= final_cluster_radius[rep_gid].ani - isclose_abs_tol 
+                            and af >= self.af_sp - isclose_abs_tol):
+                        # the isclose_abs_tol factor is used in order to avoid missing genomes due to
+                        # small rounding errors when comparing floating point values. In particular,
+                        # the ANI radius for named GTDB representatives is read from file so small
+                        # rounding errors could occur. This has only been observed once, but seems
+                        # like good practice to use isclose here.
                         if ani > closest_rep_ani or (ani == closest_rep_ani and af > closest_rep_af):
                             closest_rep_gid = rep_gid
                             closest_rep_ani = ani

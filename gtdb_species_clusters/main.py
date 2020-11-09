@@ -47,11 +47,13 @@ from gtdb_species_clusters.pmc_check_type_species import PMC_CheckTypeSpecies
 from gtdb_species_clusters.pmc_check_type_strains import PMC_CheckTypeStrains
 from gtdb_species_clusters.pmc_species_names import PMC_SpeciesNames
 from gtdb_species_clusters.pmc_validation import PMC_Validation
+from gtdb_species_clusters.pmc_cluster_stats import PMC_ClusterStats
 
 from gtdb_species_clusters.merge_test import MergeTest
 from gtdb_species_clusters.intra_sp_derep import IntraSpeciesDereplication
 from gtdb_species_clusters.intra_genus_ani import IntraGenusANI
-from gtdb_species_clusters.cluster_stats import ClusterStats
+
+from gtdb_species_clusters.inspect_genomes import InspectGenomes
 
 from gtdb_species_clusters.exceptions import GTDB_Error
 
@@ -304,9 +306,7 @@ class OptionsParser():
         check_file_exists(args.ncbi_genbank_assembly_file)
         check_file_exists(args.untrustworthy_type_file)
         check_file_exists(args.gtdb_type_strains_ledger)
-        check_file_exists(args.sp_priority_ledger)
-        check_file_exists(args.genus_priority_ledger)
-        check_file_exists(args.dsmz_bacnames_file)
+        check_file_exists(args.ncbi_env_bioproject_ledger)
         make_sure_path_exists(args.output_dir)
         
         p = UpdateErroneousNCBI(args.output_dir)
@@ -317,9 +317,7 @@ class OptionsParser():
                 args.ncbi_genbank_assembly_file,
                 args.untrustworthy_type_file,
                 args.gtdb_type_strains_ledger,
-                args.sp_priority_ledger,
-                args.genus_priority_ledger,
-                args.dsmz_bacnames_file)
+                args.ncbi_env_bioproject_ledger)
         
         self.logger.info('Done.')
     
@@ -336,7 +334,8 @@ class OptionsParser():
         check_file_exists(args.gtdb_type_strains_ledger)
         check_file_exists(args.sp_priority_ledger)
         check_file_exists(args.genus_priority_ledger)
-        check_file_exists(args.dsmz_bacnames_file)
+        check_file_exists(args.ncbi_env_bioproject_ledger)
+        check_file_exists(args.lpsn_gss_file)
         make_sure_path_exists(args.output_dir)
         
         p = UpdateSynonyms(args.output_dir)
@@ -350,7 +349,8 @@ class OptionsParser():
                 args.gtdb_type_strains_ledger,
                 args.sp_priority_ledger,
                 args.genus_priority_ledger,
-                args.dsmz_bacnames_file)
+                args.ncbi_env_bioproject_ledger,
+                args.lpsn_gss_file)
         
         self.logger.info('Done.')
         
@@ -385,20 +385,43 @@ class OptionsParser():
         
         self.logger.info('Done.')
         
+    def u_cluster_stats(self, args):
+        """Summary statistics indicating changes to GTDB species cluster membership."""
+        
+        check_file_exists(args.gtdb_clusters_file)
+        check_file_exists(args.prev_gtdb_metadata_file)
+        check_file_exists(args.cur_gtdb_metadata_file)
+        check_file_exists(args.qc_passed_file)
+        check_file_exists(args.ncbi_genbank_assembly_file)
+        check_file_exists(args.untrustworthy_type_file)
+        check_file_exists(args.gtdb_type_strains_ledger)
+        check_file_exists(args.ncbi_env_bioproject_ledger)
+        make_sure_path_exists(args.output_dir)
+
+        p = UpdateClusterStats(args.output_dir)
+        p.run(args.gtdb_clusters_file,
+                args.prev_gtdb_metadata_file,
+                args.cur_gtdb_metadata_file,
+                args.qc_passed_file,
+                args.ncbi_genbank_assembly_file,
+                args.untrustworthy_type_file,
+                args.gtdb_type_strains_ledger,
+                args.ncbi_env_bioproject_ledger)
+        
+        self.logger.info('Done.')
+        
     def u_curation_trees(self, args):
         """Produce curation trees highlighting new NCBI taxa."""
         
         check_file_exists(args.gtdb_clusters_file)
         check_file_exists(args.prev_gtdb_metadata_file)
         check_file_exists(args.cur_gtdb_metadata_file)
-        check_file_exists(args.uba_genome_paths)
         check_file_exists(args.qc_passed_file)
 
         p = UpdateCurationTrees(args.output_dir, args.output_prefix)
         p.run(args.gtdb_clusters_file,
                 args.prev_gtdb_metadata_file,
                 args.cur_gtdb_metadata_file,
-                args.uba_genome_paths,
                 args.qc_passed_file)
         
         self.logger.info('Done.')
@@ -411,7 +434,6 @@ class OptionsParser():
         check_file_exists(args.prev_genomic_path_file)
         check_file_exists(args.cur_gtdb_metadata_file)
         check_file_exists(args.cur_genomic_path_file)
-        check_file_exists(args.uba_genome_paths)
         check_file_exists(args.qc_passed_file)
         check_file_exists(args.gtdbtk_classify_file)
         check_file_exists(args.ncbi_genbank_assembly_file)
@@ -421,7 +443,8 @@ class OptionsParser():
         check_file_exists(args.sp_priority_ledger)
         check_file_exists(args.genus_priority_ledger)
         check_file_exists(args.gtdb_taxa_updates_ledger)
-        check_file_exists(args.dsmz_bacnames_file)
+        check_file_exists(args.ncbi_env_bioproject_ledger)
+        check_file_exists(args.lpsn_gss_file)
         make_sure_path_exists(args.output_dir)
 
         p = UpdateSpeciesInit(args.ani_cache_file, 
@@ -432,7 +455,6 @@ class OptionsParser():
                 args.prev_genomic_path_file,
                 args.cur_gtdb_metadata_file,
                 args.cur_genomic_path_file,
-                args.uba_genome_paths,
                 args.qc_passed_file,
                 args.gtdbtk_classify_file,
                 args.ncbi_genbank_assembly_file,
@@ -442,10 +464,11 @@ class OptionsParser():
                 args.sp_priority_ledger,
                 args.genus_priority_ledger,
                 args.gtdb_taxa_updates_ledger,
-                args.dsmz_bacnames_file)
+                args.ncbi_env_bioproject_ledger,
+                args.lpsn_gss_file)
         
         self.logger.info('Done.')
-        
+
     def pmc_manual_species(self, args):
         """Identify species names manually set by curators."""
         
@@ -477,7 +500,6 @@ class OptionsParser():
 
         check_file_exists(args.manual_taxonomy)
         check_file_exists(args.cur_gtdb_metadata_file)
-        check_file_exists(args.uba_genome_paths)
         check_file_exists(args.qc_passed_file)
         check_file_exists(args.ncbi_genbank_assembly_file)
         check_file_exists(args.untrustworthy_type_file)
@@ -485,13 +507,13 @@ class OptionsParser():
         check_file_exists(args.gtdb_type_strains_ledger)
         check_file_exists(args.sp_priority_ledger)
         check_file_exists(args.genus_priority_ledger)
-        check_file_exists(args.dsmz_bacnames_file)
+        check_file_exists(args.ncbi_env_bioproject_ledger)
+        check_file_exists(args.lpsn_gss_file)
         make_sure_path_exists(args.output_dir)
 
         p = PMC_CheckTypeSpecies(args.output_dir)
         p.run(args.manual_taxonomy,
                 args.cur_gtdb_metadata_file,
-                args.uba_genome_paths,
                 args.qc_passed_file,
                 args.ncbi_genbank_assembly_file,
                 args.untrustworthy_type_file,
@@ -499,7 +521,8 @@ class OptionsParser():
                 args.gtdb_type_strains_ledger,
                 args.sp_priority_ledger,
                 args.genus_priority_ledger,
-                args.dsmz_bacnames_file)
+                args.ncbi_env_bioproject_ledger,
+                args.lpsn_gss_file)
         
         self.logger.info('Done.')
         
@@ -508,7 +531,6 @@ class OptionsParser():
 
         check_file_exists(args.manual_taxonomy)
         check_file_exists(args.cur_gtdb_metadata_file)
-        check_file_exists(args.uba_genome_paths)
         check_file_exists(args.qc_passed_file)
         check_file_exists(args.ncbi_genbank_assembly_file)
         check_file_exists(args.untrustworthy_type_file)
@@ -516,13 +538,13 @@ class OptionsParser():
         check_file_exists(args.gtdb_type_strains_ledger)
         check_file_exists(args.sp_priority_ledger)
         check_file_exists(args.genus_priority_ledger)
-        check_file_exists(args.dsmz_bacnames_file)
+        check_file_exists(args.ncbi_env_bioproject_ledger)
+        check_file_exists(args.lpsn_gss_file)
         make_sure_path_exists(args.output_dir)
 
         p = PMC_CheckTypeStrains(args.output_dir)
         p.run(args.manual_taxonomy,
                 args.cur_gtdb_metadata_file,
-                args.uba_genome_paths,
                 args.qc_passed_file,
                 args.ncbi_genbank_assembly_file,
                 args.untrustworthy_type_file,
@@ -530,7 +552,8 @@ class OptionsParser():
                 args.gtdb_type_strains_ledger,
                 args.sp_priority_ledger,
                 args.genus_priority_ledger,
-                args.dsmz_bacnames_file)
+                args.ncbi_env_bioproject_ledger,
+                args.lpsn_gss_file)
         
         self.logger.info('Done.')
         
@@ -538,11 +561,9 @@ class OptionsParser():
         """Refine species names using post-manual curation rules."""
         
         check_file_exists(args.taxonomy_init)
-        #check_file_exists(args.manual_sp_file)
         check_file_exists(args.gtdb_clusters_file)
         check_file_exists(args.prev_gtdb_metadata_file)
         check_file_exists(args.cur_gtdb_metadata_file)
-        check_file_exists(args.uba_genome_paths)
         check_file_exists(args.qc_passed_file)
         check_file_exists(args.ncbi_misclassified_file)
         check_file_exists(args.ncbi_genbank_assembly_file)
@@ -554,7 +575,8 @@ class OptionsParser():
         check_file_exists(args.sp_priority_ledger)
         check_file_exists(args.genus_priority_ledger)
         check_file_exists(args.specific_epithet_ledger)
-        check_file_exists(args.dsmz_bacnames_file)
+        check_file_exists(args.ncbi_env_bioproject_ledger)
+        check_file_exists(args.lpsn_gss_file)
         make_sure_path_exists(args.output_dir)
 
         p = PMC_SpeciesNames(args.output_dir)
@@ -565,7 +587,6 @@ class OptionsParser():
                 args.gtdb_clusters_file,
                 args.prev_gtdb_metadata_file,
                 args.cur_gtdb_metadata_file,
-                args.uba_genome_paths,
                 args.qc_passed_file,
                 args.ncbi_misclassified_file,
                 args.ncbi_genbank_assembly_file,
@@ -577,7 +598,8 @@ class OptionsParser():
                 args.sp_priority_ledger,
                 args.genus_priority_ledger,
                 args.specific_epithet_ledger,
-                args.dsmz_bacnames_file)
+                args.ncbi_env_bioproject_ledger,
+                args.lpsn_gss_file)
         
         self.logger.info('Done.')
     
@@ -591,7 +613,6 @@ class OptionsParser():
         check_file_exists(args.gtdb_clusters_file)
         check_file_exists(args.prev_gtdb_metadata_file)
         check_file_exists(args.cur_gtdb_metadata_file)
-        check_file_exists(args.uba_genome_paths)
         check_file_exists(args.qc_passed_file)
         check_file_exists(args.ncbi_misclassified_file)
         check_file_exists(args.ncbi_genbank_assembly_file)
@@ -603,7 +624,8 @@ class OptionsParser():
         check_file_exists(args.sp_priority_ledger)
         check_file_exists(args.genus_priority_ledger)
         check_file_exists(args.specific_epithet_ledger)
-        check_file_exists(args.dsmz_bacnames_file)
+        check_file_exists(args.ncbi_env_bioproject_ledger)
+        check_file_exists(args.lpsn_gss_file)
         make_sure_path_exists(args.output_dir)
 
         p = PMC_SpeciesNames(args.output_dir)
@@ -614,7 +636,6 @@ class OptionsParser():
                 args.gtdb_clusters_file,
                 args.prev_gtdb_metadata_file,
                 args.cur_gtdb_metadata_file,
-                args.uba_genome_paths,
                 args.qc_passed_file,
                 args.ncbi_misclassified_file,
                 args.ncbi_genbank_assembly_file,
@@ -626,7 +647,8 @@ class OptionsParser():
                 args.sp_priority_ledger,
                 args.genus_priority_ledger,
                 args.specific_epithet_ledger,
-                args.dsmz_bacnames_file)
+                args.ncbi_env_bioproject_ledger,
+                args.lpsn_gss_file)
         
         self.logger.info('Done.')
         
@@ -651,9 +673,9 @@ class OptionsParser():
         check_file_exists(args.sp_priority_ledger)
         check_file_exists(args.genus_priority_ledger)
         check_file_exists(args.specific_epithet_ledger)
-        check_file_exists(args.dsmz_bacnames_file)
-        check_file_exists(args.ground_truth_test_cases)
+        check_file_exists(args.ncbi_env_bioproject_ledger)
         check_file_exists(args.lpsn_gss_metadata_file)
+        check_file_exists(args.ground_truth_test_cases)
         make_sure_path_exists(args.output_dir)
 
         p = PMC_Validation(args.output_dir)
@@ -675,38 +697,29 @@ class OptionsParser():
                 args.sp_priority_ledger,
                 args.genus_priority_ledger,
                 args.specific_epithet_ledger,
-                args.dsmz_bacnames_file,
-                args.ground_truth_test_cases,
+                args.ncbi_env_bioproject_ledger,
                 args.lpsn_gss_metadata_file,
+                args.ground_truth_test_cases,
                 args.skip_genus_checks)
         
         self.logger.info('Done.')
         
-    def u_cluster_stats(self, args):
-        """Summary statistics indicating changes to GTDB species cluster membership."""
-        
-        check_file_exists(args.gtdb_clusters_file)
-        check_file_exists(args.prev_gtdb_metadata_file)
-        check_file_exists(args.cur_gtdb_metadata_file)
-        check_file_exists(args.uba_genome_paths)
-        check_file_exists(args.qc_passed_file)
-        check_file_exists(args.ncbi_genbank_assembly_file)
-        check_file_exists(args.untrustworthy_type_file)
-        check_file_exists(args.gtdb_type_strains_ledger)
-        make_sure_path_exists(args.output_dir)
+    def pmc_cluster_stats(self, args):
+        """Calculate final statistics for species cluster."""
 
-        p = UpdateClusterStats(args.output_dir)
-        p.run(args.gtdb_clusters_file,
-                args.prev_gtdb_metadata_file,
-                args.cur_gtdb_metadata_file,
-                args.uba_genome_paths,
-                args.qc_passed_file,
-                args.ncbi_genbank_assembly_file,
-                args.untrustworthy_type_file,
-                args.gtdb_type_strains_ledger)
+        check_file_exists(args.cluster_file)
+        check_file_exists(args.genome_path_file)
+        check_file_exists(args.gtdb_metadata_file)
         
-        self.logger.info('Done.')
-        
+        p = PMC_ClusterStats(args.af_sp,
+                            args.max_genomes,
+                            args.ani_cache_file,
+                            args.cpus, 
+                            args.output_dir)
+        p.run(args.cluster_file, 
+                args.genome_path_file,
+                args.gtdb_metadata_file)
+
     def merge_test(self, args):
         """Produce information relevant to merging two sister species."""
         
@@ -728,7 +741,6 @@ class OptionsParser():
         
         check_file_exists(args.gtdb_metadata_file)
         check_file_exists(args.genomic_path_file)
-        check_file_exists(args.uba_gid_table)
         
         make_sure_path_exists(args.output_dir)
         
@@ -739,8 +751,7 @@ class OptionsParser():
                                         args.cpus, 
                                         args.output_dir)
         p.run(args.gtdb_metadata_file,
-                args.genomic_path_file,
-                args.uba_gid_table)
+                args.genomic_path_file)
         
         self.logger.info('Done.')
         
@@ -749,8 +760,7 @@ class OptionsParser():
         
         check_file_exists(args.gtdb_metadata_file)
         check_file_exists(args.genomic_path_file)
-        check_file_exists(args.uba_gid_table)
-        
+
         make_sure_path_exists(args.output_dir)
         
         p = IntraGenusANI(args.ani_cache_file, 
@@ -759,8 +769,29 @@ class OptionsParser():
                             
         p.run(args.target_genus,
                 args.gtdb_metadata_file,
-                args.genomic_path_file,
-                args.uba_gid_table)
+                args.genomic_path_file)
+        
+        self.logger.info('Done.')
+
+    def type_status(self, args):
+        """Report information related to a genome being type material."""
+        
+
+        check_file_exists(args.cur_gtdb_metadata_file)
+        check_file_exists(args.qc_passed_file)
+        check_file_exists(args.ncbi_genbank_assembly_file)
+        check_file_exists(args.untrustworthy_type_file)
+        check_file_exists(args.gtdb_type_strains_ledger)
+        check_file_exists(args.ncbi_env_bioproject_ledger)
+        
+        p = InspectGenomes()
+        p.type_status(args.cur_gtdb_metadata_file,
+                        args.qc_passed_file,
+                        args.ncbi_genbank_assembly_file,
+                        args.untrustworthy_type_file,
+                        args.gtdb_type_strains_ledger,
+                        args.ncbi_env_bioproject_ledger,
+                        args.genome_ids)
         
         self.logger.info('Done.')
 
@@ -860,22 +891,6 @@ class OptionsParser():
         print('')
         deprecated_reps = set(prev_reps_taxa).intersection(cur_gids) - set(cur_reps_taxa)
         print('No. deprecated previous representatives: %d' % len(deprecated_reps))
-        
-    def cluster_stats(self, args):
-        """Calculate statistics for species cluster."""
-
-        check_file_exists(args.cluster_file)
-        check_file_exists(args.genome_path_file)
-        check_file_exists(args.gtdb_metadata_file)
-        
-        p = ClusterStats(args.af_sp,
-                            args.max_genomes,
-                            args.ani_cache_file,
-                            args.cpus, 
-                            args.output_dir)
-        p.run(args.cluster_file, 
-                args.genome_path_file,
-                args.gtdb_metadata_file)
 
     def run(self, args):
         """Parse user arguments and call the correct pipeline(s)"""
@@ -924,16 +939,18 @@ class OptionsParser():
             self.pmc_species_names(args)
         elif args.subparser_name == 'pmc_validate':
             self.pmc_validate(args)
+        elif args.subparser_name == 'pmc_cluster_stats':
+            self.pmc_cluster_stats(args)
         elif args.subparser_name == 'merge_test':
             self.merge_test(args)
         elif args.subparser_name == 'intra_sp_derep':
             self.intra_sp_derep(args)
         elif args.subparser_name == 'intra_genus_ani':
             self.intra_genus_ani(args)
+        elif args.subparser_name == 'type_status':
+            self.type_status(args)
         elif args.subparser_name == 'rep_compare':
             self.rep_compare(args)
-        elif args.subparser_name == 'cluster_stats':
-            self.cluster_stats(args)
         else:
             self.logger.error('Unknown gtdb_species_clusters command: ' + args.subparser_name + '\n')
             sys.exit()

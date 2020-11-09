@@ -224,7 +224,7 @@ class PMC_Validation(object):
                     row = (rid,
                             gtdb_sp, 
                             lpsn_corr_sp, 
-                            lpsn_corr_sp in dsmz_sp_synonyms[gtdb_sp],
+                            lpsn_corr_sp in lpsn_sp_synonyms[gtdb_sp],
                             gtdb_generic != generic_name(lpsn_corr_sp),
                             gtdb_specific != specific_epithet(lpsn_corr_sp))
                     incorrect_names[rid] = row
@@ -304,25 +304,25 @@ class PMC_Validation(object):
                     # Paracoccus under the GTDB. However, P. marinus is already a validated 
                     # name so setting the GTDB species to P. marinus would be incorrect.)
                     
-                    matched_dsmz_sp = None
-                    if gtdb_sp in dsmz_sp_correct_names:
+                    matched_lpsn_sp = None
+                    if gtdb_sp in lpsn_sp_correct_names:
                         potential_issue = True
-                        matched_dsmz_sp = gtdb_sp
+                        matched_lpsn_sp = gtdb_sp
                     else:
                         # need to check if a DSMZ species name exists that only differs in terms
                         # of changes to the suffix of the specific epithet due to the gender of
                         # the genus
-                        for dsmz_sp in dsmz_sp_correct_names:
-                            dsmz_generic = generic_name(dsmz_sp)
-                            dsmz_specific = specific_epithet(dsmz_sp)
-                            if dsmz_generic == gtdb_generic and test_same_epithet(gtdb_specific, dsmz_specific):
+                        for lpsn_sp in lpsn_sp_correct_names:
+                            lpsn_generic = generic_name(lpsn_sp)
+                            lpsn_specific = specific_epithet(lpsn_sp)
+                            if lpsn_generic == gtdb_generic and test_same_epithet(gtdb_specific, lpsn_specific):
                                 potential_issue = True
-                                matched_dsmz_sp = dsmz_sp
+                                matched_lpsn_sp = lpsn_sp
                                 break
                             
             if potential_issue:
-                manual_check[rid] = (rid, gtdb_sp, ncbi_sp, matched_dsmz_sp)
-                fout.write(f'{rid}\t{gtdb_sp}\t{ncbi_sp}\t{matched_dsmz_sp}\n')
+                manual_check[rid] = (rid, gtdb_sp, ncbi_sp, matched_lpsn_sp)
+                fout.write(f'{rid}\t{gtdb_sp}\t{ncbi_sp}\t{matched_lpsn_sp}\n')
             else:
                 validated_count += 1
                     
@@ -1802,9 +1802,9 @@ class PMC_Validation(object):
                 sp_priority_ledger,
                 genus_priority_ledger,
                 specific_epithet_ledger,
-                dsmz_bacnames_file,
-                ground_truth_test_cases,
+                ncbi_env_bioproject_ledger,
                 lpsn_gss_metadata_file,
+                ground_truth_test_cases,
                 skip_genus_checks):
         """Validate final species names."""
         
@@ -1828,7 +1828,8 @@ class PMC_Validation(object):
         # get priority of species and generic (genus) names
         sp_priority_mngr = SpeciesPriorityManager(sp_priority_ledger,
                                                     genus_priority_ledger,
-                                                    dsmz_bacnames_file)
+                                                    lpsn_gss_metadata_file,
+                                                    self.output_dir)
                             
         # create previous and current GTDB genome sets
         self.logger.info('Creating previous GTDB genome set.')
@@ -1836,7 +1837,8 @@ class PMC_Validation(object):
         prev_genomes.load_from_metadata_file(prev_gtdb_metadata_file,
                                                 gtdb_type_strains_ledger=gtdb_type_strains_ledger,
                                                 ncbi_genbank_assembly_file=ncbi_genbank_assembly_file,
-                                                untrustworthy_type_ledger=untrustworthy_type_file)
+                                                untrustworthy_type_ledger=untrustworthy_type_file,
+                                                ncbi_env_bioproject_ledger=ncbi_env_bioproject_ledger)
         self.logger.info(' - previous genome set has {:,} species clusters spanning {:,} genomes.'.format(
                             len(prev_genomes.sp_clusters),
                             prev_genomes.sp_clusters.total_num_genomes()))
@@ -1848,7 +1850,8 @@ class PMC_Validation(object):
                                                 create_sp_clusters=False,
                                                 qc_passed_file=qc_passed_file,
                                                 ncbi_genbank_assembly_file=ncbi_genbank_assembly_file,
-                                                untrustworthy_type_ledger=untrustworthy_type_file)
+                                                untrustworthy_type_ledger=untrustworthy_type_file,
+                                                ncbi_env_bioproject_ledger=ncbi_env_bioproject_ledger)
         self.logger.info(f' - current genome set contains {len(cur_genomes):,} genomes.')
         
         cur_genomes.set_prev_gtdb_classifications(prev_genomes)

@@ -37,14 +37,15 @@ from numpy import (mean as np_mean,
                     argmin as np_argmin)
 
 from gtdb_species_clusters.genome_utils import read_genome_path, canonical_gid
-from gtdb_species_clusters.taxon_utils import read_gtdb_taxonomy, read_gtdb_ncbi_taxonomy
+from gtdb_species_clusters.taxon_utils import read_gtdb_taxonomy
                                     
 from gtdb_species_clusters.type_genome_utils import GenomeRadius
                                             
 from gtdb_species_clusters.mash import Mash
 from gtdb_species_clusters.fastani import FastANI
 
-class ClusterStats(object):
+
+class PMC_ClusterStats(object):
     """Calculate statistics for species cluster."""
 
     def __init__(self, af_sp, max_genomes, ani_cache_file, cpus, output_dir):
@@ -432,12 +433,9 @@ class ClusterStats(object):
     def run(self, cluster_file, genome_path_file, metadata_file):
         """Calculate statistics for species cluster."""
         
-        # read the NCBI taxonomy
-        self.logger.info('Reading GTDB and NCBI taxonomies from GTDB metadata file.')
+        # read the GTDB taxonomy
+        self.logger.info('Reading GTDB taxonomy from metadata file.')
         gtdb_taxonomy = read_gtdb_taxonomy(metadata_file)
-        ncbi_taxonomy, ncbi_update_count = read_gtdb_ncbi_taxonomy(metadata_file, 
-                                                                    None, 
-                                                                    None)
 
         # get path to genome FASTA files
         self.logger.info('Reading path to genome FASTA files.')

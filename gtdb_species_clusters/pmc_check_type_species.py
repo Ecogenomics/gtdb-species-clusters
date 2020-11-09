@@ -44,7 +44,6 @@ class PMC_CheckTypeSpecies(object):
     def run(self,
                 manual_taxonomy,
                 cur_gtdb_metadata_file,
-                uba_genome_paths,
                 qc_passed_file,
                 ncbi_genbank_assembly_file,
                 untrustworthy_type_file,
@@ -52,13 +51,15 @@ class PMC_CheckTypeSpecies(object):
                 gtdb_type_strains_ledger,
                 sp_priority_ledger,
                 genus_priority_ledger,
-                dsmz_bacnames_file):
+                ncbi_env_bioproject_ledger,
+                lpsn_gss_file):
         """Finalize species names based on results of manual curation."""
         
         # initialize species priority manager
         sp_priority_mngr = SpeciesPriorityManager(sp_priority_ledger,
                                                     genus_priority_ledger,
-                                                    dsmz_bacnames_file)
+                                                    lpsn_gss_file,
+                                                    self.output_dir)
 
         # identify species and genus names updated during manual curation
         self.logger.info('Parsing manually curated taxonomy.')
@@ -71,10 +72,10 @@ class PMC_CheckTypeSpecies(object):
         cur_genomes.load_from_metadata_file(cur_gtdb_metadata_file,
                                                 gtdb_type_strains_ledger=gtdb_type_strains_ledger,
                                                 create_sp_clusters=False,
-                                                uba_genome_file=uba_genome_paths,
                                                 qc_passed_file=qc_passed_file,
                                                 ncbi_genbank_assembly_file=ncbi_genbank_assembly_file,
-                                                untrustworthy_type_ledger=untrustworthy_type_file)
+                                                untrustworthy_type_ledger=untrustworthy_type_file,
+                                                ncbi_env_bioproject_ledger=ncbi_env_bioproject_ledger)
         self.logger.info(f' - current genome set contains {len(cur_genomes):,} genomes.')
 
         # establish appropriate species names for GTDB clusters with new representatives

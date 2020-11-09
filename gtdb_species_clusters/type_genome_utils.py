@@ -343,7 +343,7 @@ def write_clusters(clusters, rep_radius, genomes, out_file):
         else:
             closest_sp = genomes[closest_gid].gtdb_taxa.species
         
-        fout.write('\t%s\t%s\t%.2f\t%.2f' % (closest_sp,
+        fout.write('\t%s\t%s\t%f\t%f' % (closest_sp,
                                                 closest_gid,
                                                 ani,
                                                 af))
@@ -373,7 +373,7 @@ def write_rep_radius(rep_radius, genomes, out_file):
         else:
             neighbour_sp = genomes[neighbour_gid].gtdb_taxa.species
         
-        fout.write('%s\t%s\t%s\t%.2f\t%.2f\t%s\t%s\n' % (gid,
+        fout.write('{}\t{}\t{}\t{}\t{}\t{}\t{}\n'.format(gid,
                                                         genomes[gid].gtdb_taxa.species,
                                                         genomes[gid].ncbi_taxa.species,
                                                         ani,

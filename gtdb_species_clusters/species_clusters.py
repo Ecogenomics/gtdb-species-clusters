@@ -114,7 +114,7 @@ class SpeciesClusters(object):
                 and self.species_names[rid] != sp_name):
             self.logger.error('GTDB representative {} appears to have two names: {} {}'.format(
                                 rid, self.species_names[rid], sp_name))
-            sys.exit(-1)
+            assert(False)
         
         self.sp_clusters[rid].add(gid)
         self.species_names[rid] = sp_name

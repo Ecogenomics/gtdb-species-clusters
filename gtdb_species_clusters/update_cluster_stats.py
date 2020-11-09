@@ -73,11 +73,11 @@ class UpdateClusterStats(object):
             gtdb_clusters_file,
             prev_gtdb_metadata_file,
             cur_gtdb_metadata_file,
-            uba_genome_paths,
             qc_passed_file,
             ncbi_genbank_assembly_file,
             untrustworthy_type_file,
-            gtdb_type_strains_ledger):
+            gtdb_type_strains_ledger,
+            ncbi_env_bioproject_ledger):
         """Summary statistics indicating changes to GTDB species cluster membership."""
 
         # create previous and current GTDB genome sets
@@ -85,9 +85,9 @@ class UpdateClusterStats(object):
         prev_genomes = Genomes()
         prev_genomes.load_from_metadata_file(prev_gtdb_metadata_file,
                                                 gtdb_type_strains_ledger=gtdb_type_strains_ledger,
-                                                uba_genome_file=uba_genome_paths,
                                                 ncbi_genbank_assembly_file=ncbi_genbank_assembly_file,
-                                                untrustworthy_type_ledger=untrustworthy_type_file)
+                                                untrustworthy_type_ledger=untrustworthy_type_file,
+                                                ncbi_env_bioproject_ledger=ncbi_env_bioproject_ledger)
         self.logger.info(' - previous genome set has {:,} species clusters spanning {:,} genomes.'.format(
                             len(prev_genomes.sp_clusters),
                             prev_genomes.sp_clusters.total_num_genomes()))
@@ -97,10 +97,10 @@ class UpdateClusterStats(object):
         cur_genomes.load_from_metadata_file(cur_gtdb_metadata_file,
                                                 gtdb_type_strains_ledger=gtdb_type_strains_ledger,
                                                 create_sp_clusters=False,
-                                                uba_genome_file=uba_genome_paths,
                                                 qc_passed_file=qc_passed_file,
                                                 ncbi_genbank_assembly_file=ncbi_genbank_assembly_file,
-                                                untrustworthy_type_ledger=untrustworthy_type_file)
+                                                untrustworthy_type_ledger=untrustworthy_type_file,
+                                                ncbi_env_bioproject_ledger=ncbi_env_bioproject_ledger)
         self.logger.info(f' - current genome set contains {len(cur_genomes):,} genomes.')
         
         # report changes in genome sets
@@ -125,27 +125,7 @@ class UpdateClusterStats(object):
         for rid, cids in new_clusters.items():
             for cid in cids:
                 new_rid_map[cid] = rid
-                
-        # UBA genome sanity check
-        prev_uba_count = 0
-        for gid in prev_genomes:
-            if gid.startswith('UBA'):
-                prev_uba_count += 1
 
-        cur_uba_count = 0
-        for gid in cur_genomes:
-            if gid.startswith('UBA'):
-                cur_uba_count += 1
-                
-        new_uba_count = 0
-        for rid, cids in new_clusters.items():
-            for cid in cids:
-                if cid.startswith('UBA'):
-                    new_uba_count += 1
-                    
-        self.logger.info(f'Verified all genome / cluster sets contain the same number of UBA genomes: {prev_uba_count:,}')
-        assert prev_uba_count == cur_uba_count == new_uba_count
-        
         # get mapping of previous GTDB representatives to new GTDB species clusters
         self.logger.info('Mapping previous GTDB representatives to new representatives.')
         prev_to_new_rid = prev_genomes.sp_clusters.updated_representatives(new_clusters)

@@ -177,12 +177,9 @@ class UpdateClusterNamedReps(object):
             mash_ani_pairs = []
             for qid in mash_ani:
                 for rid in mash_ani[qid]:
-                    if mash_ani[qid][rid] >= self.min_mash_ani:
-                        n_qid = cur_genomes.user_uba_id_map.get(qid, qid)
-                        n_rid = cur_genomes.user_uba_id_map.get(rid, rid)
-                        if n_qid != n_rid:
-                            mash_ani_pairs.append((n_qid, n_rid))
-                            mash_ani_pairs.append((n_rid, n_qid))
+                    if qid != rid and mash_ani[qid][rid] >= self.min_mash_ani:
+                        mash_ani_pairs.append((qid, rid))
+                        mash_ani_pairs.append((rid, qid))
                     
             self.logger.info('Identified {:,} genome pairs with a Mash ANI >= {:.1f}%.'.format(len(mash_ani_pairs), self.min_mash_ani))
             
@@ -272,7 +269,8 @@ class UpdateClusterNamedReps(object):
                                                 qc_passed_file=qc_passed_file,
                                                 ncbi_genbank_assembly_file=ncbi_genbank_assembly_file,
                                                 untrustworthy_type_ledger=untrustworthy_type_file,
-                                                ncbi_env_bioproject_ledger=ncbi_env_bioproject_ledger)
+                                                ncbi_env_bioproject_ledger=ncbi_env_bioproject_ledger,
+                                                create_sp_clusters=False)
         self.logger.info(f' - current genome set contains {len(cur_genomes):,} genomes.')
 
         # get path to previous and current genomic FASTA files

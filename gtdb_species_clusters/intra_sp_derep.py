@@ -68,8 +68,6 @@ class IntraSpeciesDereplication(object):
 
         self.mash = Mash(self.cpus)
         self.fastani = FastANI(ani_cache_file, cpus)
-        
-        self.user_id_map = {}
 
     def mash_sp_ani(self, gids, genomes, output_prefix):
         """Calculate pairwise Mash ANI estimates between genomes."""
@@ -95,22 +93,17 @@ class IntraSpeciesDereplication(object):
         # read Mash distances
         mash_ani = self.mash.read_ani(mash_dist_file)
         
-        # report pairs above Mash threshold
-        revised_mash_ani = defaultdict(lambda: {})
         count = 0
         for qid in mash_ani:
             for rid in mash_ani[qid]:
                 if qid != rid:
-                    new_qid = canonical_gid(self.user_id_map.get(qid, qid))
-                    new_rid = canonical_gid(self.user_id_map.get(rid, rid))
-                    revised_mash_ani[new_qid][new_rid] = mash_ani[qid][rid]
                     count += 1
                         
         self.logger.info(' - identified {:,} pairs passing Mash filtering of ANI >= {:.1f}%.'.format(
                             count,
                             INIT_MASH_ANI_FILTER))
 
-        return revised_mash_ani
+        return mash_ani
         
     def priority_score(self, gid, genomes):
         """Get priority score of genome."""
@@ -329,25 +322,13 @@ class IntraSpeciesDereplication(object):
         return derep_genomes
 
     def run(self, gtdb_metadata_file,
-                    genomic_path_file,
-                    uba_gid_table):
+                    genomic_path_file):
         """Dereplicate GTDB species clusters using ANI/AF criteria."""
-        
-        # map user IDs to UBA IDs
-        with open(uba_gid_table) as f:
-            for line in f:
-                tokens = line.strip().split('\t')
-                
-                if len(tokens) == 3:
-                    self.user_id_map[tokens[0]] = tokens[2]
-                else:
-                    self.user_id_map[tokens[0]] = tokens[1]
-        
+
         # create GTDB genome sets
         self.logger.info('Creating GTDB genome set.')
         genomes = Genomes()
-        genomes.load_from_metadata_file(gtdb_metadata_file,
-                                        uba_genome_file=uba_gid_table)
+        genomes.load_from_metadata_file(gtdb_metadata_file)
         genomes.load_genomic_file_paths(genomic_path_file)
         self.logger.info(' - genome set has {:,} species clusters spanning {:,} genomes.'.format(
                             len(genomes.sp_clusters),

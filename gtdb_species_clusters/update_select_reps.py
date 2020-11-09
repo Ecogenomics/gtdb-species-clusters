@@ -642,7 +642,7 @@ class UpdateSelectRepresentatives(object):
                 
                 ncbi_sp2 = cur_genomes[gid2].ncbi_taxa.species
                 fout.write('{}\t{}\t{}\t{}'.format(ncbi_sp1, gid1, ncbi_sp2, gid2))
-                fout.write('\t{:.3f}\t{:.4f}\t{:.3f}\t{:.4f}\t{:.3f}\t{:.4f}\n'.format(
+                fout.write('\t{}\t{}\t{}\t{}\t{}\t{}\n'.format(
                             ani, af,
                             cur_ani, cur_af, 
                             rev_ani, rev_af))
@@ -746,8 +746,8 @@ class UpdateSelectRepresentatives(object):
                                                             lpsn_gss_file,
                                                             self.output_dir)
                 sorted_gids = sp_priority_mngr.sort_by_sp_priority(cur_genomes, 
-                                                                        type_status[cur_type_status], 
-                                                                        reverse=True)
+                                                                    type_status[cur_type_status], 
+                                                                    reverse=True)
             else:
                 # greedily exclude representatives by sorting by number of neighbours
                 # and inversely by genome quality

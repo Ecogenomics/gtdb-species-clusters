@@ -98,15 +98,13 @@ class UpdateCurationTrees(object):
                 gtdb_clusters_file,
                 prev_gtdb_metadata_file,
                 cur_gtdb_metadata_file,
-                uba_genome_paths,
                 qc_passed_file):
         """Perform initial actions required for changed representatives."""
 
         # create previous and current GTDB genome sets
         self.logger.info('Creating previous GTDB genome set.')
         prev_genomes = Genomes()
-        prev_genomes.load_from_metadata_file(prev_gtdb_metadata_file,
-                                                uba_genome_file=uba_genome_paths)
+        prev_genomes.load_from_metadata_file(prev_gtdb_metadata_file)
         self.logger.info(' - previous genome set has {:,} species clusters spanning {:,} genomes.'.format(
                             len(prev_genomes.sp_clusters),
                             prev_genomes.sp_clusters.total_num_genomes()))
@@ -115,7 +113,6 @@ class UpdateCurationTrees(object):
         cur_genomes = Genomes()
         cur_genomes.load_from_metadata_file(cur_gtdb_metadata_file,
                                                 create_sp_clusters=False,
-                                                uba_genome_file=uba_genome_paths,
                                                 qc_passed_file=qc_passed_file)
         self.logger.info(f' - current genome set contains {len(cur_genomes):,} genomes.')
         

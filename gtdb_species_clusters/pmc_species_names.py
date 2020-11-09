@@ -816,7 +816,6 @@ class PMC_SpeciesNames(object):
                 gtdb_clusters_file,
                 prev_gtdb_metadata_file,
                 cur_gtdb_metadata_file,
-                uba_genome_paths,
                 qc_passed_file,
                 ncbi_misclassified_file,
                 ncbi_genbank_assembly_file,
@@ -828,7 +827,8 @@ class PMC_SpeciesNames(object):
                 sp_priority_ledger,
                 genus_priority_ledger,
                 specific_epithet_ledger,
-                dsmz_bacnames_file):
+                ncbi_env_bioproject_ledger,
+                lpsn_gss_file):
         """Finalize species names based on results of manual curation."""
 
         # read manually-curated taxonomy
@@ -846,9 +846,9 @@ class PMC_SpeciesNames(object):
         prev_genomes = Genomes()
         prev_genomes.load_from_metadata_file(prev_gtdb_metadata_file,
                                                 gtdb_type_strains_ledger=gtdb_type_strains_ledger,
-                                                uba_genome_file=uba_genome_paths,
                                                 ncbi_genbank_assembly_file=ncbi_genbank_assembly_file,
-                                                untrustworthy_type_ledger=untrustworthy_type_file)
+                                                untrustworthy_type_ledger=untrustworthy_type_file,
+                                                ncbi_env_bioproject_ledger=ncbi_env_bioproject_ledger)
         self.logger.info(' - previous genome set has {:,} species clusters spanning {:,} genomes.'.format(
                             len(prev_genomes.sp_clusters),
                             prev_genomes.sp_clusters.total_num_genomes()))
@@ -858,10 +858,10 @@ class PMC_SpeciesNames(object):
         cur_genomes.load_from_metadata_file(cur_gtdb_metadata_file,
                                                 gtdb_type_strains_ledger=gtdb_type_strains_ledger,
                                                 create_sp_clusters=False,
-                                                uba_genome_file=uba_genome_paths,
                                                 qc_passed_file=qc_passed_file,
                                                 ncbi_genbank_assembly_file=ncbi_genbank_assembly_file,
-                                                untrustworthy_type_ledger=untrustworthy_type_file)
+                                                untrustworthy_type_ledger=untrustworthy_type_file,
+                                                ncbi_env_bioproject_ledger=ncbi_env_bioproject_ledger)
         self.logger.info(f' - current genome set contains {len(cur_genomes):,} genomes.')
         
         cur_genomes.set_prev_gtdb_classifications(prev_genomes)
@@ -907,7 +907,8 @@ class PMC_SpeciesNames(object):
         # initialize species priority manager
         self.sp_priority_mngr = SpeciesPriorityManager(sp_priority_ledger,
                                                         genus_priority_ledger,
-                                                        dsmz_bacnames_file)
+                                                        lpsn_gss_file,
+                                                        self.output_dir)
                                                         
         # establish state of NCBI species
         ncbi_species_mngr = NCBI_SpeciesManager(cur_genomes, 
