@@ -292,10 +292,6 @@ class PMC_SpeciesNames(object):
                     note = 'Generated Latin-suffix name from NCBI species assignment'
                     suffixed_specific_name = self.sp_name_mngr.suffixed_placeholder_sp_epithet(gtdb_generic, ncbi_specific)
                     final_species = 's__{} {}'.format(gtdb_generic, suffixed_specific_name)
-                    
-                    if rid == 'G002096675': #***
-                        print('####', rid, suffixed_specific_name, final_species)
-
                 else:
                     # representative lacks a NCBI species assignment so create a numeric name
                     note = 'Generated alphanumeric name as representative lacks an NCBI species assignment or NCBI family considered misclassified'
@@ -592,8 +588,6 @@ class PMC_SpeciesNames(object):
                                         
         self.final_name_log.close()
         
-        print('####', 'A: final_taxonomy', final_taxonomy['G002096675'])
-
         for case, count in case_count.items():
             print('{}\t{}'.format(case, count))
 
@@ -611,8 +605,6 @@ class PMC_SpeciesNames(object):
                                                     species_classification_ledger,
                                                     manual_curation_rids)
 
-        print('####', 'B: final_taxonomy', final_taxonomy['G002096675'])
-        
         return final_taxonomy
 
     def parse_gtdb_type_strain_ledger(self, gtdb_type_strains_ledger, cur_genomes):
@@ -964,6 +956,15 @@ class PMC_SpeciesNames(object):
                                                         ncbi_synonyms,
                                                         species_classification_ledger)
                                         
+        # sanity check that all species clusters have a unique name
+        sp_names = {}
+        for rid, taxa in final_taxonomy.items():
+            sp = taxa[Taxonomy.SPECIES_INDEX]
+            if sp in sp_names:
+                self.logger.error('Species name {} assigned to at least 2 GTDB representatives: {} {}'.format(
+                                        sp, sp_names[sp], rid))
+            sp_names[sp] = rid
+        
         # write out final taxonomy
         final_taxonomy_file = os.path.join(self.output_dir, 'final_taxonomy.tsv')
         fout = open(final_taxonomy_file, 'w')

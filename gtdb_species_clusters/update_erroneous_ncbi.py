@@ -116,8 +116,7 @@ class UpdateErroneousNCBI(object):
                                 ncbi_species,
                                 cur_rid,
                                 type_rid))
-        
-        sys.stdout.write('\n')
+
         fout.close()
 
         misclassified_species = set([cur_genomes[gid].ncbi_taxa.species for gid in misclassified_gids])
@@ -147,7 +146,6 @@ class UpdateErroneousNCBI(object):
                                                 ncbi_genbank_assembly_file=ncbi_genbank_assembly_file,
                                                 untrustworthy_type_ledger=untrustworthy_type_file,
                                                 ncbi_env_bioproject_ledger=ncbi_env_bioproject_ledger)
-        self.logger.info(f' ... current genome set contains {len(cur_genomes):,} genomes.')
         
         # get path to previous and current genomic FASTA files
         self.logger.info('Reading path to current genomic FASTA files.')
@@ -156,7 +154,7 @@ class UpdateErroneousNCBI(object):
         # read named GTDB species clusters
         self.logger.info('Reading named and previous placeholder GTDB species clusters.')
         cur_clusters, rep_radius = read_clusters(gtdb_clusters_file)
-        self.logger.info(' ... identified {:,} clusters spanning {:,} genomes.'.format(
+        self.logger.info(' - identified {:,} clusters spanning {:,} genomes.'.format(
                             len(cur_clusters),
                             sum([len(gids) + 1 for gids in cur_clusters.values()])))
         

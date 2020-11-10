@@ -127,7 +127,6 @@ class QcGenomes(object):
                                                 create_sp_clusters=False,
                                                 ncbi_genbank_assembly_file=ncbi_genbank_assembly_file,
                                                 ncbi_env_bioproject_ledger=ncbi_env_bioproject_ledger)
-        self.logger.info(f' - current genome set contains {len(cur_genomes):,} genomes.')
 
         # parse genomes flagged as exceptions from QC
         qc_exceptions = set()

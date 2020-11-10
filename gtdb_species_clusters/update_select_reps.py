@@ -954,7 +954,7 @@ class UpdateSelectRepresentatives(object):
                                         if updated_sp_clusters.get_representative(gid) is not None])
                                         
             if len(type_gids) > 0:
-                # if GTDB is covering this species if it has one of the type strain 
+                # GTDB is covering this species if it has one of the type strain 
                 # genomes as a cluster representative or all of the type strains 
                 # contained in GTDB clusters (i.e. it is a synonym)
                 if (len(type_gids.intersection(updated_sp_clusters)) == 0
@@ -1022,7 +1022,6 @@ class UpdateSelectRepresentatives(object):
                                                 untrustworthy_type_ledger=untrustworthy_type_file,
                                                 ncbi_untrustworthy_sp_ledger=ncbi_untrustworthy_sp_ledger,
                                                 ncbi_env_bioproject_ledger=ncbi_env_bioproject_ledger)
-        self.logger.info(f' - current genome set contains {len(cur_genomes):,} genomes.')
         
         # get path to previous and current genomic FASTA files
         self.logger.info('Reading path to current genomic FASTA files.')

@@ -70,7 +70,6 @@ class RepChanges(object):
                                                 ncbi_genbank_assembly_file=ncbi_genbank_assembly_file,
                                                 untrustworthy_type_ledger=untrustworthy_type_file,
                                                 ncbi_env_bioproject_ledger=ncbi_env_bioproject_ledger)
-        self.logger.info(f' - current genome set contains {len(cur_genomes):,} genomes.')
 
         # get previous and current genomes from type strains
         self.logger.info('Determining genomes identified as being assembled from type strain.')

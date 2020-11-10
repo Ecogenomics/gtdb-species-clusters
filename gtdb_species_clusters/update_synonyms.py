@@ -61,10 +61,9 @@ class UpdateSynonyms(object):
                                                 ncbi_genbank_assembly_file=ncbi_genbank_assembly_file,
                                                 untrustworthy_type_ledger=untrustworthy_type_file,
                                                 ncbi_env_bioproject_ledger=ncbi_env_bioproject_ledger)
-        self.logger.info(f' - current genome set contains {len(cur_genomes):,} genomes.')
-        
+
         # read named GTDB species clusters
-        self.logger.info('Reading named and previous placeholder GTDB species clusters.')
+        self.logger.info('Reading GTDB species clusters.')
         cur_clusters, rep_radius = read_clusters(gtdb_clusters_file)
         self.logger.info(' - identified {:,} clusters spanning {:,} genomes.'.format(
                             len(cur_clusters),
@@ -77,7 +76,7 @@ class UpdateSynonyms(object):
                                                 {}, # no manually-curated GTDB species assignments at this point
                                                 self.output_dir)
         ncbi_misclassified_gids = ncbi_species_mngr.parse_ncbi_misclassified_table(ncbi_misclassified_file)
-        self.logger.info(' - identified {:,} genomes with erroneous NCBI species assignments'.format(
+        self.logger.info(' - identified {:,} genomes with erroneous NCBI species assignments.'.format(
                             len(ncbi_misclassified_gids)))
                             
         # identify NCBI species considered to be synonyms under the GTDB

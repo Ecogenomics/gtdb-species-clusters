@@ -408,7 +408,6 @@ class ResolveTypes(object):
                                                 untrustworthy_type_ledger=untrustworthy_type_ledger,
                                                 ncbi_env_bioproject_ledger=ncbi_env_bioproject_ledger)
         cur_genomes.load_genomic_file_paths(cur_genomic_path_file)
-        self.logger.info(f' - current genome set contains {len(cur_genomes):,} genomes.')
 
         # parsing genomes manually established to be untrustworthy as type
         self.logger.info('Determining genomes manually annotated as untrustworthy as type.')

@@ -865,8 +865,7 @@ class UpdateSpeciesInit(object):
                                                 ncbi_genbank_assembly_file=ncbi_genbank_assembly_file,
                                                 untrustworthy_type_ledger=untrustworthy_type_file,
                                                 ncbi_env_bioproject_ledger=ncbi_env_bioproject_ledger)
-        self.logger.info(f' - current genome set contains {len(cur_genomes):,} genomes.')
-        
+
         cur_genomes.set_prev_gtdb_classifications(prev_genomes)
         
         # update current genomes with GTDB-Tk classifications
@@ -916,28 +915,29 @@ class UpdateSpeciesInit(object):
                             len(synonyms),
                             len(set(synonyms.values()))))
 
-       # get explicit updates to previous GTDB taxa
-        self.logger.info('Reading explicit taxa updates.')
-        explicit_taxon_updates = self._parse_explicit_taxa_updates(gtdb_taxa_updates_ledger)
-        self.logger.info(f' - identified {len(explicit_taxon_updates):,} updates.')
-        
-        self.logger.info('Updating current genomes to reflect explicit taxa updates.')
-        update_count = 0
-        for cur_taxon, new_taxon in explicit_taxon_updates.items():
-            rank_prefix = cur_taxon[0:3]
-            rank_index = Taxonomy.rank_prefixes.index(rank_prefix)
+        # get explicit updates to previous GTDB taxa
+        if gtdb_taxa_updates_ledger.lower() != 'none':
+            self.logger.info('Reading explicit taxa updates.')
+            explicit_taxon_updates = self._parse_explicit_taxa_updates(gtdb_taxa_updates_ledger)
+            self.logger.info(f' - identified {len(explicit_taxon_updates):,} updates.')
+            
+            self.logger.info('Updating current genomes to reflect explicit taxa updates.')
+            update_count = 0
+            for cur_taxon, new_taxon in explicit_taxon_updates.items():
+                rank_prefix = cur_taxon[0:3]
+                rank_index = Taxonomy.rank_prefixes.index(rank_prefix)
 
-            for gid in cur_genomes:
-                if cur_genomes[gid].gtdb_taxa.get_taxa(rank_index) == cur_taxon:
-                    update_count += 1
-                    cur_genomes[gid].gtdb_taxa.set_taxa(rank_index, new_taxon)
-                    
-                    if rank_prefix == 'g__':
-                        # should also update the species name
-                        new_sp = cur_genomes[gid].gtdb_taxa.species.replace(cur_taxon[3:], new_taxon[3:])
-                        cur_genomes[gid].gtdb_taxa.set_taxa(rank_index+1, new_sp)
+                for gid in cur_genomes:
+                    if cur_genomes[gid].gtdb_taxa.get_taxa(rank_index) == cur_taxon:
+                        update_count += 1
+                        cur_genomes[gid].gtdb_taxa.set_taxa(rank_index, new_taxon)
+                        
+                        if rank_prefix == 'g__':
+                            # should also update the species name
+                            new_sp = cur_genomes[gid].gtdb_taxa.species.replace(cur_taxon[3:], new_taxon[3:])
+                            cur_genomes[gid].gtdb_taxa.set_taxa(rank_index+1, new_sp)
                 
-        self.logger.info(f' - updated {update_count:,} genomes.')
+            self.logger.info(f' - updated {update_count:,} genomes.')
 
         # create species name manager
         self.logger.info('Initializing species name manager.')
@@ -948,7 +948,8 @@ class UpdateSpeciesInit(object):
         # initialize species priority manager
         self.sp_priority_mngr = SpeciesPriorityManager(sp_priority_ledger,
                                                         genus_priority_ledger,
-                                                        lpsn_gss_file)
+                                                        lpsn_gss_file,
+                                                        self.output_dir)
  
         # establish appropriate species names for GTDB clusters with new representatives
         self.update_species_names(cur_clusters,

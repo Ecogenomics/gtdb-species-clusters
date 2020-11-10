@@ -98,13 +98,21 @@ class UpdateCurationTrees(object):
                 gtdb_clusters_file,
                 prev_gtdb_metadata_file,
                 cur_gtdb_metadata_file,
-                qc_passed_file):
+                qc_passed_file,
+                ncbi_genbank_assembly_file,
+                untrustworthy_type_file,
+                gtdb_type_strains_ledger,
+                ncbi_env_bioproject_ledger):
         """Perform initial actions required for changed representatives."""
 
         # create previous and current GTDB genome sets
         self.logger.info('Creating previous GTDB genome set.')
         prev_genomes = Genomes()
-        prev_genomes.load_from_metadata_file(prev_gtdb_metadata_file)
+        prev_genomes.load_from_metadata_file(prev_gtdb_metadata_file,
+                                                gtdb_type_strains_ledger=gtdb_type_strains_ledger,
+                                                ncbi_genbank_assembly_file=ncbi_genbank_assembly_file,
+                                                untrustworthy_type_ledger=untrustworthy_type_file,
+                                                ncbi_env_bioproject_ledger=ncbi_env_bioproject_ledger)
         self.logger.info(' - previous genome set has {:,} species clusters spanning {:,} genomes.'.format(
                             len(prev_genomes.sp_clusters),
                             prev_genomes.sp_clusters.total_num_genomes()))
@@ -112,10 +120,13 @@ class UpdateCurationTrees(object):
         self.logger.info('Creating current GTDB genome set.')
         cur_genomes = Genomes()
         cur_genomes.load_from_metadata_file(cur_gtdb_metadata_file,
+                                                gtdb_type_strains_ledger=gtdb_type_strains_ledger,
                                                 create_sp_clusters=False,
-                                                qc_passed_file=qc_passed_file)
-        self.logger.info(f' - current genome set contains {len(cur_genomes):,} genomes.')
-        
+                                                qc_passed_file=qc_passed_file,
+                                                ncbi_genbank_assembly_file=ncbi_genbank_assembly_file,
+                                                untrustworthy_type_ledger=untrustworthy_type_file,
+                                                ncbi_env_bioproject_ledger=ncbi_env_bioproject_ledger)
+
         # read named GTDB species clusters
         self.logger.info('Reading GTDB species clusters.')
         cur_clusters, _ = read_clusters(gtdb_clusters_file)

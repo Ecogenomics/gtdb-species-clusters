@@ -417,12 +417,21 @@ class OptionsParser():
         check_file_exists(args.prev_gtdb_metadata_file)
         check_file_exists(args.cur_gtdb_metadata_file)
         check_file_exists(args.qc_passed_file)
+        check_file_exists(args.ncbi_genbank_assembly_file)
+        check_file_exists(args.untrustworthy_type_file)
+        check_file_exists(args.gtdb_type_strains_ledger)
+        check_file_exists(args.ncbi_env_bioproject_ledger)
+        make_sure_path_exists(args.output_dir)
 
         p = UpdateCurationTrees(args.output_dir, args.output_prefix)
         p.run(args.gtdb_clusters_file,
                 args.prev_gtdb_metadata_file,
                 args.cur_gtdb_metadata_file,
-                args.qc_passed_file)
+                args.qc_passed_file,
+                args.ncbi_genbank_assembly_file,
+                args.untrustworthy_type_file,
+                args.gtdb_type_strains_ledger,
+                args.ncbi_env_bioproject_ledger)
         
         self.logger.info('Done.')
         
@@ -442,10 +451,12 @@ class OptionsParser():
         check_file_exists(args.gtdb_type_strains_ledger)
         check_file_exists(args.sp_priority_ledger)
         check_file_exists(args.genus_priority_ledger)
-        check_file_exists(args.gtdb_taxa_updates_ledger)
         check_file_exists(args.ncbi_env_bioproject_ledger)
         check_file_exists(args.lpsn_gss_file)
         make_sure_path_exists(args.output_dir)
+        
+        if args.gtdb_taxa_updates_ledger.lower() != 'none':
+            check_file_exists(args.gtdb_taxa_updates_ledger)
 
         p = UpdateSpeciesInit(args.ani_cache_file, 
                                 args.cpus, 
