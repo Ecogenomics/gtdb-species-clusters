@@ -454,9 +454,6 @@ class OptionsParser():
         check_file_exists(args.ncbi_env_bioproject_ledger)
         check_file_exists(args.lpsn_gss_file)
         make_sure_path_exists(args.output_dir)
-        
-        if args.gtdb_taxa_updates_ledger.lower() != 'none':
-            check_file_exists(args.gtdb_taxa_updates_ledger)
 
         p = UpdateSpeciesInit(args.ani_cache_file, 
                                 args.cpus, 
@@ -474,7 +471,6 @@ class OptionsParser():
                 args.gtdb_type_strains_ledger,
                 args.sp_priority_ledger,
                 args.genus_priority_ledger,
-                args.gtdb_taxa_updates_ledger,
                 args.ncbi_env_bioproject_ledger,
                 args.lpsn_gss_file)
         

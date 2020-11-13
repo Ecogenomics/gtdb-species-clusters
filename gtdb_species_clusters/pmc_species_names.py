@@ -292,6 +292,10 @@ class PMC_SpeciesNames(object):
                     note = 'Generated Latin-suffix name from NCBI species assignment'
                     suffixed_specific_name = self.sp_name_mngr.suffixed_placeholder_sp_epithet(gtdb_generic, ncbi_specific)
                     final_species = 's__{} {}'.format(gtdb_generic, suffixed_specific_name)
+                    
+                    if rid == "G013530545":
+                        print('***', gtdb_generic, ncbi_specific, suffixed_specific_name, final_species)
+                    
                 else:
                     # representative lacks a NCBI species assignment so create a numeric name
                     note = 'Generated alphanumeric name as representative lacks an NCBI species assignment or NCBI family considered misclassified'
@@ -586,8 +590,11 @@ class PMC_SpeciesNames(object):
                                         final_taxonomy, 
                                         cur_gtdb_sp)
                                         
+            if rid == "G013530545":
+                print('***NONTYPE_SPECIES_CLUSTER', rid, final_sp)
+                                        
         self.final_name_log.close()
-        
+
         for case, count in case_count.items():
             print('{}\t{}'.format(case, count))
 

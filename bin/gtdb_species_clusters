@@ -394,7 +394,6 @@ if __name__ == '__main__':
     u_species_init_parser.add_argument('gtdb_type_strains_ledger', help="file listing genomes to consider as being the type strain for valid or effectively published species name")
     u_species_init_parser.add_argument('sp_priority_ledger', help="file resolving nomenclatural priority of species names")
     u_species_init_parser.add_argument('genus_priority_ledger', help="file resolving nomenclatural priority of genus names")
-    u_species_init_parser.add_argument('gtdb_taxa_updates_ledger', help="file indicating explicit updates to taxa relative to last GTDB release")
     u_species_init_parser.add_argument('ncbi_env_bioproject_ledger', help="file indicating NCBI BioProjects composed on MAGs or SAGs incorrectly annotated at NCBI")
     u_species_init_parser.add_argument('lpsn_gss_file', help="table from lpsn.dsmz.de with nomenclature information (lpsn_gss_<date>.csv)")
     u_species_init_parser.add_argument('output_dir', help="output directory")

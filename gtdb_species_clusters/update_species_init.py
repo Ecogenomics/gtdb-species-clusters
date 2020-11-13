@@ -15,19 +15,6 @@
 #                                                                             #
 ###############################################################################
 
-### Cases to improve or verify:
-# G002915575: given the name s__RIT-PI-d sp002915575, but should be s__Superficieibacter electus
-# G003123745: given the name s__F0332 sp003123745, but should be s__Ancrocorticia populi
-
-### Required changes:
-# - all initially proposed names need to be unique so they will be decorated on the curation tree. If a name isn't unique and the species 
-#   isn't monophyletic on the tree than there can be genomes without a species assignment. See slide 69.
-#
-# - need to update the update_species_init method to properly handle cases where a genus
-#   has multiple species with the same Latin name, none of which are representated by a type strain.
-#   -- in this case, all species clusters should have a alphabetical suffix
-#
-
 import os
 import sys
 import argparse
@@ -727,25 +714,6 @@ class UpdateSpeciesInit(object):
         # sanity check
         for rid, sp in cluster_sp_names.items():
             assert cur_genomes[rid].gtdb_taxa.species == sp
-
-    def _parse_explicit_taxa_updates(self, gtdb_taxa_updates_ledger):
-        """Get explicit updates to previous GTDB taxon names."""
-        
-        explicit_taxon_updates = {}
-        with open(gtdb_taxa_updates_ledger) as f:
-            f.readline()
-            for line in f:
-                tokens = line.strip().split('\t')
-                
-                prev_taxon = tokens[0].strip()
-                assert '__' in prev_taxon
-                    
-                new_taxon = tokens[1].strip()
-                assert '__' in new_taxon
-                
-                explicit_taxon_updates[prev_taxon] = new_taxon
-                
-        return explicit_taxon_updates
         
     def write_rep_info(self, 
                         cur_genomes,
@@ -839,7 +807,6 @@ class UpdateSpeciesInit(object):
                 gtdb_type_strains_ledger,
                 sp_priority_ledger,
                 genus_priority_ledger,
-                gtdb_taxa_updates_ledger,
                 ncbi_env_bioproject_ledger,
                 lpsn_gss_file):
         """Produce initial best guess at GTDB species clusters."""
@@ -914,30 +881,6 @@ class UpdateSpeciesInit(object):
         self.logger.info(' - identified {:,} synonyms from {:,} distinct species.'.format(
                             len(synonyms),
                             len(set(synonyms.values()))))
-
-        # get explicit updates to previous GTDB taxa
-        if gtdb_taxa_updates_ledger.lower() != 'none':
-            self.logger.info('Reading explicit taxa updates.')
-            explicit_taxon_updates = self._parse_explicit_taxa_updates(gtdb_taxa_updates_ledger)
-            self.logger.info(f' - identified {len(explicit_taxon_updates):,} updates.')
-            
-            self.logger.info('Updating current genomes to reflect explicit taxa updates.')
-            update_count = 0
-            for cur_taxon, new_taxon in explicit_taxon_updates.items():
-                rank_prefix = cur_taxon[0:3]
-                rank_index = Taxonomy.rank_prefixes.index(rank_prefix)
-
-                for gid in cur_genomes:
-                    if cur_genomes[gid].gtdb_taxa.get_taxa(rank_index) == cur_taxon:
-                        update_count += 1
-                        cur_genomes[gid].gtdb_taxa.set_taxa(rank_index, new_taxon)
-                        
-                        if rank_prefix == 'g__':
-                            # should also update the species name
-                            new_sp = cur_genomes[gid].gtdb_taxa.species.replace(cur_taxon[3:], new_taxon[3:])
-                            cur_genomes[gid].gtdb_taxa.set_taxa(rank_index+1, new_sp)
-                
-            self.logger.info(f' - updated {update_count:,} genomes.')
 
         # create species name manager
         self.logger.info('Initializing species name manager.')
