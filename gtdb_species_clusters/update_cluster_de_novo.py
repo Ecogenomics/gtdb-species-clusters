@@ -435,3 +435,17 @@ class UpdateClusterDeNovo(object):
         write_rep_radius(final_cluster_radius, 
                             cur_genomes,
                             os.path.join(self.output_dir, 'gtdb_ani_radius_de_novo.tsv'))
+                            
+        # write out archaeal and bacterial GTDB representatives
+        fout_ar = open(os.path.join(self.output_dir, 'gtdb_reps_ar.lst'), 'w')
+        fout_bac = open(os.path.join(self.output_dir, 'gtdb_reps_bac.lst'), 'w')
+        for rid in final_clusters:
+            if cur_genomes[rid].gtdb_taxa.domain == 'd__Bacteria':
+                fout_bac.write('{}\n'.format(cur_genomes[rid].ncbi_accn))
+            elif cur_genomes[rid].gtdb_taxa.domain == 'd__Archaea':
+                fout_ar.write('{}\n'.format(cur_genomes[rid].ncbi_accn))
+            else:
+                self.logger.error('GTDB representative has unassigned domain: {}'.format(rid))
+            
+        fout_ar.close()
+        fout_bac.close()

@@ -29,23 +29,9 @@ from biolib.taxonomy import Taxonomy
 
 from gtdb_species_clusters.genomes import Genomes
 
-from gtdb_species_clusters.species_name_manager import SpeciesNameManager
-from gtdb_species_clusters.species_priority_manager import SpeciesPriorityManager
-from gtdb_species_clusters.specific_epithet_manager import SpecificEpithetManager
 from gtdb_species_clusters.genome_utils import canonical_gid
 from gtdb_species_clusters.type_genome_utils import read_clusters
-from gtdb_species_clusters.taxon_utils import (generic_name,
-                                                specific_epithet,
-                                                canonical_taxon,
-                                                canonical_species,
-                                                taxon_suffix,
-                                                sort_by_naming_priority,
-                                                is_placeholder_taxon,
-                                                is_placeholder_sp_epithet,
-                                                is_alphanumeric_taxon,
-                                                is_alphanumeric_sp_epithet,
-                                                is_suffixed_taxon,
-                                                test_same_epithet)
+from gtdb_species_clusters.taxon_utils import specific_epithet
 
 
 class UpdateErroneousNCBI(object):
@@ -57,7 +43,7 @@ class UpdateErroneousNCBI(object):
         self.output_dir = output_dir
         self.logger = logging.getLogger('timestamp')
         
-    def identify_misclassified_genomes_cluster(self, cur_genomes, cur_clusters):
+    def identify_misclassified_genomes_cluster(self, cur_genomes, cur_clusters, ncbi_untrustworthy_sp_ledger):
         """Identify genomes with erroneous NCBI species assignments, based on GTDB clustering of type strain genomes."""
         
         forbidden_names = set(['cyanobacterium'])
@@ -116,6 +102,18 @@ class UpdateErroneousNCBI(object):
                                 ncbi_species,
                                 cur_rid,
                                 type_rid))
+                                
+        # add in genomes manually indicated as having erroneous NCBI species assignments
+        with open(ncbi_untrustworthy_sp_ledger) as f:
+            f.readline()
+            for line in f:
+                tokens = line.strip().split('\t')
+                gid = canonical_gid(tokens[0])
+                fout.write('{}\t{}\t{}\t{}\t\n'.format(
+                                gid,
+                                cur_genomes[gid].ncbi_taxa.species,
+                                gid_to_rid[gid],
+                                "Manually marked as being erroneous"))
 
         fout.close()
 
@@ -133,6 +131,7 @@ class UpdateErroneousNCBI(object):
                     ncbi_genbank_assembly_file,
                     untrustworthy_type_file,
                     gtdb_type_strains_ledger,
+                    ncbi_untrustworthy_sp_ledger,
                     ncbi_env_bioproject_ledger):
         """Cluster genomes to selected GTDB representatives."""
         
@@ -145,6 +144,7 @@ class UpdateErroneousNCBI(object):
                                                 qc_passed_file=qc_passed_file,
                                                 ncbi_genbank_assembly_file=ncbi_genbank_assembly_file,
                                                 untrustworthy_type_ledger=untrustworthy_type_file,
+                                                ncbi_untrustworthy_sp_ledger=ncbi_untrustworthy_sp_ledger,
                                                 ncbi_env_bioproject_ledger=ncbi_env_bioproject_ledger)
         
         # get path to previous and current genomic FASTA files
@@ -160,4 +160,4 @@ class UpdateErroneousNCBI(object):
         
         # identify genomes with erroneous NCBI species assignments
         self.logger.info('Identifying genomes with erroneous NCBI species assignments as established by GTDB cluster of type strain genomes.')
-        self.identify_misclassified_genomes_cluster(cur_genomes, cur_clusters)
+        self.identify_misclassified_genomes_cluster(cur_genomes, cur_clusters, ncbi_untrustworthy_sp_ledger)

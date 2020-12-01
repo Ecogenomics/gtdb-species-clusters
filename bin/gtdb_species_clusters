@@ -87,6 +87,9 @@ def print_help():
     
     Other:
       rep_compare         -> Compare current and previous representatives
+      
+    Debug and inspection:
+      sandbox -> Play to explore new ideas or calculate one off statistics relted to species clusters
 
   Use: gtdb_species_clusters <command> -h for command specific help.
 
@@ -334,6 +337,7 @@ if __name__ == '__main__':
     u_ncbi_erroneous_parser.add_argument('ncbi_genbank_assembly_file', help="NCBI GenBank assembly file indicating potentially erroneous genomes")
     u_ncbi_erroneous_parser.add_argument('untrustworthy_type_file', help="file listing genomes that should be considered untrustworthy as type material (u_resolve_types: untrustworthy_type_material.tsv)")
     u_ncbi_erroneous_parser.add_argument('gtdb_type_strains_ledger', help="file listing genomes to consider as being the type strain for valid or effectively published species name")
+    u_ncbi_erroneous_parser.add_argument('ncbi_untrustworthy_sp_ledger', help="file listing genomes with NCBI species assignments deemed to be untrustworthy")
     u_ncbi_erroneous_parser.add_argument('ncbi_env_bioproject_ledger', help="file indicating NCBI BioProjects composed on MAGs or SAGs incorrectly annotated at NCBI")
     u_ncbi_erroneous_parser.add_argument('output_dir', help="output directory")
     u_ncbi_erroneous_parser.add_argument('--silent', help="suppress output", action='store_true')
@@ -397,8 +401,6 @@ if __name__ == '__main__':
     u_species_init_parser.add_argument('ncbi_env_bioproject_ledger', help="file indicating NCBI BioProjects composed on MAGs or SAGs incorrectly annotated at NCBI")
     u_species_init_parser.add_argument('lpsn_gss_file', help="table from lpsn.dsmz.de with nomenclature information (lpsn_gss_<date>.csv)")
     u_species_init_parser.add_argument('output_dir', help="output directory")
-    u_species_init_parser.add_argument('--ani_cache_file', help='file with precomputed ANI and AF values')
-    u_species_init_parser.add_argument('-c', '--cpus', help='number of cpus', type=int, default=1)
     u_species_init_parser.add_argument('--silent', help="suppress output", action='store_true')
     
     # establish final species names based on manual curation
@@ -532,6 +534,7 @@ if __name__ == '__main__':
     pmc_validate_parser.add_argument('lpsn_gss_metadata_file', help="file indicating GSS (genus-species-subspecies) metadata at LPSN (obtained from https://lpsn.dsmz.de/downloads)")
     pmc_validate_parser.add_argument('ground_truth_test_cases', help="file indicating specific test cases with ground truth assignments to validate")
     pmc_validate_parser.add_argument('output_dir', help="output directory")
+    pmc_validate_parser.add_argument('--skip_full_taxonomy_checks', action='store_true', help="skip tests for valid taxonomy strings (useful when taxonomy still has unresolved genus assignments)")
     pmc_validate_parser.add_argument('--skip_genus_checks', action='store_true', help="skip tests related to validating genus/generic names")
     pmc_validate_parser.add_argument('--silent', help="suppress output", action='store_true')
     
@@ -609,6 +612,23 @@ if __name__ == '__main__':
     rep_compare_parser.add_argument('cur_metadata_file', help="metadata file for all genomes in current GTDB release")
     rep_compare_parser.add_argument('prev_metadata_file', help="metadata file for all genomes in previous GTDB release")
     rep_compare_parser.add_argument('--silent', help="suppress output", action='store_true')
+    
+    # play to explore new ideas or calculate one off statistics relted to species clusters
+    sandbox_parser = subparsers.add_parser('sandbox',
+                                        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+                                        description='Play to explore new ideas or calculate one off statistics relted to species clusters.')
+    sandbox_parser.add_argument('prev_gtdb_metadata_file', help="file with GTDB metadata for previous GTDB release (TSV file)")
+    sandbox_parser.add_argument('cur_gtdb_metadata_file', help="file with GTDB metadata for current GTDB release (TSV file)")
+    sandbox_parser.add_argument('qc_passed_file', help="file indicating genomes that have passed QC (u_qc_genomes: qc_passed.tsv)")
+    sandbox_parser.add_argument('ncbi_genbank_assembly_file', help="NCBI GenBank assembly file indicating potentially erroneous genomes")
+    sandbox_parser.add_argument('untrustworthy_type_file', help="file listing genomes that should be considered untrustworthy as type material (u_resolve_types: untrustworthy_type_material.tsv)")
+    sandbox_parser.add_argument('gtdb_type_strains_ledger', help="file listing genomes to consider as being the type strain for valid or effectively published species name")
+    sandbox_parser.add_argument('sp_priority_ledger', help="file resolving nomenclatural priority of species names")
+    sandbox_parser.add_argument('genus_priority_ledger', help="file resolving nomenclatural priority of genus names")
+    sandbox_parser.add_argument('ncbi_env_bioproject_ledger', help="file indicating NCBI BioProjects composed on MAGs or SAGs incorrectly annotated at NCBI")
+    sandbox_parser.add_argument('lpsn_gss_file', help="table from lpsn.dsmz.de with nomenclature information (lpsn_gss_<date>.csv)")
+    sandbox_parser.add_argument('output_dir', help="output directory")
+    sandbox_parser.add_argument('--silent', help="suppress output", action='store_true')
 
     # get and check options
     args = None

@@ -18,8 +18,10 @@
 import os
 import sys
 import csv
+import re
 import logging
 import functools
+import datetime
 from collections import defaultdict
 
 from gtdb_species_clusters.genome import Genome
@@ -38,8 +40,10 @@ class SpeciesPriorityManager(object):
 
         self.logger = logging.getLogger('timestamp')
         
-        self._fout_amiguous_priority = open(os.path.join(output_dir, 'amiguous_sp_priority.tsv'), 'w')
-        self._fout_amiguous_priority.write('NCBI species A\tNCBI species B\tPriority year A\tPriority year B\tGTDB type strain A\tGTDB type strain B\n')
+        self.output_dir = output_dir
+        
+        self._fout_ambiguous_priority = open(os.path.join(output_dir, 'amiguous_sp_priority.tsv'), 'w')
+        self._fout_ambiguous_priority.write('NCBI species A\tNCBI species B\tPriority year\n')
         
         self._parse_sp_priority_ledger(species_priority_ledger)
         self._parse_genus_priority_ledger(genus_priority_ledger)
@@ -48,7 +52,7 @@ class SpeciesPriorityManager(object):
     def __del__(self):
         """Destructor."""
         
-        self._fout_amiguous_priority.close()
+        self._fout_ambiguous_priority.close()
 
     def _parse_sp_priority_ledger(self, species_priority_ledger):
         """Parse manually resolved priority cases."""
@@ -61,20 +65,18 @@ class SpeciesPriorityManager(object):
         with open(species_priority_ledger, encoding='utf-8') as f:
             header = f.readline().strip().split('\t')
             
-            spA_index = header.index('NCBI species A')
-            spB_index = header.index('NCBI species B')
-            spA_year_index = header.index('Priority year A')
-            spB_year_index = header.index('Priority year B')
-            priority_index = header.index('Priority')
+            spA_idx = header.index('NCBI species A')
+            spB_idx = header.index('NCBI species B')
+            sp_year_idx = header.index('Priority year')
+            priority_sp_idx = header.index('Species with priority')
             
             for line in f:
                 tokens = line.strip().split('\t')
                 
-                spA = tokens[spA_index].strip()
-                spB = tokens[spB_index].strip()
-                yearA = int(tokens[spA_year_index].strip())
-                yearB = int(tokens[spB_year_index].strip())
-                priority_sp = tokens[priority_index].strip()
+                spA = tokens[spA_idx].strip()
+                spB = tokens[spB_idx].strip()
+                year = int(tokens[sp_year_idx].strip())
+                priority_sp = tokens[priority_sp_idx].strip()
                 
                 assert spA.startswith('s__')
                 assert spB.startswith('s__')
@@ -87,8 +89,8 @@ class SpeciesPriorityManager(object):
                 self.manual_sp_priority[spA][spB] = priority_sp
                 self.manual_sp_priority[spB][spA] = priority_sp
                 
-                self.manual_species_priority_year[spA] = yearA
-                self.manual_species_priority_year[spB] = yearB
+                self.manual_species_priority_year[spA] = year
+                self.manual_species_priority_year[spB] = year
                 num_cases += 1
                 
         self.logger.info(f' - identified {num_cases:,} manually resolved cases.')
@@ -103,16 +105,16 @@ class SpeciesPriorityManager(object):
         with open(genus_priority_ledger, encoding='utf-8') as f:
             header = [f.strip() for f in f.readline().strip().split('\t')]
             
-            genusA_index = header.index('Genus A')
-            genusB_index = header.index('Genus B')
-            priority_index = header.index('Priority')
+            genusA_idx = header.index('Genus A')
+            genusB_idx = header.index('Genus B')
+            priority_idx = header.index('Priority')
             
             for line in f:
                 tokens = [v.strip() for v in line.strip().split('\t')]
                 
-                genusA = tokens[genusA_index]
-                genusB = tokens[genusB_index]
-                priority_genus = tokens[priority_index]
+                genusA = tokens[genusA_idx]
+                genusB = tokens[genusB_idx]
+                priority_genus = tokens[priority_idx]
                 
                 assert genusA.startswith('g__')
                 assert genusB.startswith('g__')
@@ -126,44 +128,92 @@ class SpeciesPriorityManager(object):
         self.logger.info(f' - identified {num_cases:,} manually resolved cases.')
         
     def _parse_lpsn_gss(self, lpsn_gss_file):
-        """Parse priority information from LPSN metadata file."""
+        """Parse genus priority information and validity of names from LPSN GSS metadata file."""
         
+        fout = open(os.path.join(self.output_dir, 'lpsn_genus_priorities.tsv'), 'w')
+        fout.write('Genus\tLPSN authors\tParse priority\n')
+
         genus_priority_count = 0
-        self._genus_priority = {}
+        self.lpsn_genus_priority = {}
+        self.lpsn_valid_names = set()
+        valid_genera_count = 0
+        valid_species_count = 0
+        valid_subsp_count = 0
+        illegitimate_names = set()
         with open(lpsn_gss_file, encoding='utf-8', errors='ignore') as f:
             csv_reader = csv.reader(f)
 
             for line_num, tokens in enumerate(csv_reader):
                 if line_num == 0:
-                    genus_index = tokens.index('genus_name')
-                    status_index = tokens.index('status')
-                    author_index = tokens.index('authors')
-                    record_no_index = tokens.index('record_no')
+                    genus_idx = tokens.index('genus_name')
+                    species_idx = tokens.index('sp_epithet')
+                    subsp_idx = tokens.index('subsp_epithet')
+                    status_idx = tokens.index('status')
+                    author_idx = tokens.index('authors')
                 else:
-                    genus = tokens[genus_index].strip().replace('"', '')
-                    status = tokens[status_index].strip().replace('"', '')
-                    authors = tokens[author_index].strip().replace('"', '')
-                    record_no = int(tokens[record_no_index])
+                    # get taxon name
+                    generic = tokens[genus_idx].strip().replace('"', '')
+                    specific = tokens[species_idx].strip().replace('"', '')
+                    subsp = tokens[subsp_idx].strip().replace('"', '')
+                    if subsp:
+                        taxon = 'sb__{} {} subsp. {}'.format(generic, specific, subsp)
+                        valid_subsp_count += 1
+                    elif specific:
+                        taxon = 's__{} {}'.format(generic, specific)
+                        valid_species_count += 1
+                    else:
+                        taxon = 'g__{}'.format(generic)
+                        valid_genera_count += 1
+                    
+                    # parse status of taxon
+                    status = tokens[status_idx].strip().replace('"', '')
+                    status_tokens = [t.strip() for t in status.split(';')]
+                    status_tokens = [tt.strip() for t in status_tokens for tt in t.split(',') ]
 
-                    if authors.startswith('('):
-                        authors = authors[authors.find(')')+1:].strip()
+                    if 'illegitimate name' in status_tokens:
+                        illegitimate_names.add(taxon)
+                        if taxon in self.lpsn_genus_priority:
+                            continue
+                    else:
+                        self.lpsn_valid_names.add(taxon)
 
-                    for idx, ch in enumerate(authors): 
-                        if ch.isdigit():
-                            year = int(authors[idx:idx+4])
-                            break
+                    # get priority references, ignoring references if they are
+                    # marked as being a revied name as indicated by a 'ex' or 'emend'
+                    # (e.g. Holospora (ex Hafkine 1890) Gromov and Ossipov 1981)
+                    ref_str = tokens[author_idx]
+                    references = ref_str.replace('(', '').replace(')', '')
+                    years = re.sub(r'emend\.[^\d]*\d{4}', '', references)
+                    years = re.sub(r'ex [^\d]*\d{4}', ' ', years)
+                    years = re.findall('[1-3][0-9]{3}', years, re.DOTALL)
+                    years = [int(y) for y in years if int(y) <= datetime.datetime.now().year]
 
-                    if 'gen. nov.' in [t.strip() for t in status.split(';')]:
-                        self._genus_priority['g__' + genus] = year
+                    #if 'gen. nov.' in status_tokens:
+                    if taxon.startswith('g__'): 
+                        if (taxon in self.lpsn_genus_priority
+                            and taxon not in illegitimate_names
+                            and self.lpsn_genus_priority[taxon] != years[0]):
+                            # conflict that can't be attributed to one of the entries being
+                            # considered an illegitimate name
+                            self.logger.error('Conflicting genus priority for {}: {} {}'.format(
+                                                taxon, years[0], self.lpsn_genus_priority[taxon]))
+                                                
+                        self.lpsn_genus_priority[taxon] = years[0]
                         genus_priority_count += 1
+                        fout.write('{}\t{}\t{}\n'.format(taxon, 
+                                                            tokens[author_idx],
+                                                            years[0]))
                         
-        self.logger.info(f' - establish genus priority for {genus_priority_count:,} genera using LPSN GSS metadata.')
+        self.logger.info(f' - established genus priority for {genus_priority_count:,} genera using LPSN GSS metadata.')
+        self.logger.info(' - identified {:,} genera, {:,} species and {:,} subpecies with validly published names in LPSN GSS metadata.'.format(
+                            valid_genera_count,
+                            valid_species_count,
+                            valid_subsp_count))
 
     def genus_priority_year(self, genus):
         """Determine year of priority for genus."""
         
-        if genus in self._genus_priority:
-            return self._genus_priority[genus]
+        if genus in self.lpsn_genus_priority:
+            return self.lpsn_genus_priority[genus]
                     
         return Genome.NO_PRIORITY_YEAR
         
@@ -192,25 +242,75 @@ class SpeciesPriorityManager(object):
             
         return cur_genomes[gid].year_of_priority()
         
+    def consensus_gtdb_genus(self, cur_genomes, gid1, gid2):
+        """Get consensus GTDB genus taking into account a genome may not be classified."""
+        
+        g1 = cur_genomes[gid1].gtdb_taxa.genus
+        g2 = cur_genomes[gid2].gtdb_taxa.genus
+        if g1 == g2:
+            return g1
+        elif g1 == 'g__':
+            return g2
+        elif g2 == 'g__':
+            return g1
+            
+        return 'g__'
+        
     def species_priority(self, cur_genomes, gid1, gid2):
         """Resolve species priority of genomes."""
+        
+        ncbi_sp1 = cur_genomes[gid1].ncbi_taxa.species
+        ncbi_sp2 = cur_genomes[gid2].ncbi_taxa.species
+        
+        ncbi_genus1 = cur_genomes[gid1].ncbi_taxa.genus
+        ncbi_genus2 = cur_genomes[gid2].ncbi_taxa.genus
+        
+        # give priority to genomes assembled from the
+        # type strain of the species
+        if (cur_genomes[gid1].is_effective_type_strain() 
+                and not cur_genomes[gid2].is_effective_type_strain()):
+            return gid1, 'effective type strain'
+        if (not cur_genomes[gid1].is_effective_type_strain() 
+                and cur_genomes[gid2].is_effective_type_strain()):
+            return gid2, 'effective type strain'
+        
+        # give priority to valid species names
+        if (ncbi_sp1 in self.lpsn_valid_names
+            and ncbi_sp2 not in self.lpsn_valid_names):
+            return gid1, 'selected valid species name'
+        if (ncbi_sp1 not in self.lpsn_valid_names
+            and ncbi_sp2 in self.lpsn_valid_names):
+            return gid2, 'selected valid species name'
 
+        # give priority to type species of genus first
         if (cur_genomes[gid1].is_gtdb_type_species()
             and not cur_genomes[gid2].is_gtdb_type_species()):
             return gid1, 'type species of genus'
-        elif (not cur_genomes[gid1].is_gtdb_type_species()
+        if (not cur_genomes[gid1].is_gtdb_type_species()
             and cur_genomes[gid2].is_gtdb_type_species()):
             return gid2, 'type species of genus'
-        elif self.species_priority_year(cur_genomes, gid1) < self.species_priority_year(cur_genomes, gid2):
+            
+        # give priority to NCBI species with generic name matching 
+        # GTDB genus if only one NCBI species matches GTDB genus
+        consensus_gtdb_genus = self.consensus_gtdb_genus(cur_genomes, gid1, gid2)
+        if (ncbi_genus1 == consensus_gtdb_genus
+            and ncbi_genus2 != consensus_gtdb_genus):
+            return gid1, 'match to expected GTDB genus assignment'
+        if (ncbi_genus1 != consensus_gtdb_genus
+            and ncbi_genus2 == consensus_gtdb_genus):
+            return gid2, 'match to expected GTDB genus assignment'
+            
+        # give priority based on date of valid publication
+        if self.species_priority_year(cur_genomes, gid1) < self.species_priority_year(cur_genomes, gid2):
             return gid1, 'year of priority'
-        elif self.species_priority_year(cur_genomes, gid1) > self.species_priority_year(cur_genomes, gid2):
+        if self.species_priority_year(cur_genomes, gid1) > self.species_priority_year(cur_genomes, gid2):
             return gid2, 'year of priority'
-        elif (cur_genomes[gid1].is_effective_type_strain() 
-                and not cur_genomes[gid2].is_effective_type_strain()):
-            return gid1, 'effective type strain'
-        elif (not cur_genomes[gid1].is_effective_type_strain() 
-                and cur_genomes[gid2].is_effective_type_strain()):
-            return gid2, 'effective type strain'
+
+        # either neither genome is type material, or both genomes are type material with the same 
+        # priority year (type material could also be the type strain of a subspecies)
+        
+        # base priority on genome quality if genomes are not 
+        # assembled from type strain of species
         elif (not cur_genomes[gid1].is_effective_type_strain() 
                 and not cur_genomes[gid2].is_effective_type_strain()):
             # neither genome is effective type strain
@@ -221,10 +321,10 @@ class SpeciesPriorityManager(object):
             # both genomes are only effective, but not validated type material
             hq_gid = select_highest_quality([gid1, gid2], cur_genomes)
             return hq_gid, 'highest quality genome'
-        
-        sp1 = cur_genomes[gid1].ncbi_taxa.species
-        sp2 = cur_genomes[gid2].ncbi_taxa.species
-        if sp1 == sp2:
+
+        # both genomes are at least the effective type strain of the species
+        assert cur_genomes[gid1].is_effective_type_strain() and cur_genomes[gid2].is_effective_type_strain()
+        if ncbi_sp1 == ncbi_sp2:
             # genomes are from the same NCBI species so have the same naming priority,
             # so resolve ordering using genome quality
             hq_gid = select_highest_quality([gid1, gid2], cur_genomes)
@@ -233,25 +333,22 @@ class SpeciesPriorityManager(object):
         # both genomes are type strain of species, but priority
         # is ambiguous using just publication date so species need
         # to be in the priority ledger
-        if sp1 not in self.manual_sp_priority or sp2 not in self.manual_sp_priority[sp1]:
+        if ncbi_sp1 not in self.manual_sp_priority or ncbi_sp2 not in self.manual_sp_priority[ncbi_sp1]:
             self.logger.error('Ambiguous priority based on publication date.')
             self.logger.error('Species need to be manually resolved in priority ledger: {}: {} / {} / {}, {}: {} / {} / {}'.format(
-                                gid1, sp1, cur_genomes[gid1].is_gtdb_type_strain(), cur_genomes[gid1].is_effective_type_strain(),
-                                gid2, sp2, cur_genomes[gid2].is_gtdb_type_strain(), cur_genomes[gid2].is_effective_type_strain()))
+                                gid1, ncbi_sp1, cur_genomes[gid1].is_gtdb_type_strain(), cur_genomes[gid1].is_effective_type_strain(),
+                                gid2, ncbi_sp2, cur_genomes[gid2].is_gtdb_type_strain(), cur_genomes[gid2].is_effective_type_strain()))
 
-            self._fout_amiguous_priority.write('{}\t{}\t{}\t{}\t{}\t{}\n'.format(
-                    sp1, sp2, 
-                    self.species_priority_year(cur_genomes, gid1),
-                    self.species_priority_year(cur_genomes, gid2),
-                    cur_genomes[gid1].is_gtdb_type_strain(),
-                    cur_genomes[gid2].is_gtdb_type_strain()))
+            self._fout_ambiguous_priority.write('{}\t{}\t{}\n'.format(
+                    ncbi_sp1, ncbi_sp2, 
+                    self.species_priority_year(cur_genomes, gid1)))
 
             # arbitrarily resolve naming priority based on genome quality
             hq_gid = select_highest_quality([gid1, gid2], cur_genomes)
             return hq_gid, 'error: ambiguous priority date' #***
             
-        priority_sp = self.manual_sp_priority[sp1][sp2]
-        if sp1 == priority_sp:
+        priority_sp = self.manual_sp_priority[ncbi_sp1][ncbi_sp2]
+        if ncbi_sp1 == priority_sp:
             return gid1, 'manual curation'
             
         return gid2, 'manual curation'

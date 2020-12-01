@@ -45,7 +45,7 @@ def parse_lpsn_gss_file(lpsn_gss_metadata_file):
                 record_no_idx = tokens.index('record_no')
             else:
                 if tokens[genus_idx] != '' and tokens[sp_idx] != '' and tokens[subsp_idx] != '':
-                    taxon = 's__{} {} {}'.format(tokens[genus_idx].strip(), tokens[sp_idx].strip(), tokens[subsp_idx].strip())
+                    taxon = 's__{} {} subsp. {}'.format(tokens[genus_idx].strip(), tokens[sp_idx].strip(), tokens[subsp_idx].strip())
                 elif tokens[genus_idx] != '' and  tokens[sp_idx] != '':
                     taxon = 's__{} {}'.format(tokens[genus_idx].strip(), tokens[sp_idx].strip())
                 else:

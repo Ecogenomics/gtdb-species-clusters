@@ -62,7 +62,6 @@ class Genome(object):
     ncbi_unspanned_gaps: int
     ncbi_spanned_gaps: int
     lpsn_priority_year: int
-    dsmz_priority_year: int
     
     NCBI_TYPE_SPECIES = set(['assembly from type material', 
                                 'assembly from neotype material',
@@ -222,7 +221,25 @@ class Genome(object):
     def is_effective_type_strain(self):
         """Check if genome is a valid or effectively published type strain genome."""
         
-        return self.is_gtdb_type_strain() or self.is_ncbi_type_strain()
+        if self.is_gtdb_type_strain():
+            return True
+            
+        if self.is_gtdb_type_subspecies():
+            return False
+            
+        if self.is_ncbi_type_strain():
+            # NCBI type strain annotation is not specific and may actually
+            # indicate a genome is the type strain of a subspecies or 
+            # heterotypic synonym. It is easy to check if the type material
+            # is for a subspecies based on the NCBI assignment of the genome.
+            # However, there is currently no easy way to check if the assertion
+            # of type material is actually for a heterotypic synonym which is
+            # why the is_gtdb_type_subspecies() check is made first as this
+            # also covers heterotypic synonym (i.e. effectively a subspecies
+            # within a species).
+            return True
+ 
+        return False
         
     def is_exclusively_effective_type_strain(self):
         """Check if genome is effectively, but not validly published type strain genome."""
@@ -306,9 +323,7 @@ class Genome(object):
     def year_of_priority(self):
         """Get year of priority for type strains of species."""
 
-        priority = min(self.lpsn_priority_year, self.dsmz_priority_year)
-                
-        return priority
+        return self.lpsn_priority_year
         
     def score_ani(self, ani):
         """Calculate balanced score that accounts for ANI to previous representative."""

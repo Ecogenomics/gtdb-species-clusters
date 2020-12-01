@@ -292,10 +292,6 @@ class PMC_SpeciesNames(object):
                     note = 'Generated Latin-suffix name from NCBI species assignment'
                     suffixed_specific_name = self.sp_name_mngr.suffixed_placeholder_sp_epithet(gtdb_generic, ncbi_specific)
                     final_species = 's__{} {}'.format(gtdb_generic, suffixed_specific_name)
-                    
-                    if rid == "G013530545":
-                        print('***', gtdb_generic, ncbi_specific, suffixed_specific_name, final_species)
-                    
                 else:
                     # representative lacks a NCBI species assignment so create a numeric name
                     note = 'Generated alphanumeric name as representative lacks an NCBI species assignment or NCBI family considered misclassified'
@@ -441,6 +437,14 @@ class PMC_SpeciesNames(object):
                         if rid not in common_genera:
                             resolved_gids.add(rid)
                             new_sp = self.create_placeholder_species_name(rid, generic_name(sp), specific_epithet(sp))
+                            
+                            prev_gtdb_sp = cur_genomes[rid].gtdb_taxa.species
+                            if (taxon_suffix(specific_epithet(prev_gtdb_sp))
+                                and canonical_taxon(prev_gtdb_sp) == canonical_taxon(new_sp)):
+                                # should retain previously assign alphabetic suffixed
+                                # (e.g., previously assigned s__Saccharomonospora marina_A, so should not be reassign as s__Saccharomonospora marina_B)
+                                # (e.g., previously assigned as s__Dorea phocaeensis, so should be reassigned as s__Dorea phocaeensis_A)
+                                new_sp = cur_genomes[rid].gtdb_taxa.species
                             mc_taxonomy[rid][Taxonomy.SPECIES_INDEX] = new_sp
                             
                             print('Modified {} from {} to {} as multiple type strain species had the proposed name and this genome was transferred from a different NCBI genera, {}.'.format( 
@@ -461,7 +465,7 @@ class PMC_SpeciesNames(object):
     
         if final_sp in cur_gtdb_sp:
             prev_rid, prev_case = cur_gtdb_sp[final_sp]
-            self.logger.error('Finalized GTDB species name {} already exists: rid={} prev_rid={} prev_case={}'.format(
+            self.logger.warning('Finalized GTDB species name {} already exists: rid={} prev_rid={} prev_case={}'.format(
                                 final_sp, rid, prev_rid, prev_case))
                                     
         cur_gtdb_sp[final_sp] = (rid, case)
@@ -589,10 +593,7 @@ class PMC_SpeciesNames(object):
                                         note,
                                         final_taxonomy, 
                                         cur_gtdb_sp)
-                                        
-            if rid == "G013530545":
-                print('***NONTYPE_SPECIES_CLUSTER', rid, final_sp)
-                                        
+
         self.final_name_log.close()
 
         for case, count in case_count.items():
@@ -660,19 +661,19 @@ class PMC_SpeciesNames(object):
         
         unambiguous_classifications = [classification for rid, classification in unambiguous_ncbi_sp.values()]
         unambiguous_type_strain_count = unambiguous_classifications.count(NCBI_SpeciesManager.TYPE_STRAIN_GENOME)
-        unambiguous_unanimous_consensus_count = unambiguous_classifications.count(NCBI_SpeciesManager.MAJORITY_VOTE)
-        assert unambiguous_type_strain_count + unambiguous_unanimous_consensus_count == len(unambiguous_ncbi_sp)
+        unambiguous_majority_vote_count = unambiguous_classifications.count(NCBI_SpeciesManager.MAJORITY_VOTE)
+        assert unambiguous_type_strain_count + unambiguous_majority_vote_count == len(unambiguous_ncbi_sp)
                 
         self.logger.info(' - identified {:,} NCBI species.'.format(len(ncbi_species)))
-        self.logger.info(' - identified {:,} ({:.2f}%) as unambiguous assignments.'.format(
+        self.logger.info(' - resolved {:,} ({:.2f}%) of species names.'.format(
                             len(unambiguous_ncbi_sp),
                             len(unambiguous_ncbi_sp) * 100.0 / len(ncbi_species)))
         self.logger.info('   - assigned {:,} ({:.2f}%) by type strain genome.'.format(
                             unambiguous_type_strain_count,
                             unambiguous_type_strain_count * 100.0 / len(ncbi_species)))
-        self.logger.info('   - assigned {:,} ({:.2f}%) by unanimous consensus.'.format(
-                            unambiguous_unanimous_consensus_count,
-                            unambiguous_unanimous_consensus_count * 100.0 / len(ncbi_species)))
+        self.logger.info('   - assigned {:,} ({:.2f}%) by majority vote.'.format(
+                            unambiguous_majority_vote_count,
+                            unambiguous_majority_vote_count * 100.0 / len(ncbi_species)))
         self.logger.info(' - identified {:,} ({:.2f}%) as ambiguous assignments.'.format(
                             len(ambiguous_ncbi_sp),
                             len(ambiguous_ncbi_sp) * 100.0 / len(ncbi_species)))
@@ -696,19 +697,19 @@ class PMC_SpeciesNames(object):
                                                                         
         unambiguous_classifications = [classification for rid, classification in unambiguous_ncbi_subsp.values()]
         unambiguous_type_strain_count = unambiguous_classifications.count(NCBI_SpeciesManager.TYPE_STRAIN_GENOME)
-        unambiguous_unanimous_consensus_count = unambiguous_classifications.count(NCBI_SpeciesManager.MAJORITY_VOTE)
-        assert unambiguous_type_strain_count + unambiguous_unanimous_consensus_count == len(unambiguous_ncbi_subsp)
+        unambiguous_majority_vote_count = unambiguous_classifications.count(NCBI_SpeciesManager.MAJORITY_VOTE)
+        assert unambiguous_type_strain_count + unambiguous_majority_vote_count == len(unambiguous_ncbi_subsp)
                 
         self.logger.info(' - identified {:,} NCBI subspecies.'.format(len(ncbi_subspecies)))
-        self.logger.info(' - identified {:,} ({:.2f}%) as unambiguous assignments.'.format(
+        self.logger.info(' - resolved {:,} ({:.2f}%) of species names.'.format(
                             len(unambiguous_ncbi_subsp),
                             len(unambiguous_ncbi_subsp) * 100.0 / len(ncbi_subspecies)))
         self.logger.info('   - assigned {:,} ({:.2f}%) by type strain genome.'.format(
                             unambiguous_type_strain_count,
                             unambiguous_type_strain_count * 100.0 / len(ncbi_subspecies)))
-        self.logger.info('   - assigned {:,} ({:.2f}%) by unanimous consensus.'.format(
-                            unambiguous_unanimous_consensus_count,
-                            unambiguous_unanimous_consensus_count * 100.0 / len(ncbi_subspecies)))
+        self.logger.info('   - assigned {:,} ({:.2f}%) by majority vote.'.format(
+                            unambiguous_majority_vote_count,
+                            unambiguous_majority_vote_count * 100.0 / len(ncbi_subspecies)))
         self.logger.info(' - identified {:,} ({:.2f}%) as ambiguous assignments.'.format(
                             len(ambiguous_ncbi_subsp),
                             len(ambiguous_ncbi_subsp) * 100.0 / len(ncbi_subspecies)))
@@ -899,9 +900,7 @@ class PMC_SpeciesNames(object):
         
         # create species name manager
         self.logger.info('Initializing species name manager.')
-        self.sp_name_mngr = SpeciesNameManager(prev_genomes, 
-                                                    cur_genomes,
-                                                    None)
+        self.sp_name_mngr = SpeciesNameManager(prev_genomes, cur_genomes)
                                                     
         # initialize species priority manager
         self.sp_priority_mngr = SpeciesPriorityManager(sp_priority_ledger,

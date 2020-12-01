@@ -35,11 +35,10 @@ class SpeciesNameManager(object):
      - tracking if a species name has been assigned multiple times
     """
 
-    def __init__(self, prev_genomes, cur_genomes, fastani):
+    def __init__(self, prev_genomes, cur_genomes):
         """Initialization."""
 
         self.logger = logging.getLogger('timestamp')
-        self.fastani = fastani
         
         self.taxon_suffix_manager = TaxonSuffixManager()
         

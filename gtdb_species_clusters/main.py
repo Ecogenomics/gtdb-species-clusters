@@ -55,6 +55,8 @@ from gtdb_species_clusters.intra_genus_ani import IntraGenusANI
 
 from gtdb_species_clusters.inspect_genomes import InspectGenomes
 
+from gtdb_species_clusters.sandbox import Sandbox
+
 from gtdb_species_clusters.exceptions import GTDB_Error
 
 
@@ -306,6 +308,7 @@ class OptionsParser():
         check_file_exists(args.ncbi_genbank_assembly_file)
         check_file_exists(args.untrustworthy_type_file)
         check_file_exists(args.gtdb_type_strains_ledger)
+        check_file_exists(args.ncbi_untrustworthy_sp_ledger)
         check_file_exists(args.ncbi_env_bioproject_ledger)
         make_sure_path_exists(args.output_dir)
         
@@ -317,6 +320,7 @@ class OptionsParser():
                 args.ncbi_genbank_assembly_file,
                 args.untrustworthy_type_file,
                 args.gtdb_type_strains_ledger,
+                args.ncbi_untrustworthy_sp_ledger,
                 args.ncbi_env_bioproject_ledger)
         
         self.logger.info('Done.')
@@ -455,9 +459,7 @@ class OptionsParser():
         check_file_exists(args.lpsn_gss_file)
         make_sure_path_exists(args.output_dir)
 
-        p = UpdateSpeciesInit(args.ani_cache_file, 
-                                args.cpus, 
-                                args.output_dir)
+        p = UpdateSpeciesInit(args.output_dir)
         p.run(args.gtdb_clusters_file,
                 args.prev_gtdb_metadata_file,
                 args.prev_genomic_path_file,
@@ -663,9 +665,16 @@ class OptionsParser():
         """Validate final species names."""
         
         check_file_exists(args.final_taxonomy)
-        check_file_exists(args.final_scaled_tree)
-        check_file_exists(args.manual_sp_names)
-        check_file_exists(args.pmc_custom_species)
+        
+        if args.final_scaled_tree.lower() != 'none':
+            check_file_exists(args.final_scaled_tree)
+        
+        if args.manual_sp_names.lower() != 'none':
+            check_file_exists(args.manual_sp_names)
+            
+        if args.pmc_custom_species.lower() != 'none':
+            check_file_exists(args.pmc_custom_species)
+            
         check_file_exists(args.gtdb_clusters_file)
         check_file_exists(args.prev_gtdb_metadata_file)
         check_file_exists(args.cur_gtdb_metadata_file)
@@ -682,7 +691,10 @@ class OptionsParser():
         check_file_exists(args.specific_epithet_ledger)
         check_file_exists(args.ncbi_env_bioproject_ledger)
         check_file_exists(args.lpsn_gss_metadata_file)
-        check_file_exists(args.ground_truth_test_cases)
+        
+        if args.ground_truth_test_cases.lower() != 'none':
+            check_file_exists(args.ground_truth_test_cases)
+            
         make_sure_path_exists(args.output_dir)
 
         p = PMC_Validation(args.output_dir)
@@ -707,6 +719,7 @@ class OptionsParser():
                 args.ncbi_env_bioproject_ledger,
                 args.lpsn_gss_metadata_file,
                 args.ground_truth_test_cases,
+                args.skip_full_taxonomy_checks,
                 args.skip_genus_checks)
         
         self.logger.info('Done.')
@@ -899,6 +912,35 @@ class OptionsParser():
         deprecated_reps = set(prev_reps_taxa).intersection(cur_gids) - set(cur_reps_taxa)
         print('No. deprecated previous representatives: %d' % len(deprecated_reps))
 
+    def sandbox(self, args):
+        """Play to explore new ideas or calculate one off statistics relted to species clusters."""
+        
+        check_file_exists(args.prev_gtdb_metadata_file)
+        check_file_exists(args.cur_gtdb_metadata_file)
+        check_file_exists(args.qc_passed_file)
+        check_file_exists(args.ncbi_genbank_assembly_file)
+        check_file_exists(args.untrustworthy_type_file)
+        check_file_exists(args.gtdb_type_strains_ledger)
+        check_file_exists(args.sp_priority_ledger)
+        check_file_exists(args.genus_priority_ledger)
+        check_file_exists(args.ncbi_env_bioproject_ledger)
+        check_file_exists(args.lpsn_gss_file)
+        make_sure_path_exists(args.output_dir)
+        
+        p = Sandbox(args.output_dir)
+        p.run(args.prev_gtdb_metadata_file,
+                args.cur_gtdb_metadata_file,
+                args.qc_passed_file,
+                args.ncbi_genbank_assembly_file,
+                args.untrustworthy_type_file,
+                args.gtdb_type_strains_ledger,
+                args.sp_priority_ledger,
+                args.genus_priority_ledger,
+                args.ncbi_env_bioproject_ledger,
+                args.lpsn_gss_file)
+        
+        self.logger.info('Done.')
+
     def run(self, args):
         """Parse user arguments and call the correct pipeline(s)"""
 
@@ -958,6 +1000,8 @@ class OptionsParser():
             self.type_status(args)
         elif args.subparser_name == 'rep_compare':
             self.rep_compare(args)
+        elif args.subparser_name == 'sandbox':
+            self.sandbox(args)
         else:
             self.logger.error('Unknown gtdb_species_clusters command: ' + args.subparser_name + '\n')
             sys.exit()

@@ -17,6 +17,7 @@
 
 import os
 import sys
+import re
 import logging
 from collections import defaultdict
 
@@ -128,7 +129,7 @@ class Genomes(object):
                     if gid in species_updates and genus not in species_updates[gid]:
                         self.logger.error(f'Species and genus ledgers have conflicting assignments for {gid}.')
                         sys.exit(-1)
-                        
+
     def gtdb_type_species_of_genus(self, gtdb_genus):
         """Get genome assembled from type species of genus."""
 
@@ -327,7 +328,7 @@ class Genomes(object):
                         
         self.logger.info(f' - updated {update_count:,} genomes.')
         self.logger.info(f' - identified {conflicting_domain_count:,} genomes with conflicting domain assignments.')
-
+    
     def load_from_metadata_file(self, 
                                 metadata_file,
                                 species_exception_file=None,
@@ -426,7 +427,6 @@ class Genomes(object):
                 # GTDB metadata file as we strip this out due to 
                 # concerns over republishing this information
                 lpsn_priority_index = headers.index('lpsn_priority_year')
-                dsmz_priority_index = headers.index('dsmz_priority_year')
 
             for line in f:
                 line_split = line.strip().split('\t')
@@ -487,13 +487,10 @@ class Genomes(object):
                 gtdb_rid = canonical_gid(line_split[gtdb_genome_rep_index])
                 if create_sp_clusters:
                     self.sp_clusters.update_sp_cluster(gtdb_rid, gid, gtdb_taxonomy.species)
-                
+
+                lpsn_priority_year = Genome.NO_PRIORITY_YEAR
                 if 'lpsn_priority_year' in headers:
                     lpsn_priority_year = self._convert_int(line_split[lpsn_priority_index], Genome.NO_PRIORITY_YEAR)
-                    dsmz_priority_year = self._convert_int(line_split[dsmz_priority_index], Genome.NO_PRIORITY_YEAR)
-                else:
-                    lpsn_priority_year = Genome.NO_PRIORITY_YEAR
-                    dsmz_priority_year = Genome.NO_PRIORITY_YEAR
 
                 self.genomes[gid] = Genome(gid,
                                             ncbi_accn,
@@ -528,8 +525,7 @@ class Genomes(object):
                                             ncbi_molecule_count,
                                             ncbi_unspanned_gaps,
                                             ncbi_spanned_gaps,
-                                            lpsn_priority_year,
-                                            dsmz_priority_year)
+                                            lpsn_priority_year)
                                             
         self._apply_ncbi_taxonomy_ledgers(species_exception_file,
                                             genus_exception_file)

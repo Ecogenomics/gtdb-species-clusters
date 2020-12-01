@@ -85,6 +85,7 @@ class NCBI_SpeciesManager(object):
             for gid in type_gids:
                 rid = rid_map[gid]
                 ncbi_specific = specific_epithet(self.cur_genomes[rid].ncbi_taxa.species)
+
                 if (rid in mc_species 
                     and specific_epithet(mc_species[rid]) != ncbi_specific):
                     # skip this genome as it has been manually changed, likely
@@ -355,14 +356,15 @@ class NCBI_SpeciesManager(object):
         ncbi_species_gids = defaultdict(list)
         ncbi_all_species_gids = set()
         for gid in self.cur_genomes:
+            if gid in misclassified_gids:
+                continue
+                
             ncbi_species = self.cur_genomes[gid].ncbi_taxa.species
             ncbi_specific = specific_epithet(ncbi_species)
             if ncbi_species != 's__' and ncbi_specific not in self.forbidden_specific_names:
                 ncbi_all_species.add(ncbi_species)
-                
-                if gid not in misclassified_gids:
-                    ncbi_species_gids[ncbi_species].append(gid)
-                    ncbi_all_species_gids.add(gid)
+                ncbi_species_gids[ncbi_species].append(gid)
+                ncbi_all_species_gids.add(gid)
 
         # process NCBI species with type strain genomes followed by 
         # remaining NCBI species
@@ -421,17 +423,6 @@ class NCBI_SpeciesManager(object):
 
                 sp_in_cluster_threshold = 50
                 cluster_threshold = 50
-                
-                if False: # not currently using NCBI representative information
-                    if highest_gtdb_rid:
-                        # check if cluster contains NCBI representative for species
-                        for cid in self.cur_clusters[highest_gtdb_rid]:
-                            cur_ncbi_species = self.cur_genomes[cid].ncbi_taxa.species
-                            if (self.cur_genomes[cid].is_ncbi_representative()
-                                    and cur_ncbi_species == ncbi_species):
-                                sp_in_cluster_threshold = 50
-                                cluster_threshold = 50
-                                break
 
                 if (highest_gtdb_rid not in unambiguous_rids
                     and highest_sp_in_cluster_perc > sp_in_cluster_threshold 

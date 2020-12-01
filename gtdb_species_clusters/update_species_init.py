@@ -26,7 +26,6 @@ from numpy import (mean as np_mean, std as np_std)
 
 from biolib.taxonomy import Taxonomy
 
-from gtdb_species_clusters.fastani import FastANI
 from gtdb_species_clusters.genomes import Genomes
 from gtdb_species_clusters.species_clusters import SpeciesClusters
 from gtdb_species_clusters.species_name_manager import SpeciesNameManager
@@ -47,14 +46,12 @@ from gtdb_species_clusters.taxon_utils import (generic_name,
 class UpdateSpeciesInit(object):
     """Produce initial best guess at GTDB species clusters."""
 
-    def __init__(self, ani_cache_file, cpus, output_dir):
+    def __init__(self, output_dir):
         """Initialization."""
         
         self.output_dir = output_dir
         self.logger = logging.getLogger('timestamp')
-        
-        self.fastani = FastANI(ani_cache_file, cpus)
-        
+
         self.sp_name_log = open(os.path.join(self.output_dir, 'sp_name_log.tsv'), 'w')
         self.sp_name_log.write('GTDB domain\tGenome ID\tPrevious GTDB species\tNew GTDB species\tAction\n')
         
@@ -190,7 +187,7 @@ class UpdateSpeciesInit(object):
         prev_merged_gtdb_genera = gtdb_merged_genera(prev_genomes, self.sp_priority_mngr, self.output_dir)
 
         num_updates = 0
-        num_conflicting_type_sp = 0
+        conflicting_type_sp = defaultdict(set)
         for rid in rids_by_naming_priority:
             if not cur_genomes[rid].is_gtdb_type_species():
                 continue
@@ -225,7 +222,8 @@ class UpdateSpeciesInit(object):
             ncbi_genus = 'g__' + generic_name(ncbi_sp)
             proposed_gtdb_genus = 'g__' + generic_name(proposed_gtdb_sp)
             if proposed_gtdb_genus != ncbi_genus:
-                num_conflicting_type_sp += 1
+                conflicting_type_sp[ncbi_genus].add(proposed_gtdb_genus)
+                
                 ncbi_year = self.sp_priority_mngr.genus_priority_year(ncbi_genus)
                 gtdb_year = self.sp_priority_mngr.genus_priority_year(proposed_gtdb_genus)
 
@@ -268,7 +266,14 @@ class UpdateSpeciesInit(object):
             used_sp_names[proposed_gtdb_sp] = rid
        
         self.logger.info(f' - updated name of {num_updates:,} GTDB clusters.')
-        self.logger.warning(f' - GTDB genus did not reflect type species of genus for {num_conflicting_type_sp:,} species clusters.')
+        num_conflicts = sum([len(v) for v in conflicting_type_sp.values()])
+        self.logger.warning(f' - proposed GTDB genus did not reflect type species of genus for {num_conflicts:,} clusters (occurs due to merging of genera).')
+        
+        fout = open(os.path.join(self.output_dir, 'conflicting_type_species_of_genus.tsv'), 'w')
+        fout.write('NCBI genus\tProposed GTDB genera\n')
+        for ncbi_genus, gtdb_genera in conflicting_type_sp.items():
+            fout.write('{}\t{}\n'.format(ncbi_genus, ', '.join(gtdb_genera)))
+        fout.close()
 
     def name_type_strain_clusters(self,
                                     rids_by_naming_priority,
@@ -477,10 +482,7 @@ class UpdateSpeciesInit(object):
                                     
             if proposed_gtdb_sp in synonyms:
                 self.logger.error('Assigning synonym to non-type strain species cluster: {}: {}'.format(ncbi_sp, rid))
-                                    
-            if rid == 'G000974745':
-                print('***', 'proposed_gtdb_sp', proposed_gtdb_sp)
-                                    
+
             cluster_sp_names[rid] = proposed_gtdb_sp
             used_sp_names[proposed_gtdb_sp] = rid
             
@@ -884,9 +886,7 @@ class UpdateSpeciesInit(object):
 
         # create species name manager
         self.logger.info('Initializing species name manager.')
-        self.sp_name_mngr = SpeciesNameManager(prev_genomes, 
-                                                    cur_genomes,
-                                                    self.fastani)
+        self.sp_name_mngr = SpeciesNameManager(prev_genomes, cur_genomes)
                                                     
         # initialize species priority manager
         self.sp_priority_mngr = SpeciesPriorityManager(sp_priority_ledger,
