@@ -1354,6 +1354,10 @@ class PMC_Validation(object):
     def validate_taxa_by_genus_stem(self, final_taxonomy):
         """Validating placement of higher taxon names derived from stem of GTDB genera."""
         
+        # Common stems that result in false positives
+        # (e.g., Nitrospi from g__Nitrospina and g__Nitrospira)
+        common_genus_stems = set(['Nitrospi'])
+        
         # Find stem of all genus names and ensure higher order taxa derived from this
         # stem contain the genus.Example: stem of Abditibacterium is Abditibacteri
         # which matches with Abditibacteriales, so Abditibacteriales should contain
@@ -1370,26 +1374,61 @@ class PMC_Validation(object):
             if genus == 'g__' or genus in genus_stems:
                 continue
                 
+            if is_suffixed_taxon(genus):
+                # suffixed genera such as Bacillus_A or BOG42_A,
+                # are never the stems for higher taxon names
+                continue
+
             stem = self._get_genus_stem(genus)
+            if stem in common_genus_stems:
+                continue
             
             genus_stems[genus] = stem
             genus_lineages[genus] = taxa
             
             for taxon in taxa[Taxonomy.PHYLUM_INDEX:Taxonomy.GENUS_INDEX]:
+                if is_suffixed_taxon(taxon):
+                    # suffixed taxon such as o__Thiohalomonadales_A or f__UBA11359_B
+                    # do not speak to the correct placement of the stem genus so are
+                    # skipped
+                    continue
                 all_higher_taxa[taxon].add(genus)
 
         # test the placement of higher order taxa based on genus name
+        taxon_suffixes = {'o__': 'ales', 'f__': 'aceae'}
         invalid_taxon = {}
         validated_count = 0
         for genus, genus_stem in genus_stems.items():
             passed_test = True
             for taxon, taxon_genera in all_higher_taxa.items():
-                if (taxon[3:].startswith(genus_stem)
-                        and genus not in taxon_genera):
-                    # higher taxon appears to be derived for a GTDB genus
+                if genus in taxon_genera:
+                    continue
+
+                if is_placeholder_taxon(genus) and taxon[3:] == genus_stem:
+                    # higher taxon appears to be derived for a placeholder GTDB genus
                     # name, but does not contain the genus
                     invalid_taxon[taxon] = (taxon, genus, genus_stem, '; '.join(genus_lineages[genus]))
                     passed_test = False
+                elif not is_placeholder_taxon(genus) and taxon[3:].startswith(genus_stem):
+                    # higher taxon appears to be derived for a Latin GTDB genus
+                    # name, but does not contain the genus. This results in a 
+                    # far number of false positives due to common stems (e.g. 
+                    # g__Thermus has the stem Therm and matches f__Thermopetrobacteraceae).
+                    # To avoid these false positives a length check is done to ensure the
+                    # higher taxon name appears to be derived from the genus.
+                    if taxon[0:3] in ['p__', 'c__']:
+                        # no set phylum or class suffix so chomp last 2 characters
+                        # as a simple heuristic
+                        taxon_stem = taxon[:-2]
+                    else:
+                        taxon_stem = taxon.replace(taxon_suffixes[taxon[0:3]], '')
+                        
+                    if 0 <= len(taxon_stem[3:]) - len(genus_stem) <= 2:
+                        # taxon stem is only slightly longer than the
+                        # genus stem we can't discount it being derived
+                        # from the genus
+                        invalid_taxon[taxon] = (taxon, genus, genus_stem, '; '.join(genus_lineages[genus]))
+                        passed_test = False
                     
             if passed_test:
                 validated_count += 1
