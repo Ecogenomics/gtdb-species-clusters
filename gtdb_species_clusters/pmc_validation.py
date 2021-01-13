@@ -148,7 +148,7 @@ class PMC_Validation(object):
                     continue
                     
                 gtdb_species = final_taxonomy[gid][Taxonomy.SPECIES_INDEX]
-                gtdb_generic = generic_name(gtdb_species)              
+                gtdb_generic = generic_name(gtdb_species)
                 ncbi_genus = cur_genomes[gid].ncbi_taxa.genus
 
                 if (gtdb_genus != ncbi_genus 
@@ -1338,6 +1338,67 @@ class PMC_Validation(object):
             validated_count, 
             'Identified {:,} misclassified genomes with an invalid specific name (Proposed GTDB species, NCBI classification):'.format(
                 len(invalid_misclassified)))
+        
+    def _get_genus_stem(self, genus):
+        """Get stem of genus."""
+        
+        # Determining the stem for a genus is  non-trivial so we use a simple 
+        # heuristic which is to drop the last 2 letters, except for placeholder
+        # names where the full name is the stem.
+
+        if is_placeholder_taxon(genus):
+            return genus[3:]
+        else:
+            return genus[3:-2]
+        
+    def validate_taxa_by_genus_stem(self, final_taxonomy):
+        """Validating placement of higher taxon names derived from stem of GTDB genera."""
+        
+        # Find stem of all genus names and ensure higher order taxa derived from this
+        # stem contain the genus.Example: stem of Abditibacterium is Abditibacteri
+        # which matches with Abditibacteriales, so Abditibacteriales should contain
+        # Abditibacterium. Note that determining the stem for a genus is actually 
+        # non-trivial so we just use a simple heuristic which is to drop the 
+        # last 2 letters and then to match this with the start of higher taxa.
+        # We also deal with placeholder names, where the only exception is that
+        # 2 letters are not dropped.
+        genus_stems = {}
+        genus_lineages = {}
+        all_higher_taxa = defaultdict(set)
+        for taxa in final_taxonomy.values():
+            genus = taxa[Taxonomy.GENUS_INDEX]
+            if genus == 'g__' or genus in genus_stems:
+                continue
+                
+            stem = self._get_genus_stem(genus)
+            
+            genus_stems[genus] = stem
+            genus_lineages[genus] = taxa
+            
+            for taxon in taxa[Taxonomy.PHYLUM_INDEX:Taxonomy.GENUS_INDEX]:
+                all_higher_taxa[taxon].add(genus)
+
+        # test the placement of higher order taxa based on genus name
+        invalid_taxon = {}
+        validated_count = 0
+        for genus, genus_stem in genus_stems.items():
+            passed_test = True
+            for taxon, taxon_genera in all_higher_taxa.items():
+                if (taxon[3:].startswith(genus_stem)
+                        and genus not in taxon_genera):
+                    # higher taxon appears to be derived for a GTDB genus
+                    # name, but does not contain the genus
+                    invalid_taxon[taxon] = (taxon, genus, genus_stem, '; '.join(genus_lineages[genus]))
+                    passed_test = False
+                    
+            if passed_test:
+                validated_count += 1
+
+        self.report_validation(
+            invalid_taxon, 
+            validated_count, 
+            'Identified {:,} taxon names that appear to be derived from a GTDB genus name in a different lineage (Taxon, Matching genus, Matching stem, Genus lineage):'.format(
+                len(invalid_taxon)))
             
     def justify_specific_name_change(self,
                                         prev_rid,
@@ -1973,6 +2034,10 @@ class PMC_Validation(object):
                                 check_duplicate_names=True,
                                 check_capitalization=True,
                                 report_errors=True)
+                                
+        # validate pplacement of higher taxon names derived from stem of GTDB genera
+        self.logger.info("Validating placement of higher taxon names derived from stem of GTDB genera.")
+        self.validate_taxa_by_genus_stem(final_taxonomy)
                             
         # validate that GTDB is using the 'correct' names as specified at LPSN
         self.logger.info("Validating that GTDB species names are using the 'correct' name according to LPSN.")

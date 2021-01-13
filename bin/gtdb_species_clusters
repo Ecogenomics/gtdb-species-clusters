@@ -62,9 +62,8 @@ def print_help():
       u_pmc_species_names  -> Refine species names using post-manual curation rules
       ( ... u_pmc_species_names must be run for Bacteria and Archaea ...)
       
-      ( ... update GTDB clustering in database ...)
-      ( ... infer trees ...)
-      ( ... decorate curation tree ...)
+      ( ... update GTDB clustering in database; must be done before creating ARB DB file ...)
+      ( ... infer trees: https://github.com/Ecogenomics/GTDBNCBI/wiki/Infer-and-decorate-tree-for-new-release ...)
       ( ... manual curation ... )
       
     Post-manual curation

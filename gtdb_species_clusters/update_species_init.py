@@ -836,7 +836,7 @@ class UpdateSpeciesInit(object):
                                                 ncbi_env_bioproject_ledger=ncbi_env_bioproject_ledger)
 
         cur_genomes.set_prev_gtdb_classifications(prev_genomes)
-        
+
         # update current genomes with GTDB-Tk classifications
         self.logger.info('Updating current genomes with GTDB-Tk classifications.')
         num_updated, num_ncbi_sp = cur_genomes.set_gtdbtk_classification(gtdbtk_classify_file, prev_genomes)
