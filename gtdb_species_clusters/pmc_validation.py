@@ -1374,6 +1374,14 @@ class PMC_Validation(object):
             if genus == 'g__' or genus in genus_stems:
                 continue
                 
+            for taxon in taxa[Taxonomy.PHYLUM_INDEX:Taxonomy.GENUS_INDEX]:
+                if is_suffixed_taxon(taxon):
+                    # suffixed taxon such as o__Thiohalomonadales_A or f__UBA11359_B
+                    # do not speak to the correct placement of the stem genus so are
+                    # skipped
+                    continue
+                all_higher_taxa[taxon].add(genus)
+                
             if is_suffixed_taxon(genus):
                 # suffixed genera such as Bacillus_A or BOG42_A,
                 # are never the stems for higher taxon names
@@ -1384,15 +1392,7 @@ class PMC_Validation(object):
                 continue
             
             genus_stems[genus] = stem
-            genus_lineages[genus] = taxa
-            
-            for taxon in taxa[Taxonomy.PHYLUM_INDEX:Taxonomy.GENUS_INDEX]:
-                if is_suffixed_taxon(taxon):
-                    # suffixed taxon such as o__Thiohalomonadales_A or f__UBA11359_B
-                    # do not speak to the correct placement of the stem genus so are
-                    # skipped
-                    continue
-                all_higher_taxa[taxon].add(genus)
+            genus_lineages[genus] = taxa[0:Taxonomy.SPECIES_INDEX]
 
         # test the placement of higher order taxa based on genus name
         taxon_suffixes = {'o__': 'ales', 'f__': 'aceae'}
@@ -1423,11 +1423,12 @@ class PMC_Validation(object):
                     else:
                         taxon_stem = taxon.replace(taxon_suffixes[taxon[0:3]], '')
                         
-                    if 0 <= len(taxon_stem[3:]) - len(genus_stem) <= 2:
+                    if 0 <= len(taxon_stem[3:]) - len(genus_stem) <= 3:
                         # taxon stem is only slightly longer than the
                         # genus stem we can't discount it being derived
                         # from the genus
-                        invalid_taxon[taxon] = (taxon, genus, genus_stem, '; '.join(genus_lineages[genus]))
+                        row = (taxon, genus, genus_stem, '; '.join(genus_lineages[genus]))
+                        invalid_taxon[taxon] = row
                         passed_test = False
                     
             if passed_test:
@@ -1939,6 +1940,11 @@ class PMC_Validation(object):
         final_taxonomy = Taxonomy().read(final_taxonomy, use_canonical_gid=True)
         self.logger.info(' - identified taxonomy strings for {:,} genomes.'.format(
                             len(final_taxonomy)))
+                            
+        # validate pplacement of higher taxon names derived from stem of GTDB genera
+        self.logger.info("Validating placement of higher taxon names derived from stem of GTDB genera.")
+        self.validate_taxa_by_genus_stem(final_taxonomy)
+        sys.exit() #***
                             
         # read species names explicitly set via manual curation
         self.logger.info('Parsing manually-curated species.')
