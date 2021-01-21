@@ -195,6 +195,9 @@ class Genome(object):
         if self.gtdb_untrustworthy_as_type:
             return False
             
+        if self.is_ncbi_untrustworthy_as_type():
+            return False
+            
         if self.ncbi_taxa.species == 's__':
             # NCBI has genomes marked as assembled from type
             # material that do not have a species assignment
@@ -204,9 +207,6 @@ class Genome(object):
         
         if self.ncbi_type_material:
             if self.ncbi_type_material.lower() in Genome.NCBI_TYPE_SPECIES:
-                if self.is_ncbi_untrustworthy_as_type():
-                    return False
-                    
                 if not self.is_ncbi_subspecies():
                     return True
                 else:
@@ -215,6 +215,30 @@ class Genome(object):
                     # the type strain of a subspecies
                     # (e.g. Alpha beta subsp. gamma)
                     return False
+                    
+        return False
+        
+    def is_ncbi_type_subspecies(self):
+        """Check if genome is a type strain of subspecies at NCBI."""
+        
+        if self.gtdb_untrustworthy_as_type:
+            return False
+            
+        if self.is_ncbi_untrustworthy_as_type():
+            return False
+        
+        if self.ncbi_type_material:
+            if self.ncbi_type_material.lower() in Genome.NCBI_TYPE_SPECIES:
+                if not self.is_ncbi_subspecies():
+                    return False
+                else:
+                    # genome is marked as 'assembled from type material', but
+                    # is a subspecies according to the NCBI taxonomy so is
+                    # the type strain of a subspecies
+                    # (e.g. Alpha beta subsp. gamma)
+                    return True
+            elif self.ncbi_type_material.lower() in Genome.NCBI_TYPE_SUBSP:
+                return True
                     
         return False
         
@@ -245,28 +269,7 @@ class Genome(object):
         """Check if genome is effectively, but not validly published type strain genome."""
         
         return not self.is_gtdb_type_strain() and self.is_ncbi_type_strain()
-        
-    def is_ncbi_type_subspecies(self):
-        """Check if genome is a type strain of subspecies at NCBI."""
-        
-        if self.is_ncbi_untrustworthy_as_type():
-            return False
-        
-        if self.ncbi_type_material:
-            if self.ncbi_type_material.lower() in Genome.NCBI_TYPE_SPECIES:
-                if not self.is_ncbi_subspecies():
-                    return False
-                else:
-                    # genome is marked as 'assembled from type material', but
-                    # is a subspecies according to the NCBI taxonomy so is
-                    # the type strain of a subspecies
-                    # (e.g. Alpha beta subsp. gamma)
-                    return True
-            elif self.ncbi_type_material.lower() in Genome.NCBI_TYPE_SUBSP:
-                return True
-                    
-        return False
-        
+
     def is_ncbi_proxy(self):
         """Check if genome is proxy type material at NCBI."""
         

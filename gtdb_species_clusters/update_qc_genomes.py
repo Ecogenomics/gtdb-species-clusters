@@ -71,7 +71,7 @@ class QcGenomes(object):
             for line in f:
                 line_split = line.strip().split('\t')
                 
-                gid = canonical_gid(line_split[0])               
+                gid = canonical_gid(line_split[0])
                 if gid not in pass_qc_gids:
                     continue
                 
