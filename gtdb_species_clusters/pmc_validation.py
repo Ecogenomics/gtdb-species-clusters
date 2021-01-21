@@ -43,6 +43,7 @@ from gtdb_species_clusters.type_genome_utils import (read_clusters,
                                                         infer_prev_gtdb_reps,
                                                         parse_manual_sp_curation_files)
 from gtdb_species_clusters.taxon_utils import (parse_lpsn_gss_file,
+                                                parse_lpsn_type_material_file,
                                                 generic_name,
                                                 specific_epithet,
                                                 canonical_taxon,
@@ -1351,6 +1352,54 @@ class PMC_Validation(object):
         else:
             return genus[3:-2]
         
+    def validate_taxa_by_lpsn_type_material(self, final_taxonomy, lpsn_type_material):
+        """Validating placement of taxon based on LPSN type material."""
+        
+        # get all GTDB taxa and GTDB taxa descendant from each taxon
+        gtdb_all_taxa = set()
+        children_taxa = defaultdict(set)
+        gtdb_lineage = {}
+        for taxa in final_taxonomy.values():
+            for idx, taxon in enumerate(taxa):
+                gtdb_all_taxa.add(taxon)
+                children_taxa[taxon].update(taxa[idx+1:])
+                gtdb_lineage[taxon] = taxa[0:idx]
+
+        # validate placement of GTDB taxa
+        invalid_taxon = {}
+        validated_count = 0
+        
+        for taxon in gtdb_all_taxa:
+            if taxon.startswith('s__'):
+                # can't validate species using this approach
+                continue
+                
+            if taxon not in lpsn_type_material:
+                # can't validate taxa without LPSN type material
+                continue
+                
+            type_taxon = lpsn_type_material[taxon]
+                
+            if type_taxon not in gtdb_all_taxa:
+                # can't validate taxa where GTDB does not 
+                # define the type material
+                continue
+            
+            if type_taxon not in children_taxa[taxon]:
+                # type material is in a different lineage which
+                # is not valid
+                row = (taxon, type_taxon, '; '.join(gtdb_lineage[type_taxon]))
+                invalid_taxon[taxon] = row
+            else:
+                # taxon contain type material as expected
+                validated_count += 1
+                    
+        self.report_validation(
+            invalid_taxon, 
+            validated_count, 
+            'Identified {:,} GTDB taxa with type material in a different lineage (Taxon, Type material, Type lineage):'.format(
+                len(invalid_taxon)))
+        
     def validate_taxa_by_genus_stem(self, final_taxonomy):
         """Validating placement of higher taxon names derived from stem of GTDB genera."""
         
@@ -1923,6 +1972,7 @@ class PMC_Validation(object):
                 specific_epithet_ledger,
                 ncbi_env_bioproject_ledger,
                 lpsn_gss_metadata_file,
+                lpsn_type_material_file,
                 ground_truth_test_cases,
                 skip_full_taxonomy_checks,
                 skip_genus_checks):
@@ -1935,16 +1985,17 @@ class PMC_Validation(object):
                             len(lpsn_sp_correct_names),
                             len(lpsn_sp_synonyms)))
         
+        # read LPSN type material
+        self.logger.info('Parsing LPSN type material.')
+        lpsn_type_material = parse_lpsn_type_material_file(lpsn_type_material_file)
+        self.logger.info(' - identified {:,} taxa with defined type material at LPSN.'.format(
+                            len(lpsn_type_material)))
+
         # read manually-curated taxonomy
         self.logger.info('Parsing final taxonomy.')
         final_taxonomy = Taxonomy().read(final_taxonomy, use_canonical_gid=True)
         self.logger.info(' - identified taxonomy strings for {:,} genomes.'.format(
                             len(final_taxonomy)))
-                            
-        # validate pplacement of higher taxon names derived from stem of GTDB genera
-        self.logger.info("Validating placement of higher taxon names derived from stem of GTDB genera.")
-        self.validate_taxa_by_genus_stem(final_taxonomy)
-        sys.exit() #***
                             
         # read species names explicitly set via manual curation
         self.logger.info('Parsing manually-curated species.')
@@ -2079,7 +2130,11 @@ class PMC_Validation(object):
                                 check_duplicate_names=True,
                                 check_capitalization=True,
                                 report_errors=True)
-                                
+        
+        # validate pplacement of higher taxon names derived from stem of GTDB genera
+        self.logger.info("Validating placement of higher taxon names based on LPSN type material")
+        self.validate_taxa_by_lpsn_type_material(final_taxonomy, lpsn_type_material)
+        
         # validate pplacement of higher taxon names derived from stem of GTDB genera
         self.logger.info("Validating placement of higher taxon names derived from stem of GTDB genera.")
         self.validate_taxa_by_genus_stem(final_taxonomy)

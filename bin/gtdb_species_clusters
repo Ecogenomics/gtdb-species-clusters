@@ -531,6 +531,7 @@ if __name__ == '__main__':
     pmc_validate_parser.add_argument('specific_epithet_ledger', help="file indicating required changes to the suffix of specific epithet due to transfers to a new genus")
     pmc_validate_parser.add_argument('ncbi_env_bioproject_ledger', help="file indicating NCBI BioProjects composed on MAGs or SAGs incorrectly annotated at NCBI")
     pmc_validate_parser.add_argument('lpsn_gss_metadata_file', help="file indicating GSS (genus-species-subspecies) metadata at LPSN (obtained from https://lpsn.dsmz.de/downloads)")
+    pmc_validate_parser.add_argument('lpsn_type_material_file', help="file indicating type material of taxa (obtained from LPSN)")
     pmc_validate_parser.add_argument('ground_truth_test_cases', help="file indicating specific test cases with ground truth assignments to validate")
     pmc_validate_parser.add_argument('output_dir', help="output directory")
     pmc_validate_parser.add_argument('--skip_full_taxonomy_checks', action='store_true', help="skip tests for valid taxonomy strings (useful when taxonomy still has unresolved genus assignments)")

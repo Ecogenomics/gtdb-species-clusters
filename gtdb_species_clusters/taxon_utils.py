@@ -29,6 +29,26 @@ from biolib.taxonomy import Taxonomy
 from gtdb_species_clusters.genome_utils import canonical_gid
 
 
+def parse_lpsn_type_material_file(lpsn_type_material_file):
+    """Parse type material for taxa as defined at LPSN."""
+    
+    type_material = {}
+    with open(lpsn_type_material_file) as f:
+        f.readline()
+        for line in f:
+            tokens = line.strip().split('\t')
+            
+            taxon = tokens[1].replace('Candidatus ', '')
+            type_taxon = tokens[2].replace('Candidatus ', '')
+            
+            if type_taxon:
+                if taxon in type_material:
+                    print('[ERROR] LPSN type material file lists taxon twice: {}'.format(taxon))
+                    
+                type_material[taxon] = type_taxon
+                
+    return type_material
+
 def parse_lpsn_gss_file(lpsn_gss_metadata_file):
     """Parse LPSN GSS (genus-species-subspecies) metadata."""
     
