@@ -243,7 +243,7 @@ class Genome(object):
         return False
         
     def is_effective_type_strain(self):
-        """Check if genome is a valid or effectively published type strain genome."""
+        """Check if genome is a valid or effectively published type strain of species."""
         
         if self.is_gtdb_type_strain():
             return True
@@ -369,14 +369,14 @@ class Genome(object):
             q += 100
             
         q += self.comp - 5*self.cont
-        q -= 5*float(self.contig_count)/100
+        q -= 5*float(self.contig_count-1)/100
         q -= 5*float(self.ambiguous_bases)/1e5
-        
+            
         if self.is_sag():
             q -= 100 # genome is a SAG
         elif self.is_mag(): 
             q -= 100 # genome is a MAG
-        
+            
         # check for near-complete 16S rRNA gene
         min_ssu_len = 1200
         if self.gtdb_taxa.domain == 'd__Archaea':

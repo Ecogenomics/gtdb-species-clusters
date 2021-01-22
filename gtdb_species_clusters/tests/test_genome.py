@@ -1,5 +1,6 @@
 # Test methods in Genome class
 
+from collections import defaultdict
 import copy
 
 import pytest
@@ -24,7 +25,7 @@ test_genome = Genome("G012345678",
                                 "Complete genome",
                                 "Full",
                                 "Reference genome",
-                                "derived from metagenome",
+                                None,
                                 "",
                                 100,
                                 0,
@@ -156,6 +157,75 @@ class TestGenome:
         g.ncbi_type_material = 'assembly from type material'
         assert not g.is_ncbi_type_strain()
         assert g.is_ncbi_type_subspecies()
+        
+    def test_is_complete_genome(self):
+        g = copy.copy(test_genome)
+        
+        assert g.is_complete_genome()
+        
+        g.ssu_count = 0
+        assert not g.is_complete_genome()
+        
+    def test_scoring(self):
+        g = copy.copy(test_genome)
+        
+        # highest possible score for isolate
+        assembly_score = g.score_assembly()
+        assert assembly_score == 210
+        
+        # highest possible score for isolate,
+        # type strain genome
+        type_score = g.score_type_strain()
+        assert type_score == 1e6 + 210
+        
+        # highest possible score for MAG or SAG
+        g.ncbi_genome_category = "derived from metagenome"
+        assembly_score = g.score_assembly()
+        assert assembly_score == 110 
+        
+        # highest possible score for MAG/SAG
+        # that is considered a type strain genome
+        type_score = g.score_type_strain()
+        assert type_score == 1e6 + 110
+        
+    def test_pass_qc(self):
+        g = copy.copy(test_genome)
+        
+        failed_tests = defaultdict(int)
+        assert g.pass_qc(100,       #marker_perc
+                            50,     #min_comp
+                            10,     #max_cont
+                            50,     #min_quality
+                            80,     #sh_exception
+                            40,     #min_perc_markers
+                            1000,   #max_contigs
+                            5000,   #min_N50
+                            100000, #max_ambiguous
+                            failed_tests)
+        
+        g.comp = 49
+        assert not g.pass_qc(100,       #marker_perc
+                                50,     #min_comp
+                                10,     #max_cont
+                                50,     #min_quality
+                                80,     #sh_exception
+                                40,     #min_perc_markers
+                                1000,   #max_contigs
+                                5000,   #min_N50
+                                100000, #max_ambiguous
+                                failed_tests)
+                                
+        g.comp = 51
+        g.cont = 11
+        assert not g.pass_qc(100,       #marker_perc
+                                50,     #min_comp
+                                10,     #max_cont
+                                50,     #min_quality
+                                80,     #sh_exception
+                                40,     #min_perc_markers
+                                1000,   #max_contigs
+                                5000,   #min_N50
+                                100000, #max_ambiguous
+                                failed_tests)
+        
 
-    def test_needsfiles(tmpdir):
-        pass
