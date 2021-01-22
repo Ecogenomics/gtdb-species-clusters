@@ -42,9 +42,7 @@ from gtdb_species_clusters.type_genome_utils import (read_clusters,
                                                         parse_updated_species_reps,
                                                         infer_prev_gtdb_reps,
                                                         parse_manual_sp_curation_files)
-from gtdb_species_clusters.taxon_utils import (parse_lpsn_gss_file,
-                                                parse_lpsn_type_material_file,
-                                                generic_name,
+from gtdb_species_clusters.taxon_utils import (generic_name,
                                                 specific_epithet,
                                                 canonical_taxon,
                                                 canonical_species,
@@ -60,6 +58,8 @@ from gtdb_species_clusters.taxon_utils import (parse_lpsn_gss_file,
                                                 specific_epithet_type,
                                                 test_same_epithet,
                                                 ncbi_to_gtdb_synonyms)
+
+from gtdb_species_clusters.lpsn import LPSN
 
 class PMC_Validation(object):
     """Validate final species names."""
@@ -210,7 +210,7 @@ class PMC_Validation(object):
             validated_count, 
             'Identified {:,} invalid type strain genomes (Proposed GTDB species, NCBI species):'.format(len(invalid_type_strain)))
 
-    def validate_lpsn_correct_names(self, final_taxonomy, cur_genomes, lpsn_sp_correct_names, lpsn_sp_synonyms):
+    def validate_lpsn_correct_names(self, final_taxonomy, cur_genomes, lpsn):
         """Validate that GTDB is using the 'correct' names as specified at LPSN."""
         
         fout = open(os.path.join(self.output_dir, 'validate_lpsn_correct_sp.tsv'), 'w')
@@ -226,12 +226,12 @@ class PMC_Validation(object):
             gtdb_generic = generic_name(gtdb_sp)
             gtdb_specific = specific_epithet(gtdb_sp)
                 
-            if gtdb_sp in lpsn_sp_correct_names:
+            if gtdb_sp in lpsn.sp_correct_names:
                 # check if the GTDB species name is considered the correct name at LPSN
-                lpsn_corr_taxon = lpsn_sp_correct_names[gtdb_sp]
+                lpsn_corr_taxon = lpsn.sp_correct_names[gtdb_sp]
                 if 'subsp.' in lpsn_corr_taxon:
                     # remove subspecies portion
-                    lpsn_corr_sp = ' '.join(lpsn_corr_taxon.split()[0:2])
+                    lpsn_corr_sp = ' '.join(lpsn.corr_taxon.split()[0:2])
                 else:
                     lpsn_corr_sp = lpsn_corr_taxon
 
@@ -239,7 +239,7 @@ class PMC_Validation(object):
                     row = (rid,
                             gtdb_sp, 
                             lpsn_corr_taxon, 
-                            lpsn_corr_taxon in lpsn_sp_synonyms[gtdb_sp],
+                            lpsn_corr_taxon in lpsn.sp_synonyms[gtdb_sp],
                             gtdb_generic != generic_name(lpsn_corr_sp),
                             gtdb_specific != specific_epithet(lpsn_corr_sp))
                     incorrect_names[rid] = row
@@ -257,8 +257,7 @@ class PMC_Validation(object):
     def validate_genus_transfer_specific_epithet(self, 
                                                     final_taxonomy, 
                                                     cur_genomes, 
-                                                    lpsn_sp_correct_names, 
-                                                    lpsn_sp_synonyms):
+                                                    lpsn):
         """Validate transferred species do not use a specific epithet already validated for the new species."""
         
         fout = open(os.path.join(self.output_dir, 'validate_epithet_genus_transfer.tsv'), 'w')
@@ -292,22 +291,22 @@ class PMC_Validation(object):
                     # this *should* never happen, but NCBI doesn't always
                     # have consistent genus and generic names for genomes!
                     pass
-                elif gtdb_sp == lpsn_sp_correct_names.get(ncbi_sp, None):
+                elif gtdb_sp == lpsn.sp_correct_names.get(ncbi_sp, None):
                     # GTDB assignment reflects the 'correct name' as 
                     # indicated at LPSN so this is a valid (and expected)
                     # genus transfer
                     pass
-                elif ncbi_sp == lpsn_sp_correct_names.get(gtdb_sp, None):
+                elif ncbi_sp == lpsn.sp_correct_names.get(gtdb_sp, None):
                     # It appears the GTDB is using an older name that isn't
                     # considered correct by LPSN, but that this is otherwise
                     # an acceptable genus transfer.
                     pass
-                elif gtdb_sp in lpsn_sp_synonyms.get(ncbi_sp, []):
+                elif gtdb_sp in lpsn.sp_synonyms.get(ncbi_sp, []):
                     # GTDB assignment is using a recognized synonym at LPSN,
                     # though NCBI appears to be using the correct name according
                     # to LPSN
                     pass
-                elif ncbi_sp in lpsn_sp_synonyms.get(gtdb_sp, []):
+                elif ncbi_sp in lpsn.sp_synonyms.get(gtdb_sp, []):
                     # GTDB assignment is the correct name at LPSN and
                     # NCBI is using a later synonym
                     pass
@@ -320,14 +319,14 @@ class PMC_Validation(object):
                     # name so setting the GTDB species to P. marinus would be incorrect.)
                     
                     matched_lpsn_sp = None
-                    if gtdb_sp in lpsn_sp_correct_names:
+                    if gtdb_sp in lpsn.sp_correct_names:
                         potential_issue = True
                         matched_lpsn_sp = gtdb_sp
                     else:
                         # need to check if a LPSN species name exists that only differs in terms
                         # of changes to the suffix of the specific epithet due to the gender of
                         # the genus
-                        for lpsn_sp in lpsn_sp_correct_names:
+                        for lpsn_sp in lpsn.sp_correct_names:
                             lpsn_generic = generic_name(lpsn_sp)
                             lpsn_specific = specific_epithet(lpsn_sp)
                             if lpsn_generic == gtdb_generic and test_same_epithet(gtdb_specific, lpsn_specific):
@@ -1352,7 +1351,64 @@ class PMC_Validation(object):
         else:
             return genus[3:-2]
         
-    def validate_taxa_by_lpsn_type_material(self, final_taxonomy, lpsn_type_material):
+    def validate_merged_taxa(self, final_taxonomy, cur_genomes, lpsn):
+        """Validate name of merged taxa."""
+        
+        # get list of genomes assembled from the type species of the genus
+        # for each GTDB taxon
+        gtdb_taxon_gids = defaultdict(set)
+        for rid in final_taxonomy:
+            if cur_genomes[rid].is_gtdb_type_species():
+                for taxon in final_taxonomy[rid]:
+                    gtdb_taxon_gids[taxon].add(rid)
+                    
+        print('gtdb_taxon_gids', len(gtdb_taxon_gids))
+                
+        # check if GTDB taxa is a merger of multiple NCBI taxa
+        for gtdb_taxon, type_gids in gtdb_taxon_gids.items():
+            rank_prefix = gtdb_taxon[0:3]
+            taxon_idx = Taxonomy.rank_index[rank_prefix]
+            
+            # *** just do families for now
+            if not gtdb_taxon.startswith('f__'):
+                continue
+            
+            ncbi_taxa_with_type = {}
+            for gid in type_gids:
+                ncbi_family = cur_genomes[gid].ncbi_taxa.family
+                ncbi_genus = cur_genomes[gid].ncbi_taxa.genus
+                
+                lpsn_type_genus = lpsn.type_material(ncbi_family)
+                
+                if lpsn_type_genus == ncbi_genus:
+                    ncbi_taxa_with_type[ncbi_family] = gid
+                
+            if len(ncbi_taxa_with_type) >= 2:
+                # check if GTDB name follows priority of merged taxa
+                if gtdb_taxon not in ncbi_taxa_with_type:
+                    print('?', gtdb_taxon, ncbi_taxa_with_type) #***
+                else:
+                    priority_taxa = []
+                    priority_year = 1e6
+                    ncbi_taxa_priority = {}
+                    for ncbi_taxon in ncbi_taxa_with_type:
+                        if ncbi_taxon in lpsn.taxa:
+                            priority = lpsn.taxa[ncbi_taxon].priority_year
+                            ncbi_taxa_priority[ncbi_taxon] = priority
+                            if priority < priority_year:
+                                priority_taxa = [ncbi_taxon]
+                                priority_year = priority
+                            elif priority == priority_year:
+                                priority_taxa.append(ncbi_taxon)
+                                priority_year = priority
+                                
+                    if len(priority_taxa) == 1:
+                        if priority_taxa[0] != gtdb_taxon:
+                            print('incorrect GTDB name?', gtdb_taxon, priority_taxa[0], priority_year, ncbi_taxa_priority, ncbi_taxa_with_type)
+                    elif len(priority_taxa) > 1:
+                        print('equal priority; need manual curation', gtdb_taxon, priority_taxa, priority_year, ncbi_taxa_priority)
+        
+    def validate_taxa_by_lpsn_type_material(self, final_taxonomy, lpsn):
         """Validating placement of taxon based on LPSN type material."""
         
         # get all GTDB taxa and GTDB taxa descendant from each taxon
@@ -1374,11 +1430,11 @@ class PMC_Validation(object):
                 # can't validate species using this approach
                 continue
                 
-            if taxon not in lpsn_type_material:
+            if taxon not in lpsn.taxa:
                 # can't validate taxa without LPSN type material
                 continue
                 
-            type_taxon = lpsn_type_material[taxon]
+            type_taxon = lpsn.taxa[taxon].type_material
                 
             if type_taxon not in gtdb_all_taxa:
                 # can't validate taxa where GTDB does not 
@@ -1978,25 +2034,21 @@ class PMC_Validation(object):
                 skip_genus_checks):
         """Validate final species names."""
         
-        # read LPSN GSS (genus-species-subspecies) metadata
-        self.logger.info('Parsing LPSN species metadata.')
-        lpsn_sp_correct_names, lpsn_sp_synonyms = parse_lpsn_gss_file(lpsn_gss_metadata_file)
+        # read LPSN metadata
+        self.logger.info('Reading LPSN metadata.')
+        lpsn = LPSN(lpsn_type_material_file, lpsn_gss_metadata_file)
         self.logger.info(' - identified {:,} correct LPSN species and {:,} synonyms.'.format(
-                            len(lpsn_sp_correct_names),
-                            len(lpsn_sp_synonyms)))
-        
-        # read LPSN type material
-        self.logger.info('Parsing LPSN type material.')
-        lpsn_type_material = parse_lpsn_type_material_file(lpsn_type_material_file)
+                            len(lpsn.sp_correct_names),
+                            len(lpsn.sp_synonyms)))
         self.logger.info(' - identified {:,} taxa with defined type material at LPSN.'.format(
-                            len(lpsn_type_material)))
+                            len(lpsn.taxa)))
 
         # read manually-curated taxonomy
         self.logger.info('Parsing final taxonomy.')
         final_taxonomy = Taxonomy().read(final_taxonomy, use_canonical_gid=True)
         self.logger.info(' - identified taxonomy strings for {:,} genomes.'.format(
                             len(final_taxonomy)))
-                            
+
         # read species names explicitly set via manual curation
         self.logger.info('Parsing manually-curated species.')
         self.mc_species = parse_manual_sp_curation_files(manual_sp_names, pmc_custom_species)
@@ -2008,16 +2060,17 @@ class PMC_Validation(object):
                                                     self.output_dir)
                             
         # create previous and current GTDB genome sets
-        self.logger.info('Creating previous GTDB genome set.')
-        prev_genomes = Genomes()
-        prev_genomes.load_from_metadata_file(prev_gtdb_metadata_file,
-                                                gtdb_type_strains_ledger=gtdb_type_strains_ledger,
-                                                ncbi_genbank_assembly_file=ncbi_genbank_assembly_file,
-                                                untrustworthy_type_ledger=untrustworthy_type_file,
-                                                ncbi_env_bioproject_ledger=ncbi_env_bioproject_ledger)
-        self.logger.info(' - previous genome set has {:,} species clusters spanning {:,} genomes.'.format(
-                            len(prev_genomes.sp_clusters),
-                            prev_genomes.sp_clusters.total_num_genomes()))
+        if False: #***
+            self.logger.info('Creating previous GTDB genome set.')
+            prev_genomes = Genomes()
+            prev_genomes.load_from_metadata_file(prev_gtdb_metadata_file,
+                                                    gtdb_type_strains_ledger=gtdb_type_strains_ledger,
+                                                    ncbi_genbank_assembly_file=ncbi_genbank_assembly_file,
+                                                    untrustworthy_type_ledger=untrustworthy_type_file,
+                                                    ncbi_env_bioproject_ledger=ncbi_env_bioproject_ledger)
+            self.logger.info(' - previous genome set has {:,} species clusters spanning {:,} genomes.'.format(
+                                len(prev_genomes.sp_clusters),
+                                prev_genomes.sp_clusters.total_num_genomes()))
                                 
         self.logger.info('Creating current GTDB genome set.')
         cur_genomes = Genomes()
@@ -2030,7 +2083,12 @@ class PMC_Validation(object):
                                                 ncbi_env_bioproject_ledger=ncbi_env_bioproject_ledger)
         self.logger.info(f' - current genome set contains {len(cur_genomes):,} genomes.')
         
-        cur_genomes.set_prev_gtdb_classifications(prev_genomes)
+        #***cur_genomes.set_prev_gtdb_classifications(prev_genomes)
+        
+        # validate application of names for merged taxa
+        self.logger.info("Validating names of merged taxa.")
+        self.validate_merged_taxa(final_taxonomy, cur_genomes, lpsn)
+        sys.exit(-1) #***
   
         # sanity check
         self.logger.info('Checking that previous and current genomes have same GTDB assignments.')
@@ -2131,9 +2189,9 @@ class PMC_Validation(object):
                                 check_capitalization=True,
                                 report_errors=True)
         
-        # validate pplacement of higher taxon names derived from stem of GTDB genera
+        # validate placement of higher taxon names derived from stem of GTDB genera
         self.logger.info("Validating placement of higher taxon names based on LPSN type material")
-        self.validate_taxa_by_lpsn_type_material(final_taxonomy, lpsn_type_material)
+        self.validate_taxa_by_lpsn_type_material(final_taxonomy, lpsn)
         
         # validate pplacement of higher taxon names derived from stem of GTDB genera
         self.logger.info("Validating placement of higher taxon names derived from stem of GTDB genera.")
@@ -2143,16 +2201,14 @@ class PMC_Validation(object):
         self.logger.info("Validating that GTDB species names are using the 'correct' name according to LPSN.")
         self.validate_lpsn_correct_names(final_taxonomy, 
                                             cur_genomes, 
-                                            lpsn_sp_correct_names,
-                                            lpsn_sp_synonyms)
+                                            lpsn)
                             
         # validate that transferred species do not use a specific epithet which 
         # has already been validated for the species
         self.logger.info('Validating that specific epithet of GTDB species names are valid after genus transfers.')
         self.validate_genus_transfer_specific_epithet(final_taxonomy,
                                                         cur_genomes,
-                                                        lpsn_sp_correct_names, 
-                                                        lpsn_sp_synonyms)
+                                                        lpsn)
                             
         # validate that all species names are unique
         self.logger.info('Validating that species names are unique.')

@@ -100,7 +100,7 @@ class OptionsParser():
         make_sure_path_exists(args.output_dir)
 
         try:
-            p = QcGenomes()
+            p = QcGenomes(args.output_dir)
             p.run(args.prev_gtdb_metadata_file,
                         args.cur_gtdb_metadata_file,
                         args.cur_genbank_assembly_file,
@@ -115,8 +115,7 @@ class OptionsParser():
                         args.min_perc_markers,
                         args.max_contigs,
                         args.min_N50,
-                        args.max_ambiguous,
-                        args.output_dir)
+                        args.max_ambiguous)
         except GTDB_Error as e:
             print(e.message)
             raise SystemExit

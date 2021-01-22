@@ -26,6 +26,7 @@ from collections import defaultdict
 
 from gtdb_species_clusters.genome import Genome
 from gtdb_species_clusters.genome_utils import select_highest_quality
+from gtdb_species_clusters.lpsn import LPSN
 
 
 class SpeciesPriorityManager(object):
@@ -181,27 +182,23 @@ class SpeciesPriorityManager(object):
                     # marked as being a revied name as indicated by a 'ex' or 'emend'
                     # (e.g. Holospora (ex Hafkine 1890) Gromov and Ossipov 1981)
                     ref_str = tokens[author_idx]
-                    references = ref_str.replace('(', '').replace(')', '')
-                    years = re.sub(r'emend\.[^\d]*\d{4}', '', references)
-                    years = re.sub(r'ex [^\d]*\d{4}', ' ', years)
-                    years = re.findall('[1-3][0-9]{3}', years, re.DOTALL)
-                    years = [int(y) for y in years if int(y) <= datetime.datetime.now().year]
+                    priority_year = LPSN.parse_lpsn_priority_year(ref_str)
 
                     #if 'gen. nov.' in status_tokens:
                     if taxon.startswith('g__'): 
                         if (taxon in self.lpsn_genus_priority
                             and taxon not in illegitimate_names
-                            and self.lpsn_genus_priority[taxon] != years[0]):
+                            and self.lpsn_genus_priority[taxon] != priority_year):
                             # conflict that can't be attributed to one of the entries being
                             # considered an illegitimate name
                             self.logger.error('Conflicting genus priority for {}: {} {}'.format(
-                                                taxon, years[0], self.lpsn_genus_priority[taxon]))
+                                                taxon, priority_year, self.lpsn_genus_priority[taxon]))
                                                 
-                        self.lpsn_genus_priority[taxon] = years[0]
+                        self.lpsn_genus_priority[taxon] = priority_year
                         genus_priority_count += 1
                         fout.write('{}\t{}\t{}\n'.format(taxon, 
                                                             tokens[author_idx],
-                                                            years[0]))
+                                                            priority_year))
                         
         self.logger.info(f' - established genus priority for {genus_priority_count:,} genera using LPSN GSS metadata.')
         self.logger.info(' - identified {:,} genera, {:,} species and {:,} subpecies with validly published names in LPSN GSS metadata.'.format(
