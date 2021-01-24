@@ -15,19 +15,17 @@
 #                                                                             #
 ###############################################################################
 
-import os
 import sys
 import logging
 from collections import defaultdict
 
-from gtdb_species_clusters.fastani import FastANI
 from gtdb_species_clusters.taxon_utils import canonical_taxon, is_placeholder_sp_epithet
 from gtdb_species_clusters.taxon_suffix_manager import TaxonSuffixManager
 
 
-class SpeciesNameManager(object):
+class SpeciesNameManager():
     """Manage assignment and updating of GTDB species names.
-    
+
     This manager handle the following:
      - tracking valid suffixes
      - determining presence of species name in GTDB
@@ -39,156 +37,58 @@ class SpeciesNameManager(object):
         """Initialization."""
 
         self.logger = logging.getLogger('timestamp')
-        
+
         self.taxon_suffix_manager = TaxonSuffixManager()
-        
+
         self.prev_genomes = prev_genomes
         self.cur_genomes = cur_genomes
-        
+
         # get species assignment of previous GTDB species clusters
         self.gtdb_sp_epithets = defaultdict(set)
         self.gtdb_canonical_sp_epithets = defaultdict(set)
         self.sp_epithets_rid = defaultdict(lambda: {})
-        for rid, sp in prev_genomes.sp_clusters.species():
+        for rid, _sp in prev_genomes.sp_clusters.species():
             gtdb_genus = prev_genomes[rid].gtdb_taxa.genus
             gtdb_sp_epithet = prev_genomes[rid].gtdb_taxa.specific_epithet
             self.gtdb_sp_epithets[gtdb_genus].add(gtdb_sp_epithet)
-            self.gtdb_canonical_sp_epithets[gtdb_genus].add(canonical_taxon(gtdb_sp_epithet))
+            self.gtdb_canonical_sp_epithets[gtdb_genus].add(
+                canonical_taxon(gtdb_sp_epithet))
             self.sp_epithets_rid[gtdb_genus][gtdb_sp_epithet] = rid
-            
+
     def numeric_placeholder_sp_epithet(self, rid):
         """Generate placeholder species epithet from representative accession."""
-        
+
         if rid.startswith('G'):
             sp_id = rid.replace('G', '')
         else:
             print('Unrecognized genome ID: {}'.format(rid))
-            raise
-        
+            sys.exit(-1)
+
         return 'sp{}'.format(sp_id)
 
     def suffixed_placeholder_sp_epithet(self, generic, specific):
         """Determine suffix for species."""
-        
+
         if is_placeholder_sp_epithet(specific):
-            self.logger.error('Only Latin specific names should have a suffix: {}'.format(specific))
+            self.logger.error(
+                'Only Latin specific names should have a suffix: {}'.format(specific))
             sys.exit(-1)
-        
+
         sp = 's__{} {}'.format(generic, specific)
         next_suffix = self.taxon_suffix_manager.next_suffix(sp)
 
         return '{}_{}'.format(specific, next_suffix)
-        
+
     def add_suffixed_species(self, species):
         """Account for species names when generating further placeholder names.
-        
+
         This is required as species can be transferred between genera and will
         retain their existing suffix. As such, we must track that this genera
         now has a species name with a given suffix.
-        
-        (e.g., Lactobacillus_G kunkeei_A is transferred to Apilactobacillus 
+
+        (e.g., Lactobacillus_G kunkeei_A is transferred to Apilactobacillus
                as A. kunkeei_A, so the next suffixed A. kunkeei representative
                must have a 'B' suffix.)
         """
-        
+
         self.taxon_suffix_manager.add_suffixed_species(species)
-        
-    def _nontype_sp_epithet(self, new_cur_ncbi_sp_epithet, orig_prev_gtdb_genus):
-        """Get appropriate and potentially suffixed species epithet for non-type genome."""
-        
-        if new_cur_ncbi_sp_epithet not in self.gtdb_canonical_sp_epithets[orig_prev_gtdb_genus]:
-            # only species in genus with this epithet so it can remain unsuffixed
-            epithet = new_cur_ncbi_sp_epithet
-        else:
-            # other species already have suffixed versions of this epithet so 
-            # must also suffix this epithet since the true location of this 
-            # species is unclear
-            epithet = self.suffixed_placeholder_sp_epithet(orig_prev_gtdb_genus[3:], new_cur_ncbi_sp_epithet)
-        
-        return epithet
-        
-    def update(self, orig_rid, new_rid):
-        """Determine if species name can be updated."""
-        
-        orig_prev_gtdb_genus = self.prev_genomes[orig_rid].gtdb_taxa.genus
-        orig_prev_gtdb_sp = self.prev_genomes[orig_rid].gtdb_taxa.species
-        orig_prev_gtdb_sp_epithet = self.prev_genomes[orig_rid].gtdb_taxa.specific_epithet
-        orig_prev_ncbi_sp_epithet = self.prev_genomes[orig_rid].ncbi_taxa.specific_epithet
-        new_cur_ncbi_sp_epithet = self.cur_genomes[new_rid].ncbi_taxa.specific_epithet
-        
-        new_cur_gtdb_sp = 's__{} {}'.format(orig_prev_gtdb_genus[3:], new_cur_ncbi_sp_epithet)
-
-        new_is_type_strain = self.cur_genomes[new_rid].is_effective_type_strain() 
-        
-        actions = []
-        if new_cur_ncbi_sp_epithet == orig_prev_gtdb_sp_epithet:
-            # given that the species epithet has not changed, there is no
-            # need to update the GTDB species name
-            actions.append(('UNCHANGED', orig_rid, new_rid, orig_prev_gtdb_sp, None, 0, 0))
-        elif new_is_type_strain:
-            # new representative is a type strain with a new species epithet so the 
-            # GTDB species name needs to be updated
-            if new_cur_ncbi_sp_epithet in self.sp_epithets_rid[orig_prev_gtdb_genus]:
-                # the new species name already exists in the GTDB
-                conflicting_rid = self.sp_epithets_rid[orig_prev_gtdb_genus][new_cur_ncbi_sp_epithet]
-                
-                ani, af = self.fastani.symmetric_ani_cached(new_rid, conflicting_rid,
-                                                            self.cur_genomes[new_rid].genomic_file, 
-                                                            self.cur_genomes[conflicting_rid].genomic_file)
-                
-                if self.cur_genomes[conflicting_rid].is_gtdb_type_strain():
-                    # this is an issue since we have two GTDB clusters claiming
-                    # to be represented by a type strain genome
-                    actions.append(('CONFLICT', orig_rid, new_rid, new_cur_gtdb_sp + '-CONFLICT', conflicting_rid, ani, af))
-                else:
-                    # need to update the GTDB species cluster that currently
-                    # has this species name since it is not based on the type strain
-                    actions.append(('UPDATED', orig_rid, new_rid, new_cur_gtdb_sp, conflicting_rid, ani, af))
-                    
-                    conflicting_epithet = self._nontype_sp_epithet(new_cur_ncbi_sp_epithet, 
-                                                                    orig_prev_gtdb_genus)
-                    actions.append(('UPDATED', 
-                                    conflicting_rid, 
-                                    conflicting_rid, 
-                                    's__{} {}'.format(orig_prev_gtdb_genus[3:], conflicting_epithet),
-                                    None, 0, 0))
-            else:
-                # new species name doesn't exist in GTDB so can update name of GTDB cluster
-                epithet = new_cur_ncbi_sp_epithet
-                actions.append(('UPDATED', orig_rid, new_rid, new_cur_gtdb_sp, None, 0, 0))
-        else:
-            # should only update the name of a GTDB species cluster when necessary,
-            # which occurs when the cluster does not properly reflect a valid 
-            # or effectively published species name
-            if (new_cur_ncbi_sp_epithet 
-                and new_cur_ncbi_sp_epithet != canonical_taxon(orig_prev_gtdb_sp_epithet)):
-                # new representative has a different species epithet than
-                # reflected by the current GTDB species name
-                if new_cur_ncbi_sp_epithet not in self.gtdb_canonical_sp_epithets[orig_prev_gtdb_genus]:
-                    # first occurrence of species in genus so should update GTDB
-                    # cluster to reflect this species name
-                    actions.append(('UPDATED', orig_rid, new_rid, new_cur_gtdb_sp, None, 0, 0))
-                else:
-                    # species epithet already occurs in this genus so need to check
-                    # if it directly conflicts with the current name of the GTDB
-                    # species cluster
-                    if is_placeholder_sp_epithet(orig_prev_gtdb_sp_epithet):
-                        # GTDB species cluster has a placeholder name so does
-                        # not conflict with epithet of new representative
-                        actions.append(('UNCHANGED', orig_rid, new_rid, orig_prev_gtdb_sp, None, 0, 0))
-                    else:
-                        # GTDB species cluster reflects a valid or effectively published
-                        # species name that is in conflict with the new representative
-                        assert orig_prev_gtdb_sp_epithet != new_cur_ncbi_sp_epithet
-                        
-                        # how can the correct name for the species cluster be determined?
-                        actions.append(('MANUAL_CURATION', orig_rid, new_rid, orig_prev_gtdb_sp, None, 0, 0))
-            else:
-                # species epithet of new representative is reflected by current
-                # GTDB species name so no change is required
-                actions.append(('UNCHANGED', orig_rid, new_rid, orig_prev_gtdb_sp, None, 0, 0))
-                
-        assert len(actions) >= 1
-
-        return actions
-        
