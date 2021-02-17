@@ -963,19 +963,3 @@ class UpdateSpeciesInit(object):
 
         bac_taxonomy_out.close()
         ar_taxonomy_out.close()
-
-        # write out cluster information with finalized GTDB cluster names
-        if False:  # ***
-            self.logger.info(
-                'Writing {:,} species clusters to file.'.format(len(cur_clusters)))
-            self.logger.info(
-                'Writing {:,} cluster radius information to file.'.format(len(rep_radius)))
-
-            write_clusters(cur_clusters,
-                           rep_radius,
-                           cur_genomes,
-                           os.path.join(self.output_dir, 'gtdb_clusters_de_novo.tsv'))
-
-            write_rep_radius(rep_radius,
-                             cur_genomes,
-                             os.path.join(self.output_dir, 'gtdb_ani_radius_de_novo.tsv'))

@@ -47,6 +47,19 @@ class UpdateSelectRepresentatives():
 
     def __init__(self, ani_cache_file, cpus, output_dir):
         """Initialization."""
+        
+        # List of validly published NCBI species that are 
+        # considered synonyms under the GTDB and are ignored 
+        # in the sense that representatives are not selected
+        # for these species. A more formal way should be 
+        # considered for handling this (e.g., a ledger 
+        # indicating GTDB synonyms), but since this is 
+        # a special case for Shigella at the moment it 
+        # is being explicitly handled here.
+        self.invalid_ncbi_sp = set(['s__Shigella flexneri',
+                                    's__Shigella sonnei',
+                                    's__Shigella boydii',
+                                    's__Shigella dysenteriae'])
 
         check_dependencies(['fastANI', 'mash'])
 
@@ -1006,6 +1019,10 @@ class UpdateSelectRepresentatives():
         type_count = 0
         nontype_count = 0
         for ncbi_sp in ncbi_species:
+            if ncbi_sp in self.invalid_ncbi_sp:
+                # skip species not recognized under the GTDB
+                continue
+                
             type_gids = type_strain_genomes[ncbi_sp]
             type_cluster_count = sum([1 for gid in type_gids
                                       if updated_sp_clusters.get_representative(gid) is not None])
@@ -1023,7 +1040,7 @@ class UpdateSelectRepresentatives():
                         self.logger.warning('Identified {:,} of {:,} type strain genomes for {} in GTDB species clusters.'.format(
                             type_cluster_count,
                             len(type_gids),
-                            ncbi_sp))
+                            ncbi_sp))                    
             else:
                 # species has no type strain genomes, so we check if a genome with
                 # this species name is a GTDB representative or if the majority of

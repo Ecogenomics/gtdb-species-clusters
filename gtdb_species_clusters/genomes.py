@@ -36,30 +36,30 @@ class Genomes(object):
 
         self.genomes = {}
         self.sp_clusters = SpeciesClusters()
-        
-        self.genomic_files = {} # this should be removed, but the FastANI interface
-                                # currently requires data to be passed in as a dictionary
-                                
-        self.full_gid = {} # translate from canonical GID to NCBI accession
-        
+
+        self.genomic_files = {}  # this should be removed, but the FastANI interface
+        # currently requires data to be passed in as a dictionary
+
+        self.full_gid = {}  # translate from canonical GID to NCBI accession
+
         self.logger = logging.getLogger('timestamp')
 
     def __str__(self):
         """User-friendly string representation."""
-        
+
         return '{{num_genomes:{}}}'.format(len(self.genomes))
-        
+
     def __iter__(self):
         """Iterate over genome IDs comprising genome set."""
-        
+
         for gid in self.genomes:
             yield gid
-        
+
     def __getitem__(self, gid):
         """Get genome."""
-        
+
         return self.genomes[gid]
-        
+
     def __contains__(self, gid):
         """Check if genome is in genome set."""
 
@@ -67,22 +67,22 @@ class Genomes(object):
 
     def __len__(self):
         """Size of genome set."""
-        
+
         return len(self.genomes)
 
     def _convert_int(self, value, default_value=0):
         """Convert database value to integer."""
-        
+
         return int(value) if value and value != 'none' else default_value
-        
+
     def _convert_float(self, value, default_value=0.0):
         """Convert database value to float."""
-        
+
         return float(value) if value and value != 'none' else default_value
-        
+
     def _apply_ncbi_taxonomy_ledgers(self,
-                                        species_exception_file, 
-                                        genus_exception_file):
+                                     species_exception_file,
+                                     genus_exception_file):
         """Apply corrections to NCBI taxonomy."""
 
         species_updates = {}
@@ -97,13 +97,13 @@ class Genomes(object):
                     if gid not in self.genomes:
                         self.logger.warning(f'Genome {gid} in species exception list not defined in genome set.')
                         continue
-                        
+
                     if not sp.startswith('s__'):
                         sp = 's__' + sp
-                        
+
                     self.genomes[gid].ncbi_taxa.species = sp
                     species_updates[gid] = sp
-        
+
         if genus_exception_file:
             with open(genus_exception_file, encoding='utf-8') as f:
                 f.readline()
@@ -114,12 +114,12 @@ class Genomes(object):
                     if gid not in self.genomes:
                         self.logger.warning(f'Genome {gid} in genus exception list not defined in genome set.')
                         continue
-                        
+
                     if genus.startswith('g__'):
                         genus = genus[3:]
-                        
+
                     self.genomes[gid].ncbi_taxa.genus = f'g__{genus}'
-                    
+
                     species = self.genomes[gid].ncbi_taxa.species
                     if species != 's__':
                         specific = self.genomes[gid].ncbi_taxa.specific_epithet
@@ -136,28 +136,28 @@ class Genomes(object):
         for gid in self.genomes:
             if not self.genomes[gid].is_gtdb_type_species():
                 continue
-                
+
             if self.genomes[gid].gtdb_taxa.genus == gtdb_genus:
                 return gid
-                
+
         return None
-    
+
     def gtdb_sp_rep(self, gtdb_sp):
         """Get representative genome for GTDB species cluster."""
 
         for gid in self.genomes:
             if not self.genomes[gid].is_gtdb_sp_rep():
                 continue
-                
+
             if self.genomes[gid].gtdb_taxa.species == gtdb_sp:
                 return gid
-                
+
         self.logger.error(f'Failed to find representative of GTDB species for {gtdb_sp}.')
         sys.exit(-1)
 
     def ncbi_sp_effective_type_genomes(self):
         """Get effect type genomes for each NCBI species."""
-        
+
         ncbi_sp_type_strain_genomes = defaultdict(set)
         for gid in self.genomes:
             if self.genomes[gid].is_effective_type_strain():
@@ -166,61 +166,61 @@ class Genomes(object):
                     # yes, NCBI has genomes marked as assembled from type material
                     # that do not actually have a binomial species name
                     ncbi_sp_type_strain_genomes[ncbi_sp].add(gid)
-                    
+
         return ncbi_sp_type_strain_genomes
 
     def sort_by_assembly_score(self):
         """Return genomes sorted by their assembly score."""
-        
-        for gid in sorted(self.genomes.keys(), 
-                            key=lambda gid: self.genomes[gid].score_assembly(), 
-                            reverse=True):
+
+        for gid in sorted(self.genomes.keys(),
+                          key=lambda gid: self.genomes[gid].score_assembly(),
+                          reverse=True):
             yield gid
 
     def get_gid(self, idx):
         """Get ID of genome at specific index."""
-        
+
         return list(self.genomes)[idx]
-        
+
     def gtdb_type_strain_genomes(self):
         """Get genomes considered type strain of species by GTDB."""
-        
+
         type_strain_gids = set()
         for gid, genome in self.genomes.items():
             if genome.is_gtdb_type_strain():
                 type_strain_gids.add(gid)
-                
+
         return type_strain_gids
-        
+
     def get_ncbi_type_strain_genomes(self):
         """Get type strain genomes for NCBI species."""
-        
+
         type_strain_genomes = defaultdict(set)
         for gid, genome in self.genomes.items():
             if genome.is_effective_type_strain():
                 type_strain_genomes[genome.ncbi_taxa.species].add(gid)
-                
+
         return type_strain_genomes
-        
+
     def named_ncbi_species(self):
         """Get genomes with valid or effectively published, including Candidatus, trusted species names in NCBI taxonomy."""
-        
+
         named_ncbi_sp = defaultdict(set)
         for gid in self.genomes:
             if self.genomes[gid].ncbi_untrustworthy_sp:
                 continue
-                
+
             if not is_placeholder_taxon(self.genomes[gid].ncbi_taxa.species):
                 named_ncbi_sp[self.genomes[gid].ncbi_taxa.species].add(gid)
 
         return named_ncbi_sp
-        
+
     def load_genomic_file_paths(self, genome_path_file):
         """Determine path to genomic FASTA file for each genome."""
 
         for line in open(genome_path_file):
             line_split = line.strip().split('\t')
-            
+
             gid = line_split[0]
             gid = canonical_gid(gid)
             if gid in self.genomes:
@@ -229,50 +229,50 @@ class Genomes(object):
                 genomic_file = os.path.join(genome_path, accession + '_genomic.fna')
                 self.genomes[gid].genomic_file = genomic_file
                 self.genomic_files[gid] = genomic_file
-                
-                #*** Need to handle UBA genomes that can reference via their U_ ID when run through MASH
-                self.genomic_files[accession] = genomic_file 
-                
+
+                # *** Need to handle UBA genomes that can reference via their U_ ID when run through MASH
+                self.genomic_files[accession] = genomic_file
+
     def parse_untrustworthy_type_ledger(self, untrustworth_type_ledger):
         """Determine genomes that should be considered untrustworthy as type material."""
-        
+
         untrustworthy_as_type = set()
         with open(untrustworth_type_ledger) as f:
             f.readline()
             for line in f:
                 tokens = line.strip().split('\t')
                 untrustworthy_as_type.add(canonical_gid(tokens[0]))
-            
+
         return untrustworthy_as_type
-        
+
     def parse_ncbi_untrustworthy_sp_ledger(self, ncbi_untrustworthy_sp_ledger):
         """Determine genomes that should be considered as having untrustworthy NCBI species assignments."""
-        
+
         untrustworthy_ncbi_sp = set()
         with open(ncbi_untrustworthy_sp_ledger) as f:
             f.readline()
             for line in f:
                 tokens = line.strip().split('\t')
                 untrustworthy_ncbi_sp.add(canonical_gid(tokens[0]))
-            
+
         return untrustworthy_ncbi_sp
-        
+
     def set_gtdbtk_classification(self, gtdbtk_classify_file, prev_genomes):
         """Update classification of genomes based on GTDB-Tk results."""
-        
+
         # get species names in previous GTDB release
         prev_ncbi_sp = set()
         prev_gtdb_sp = set()
         for gid in prev_genomes:
             prev_ncbi_sp.add(prev_genomes[gid].ncbi_taxa.species)
             prev_gtdb_sp.add(prev_genomes[gid].gtdb_taxa.species)
-        
+
         # set new genomes to the predicted GTDB-Tk classification, but
         # change genus and species classifications of a genome if it has
         # a previously unseen NCBI species assignment. This is a problematic
         # case for curation as GTDB-Tk is unaware of these assignments.
         # A common example is a new genome being the most basal
-        # member of a genus, this genome being classified to this genus by 
+        # member of a genus, this genome being classified to this genus by
         # GTDB-Tk, but this genome being from a newly proposed genera which
         # should be favored in order to have the GTDB reflect the opinion
         # of the community. New NCBI taxa above the rank of genus are not considered
@@ -285,33 +285,33 @@ class Genomes(object):
         for gid in self.genomes:
             if gid in gtdbtk_classifications:
                 num_updated += 1
-                
+
                 gtdbtk_taxa = Taxa(';'.join(gtdbtk_classifications[gid]))
                 self.genomes[gid].gtdb_taxa.update_taxa(gtdbtk_taxa)
 
                 ncbi_sp = self.genomes[gid].ncbi_taxa.species
-                if (ncbi_sp == 's__' 
+                if (ncbi_sp == 's__'
                     or ncbi_sp in prev_ncbi_sp
-                    or ncbi_sp in prev_gtdb_sp):
+                        or ncbi_sp in prev_gtdb_sp):
                     continue
 
                 self.genomes[gid].gtdb_taxa.set_taxa(5, self.genomes[gid].ncbi_taxa.genus)
                 self.genomes[gid].gtdb_taxa.set_taxa(6, ncbi_sp)
                 num_ncbi_sp += 1
-            
+
         return num_updated, num_ncbi_sp
-        
+
     def set_prev_gtdb_classifications(self, prev_genomes):
         """Set genomes to GTDB assignments in previous release."""
-        
+
         # set current genomes to have same GTDB assignments as in previous
         # GTDB release. This is necessary since genomes may have different
         # NCBI accession numbers between releases and thus the previous GTDB
-        # taxonomy will not be reflected in the latest GTDB database. The 
+        # taxonomy will not be reflected in the latest GTDB database. The
         # exception is if a genome has changed domains, in which case the
         # previous assignment is invalid.
         self.logger.info('Setting GTDB taxonomy of genomes in current genome set.')
-        
+
         update_count = 0
         conflicting_domain_count = 0
         for prev_gid in prev_genomes:
@@ -320,16 +320,16 @@ class Genomes(object):
                     if prev_genomes[prev_gid].gtdb_taxa.domain == self.genomes[prev_gid].gtdb_taxa.domain:
                         # verify updating genomes without assigned GTDB taxa below domain
                         assert self.genomes[prev_gid].gtdb_taxa.phylum == 'p__'
-                        
+
                         update_count += 1
                         self.genomes[prev_gid].gtdb_taxa.update_taxa(prev_genomes[prev_gid].gtdb_taxa)
                     else:
                         conflicting_domain_count += 1
-                        
+
         self.logger.info(f' - updated {update_count:,} genomes.')
         self.logger.info(f' - identified {conflicting_domain_count:,} genomes with conflicting domain assignments.')
-    
-    def load_from_metadata_file(self, 
+
+    def load_from_metadata_file(self,
                                 metadata_file,
                                 species_exception_file=None,
                                 genus_exception_file=None,
@@ -341,7 +341,7 @@ class Genomes(object):
                                 ncbi_untrustworthy_sp_ledger=None,
                                 ncbi_env_bioproject_ledger=None):
         """Create genome set from file(s)."""
-        
+
         pass_qc_gids = set()
         if qc_passed_file:
             with open(qc_passed_file) as f:
@@ -350,7 +350,7 @@ class Genomes(object):
                     line_split = line.strip().split('\t')
                     pass_qc_gids.add(line_split[0].strip())
             self.logger.info(f' - identified {len(pass_qc_gids):,} genomes passing QC.')
-                    
+
         gtdb_type_strains = set()
         if gtdb_type_strains_ledger:
             with open(gtdb_type_strains_ledger) as f:
@@ -360,28 +360,31 @@ class Genomes(object):
                     gid = canonical_gid(tokens[0].strip())
                     gtdb_type_strains.add(gid)
             self.logger.info(f' - identified {len(gtdb_type_strains):,} manually annotated as type strain genomes.')
-                    
+
         excluded_from_refseq_note = {}
         if ncbi_genbank_assembly_file:
             ncbi_bioproject = parse_ncbi_bioproject(ncbi_genbank_assembly_file)
             excluded_from_refseq_note = exclude_from_refseq(ncbi_genbank_assembly_file)
-            
+
         ncbi_env_bioproject = set()
-        with open(ncbi_env_bioproject_ledger) as f:
-            f.readline()
-            for line in f:
-                tokens = line.strip().split('\t')
-                ncbi_env_bioproject.add(tokens[0].strip())
-            
+        if ncbi_env_bioproject_ledger:
+            with open(ncbi_env_bioproject_ledger) as f:
+                f.readline()
+                for line in f:
+                    tokens = line.strip().split('\t')
+                    ncbi_env_bioproject.add(tokens[0].strip())
+
         untrustworthy_as_type = set()
         if untrustworthy_type_ledger:
             untrustworthy_as_type = self.parse_untrustworthy_type_ledger(untrustworthy_type_ledger)
-            self.logger.info(f' - identified {len(untrustworthy_as_type):,} genomes annotated as untrustworthy as type by GTDB.')
-        
+            self.logger.info(
+                f' - identified {len(untrustworthy_as_type):,} genomes annotated as untrustworthy as type by GTDB.')
+
         untrustworthy_ncbi_sp = set()
         if ncbi_untrustworthy_sp_ledger:
             untrustworthy_ncbi_sp = self.parse_ncbi_untrustworthy_sp_ledger(ncbi_untrustworthy_sp_ledger)
-            self.logger.info(f' - identified {len(untrustworthy_ncbi_sp):,} genomes annotated as having untrustworthy NCBI species assignments.')
+            self.logger.info(
+                f' - identified {len(untrustworthy_ncbi_sp):,} genomes annotated as having untrustworthy NCBI species assignments.')
 
         with open(metadata_file, encoding='utf-8') as f:
             headers = f.readline().strip().split('\t')
@@ -391,7 +394,7 @@ class Genomes(object):
             gtdb_taxonomy_index = headers.index('gtdb_taxonomy')
             ncbi_taxonomy_index = headers.index('ncbi_taxonomy')
             ncbi_taxonomy_unfiltered_index = headers.index('ncbi_taxonomy_unfiltered')
-            
+
             gtdb_type_index = headers.index('gtdb_type_designation')
             gtdb_type_sources_index = headers.index('gtdb_type_designation_sources')
             gtdb_type_species_of_genus_index = headers.index('gtdb_type_species_of_genus')
@@ -401,7 +404,7 @@ class Genomes(object):
             ncbi_genome_representation_index = headers.index('ncbi_genome_representation')
             ncbi_refseq_cat_index = headers.index('ncbi_refseq_category')
             ncbi_genome_cat_index = headers.index('ncbi_genome_category')
-            
+
             comp_index = headers.index('checkm_completeness')
             cont_index = headers.index('checkm_contamination')
             sh_100_index = None
@@ -418,54 +421,54 @@ class Genomes(object):
             ncbi_molecule_count_index = headers.index('ncbi_molecule_count')
             ncbi_unspanned_gaps_index = headers.index('ncbi_unspanned_gaps')
             ncbi_spanned_gaps_index = headers.index('ncbi_spanned_gaps')
-            
+
             gtdb_genome_rep_index = headers.index('gtdb_genome_representative')
             gtdb_rep_index = headers.index('gtdb_representative')
-            
+
             if 'lpsn_priority_year' in headers:
                 # this information will be missing from the previous
-                # GTDB metadata file as we strip this out due to 
+                # GTDB metadata file as we strip this out due to
                 # concerns over republishing this information
                 lpsn_priority_index = headers.index('lpsn_priority_year')
 
             for line in f:
                 line_split = line.strip().split('\t')
-                
+
                 ncbi_accn = line_split[genome_index]
                 gid = canonical_gid(ncbi_accn)
                 self.full_gid[gid] = ncbi_accn
 
                 if gid.startswith('U_'):
                     continue
-                        
+
                 if pass_qc_gids and gid not in pass_qc_gids:
                     continue
 
                 gtdb_taxonomy = Taxa(line_split[gtdb_taxonomy_index])
-                
+
                 ncbi_taxonomy = Taxa(line_split[ncbi_taxonomy_index])
-                ncbi_taxonomy_unfiltered = Taxa(line_split[ncbi_taxonomy_unfiltered_index])
-                
+                ncbi_taxonomy_unfiltered = Taxa(line_split[ncbi_taxonomy_unfiltered_index], filtered=False)
+
                 gtdb_type = line_split[gtdb_type_index]
                 gtdb_type_sources = line_split[gtdb_type_sources_index]
                 if gid in gtdb_type_strains:
                     gtdb_type = 'type strain of species'
                     gtdb_type_sources = 'GTDB curator'
                 gtdb_type_species_of_genus = line_split[gtdb_type_species_of_genus_index] == 't'
-                
+
                 ncbi_type = line_split[ncbi_type_index]
                 ncbi_strain_identifiers = line_split[ncbi_strain_identifiers_index]
                 ncbi_asm_level = line_split[ncbi_asm_level_index]
                 ncbi_genome_representation = line_split[ncbi_genome_representation_index]
                 ncbi_refseq_cat = line_split[ncbi_refseq_cat_index]
                 ncbi_genome_cat = line_split[ncbi_genome_cat_index]
-                
-                if ncbi_bioproject.get(gid, None) in ncbi_env_bioproject: #***
-                    # HACK to force genomes from MAG mining projects 
+
+                if ncbi_bioproject.get(gid, None) in ncbi_env_bioproject:  # ***
+                    # HACK to force genomes from MAG mining projects
                     # to be indicated as MAGs which are currently
                     # not correctly annotated at NCBI
                     ncbi_genome_cat = 'derived from environmental source'
-                
+
                 comp = float(line_split[comp_index])
                 cont = float(line_split[cont_index])
                 sh_100 = 0
@@ -482,7 +485,7 @@ class Genomes(object):
                 ncbi_molecule_count = self._convert_int(line_split[ncbi_molecule_count_index])
                 ncbi_unspanned_gaps = self._convert_int(line_split[ncbi_unspanned_gaps_index])
                 ncbi_spanned_gaps = self._convert_int(line_split[ncbi_spanned_gaps_index])
-                
+
                 gtdb_is_rep = line_split[gtdb_rep_index] == 't'
                 gtdb_rid = canonical_gid(line_split[gtdb_genome_rep_index])
                 if create_sp_clusters:
@@ -493,39 +496,39 @@ class Genomes(object):
                     lpsn_priority_year = self._convert_int(line_split[lpsn_priority_index], Genome.NO_PRIORITY_YEAR)
 
                 self.genomes[gid] = Genome(gid,
-                                            ncbi_accn,
-                                            gtdb_rid,
-                                            gtdb_is_rep,
-                                            gtdb_taxonomy,
-                                            ncbi_taxonomy,
-                                            ncbi_taxonomy_unfiltered,
-                                            gtdb_type,
-                                            gtdb_type_sources,
-                                            gtdb_type_species_of_genus,
-                                            gid in untrustworthy_as_type,
-                                            gid in untrustworthy_ncbi_sp,
-                                            ncbi_type,
-                                            ncbi_strain_identifiers,
-                                            ncbi_asm_level,
-                                            ncbi_genome_representation,
-                                            ncbi_refseq_cat,
-                                            ncbi_genome_cat,
-                                            excluded_from_refseq_note.get(gid, ''),
-                                            comp,
-                                            cont,
-                                            sh_100,
-                                            gs,
-                                            contig_count,
-                                            n50,
-                                            scaffold_count,
-                                            ambiguous_bases,
-                                            total_gap_len,
-                                            ssu_count,
-                                            ssu_length,
-                                            ncbi_molecule_count,
-                                            ncbi_unspanned_gaps,
-                                            ncbi_spanned_gaps,
-                                            lpsn_priority_year)
-                                            
+                                           ncbi_accn,
+                                           gtdb_rid,
+                                           gtdb_is_rep,
+                                           gtdb_taxonomy,
+                                           ncbi_taxonomy,
+                                           ncbi_taxonomy_unfiltered,
+                                           gtdb_type,
+                                           gtdb_type_sources,
+                                           gtdb_type_species_of_genus,
+                                           gid in untrustworthy_as_type,
+                                           gid in untrustworthy_ncbi_sp,
+                                           ncbi_type,
+                                           ncbi_strain_identifiers,
+                                           ncbi_asm_level,
+                                           ncbi_genome_representation,
+                                           ncbi_refseq_cat,
+                                           ncbi_genome_cat,
+                                           excluded_from_refseq_note.get(gid, ''),
+                                           comp,
+                                           cont,
+                                           sh_100,
+                                           gs,
+                                           contig_count,
+                                           n50,
+                                           scaffold_count,
+                                           ambiguous_bases,
+                                           total_gap_len,
+                                           ssu_count,
+                                           ssu_length,
+                                           ncbi_molecule_count,
+                                           ncbi_unspanned_gaps,
+                                           ncbi_spanned_gaps,
+                                           lpsn_priority_year)
+
         self._apply_ncbi_taxonomy_ledgers(species_exception_file,
-                                            genus_exception_file)
+                                          genus_exception_file)

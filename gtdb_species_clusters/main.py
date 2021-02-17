@@ -23,6 +23,7 @@ from biolib.common import check_file_exists, make_sure_path_exists
 
 from gtdb_species_clusters.update_new_genomes import NewGenomes
 from gtdb_species_clusters.update_qc_genomes import QcGenomes
+from gtdb_species_clusters.update_lpsn_ssu_types import LPSN_SSU_Types
 from gtdb_species_clusters.update_resolve_types import ResolveTypes
 from gtdb_species_clusters.update_gtdbtk import GTDB_Tk
 from gtdb_species_clusters.update_rep_changes import RepChanges
@@ -108,6 +109,29 @@ class OptionsParser():
 
         self.logger.info(
             f'Quality checking information written to: {args.output_dir}')
+
+    def u_lpsn_rna_types(self, args):
+        """Identify type genomes based on type 16S rRNA sequences indicated at LPSN."""
+
+        check_file_exists(args.lpsn_metadata_file)
+        check_file_exists(args.cur_gtdb_metadata_file)
+        check_file_exists(args.cur_genomic_path_file)
+        check_file_exists(args.qc_passed_file)
+        check_file_exists(args.ncbi_genbank_assembly_file)
+        check_file_exists(args.gtdb_type_strains_ledger)
+        check_file_exists(args.untrustworthy_type_ledger)
+        make_sure_path_exists(args.output_dir)
+
+        p = LPSN_SSU_Types(args.cpus, args.output_dir)
+        p.run(args.lpsn_metadata_file,
+              args.cur_gtdb_metadata_file,
+              args.cur_genomic_path_file,
+              args.qc_passed_file,
+              args.ncbi_genbank_assembly_file,
+              args.gtdb_type_strains_ledger,
+              args.untrustworthy_type_ledger)
+
+        self.logger.info('Done.')
 
     def u_resolve_types(self, args):
         """Resolve cases where a species has multiple genomes assembled from the type strain."""
@@ -939,6 +963,8 @@ class OptionsParser():
             self.u_new_genomes(args)
         elif args.subparser_name == 'u_qc_genomes':
             self.u_qc_genomes(args)
+        elif args.subparser_name == 'u_lpsn_rna_types':
+            self.u_lpsn_rna_types(args)
         elif args.subparser_name == 'u_resolve_types':
             self.u_resolve_types(args)
         elif args.subparser_name == 'u_gtdbtk':

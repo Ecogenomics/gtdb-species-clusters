@@ -23,18 +23,19 @@ from biolib.taxonomy import Taxonomy
 class Taxa(object):
     """Taxa for organism."""
 
-    def __init__(self, taxa_str):
+    def __init__(self, taxa_str, filtered=True):
         """Initialization."""
 
-        self._parse_taxa(taxa_str)
+        self._parse_taxa(taxa_str, filtered)
 
         self.logger = logging.getLogger('timestamp')
 
-    def _parse_taxa(self, taxa_str):
+    def _parse_taxa(self, taxa_str, filtered):
         """Convert taxonomy string to taxa list."""
 
         if taxa_str and taxa_str != 'none':
-            taxa_str = taxa_str.replace('Candidatus ', '')
+            if filtered:
+                taxa_str = taxa_str.replace('Candidatus ', '')
             self.taxa = [t.strip() for t in taxa_str.split(';')]
         else:
             self.taxa = Taxonomy.rank_prefixes
