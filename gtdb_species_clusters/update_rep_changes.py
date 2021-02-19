@@ -109,7 +109,7 @@ class RepChanges():
         fout_summary.write(
             'Genome ID\tPrevious GTDB species\tNo. genomes in cluster')
         fout_summary.write(
-            '\tGENOMIC_CHANGE\tNCBI_SPECIES_CHANGE\tTYPE_STRAIN_CHANGE\tDOMAIN_CHECK\tDISBANDED_CHECK')
+            '\tGENOMIC_CHANGE\tNCBI_SPECIES_CHANGE\tTYPE_STRAIN_CHANGE\tDOMAIN_CHECK\tNCBI_ASSEMBLY_QUALITY\tDISBANDED_CHECK')
         fout_summary.write('\tNew type strains\tRepresentative changed\n')
 
         fout_detailed = open(os.path.join(
@@ -128,13 +128,12 @@ class RepChanges():
         lost_type_strain = set()
         gain_type_strain = set()
         new_type_strain = set()
+        ncbi_anomalous_assembly = set()
 
         changed_domain = set()
         unchanged_domain = set()
 
         num_rep_changes = 0
-        first_type_strain = set()
-
         disbanded_count = 0
 
         for prev_rid, prev_gtdb_sp in prev_genomes.sp_clusters.species():
@@ -200,6 +199,17 @@ class RepChanges():
                     unchanged_domain.add(prev_rid)
                     fout_summary.write('\tUNCHANGED')
 
+                # check if NCBI has marked genome assembly as problematic
+                if cur_genomes[prev_rid].is_ncbi_many_frameshifted_proteins() or cur_genomes[prev_rid].is_ncbi_anomalous_assembly():
+                    ncbi_anomalous_assembly.add(prev_rid)
+                    fout_summary.write('\tNCBI_ANOMALOUS_ASSEMBLY')
+                    fout_detailed.write('{}\t{}\tNCBI_ASSEMBLY_METADATA:NCBI_ANOMALOUS_ASSEMBLY\tExcluded = {}\n'.format(
+                        prev_rid,
+                        prev_gtdb_sp,
+                        cur_genomes[prev_rid].excluded_from_refseq_note))
+                else:
+                    fout_summary.write('\tNCBI_GOOD_ASSEMBLY')
+
                 # check if GTDB species cluster is flagged to be disbanded
                 if prev_rid in disbanded_rids:
                     disbanded_count += 1
@@ -240,8 +250,8 @@ class RepChanges():
                 fout_summary.write('\n')
             else:
                 lost_genome.add(prev_rid)
-                fout_summary.write('\t{}\t{}\t{}\t{}\t{}\n'.format(
-                    'LOST', 'N/A', 'N/A', 'N/A', 'YES'))
+                fout_summary.write('\t{}\t{}\t{}\t{}\t{}\t{}\n'.format(
+                    'LOST', 'N/A', 'N/A', 'N/A', 'N/A', 'YES'))
                 fout_detailed.write(
                     f'{prev_rid}\t{prev_gtdb_sp}\tGENOMIC_CHANGE:LOST\tGenome not present in current GTDB release\n')
                 num_rep_changes += 1
@@ -298,6 +308,9 @@ class RepChanges():
             f'  unchanged: {len(unchanged_domain):,} ({unchanged_domain_perc:.1f}%)')
         self.logger.info(
             f'  reassigned: {len(changed_domain):,} ({changed_domain_perc:.1f}%)')
+
+        self.logger.info('Identified {:,} representatives marked as anomalous assemblies at NCBI.'.format(
+            len(ncbi_anomalous_assembly)))
 
         self.logger.info(
             'Identified {:,} GTDB clusters to be disbanded.'.format(disbanded_count))

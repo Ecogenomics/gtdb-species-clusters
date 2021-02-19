@@ -189,6 +189,21 @@ class Genome(object):
 
         return 'untrustworthy as type' in self.excluded_from_refseq_note.lower()
 
+    def is_ncbi_many_frameshifted_proteins(self):
+        """Check if genomes considered to have many frameshifted proteins by NCBI."""
+
+        return 'many frameshifted proteins' in self.excluded_from_refseq_note.lower()
+
+    def is_ncbi_anomalous_assembly(self):
+        """Check if genomes considered to be an anomalous assembly by NCBI."""
+
+        return ('mixed culture' in self.excluded_from_refseq_note.lower()
+                or 'chimeric' in self.excluded_from_refseq_note.lower()
+                or 'hybrid' in self.excluded_from_refseq_note.lower()
+                or 'contaminated' in self.excluded_from_refseq_note.lower()
+                or 'misassembled' in self.excluded_from_refseq_note.lower()
+                or 'sequence duplications' in self.excluded_from_refseq_note.lower())
+
     def is_ncbi_type_strain(self):
         """Check if genome is a type strain genome at NCBI."""
 
@@ -362,10 +377,8 @@ class Genome(object):
 
         q = 0
 
-        # check if genome appears to complete consist of only an unspanned
-        # chromosome and unspanned plasmids and thus should be considered
+        # check if genome appears complete and thus should be considered
         # very high quality
-
         if self.is_complete_genome():
             q += 100
 
@@ -385,6 +398,16 @@ class Genome(object):
 
         if self.ssu_length and self.ssu_length >= min_ssu_len:
             q += 10
+
+        # check if genome is annotated as having many frameshifted proteins
+        # at NCBI and thus is less desirable than otherwise equivalent
+        # assemblies (added: Feb. 18, 2021)
+        if self.is_ncbi_many_frameshifted_proteins():
+            q -= 25
+
+        # check if NCBI considers genome assembly anomalous (added: Feb. 18, 2021)
+        if self.is_ncbi_anomalous_assembly():
+            q -= 25
 
         return q
 

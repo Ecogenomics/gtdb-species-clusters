@@ -143,6 +143,11 @@ class RepActions():
             ani, af = FastANI.symmetric_ani(ani_af, prev_rid, cid)
 
             cur_score = cur_genomes[cid].score_ani(ani)
+
+            if self.violates_naming_priority(cur_genomes, prev_rid, cid):
+                # skip genomes that result in a naming priority violation
+                continue
+
             if cur_score > max_score:
                 max_score = cur_score
                 max_rid = cid
@@ -187,6 +192,28 @@ class RepActions():
 
         return sp_cids
 
+    def violates_naming_priority(self, cur_genomes, prev_rid, new_rid):
+        """Check if proposed change in GTDB representative conflicts with naming priority."""
+
+        if (cur_genomes[prev_rid].is_gtdb_type_strain()
+                and cur_genomes[prev_rid].ncbi_taxa.specific_epithet != cur_genomes[new_rid].ncbi_taxa.specific_epithet
+                and self.sp_priority_mngr.test_species_priority(cur_genomes, prev_rid, new_rid)):
+            # Previous representative has naming priority over proposed new representative
+            # which is a violations
+
+            if False:  # *** DEBUGGING
+                self.logger.warning('Reassignments to type strain genome with lower naming priority is not allowed: {}/{}/{}, {}/{}/{}'.format(
+                    prev_rid,
+                    cur_genomes[prev_rid].ncbi_taxa.species,
+                    cur_genomes[prev_rid].year_of_priority(),
+                    new_rid,
+                    cur_genomes[new_rid].ncbi_taxa.species,
+                    cur_genomes[new_rid].year_of_priority()))
+
+            return True
+
+        return False
+
     def action_genomic_lost(self,
                             rep_change_summary_file,
                             prev_genomes,
@@ -200,7 +227,7 @@ class RepActions():
         genomic_lost_rids = self.rep_change_gids(rep_change_summary_file,
                                                  'GENOMIC_CHANGE',
                                                  'LOST')
-        self.logger.info(f' - identified {len(genomic_lost_rids):,} genomes.')
+        self.logger.info(f' - identified {len(genomic_lost_rids):,} genomes')
 
         # calculate ANI between previous and current genomes
         for prev_rid, prev_gtdb_sp in genomic_lost_rids.items():
@@ -245,7 +272,7 @@ class RepActions():
         disbanded_rids = self.rep_change_gids(rep_change_summary_file,
                                               'DISBANDED_CHECK',
                                               'TRUE')
-        self.logger.info(f' - identified {len(disbanded_rids):,} genomes.')
+        self.logger.info(f' - identified {len(disbanded_rids):,} genomes')
 
         # log disbanded genomes
         for prev_rid, prev_gtdb_sp in disbanded_rids.items():
@@ -275,7 +302,7 @@ class RepActions():
                                                    'GENOMIC_CHANGE',
                                                    'UPDATED')
         self.logger.info(
-            f' - identified {len(genomic_update_gids):,} genomes.')
+            f' - identified {len(genomic_update_gids):,} genomes')
 
         # calculate ANI between previous and current genomes
         assembly_score_change = []
@@ -359,7 +386,7 @@ class RepActions():
                                                       'TYPE_STRAIN_CHANGE',
                                                       'LOST')
         self.logger.info(
-            f' - identified {len(ncbi_type_species_lost):,} genomes.')
+            f' - identified {len(ncbi_type_species_lost):,} genomes')
 
         for prev_rid, prev_gtdb_sp in ncbi_type_species_lost.items():
             # check that genome hasn't been lost which should
@@ -420,7 +447,7 @@ class RepActions():
         domain_changed = self.rep_change_gids(rep_change_summary_file,
                                               'DOMAIN_CHECK',
                                               'REASSIGNED')
-        self.logger.info(f' - identified {len(domain_changed):,} genomes.')
+        self.logger.info(f' - identified {len(domain_changed):,} genomes')
 
         for prev_rid, prev_gtdb_sp in domain_changed.items():
             action = 'DOMAIN_CHECK:REASSIGNED'
@@ -434,6 +461,96 @@ class RepActions():
                 prev_gtdb_sp,
                 action,
                 params))
+
+    def action_ncbi_anomalous_assemblies(self,
+                                         rep_change_summary_file,
+                                         prev_genomes,
+                                         cur_genomes,
+                                         new_updated_sp_clusters):
+        """Check if representative considered to have an anomalous assembly at NCBI should be replaced."""
+
+        # get genomes with specific changes
+        self.logger.info('Identifying genomes marked as problematic as NCBI.')
+        ncbi_problematic_rids = self.rep_change_gids(rep_change_summary_file,
+                                                     'NCBI_ASSEMBLY_QUALITY',
+                                                     'NCBI_ANOMALOUS_ASSEMBLY')
+        self.logger.info(f' - identified {len(ncbi_problematic_rids):,} genomes')
+
+        anis = []
+        afs = []
+        num_frameshifted_proteins = 0
+        num_anomalous = 0
+        for idx, (prev_rid, prev_gtdb_sp) in enumerate(ncbi_problematic_rids.items()):
+            # check that genome hasn't been lost which should
+            # be handled differently
+            assert prev_rid in cur_genomes
+
+            sp_cids = self.genomes_in_current_sp_cluster(prev_rid,
+                                                         prev_genomes,
+                                                         new_updated_sp_clusters,
+                                                         cur_genomes)
+
+            status_str = '-> Processing {:,} of {:,} ({:.2f}%) species [{}: {:,} genomes].'.format(
+                idx+1,
+                len(ncbi_problematic_rids),
+                float(idx+1)*100/len(ncbi_problematic_rids),
+                prev_gtdb_sp,
+                len(sp_cids))
+            sys.stdout.write('\r\033[K')  # clear line
+            sys.stdout.write(f'{status_str}')
+            sys.stdout.flush()
+
+            # get latest representative of GTDB species clusters as it may
+            # have been updated by a previous update rule
+            prev_updated_rid = self.get_updated_rid(prev_rid)
+
+            prev_rep_score = cur_genomes[prev_rid].score_ani(100)
+            new_rid, top_score, ani, af = self.top_ani_score(prev_rid,
+                                                             sp_cids,
+                                                             cur_genomes)
+
+            if top_score > prev_rep_score and prev_updated_rid != new_rid:
+                action = 'NCBI_ANOMALOUS_ASSEMBLY:REPLACED:HIGHER_QS'
+
+                params = {}
+                params['new_rid'] = new_rid
+                params['ani'] = ani
+                params['af'] = af
+                params['new_assembly_quality'] = cur_genomes[new_rid].score_assembly()
+                params['prev_assembly_quality'] = cur_genomes[prev_updated_rid].score_assembly()
+                params['new_gtdb_type_of_species'] = cur_genomes[new_rid].is_gtdb_type_strain()
+                params['prev_gtdb_type_of_species'] = cur_genomes[prev_updated_rid].is_gtdb_type_strain()
+                params['new_ncbi_type_of_species'] = cur_genomes[new_rid].is_ncbi_type_strain()
+                params['prev_ncbi_type_of_species'] = cur_genomes[prev_updated_rid].is_ncbi_type_strain()
+                params['new_gtdb_type_of_subsp'] = cur_genomes[new_rid].is_gtdb_type_subspecies()
+                params['prev_gtdb_type_of_subsp'] = cur_genomes[prev_updated_rid].is_gtdb_type_subspecies()
+                params['new_ncbi_type_of_subsp'] = cur_genomes[new_rid].is_ncbi_type_subspecies()
+                params['prev_ncbi_type_of_subsp'] = cur_genomes[prev_updated_rid].is_ncbi_type_subspecies()
+
+                anis.append(ani)
+                afs.append(af)
+
+                if cur_genomes[prev_rid].is_ncbi_many_frameshifted_proteins():
+                    num_frameshifted_proteins += 1
+
+                if cur_genomes[prev_rid].is_ncbi_anomalous_assembly():
+                    num_anomalous += 1
+
+                self.update_rep(prev_rid, new_rid, action)
+
+                self.action_log.write('{}\t{}\t{}\t{}\n'.format(
+                    prev_rid,
+                    prev_gtdb_sp,
+                    action,
+                    params))
+
+        sys.stdout.write('\n')
+
+        self.logger.info(f' - identified {len(anis):,} species with improved representatives')
+        self.logger.info(f'   - {num_frameshifted_proteins:,} marked as having many frameshifted proteins')
+        self.logger.info(f'   - {num_anomalous:,} marked as being an anomalous assembly')
+        self.logger.info(
+            f' - ANI = {np_mean(anis):.2f} +/- {np_std(anis):.2f}%; AF = {np_mean(afs)*100:.2f} +/- {np_std(afs)*100:.2f}%')
 
     def action_improved_rep(self,
                             cur_genomes,
@@ -462,13 +579,14 @@ class RepActions():
                 continue
 
             prev_gtdb_sp = new_updated_sp_clusters.get_species(prev_rid)
-            statusStr = '-> Processing {:,} of {:,} ({:.2f}%) species [{}: {:,} new/updated genomes].'.format(
+            status_str = '-> Processing {:,} of {:,} ({:.2f}%) species [{}: {:,} new/updated genomes].'.format(
                 idx+1,
                 len(new_updated_sp_clusters),
                 float(idx+1)*100/len(new_updated_sp_clusters),
                 prev_gtdb_sp,
-                len(cids)).ljust(86)
-            sys.stdout.write('%s\r' % statusStr)
+                len(cids))
+            sys.stdout.write('\r\033[K')  # clear line
+            sys.stdout.write(f'{status_str}')
             sys.stdout.flush()
 
             # get latest representative of GTDB species clusters as it may
@@ -480,28 +598,12 @@ class RepActions():
                                                              cids,
                                                              cur_genomes)
 
-            params = {}
-            action = None
-
             if top_score > prev_rep_score + RepActions.NEW_REP_QC_THRESHOLD:
                 assert prev_updated_rid != new_rid
 
-                if (cur_genomes[prev_updated_rid].is_gtdb_type_strain()
-                        and cur_genomes[prev_updated_rid].ncbi_taxa.specific_epithet != cur_genomes[new_rid].ncbi_taxa.specific_epithet
-                        and self.sp_priority_mngr.test_species_priority(cur_genomes, prev_updated_rid, new_rid)):
-                    # GTDB species cluster should not be moved to a different type strain genome
-                    # that has lower naming priority
-                    self.logger.warning('Reassignments to type strain genome with lower naming priority is not allowed: {}/{}/{}, {}/{}/{}'.format(
-                        prev_updated_rid,
-                        cur_genomes[prev_updated_rid].ncbi_taxa.species,
-                        cur_genomes[prev_updated_rid].year_of_priority(),
-                        new_rid,
-                        cur_genomes[new_rid].ncbi_taxa.species,
-                        cur_genomes[new_rid].year_of_priority()))
-                    continue
-
                 action = 'IMPROVED_REP:REPLACED:HIGHER_QS'
 
+                params = {}
                 params['new_rid'] = new_rid
                 params['ani'] = ani
                 params['af'] = af
@@ -580,19 +682,19 @@ class RepActions():
 
         sys.stdout.write('\n')
         self.logger.info(
-            f' - identified {len(improved_reps):,} species with improved representatives.')
+            f' - identified {len(improved_reps):,} species with improved representatives')
         self.logger.info(
-            f'   - {num_gtdb_ncbi_type_sp:,} replaced with GTDB/NCBI genome from type strain.')
+            f'   - {num_gtdb_ncbi_type_sp:,} replaced with GTDB/NCBI genome from type strain')
         self.logger.info(
-            f'   - {num_gtdb_type_sp:,} replaced with GTDB genome from type strain.')
+            f'   - {num_gtdb_type_sp:,} replaced with GTDB genome from type strain')
         self.logger.info(
-            f'   - {num_ncbi_type_sp:,} replaced with NCBI genome from type strain.')
+            f'   - {num_ncbi_type_sp:,} replaced with NCBI genome from type strain')
         self.logger.info(
-            f'   - {num_isolate:,} replaced MAG/SAG with isolate.')
+            f'   - {num_isolate:,} replaced MAG/SAG with isolate')
         self.logger.info(
-            f'   - {num_complete:,} replaced with complete genome assembly.')
+            f'   - {num_complete:,} replaced with complete genome assembly')
         self.logger.info(
-            f' - ANI = {np_mean(anis):.2f} +/- {np_std(anis):.2f}%; AF = {np_mean(afs)*100:.2f} +/- {np_std(afs)*100:.2f}%.')
+            f' - ANI = {np_mean(anis):.2f} +/- {np_std(anis):.2f}%; AF = {np_mean(afs)*100:.2f} +/- {np_std(afs)*100:.2f}%')
 
         # report NCBI BioProject resulting in large numbers of GTDB reps being replaced with presumed isolates
         for bioproject, count in ncbi_bioproject_count.items():
@@ -739,7 +841,7 @@ class RepActions():
         fout.close()
 
         self.logger.info(
-            f' - identified {num_higher_priority:,} species with representative changed to genome with higher nomenclatural priority.')
+            f' - identified {num_higher_priority:,} species with representative changed to genome with higher nomenclatural priority')
         self.logger.info(' - change in assembly score for new representatives: {:.2f} +/- {:.2f}'.format(
             np_mean(assembly_score_change),
             np_std(assembly_score_change)))
@@ -788,7 +890,7 @@ class RepActions():
 
         fout.close()
 
-        self.logger.info(f' - wrote {num_clusters:,} clusters.')
+        self.logger.info(f' - wrote {num_clusters:,} clusters')
 
     def run(self,
             rep_change_summary_file,
@@ -816,7 +918,7 @@ class RepActions():
                                              ncbi_genbank_assembly_file=ncbi_genbank_assembly_file,
                                              untrustworthy_type_ledger=untrustworthy_type_file,
                                              ncbi_env_bioproject_ledger=ncbi_env_bioproject_ledger)
-        self.logger.info(' - previous genome set has {:,} species clusters spanning {:,} genomes.'.format(
+        self.logger.info(' - previous genome set has {:,} species clusters spanning {:,} genomes'.format(
             len(prev_genomes.sp_clusters),
             prev_genomes.sp_clusters.total_num_genomes()))
 
@@ -877,6 +979,11 @@ class RepActions():
         self.action_domain_change(rep_change_summary_file,
                                   prev_genomes,
                                   cur_genomes)
+
+        self.action_ncbi_anomalous_assemblies(rep_change_summary_file,
+                                              prev_genomes,
+                                              cur_genomes,
+                                              new_updated_sp_clusters)
 
         if True:  # ***DEBUG FLAG
             improved_reps = self.action_improved_rep(cur_genomes,
@@ -939,7 +1046,7 @@ class RepActions():
             f'Identified {num_gtdb_type_sp_untrustworthy_at_ncbi:,} type strain representatives considered untrustworthy as type at NCBI.')
         if num_diff_sp > 0:
             self.logger.warning(
-                f' - {num_diff_sp:,} genomes have incongruent GTDB and NCBI species assignments.')
+                f' - {num_diff_sp:,} genomes have incongruent GTDB and NCBI species assignments')
 
         self.action_log.close()
 
