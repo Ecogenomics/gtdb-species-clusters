@@ -44,7 +44,8 @@ from gtdb_species_clusters.taxon_utils import (generic_name,
                                                sort_by_naming_priority,
                                                is_latin_sp_epithet,
                                                is_placeholder_sp_epithet,
-                                               test_same_epithet)
+                                               test_same_epithet,
+                                               longest_common_suffix)
 
 
 class PMC_SpeciesNames(object):
@@ -162,6 +163,12 @@ class PMC_SpeciesNames(object):
         elif is_placeholder_sp_epithet(gtdb_specific):
             # Latin name with a suffix or sp<accn> specific name is by definition an
             # error since this is a type strain genome
+            # [DHP (Mar. 22, 2021): actually this isn't always true since we have the
+            # case of a type strain genome being transferred to a new genus where
+            # the specific name needs a suffix, e.g.: G002240355 is the type strain
+            # of Prauserella marina, but was transferred to the genus Saccharomonospora
+            # and S. marina is already a recognized name so this genome should have
+            # the name S. marina_A].
             case_count['ERRONEOUS_SUFFIX_TYPE_STRAIN'] += 1
             note = 'type strain genome had erroneous placeholder suffix'
             final_sp = 's__{} {}'.format(gtdb_generic, ncbi_specific)
@@ -378,7 +385,7 @@ class PMC_SpeciesNames(object):
         # defer to assignments in species classification ledger unless they
         # actively conflict with other assignments, in which case manual
         # curation is required
-        fout = open('species_classification_ledger_updates.tsv', 'w')
+        fout = open(os.path.join(self.output_dir, 'species_classification_ledger_updates.tsv'), 'w')
         fout.write('Genome ID in ledger\tRepresentive ID of cluster')
         fout.write(
             '\tLedger species\tGTDB species name after applying ledger\tSame as ledger\tGTDB species name before applying ledger')
@@ -885,6 +892,18 @@ class PMC_SpeciesNames(object):
         mc_species = parse_manual_sp_curation_files(manual_sp_names,
                                                     pmc_custom_species)
 
+        # sanity check that manually curated species names don't conflict with ledger
+        with open(species_classification_ledger) as f:
+            f.readline()
+            for line in f:
+                tokens = line.strip().split('\t')
+
+                gid = canonical_gid(tokens[0])
+                if gid in mc_species and mc_species[gid].replace('s__', '') != tokens[1].replace('s__', ''):
+                    self.logger.error(
+                        f'Manually-curated name for {gid} conflicts with {species_classification_ledger}: {mc_species[gid]} {tokens[1]}')
+                    sys.exit(-1)
+
         # create previous and current GTDB genome sets
         self.logger.info('Creating previous GTDB genome set.')
         prev_genomes = Genomes()
@@ -944,12 +963,14 @@ class PMC_SpeciesNames(object):
             specific_epithet_ledger)
         self.sp_epithet_mngr.infer_epithet_map(mc_taxonomy,
                                                mc_species,
-                                               cur_genomes,
-                                               cur_clusters)
+                                               cur_genomes)
         self.sp_epithet_mngr.write_diff_epithet_map(
             os.path.join(self.output_dir, 'specific_epithet_diff_map.tsv'))
         self.sp_epithet_mngr.write_epithet_map(
             os.path.join(self.output_dir, 'specific_epithet_map.tsv'))
+        self.sp_epithet_mngr.write_epithet_map(
+            os.path.join(self.output_dir, 'specific_epithet_map.new_cases.tsv'),
+            filtered_previously_checked=True)
 
         # create species name manager
         self.logger.info('Initializing species name manager.')

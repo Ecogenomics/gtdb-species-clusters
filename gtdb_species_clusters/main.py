@@ -689,7 +689,7 @@ class OptionsParser():
         check_file_exists(args.specific_epithet_ledger)
         check_file_exists(args.ncbi_env_bioproject_ledger)
         check_file_exists(args.lpsn_gss_metadata_file)
-        check_file_exists(args.lpsn_type_material_file)
+        check_file_exists(args.lpsn_data)
 
         if args.ground_truth_test_cases.lower() != 'none':
             check_file_exists(args.ground_truth_test_cases)
@@ -717,7 +717,7 @@ class OptionsParser():
               args.specific_epithet_ledger,
               args.ncbi_env_bioproject_ledger,
               args.lpsn_gss_metadata_file,
-              args.lpsn_type_material_file,
+              args.lpsn_data,
               args.ground_truth_test_cases,
               args.skip_full_taxonomy_checks,
               args.skip_genus_checks)

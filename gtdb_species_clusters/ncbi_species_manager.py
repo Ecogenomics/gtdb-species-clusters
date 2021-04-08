@@ -538,7 +538,7 @@ class NCBI_SpeciesManager():
                     gtdb_rid,
                     gtdb_rep_ncbi_sp_assignments[gtdb_rid],
                     ncbi_species))
-                sys.exit(-1)
+                # ***sys.exit(-1)
             gtdb_rep_ncbi_sp_assignments[gtdb_rid] = ncbi_species
 
         return ncbi_all_species, unambiguous_ncbi_sp, ambiguous_ncbi_sp

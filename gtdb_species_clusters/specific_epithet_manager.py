@@ -18,11 +18,14 @@
 import logging
 from collections import defaultdict, Counter
 
+from biolib.taxonomy import Taxonomy
+
 from gtdb_species_clusters.taxon_utils import (canonical_taxon,
                                                test_same_epithet,
                                                generic_name,
                                                specific_epithet,
-                                               is_placeholder_taxon)
+                                               is_placeholder_taxon,
+                                               longest_common_suffix)
 
 
 class SpecificEpithetManager():
@@ -34,6 +37,7 @@ class SpecificEpithetManager():
         self.logger = logging.getLogger('timestamp')
 
         self.curated_epithet_changes = {}
+        self.previously_curated = {}
         self.sp_epithet_map = defaultdict(lambda: {})
         self.gtdb_ncbi_generic_map = defaultdict(lambda: defaultdict(list))
 
@@ -48,6 +52,7 @@ class SpecificEpithetManager():
             generic_idx = header.index('GTDB generic')
             sp_corr_idx = header.index('GTDB specific_corrected')
             sp_idx = header.index('GTDB specific')
+            ncbi_generic_idx = header.index('NCBI generic')
             ncbi_sp_idx = header.index('NCBI specific')
 
             for line in f:
@@ -56,9 +61,14 @@ class SpecificEpithetManager():
                 gtdb_generic = tokens[generic_idx]
                 specific_corr = tokens[sp_corr_idx]
                 gtdb_specific = tokens[sp_idx]
+                ncbi_generic = tokens[ncbi_generic_idx]
                 ncbi_specific = tokens[ncbi_sp_idx]
 
+                self.previously_curated[f's__{gtdb_generic} {gtdb_specific}'] = f's__{ncbi_generic} {ncbi_specific}'
+
                 if specific_corr:
+                    self.previously_curated[f's__{gtdb_generic} {specific_corr}'] = f's__{ncbi_generic} {ncbi_specific}'
+
                     species_orig = 's__{} {}'.format(
                         gtdb_generic, gtdb_specific)
                     species_corr = 's__{} {}'.format(
@@ -82,10 +92,9 @@ class SpecificEpithetManager():
         return self.curated_epithet_changes.get(gtdb_species, gtdb_species)
 
     def infer_epithet_map(self,
-                          gids_of_interest,
+                          cur_taxonomy,
                           mc_species,
-                          cur_genomes,
-                          cur_clusters):
+                          cur_genomes):
         """Infer mapping of NCBI epithet to GTDB epithet which may be different due to gender of genus."""
 
         # **************************************
@@ -96,11 +105,8 @@ class SpecificEpithetManager():
 
         # get species in GTDB genus
         generic_rids = defaultdict(list)
-        for rid in cur_clusters:
-            if rid not in gids_of_interest:
-                continue
-
-            gtdb_generic = cur_genomes[rid].gtdb_taxa.genus.replace('g__', '')
+        for rid in cur_taxonomy:
+            gtdb_generic = cur_taxonomy[rid][Taxonomy.GENUS_INDEX].replace('g__', '')
             if rid in mc_species:
                 gtdb_generic = generic_name(mc_species[rid])
 
@@ -143,7 +149,7 @@ class SpecificEpithetManager():
                     self.sp_epithet_map[gtdb_generic][ncbi_specific] = top_gtdb_specific
 
                 if map_perc != 100:
-                    self.logger.warning('Imperfect suffix mapping between from {} {} to {} at {:.1f}%.'.format(
+                    self.logger.warning('Imperfect suffix mapping between {} {} to {} at {:.1f}%.'.format(
                         gtdb_generic,
                         top_gtdb_specific,
                         ncbi_specific,
@@ -181,7 +187,7 @@ class SpecificEpithetManager():
 
         fout.close()
 
-    def write_epithet_map(self, output_file):
+    def write_epithet_map(self, output_file, filtered_previously_checked=False):
         """Write out epithet map."""
 
         fout = open(output_file, 'w')
@@ -200,6 +206,27 @@ class SpecificEpithetManager():
                     0]
 
                 if top_ncbi_generic != gtdb_generic:
+                    if filtered_previously_checked:
+                        gtdb_sp = f's__{gtdb_generic} {gtdb_specific}'
+                        ncbi_sp = f's__{top_ncbi_generic} {ncbi_specific}'
+                        if gtdb_sp in self.previously_curated and ncbi_sp in self.previously_curated[gtdb_sp]:
+                            continue
+
+                        # also skip the following as recommended by Masha:
+                        # genera end in -ium, -um, -ella, or -iella
+                        suffixes = ('ium', 'um', 'ella', 'iella')
+                        if gtdb_generic.endswith(suffixes) and top_ncbi_generic.endswith(suffixes):
+                            continue
+
+                        # genera that end in the same suffix can also be skipped,
+                        # but there isn't an easy way to establish the suffix so
+                        # here we just skip cases where the last 56+ characters are
+                        # the same to catch cases like 'bacter', 'vibrio', 'plasma',
+                        # 'spora', 'monas', etc.
+                        lcs = longest_common_suffix(gtdb_generic, top_ncbi_generic)
+                        if len(lcs) >= 5:
+                            continue
+
                     fout.write('{}\t{}\t{}\t{}\n'.format(
                         gtdb_generic,
                         gtdb_specific,

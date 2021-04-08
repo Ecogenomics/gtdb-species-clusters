@@ -15,6 +15,8 @@
 #                                                                             #
 ###############################################################################
 
+import os
+import sys
 import logging
 from itertools import takewhile
 
@@ -74,6 +76,12 @@ def longest_common_prefix(*s):
     """
 
     return ''.join(a for a, b in takewhile(lambda x: x[0] == x[1], zip(min(s), max(s))))
+
+
+def longest_common_suffix(taxon1, taxon2):
+    """Find the longest common suffix."""
+
+    return longest_common_prefix(taxon1[::-1], taxon2[::-1])[::-1]
 
 
 def test_same_epithet(epithet1, epithet2):
@@ -175,7 +183,11 @@ def generic_name(species_name):
     if species_name == 's__':
         return ''
 
-    generic, _specific = species_name.split()
+    try:
+        generic, _specific = species_name.split()
+    except:
+        logging.getLogger('timestamp').error(f'Invalid species name: {species_name}')
+        sys.exit(-1)
 
     return generic.replace('s__', '')
 

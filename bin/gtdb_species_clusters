@@ -70,9 +70,9 @@ def print_help():
     Post-manual curation
       pmc_manual_species     -> Identify species names manually set by curators
       pmc_replace_generic    -> Replace generic names with genus assignment
+      pmc_species_names      -> Establish final species names based on manual curation
       pmc_check_type_species -> Check for agreement between GTDB genera and genomes assembled from type species of genus
       pmc_check_type_strains -> Check for agreement between GTDB species and genomes assembled from type strain of species
-      pmc_species_names      -> Establish final species names based on manual curation
       pmc_validate           -> Validate final species names
       pmc_name_stats         -> [TBD] Summary statistics indicating changes to GTDB species cluster names
       pmc_cluster_stats      -> Calculate final statistics for species clusters (???)
@@ -628,7 +628,9 @@ if __name__ == '__main__':
                                                           formatter_class=argparse.ArgumentDefaultsHelpFormatter,
                                                           description='Check for agreement between GTDB genera and genomes assembled from type species of genus.')
     pmc_check_type_species_parser.add_argument(
-        'manual_taxonomy', help="file with manually curated taxonomy (u_replace_generic: taxonomy_updated_sp.tsv)")
+        'manual_taxonomy', help="file with manually curated taxonomy (pmc_species_names: final_taxonomy.tsv)")
+    pmc_check_type_species_parser.add_argument(
+        'cur_gtdb_metadata_file', help="file with GTDB metadata for current GTDB release (TSV file)")
     pmc_check_type_species_parser.add_argument(
         'qc_passed_file', help="file indicating genomes that have passed QC (u_qc_genomes: qc_passed.tsv)")
     pmc_check_type_species_parser.add_argument(
@@ -653,7 +655,7 @@ if __name__ == '__main__':
                                                           formatter_class=argparse.ArgumentDefaultsHelpFormatter,
                                                           description='Check for agreement between GTDB species and genomes assembled from type strain of species.')
     pmc_check_type_strains_parser.add_argument(
-        'manual_taxonomy', help="file with manually curated taxonomy (u_replace_generic: taxonomy_updated_sp.tsv)")
+        'manual_taxonomy', help="file with manually curated taxonomy (pmc_species_names: final_taxonomy.tsv)")
     pmc_check_type_strains_parser.add_argument(
         'cur_gtdb_metadata_file', help="file with GTDB metadata for current GTDB release (TSV file)")
     pmc_check_type_strains_parser.add_argument(
@@ -676,9 +678,9 @@ if __name__ == '__main__':
     pmc_species_names_parser.add_argument(
         'curation_tree', help="manually curated tree to relabel with final species names")
     pmc_species_names_parser.add_argument(
-        'manual_taxonomy', help="file with manually curated taxonomy (u_replace_generic: taxonomy_updated_sp.tsv)")
+        'manual_sp_names', help="file indicating species names explicitly set by manually curated (pmc_manual_species: manual_species_names.tsv)")
     pmc_species_names_parser.add_argument(
-        'manual_sp_names', help="file indicating species names explicitly set by manually curated (u_replace_generic: manual_species_names.tsv)")
+        'manual_taxonomy', help="file with manually curated taxonomy (pmc_replace_generic: taxonomy_updated_sp.tsv)")
     pmc_species_names_parser.add_argument(
         'pmc_custom_species', help="file indicating post-curation, manual species assignments that are hard to automatically generate")
     pmc_species_names_parser.add_argument(
@@ -690,7 +692,7 @@ if __name__ == '__main__':
     pmc_species_names_parser.add_argument(
         'qc_passed_file', help="file indicating genomes that have passed QC (u_qc_genomes: qc_passed.tsv)")
     pmc_species_names_parser.add_argument(
-        'ncbi_misclassified_file', help="file indicating genomes with erroneous NCBI species assignments (u_ncbi_erroneous: ncbi_missclassified_sp.tsv)")
+        'ncbi_misclassified_file', help="file indicating genomes with erroneous NCBI species assignments (u_ncbi_erroneous: ncbi_misclassified_sp.gtdb_clustering.tsv)")
     pmc_species_names_parser.add_argument('ncbi_genbank_assembly_file',
                                           help="NCBI GenBank assembly file indicating potentially erroneous genomes")
     pmc_species_names_parser.add_argument(
@@ -721,10 +723,10 @@ if __name__ == '__main__':
                                                 formatter_class=argparse.ArgumentDefaultsHelpFormatter,
                                                 description='Validate final species names.')
     pmc_validate_parser.add_argument(
-        'final_taxonomy', help="file with final taxonomy (u_replace_generic: final_taxonomy.tsv)")
-    pmc_validate_parser.add_argument('final_scaled_tree', help="Newick file with scaled curation tree")
+        'manual_sp_names', help="file indicating species names explicitly set by manually curated (pmc_manual_species: manual_species_names.tsv)")
     pmc_validate_parser.add_argument(
-        'manual_sp_names', help="file indicating species names explicitly set by manually curated (u_replace_generic: manual_species_names.tsv)")
+        'final_taxonomy', help="file with final taxonomy (pmc_species_names: final_taxonomy.tsv)")
+    pmc_validate_parser.add_argument('final_scaled_tree', help="Newick file with scaled curation tree")
     pmc_validate_parser.add_argument(
         'pmc_custom_species', help="file indicating post-curation, manual species assignments that are hard to automatically generate")
     pmc_validate_parser.add_argument(
@@ -759,8 +761,8 @@ if __name__ == '__main__':
         'ncbi_env_bioproject_ledger', help="file indicating NCBI BioProjects composed on MAGs or SAGs incorrectly annotated at NCBI")
     pmc_validate_parser.add_argument(
         'lpsn_gss_metadata_file', help="file indicating GSS (genus-species-subspecies) metadata at LPSN (obtained from https://lpsn.dsmz.de/downloads)")
-    pmc_validate_parser.add_argument('lpsn_type_material_file',
-                                     help="file indicating type material of taxa (obtained from LPSN)")
+    pmc_validate_parser.add_argument('lpsn_data',
+                                     help="file with metadata from LPSN website (obtained by gtdb-migration-tk)")
     pmc_validate_parser.add_argument(
         'ground_truth_test_cases', help="file indicating specific test cases with ground truth assignments to validate")
     pmc_validate_parser.add_argument('output_dir', help="output directory")

@@ -89,8 +89,8 @@ class QcGenomes():
                             f'NCBI ({ncbi_domain}) and GTDB ({gtdb_domain}) domains disagree in domain report (Bac = {bac_perc:.1f}%; Ar = {ar_perc:.1f}%): {gid}')
 
                     if domain != gtdb_domain and domain != 'None':
-                        self.logger.warning(
-                            f'GTDB and predicted domain (Bac = {bac_perc:.1f}%; Ar = {ar_perc:.1f}%) disagree in domain report: {gid}')
+                        self.logger.error(
+                            f'GTDB and predicted domain (Bac = {bac_perc:.1f}%; Ar = {ar_perc:.1f}%) disagree in domain report: {gid} [THIS MUST BE FIXED BEFORE PROCEEDING].')
 
     def parse_qc_exception_file(self, qc_exception_file):
         """Parse file indicating genomes flagged as exceptions from QC."""

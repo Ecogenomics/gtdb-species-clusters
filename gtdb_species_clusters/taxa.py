@@ -36,6 +36,8 @@ class Taxa(object):
         if taxa_str and taxa_str != 'none':
             if filtered:
                 taxa_str = taxa_str.replace('Candidatus ', '')
+                taxa_str = taxa_str.replace('[', '')
+                taxa_str = taxa_str.replace(']', '')
             self.taxa = [t.strip() for t in taxa_str.split(';')]
         else:
             self.taxa = Taxonomy.rank_prefixes
