@@ -421,8 +421,12 @@ class Genome(object):
                 max_contigs,
                 min_N50,
                 max_ambiguous,
+                excluded_from_refseq_tokens,
                 failed_tests):
         """Check if genome passes QC."""
+
+        NCBI_ANOMALOUS = set(['mixed culture', 'chimeric', 'hybrid', 'contaminated',
+                              'misassembled', 'sequence duplications'])
 
         failed = False
         if self.comp < min_comp:
@@ -459,6 +463,11 @@ class Genome(object):
             failed = True
         if self.ambiguous_bases > max_ambiguous:
             failed_tests['ambig'] += 1
+            failed = True
+
+        is_ncbi_anomalous_assembly = len(NCBI_ANOMALOUS.intersection(excluded_from_refseq_tokens)) > 0
+        if is_ncbi_anomalous_assembly:
+            failed_tests['ncbi_anomalous'] += 1
             failed = True
 
         return not failed
