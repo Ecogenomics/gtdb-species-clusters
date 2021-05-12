@@ -140,7 +140,6 @@ class QcGenomes():
         failed_qc_gids = set()
         for gid in cur_genomes:
             failed_tests = defaultdict(int)
-            excluded_from_refseq_tokens = [t.strip() for t in excluded_from_refseq_note.get(gid, '').split(';')]
             passed_qc = cur_genomes[gid].pass_qc(marker_perc[gid],
                                                  min_comp,
                                                  max_cont,
@@ -150,7 +149,6 @@ class QcGenomes():
                                                  max_contigs,
                                                  min_N50,
                                                  max_ambiguous,
-                                                 excluded_from_refseq_tokens,
                                                  failed_tests)
 
             if passed_qc or gid in qc_exceptions:
@@ -273,7 +271,6 @@ class QcGenomes():
             failed_tests_gids = {}
             for gid in gids:
                 failed_tests = defaultdict(int)
-                excluded_from_refseq_tokens = [t.strip() for t in excluded_from_refseq_note.get(gid, '').split(';')]
                 passed_qc = cur_genomes[gid].pass_qc(marker_perc[gid],
                                                      min_comp,
                                                      max_cont,
@@ -283,7 +280,6 @@ class QcGenomes():
                                                      max_contigs,
                                                      min_N50,
                                                      max_ambiguous,
-                                                     excluded_from_refseq_tokens,
                                                      failed_tests)
 
                 failed_tests_gids[gid] = failed_tests

@@ -267,7 +267,7 @@ class Genome(object):
             return False
 
         if self.is_ncbi_type_strain():
-            # NCBI type strain annotation is not specific and may actually
+            # NCBI type strain annotation is not always specific and may
             # indicate a genome is the type strain of a subspecies or
             # heterotypic synonym. It is easy to check if the type material
             # is for a subspecies based on the NCBI assignment of the genome.
@@ -275,7 +275,9 @@ class Genome(object):
             # of type material is actually for a heterotypic synonym which is
             # why the is_gtdb_type_subspecies() check is made first as this
             # also covers heterotypic synonym (i.e. effectively a subspecies
-            # within a species).
+            # within a species). In theory, NCBI should annotate heterotypic
+            # synonyms as `assembly from synonym type material` and they seem
+            # to be getting better in this regard.
             return True
 
         return False
@@ -405,10 +407,6 @@ class Genome(object):
         if self.is_ncbi_many_frameshifted_proteins():
             q -= 25
 
-        # check if NCBI considers genome assembly anomalous (added: Feb. 18, 2021)
-        if self.is_ncbi_anomalous_assembly():
-            q -= 25
-
         return q
 
     def pass_qc(self,
@@ -421,12 +419,8 @@ class Genome(object):
                 max_contigs,
                 min_N50,
                 max_ambiguous,
-                excluded_from_refseq_tokens,
                 failed_tests):
         """Check if genome passes QC."""
-
-        NCBI_ANOMALOUS = set(['mixed culture', 'chimeric', 'hybrid', 'contaminated',
-                              'misassembled', 'sequence duplications'])
 
         failed = False
         if self.comp < min_comp:
@@ -465,8 +459,8 @@ class Genome(object):
             failed_tests['ambig'] += 1
             failed = True
 
-        is_ncbi_anomalous_assembly = len(NCBI_ANOMALOUS.intersection(excluded_from_refseq_tokens)) > 0
-        if is_ncbi_anomalous_assembly:
+        # added May 12, 2021)
+        if self.is_ncbi_anomalous_assembly():
             failed_tests['ncbi_anomalous'] += 1
             failed = True
 
