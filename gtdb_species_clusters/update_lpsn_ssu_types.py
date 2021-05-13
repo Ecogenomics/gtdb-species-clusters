@@ -268,3 +268,6 @@ class LPSN_SSU_Types():
             for p in worker_proc:
                 p.terminate()
             write_proc.terminate()
+
+        self.logger.info(
+            "[IMPORTANT]: add genomes where `Is GTDB type genome` is FALSE to the `gtdb_type_strains` ledger.")

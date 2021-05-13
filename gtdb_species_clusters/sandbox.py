@@ -442,11 +442,7 @@ class Sandbox(object):
                                             untrustworthy_type_ledger=untrustworthy_type_file,
                                             ncbi_env_bioproject_ledger=ncbi_env_bioproject_ledger)
 
-        print('is_ncbi_subspecies()', cur_genomes['G000311925'].is_ncbi_subspecies())
-        print('is_ncbi_type_strain()', cur_genomes['G000311925'].is_ncbi_type_strain())
-        print('is_ncbi_type_subspecies()', cur_genomes['G000311925'].is_ncbi_type_subspecies())
-        print('ncbi_type_material', cur_genomes['G000311925'].ncbi_type_material)
-
+        print('ncbi_taxa.species', cur_genomes['G000155855'].ncbi_taxa.species())
         return
 
         # *** test priorities
