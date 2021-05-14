@@ -362,6 +362,7 @@ class Genomes(object):
             self.logger.info(f' - identified {len(gtdb_type_strains):,} manually annotated as type strain genomes.')
 
         excluded_from_refseq_note = {}
+        ncbi_bioproject = {}
         if ncbi_genbank_assembly_file:
             ncbi_bioproject = parse_ncbi_bioproject(ncbi_genbank_assembly_file)
             excluded_from_refseq_note = exclude_from_refseq(ncbi_genbank_assembly_file)

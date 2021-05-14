@@ -47,6 +47,7 @@ from gtdb_species_clusters.pmc_cluster_stats import PMC_ClusterStats
 from gtdb_species_clusters.merge_test import MergeTest
 from gtdb_species_clusters.intra_sp_derep import IntraSpeciesDereplication
 from gtdb_species_clusters.intra_genus_ani import IntraGenusANI
+from gtdb_species_clusters.rep_genomic_similarity import RepGenomicSimilarity
 
 from gtdb_species_clusters.inspect_genomes import InspectGenomes
 
@@ -793,6 +794,23 @@ class OptionsParser():
 
         self.logger.info('Done.')
 
+    def ani_af_reps(self, args):
+        """Calculate ANI/AF betwenn GTDB representative genomes with the same genus."""
+
+        check_file_exists(args.gtdb_metadata_file)
+        check_file_exists(args.genomic_path_file)
+
+        make_sure_path_exists(args.output_dir)
+
+        p = RepGenomicSimilarity(args.ani_cache_file,
+                          args.cpus,
+                          args.output_dir)
+
+        p.run(args.gtdb_metadata_file,
+              args.genomic_path_file)
+
+        self.logger.info('Done.')
+
     def type_status(self, args):
         """Report information related to a genome being type material."""
 
@@ -1011,6 +1029,8 @@ class OptionsParser():
             self.intra_sp_derep(args)
         elif args.subparser_name == 'intra_genus_ani':
             self.intra_genus_ani(args)
+        elif args.subparser_name == 'ani_af_reps':
+            self.ani_af_reps(args)
         elif args.subparser_name == 'type_status':
             self.type_status(args)
         elif args.subparser_name == 'rep_compare':

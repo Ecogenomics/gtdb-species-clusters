@@ -81,6 +81,7 @@ def print_help():
       merge_test      -> Produce information relevant to merging two sister species
       intra_sp_derep  -> Dereplicate GTDB species clusters using ANI/AF criteria
       intra_genus_ani -> Calculate intra-genus ANI/AF values between GTDB representative genomes
+      ani_af_reps     -> Calculate ANI/AF betwenn GTDB representative genomes with the same genus
 
     Inspect genomes:
       type_status -> Report information related to a genome being type material
@@ -834,6 +835,18 @@ if __name__ == '__main__':
     intra_genus_ani_parser.add_argument('--ani_cache_file', help='file with precomputed ANI and AF values')
     intra_genus_ani_parser.add_argument('-c', '--cpus', help='number of cpus', type=int, default=1)
     intra_genus_ani_parser.add_argument('--silent', help="suppress output", action='store_true')
+
+    # calculate ANI/AF betwenn GTDB representative genomes with the same genus
+    ani_af_reps_parser = subparsers.add_parser('ani_af_reps',
+                                               formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+                                               description='Calculate ANI/AF betwenn GTDB representative genomes with the same genus.')
+    ani_af_reps_parser.add_argument('gtdb_metadata_file', help="file with metadata for GTDB genomes (TSV file)")
+    ani_af_reps_parser.add_argument(
+        'genomic_path_file', help="file indicating  path to previous genomic FASTA files for genomes")
+    ani_af_reps_parser.add_argument('output_dir', help="output directory")
+    ani_af_reps_parser.add_argument('--ani_cache_file', help='file with precomputed ANI and AF values')
+    ani_af_reps_parser.add_argument('-c', '--cpus', help='number of cpus', type=int, default=1)
+    ani_af_reps_parser.add_argument('--silent', help="suppress output", action='store_true')
 
     # report information related to a genome being type material
     type_status_parser = subparsers.add_parser('type_status',
