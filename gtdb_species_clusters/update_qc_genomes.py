@@ -86,7 +86,7 @@ class QcGenomes():
                 if not gid.startswith('U'):
                     if ncbi_domain != gtdb_domain and ncbi_domain != 'None':
                         self.logger.warning(
-                            f'NCBI ({ncbi_domain}) and GTDB ({gtdb_domain}) domains disagree in domain report (Bac = {bac_perc:.1f}%; Ar = {ar_perc:.1f}%): {gid}')
+                            f'NCBI ({ncbi_domain}) and GTDB ({gtdb_domain}) domains disagree in domain report (Bac = {bac_perc:.1f}%; Ar = {ar_perc:.1f}%) [ENSURE GTDB DOMAIN IS CORRECT]: {gid}')
 
                     if domain != gtdb_domain and domain != 'None':
                         self.logger.error(
