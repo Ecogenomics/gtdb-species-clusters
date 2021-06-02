@@ -95,19 +95,30 @@ class QcGenomes():
     def parse_qc_exception_file(self, qc_exception_file):
         """Parse file indicating genomes flagged as exceptions from QC."""
 
-        qc_exceptions = set()
+        retain_exceptions = set()
+        filter_exceptions = set()
         with open(qc_exception_file, encoding='utf-8') as f:
-            f.readline()
-            for line in f:
-                gid = canonical_gid(line.split('\t')[0].strip())
-                qc_exceptions.add(gid)
+            header = f.readline().strip().split('\t')
+            include_idx = header.index('Include in tree')
 
-        return qc_exceptions
+            for line in f:
+                tokens = line.strip().split('\t')
+
+                gid = canonical_gid(tokens[0].strip())
+                retain = tokens[include_idx].lower().startswith('t')
+
+                if retain:
+                    retain_exceptions.add(gid)
+                else:
+                    filter_exceptions.add(gid)
+
+        return retain_exceptions, filter_exceptions
 
     def qc_genomes(self,
                    cur_genomes,
                    marker_perc,
-                   qc_exceptions,
+                   retain_exceptions,
+                   filter_exceptions,
                    excluded_from_refseq_note,
                    min_comp,
                    max_cont,
@@ -151,7 +162,7 @@ class QcGenomes():
                                                  max_ambiguous,
                                                  failed_tests)
 
-            if passed_qc or gid in qc_exceptions:
+            if (passed_qc or gid in retain_exceptions) and gid not in filter_exceptions:
                 passed_qc_gids.add(gid)
                 fout_passed.write('{}\t{}\t{}'.format(
                     gid, cur_genomes[gid].ncbi_taxa.species, cur_genomes[gid].gtdb_taxa))
@@ -203,7 +214,8 @@ class QcGenomes():
     def check_qc_of_ncbi_species(self,
                                  cur_genomes,
                                  marker_perc,
-                                 qc_exceptions,
+                                 retain_exceptions,
+                                 filter_exceptions,
                                  excluded_from_refseq_note,
                                  min_comp,
                                  max_cont,
@@ -285,13 +297,13 @@ class QcGenomes():
                 failed_tests_gids[gid] = failed_tests
 
                 if cur_genomes[gid].is_gtdb_type_strain() or cur_genomes[gid].is_ncbi_type_strain():
-                    if passed_qc or gid in qc_exceptions:
+                    if (passed_qc or gid in retain_exceptions) and gid not in filter_exceptions:
                         type_pass.add(gid)
                     else:
                         type_fail.add(gid)
                         filtered_genomes += 1
                 else:
-                    if passed_qc or gid in qc_exceptions:
+                    if (passed_qc or gid in retain_exceptions) and gid not in filter_exceptions:
                         other_pass.add(gid)
                     else:
                         other_fail.add(gid)
@@ -424,9 +436,10 @@ class QcGenomes():
                                             ncbi_env_bioproject_ledger=ncbi_env_bioproject_ledger)
 
         # parse genomes flagged as exceptions from QC
-        qc_exceptions = self.parse_qc_exception_file(qc_exception_file)
-        self.logger.info(
-            f'Identified {len(qc_exceptions):,} genomes flagged as exceptions from QC.')
+        self.logger.info('Parsing QC ledger:')
+        retain_exceptions, filter_exceptions = self.parse_qc_exception_file(qc_exception_file)
+        self.logger.info(f' - identified {len(retain_exceptions):,} genomes flagged for retention')
+        self.logger.info(f' - identified {len(filter_exceptions):,} genomes flagged for removal')
 
         # get percentage of bac120 or ar122 marker genes
         marker_perc = self.parse_marker_percentages(gtdb_domain_report)
@@ -441,7 +454,8 @@ class QcGenomes():
         passed_qc_gids, failed_qc_gids = self.qc_genomes(
             cur_genomes,
             marker_perc,
-            qc_exceptions,
+            retain_exceptions,
+            filter_exceptions,
             excluded_from_refseq_note,
             min_comp,
             max_cont,
@@ -461,7 +475,8 @@ class QcGenomes():
         self.check_qc_of_ncbi_species(
             cur_genomes,
             marker_perc,
-            qc_exceptions,
+            retain_exceptions,
+            filter_exceptions,
             excluded_from_refseq_note,
             min_comp,
             max_cont,
