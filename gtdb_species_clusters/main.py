@@ -45,6 +45,7 @@ from gtdb_species_clusters.pmc_validation import PMC_Validation
 from gtdb_species_clusters.pmc_cluster_stats import PMC_ClusterStats
 
 from gtdb_species_clusters.merge_test import MergeTest
+from gtdb_species_clusters.ani_sp_pair import ANI_SpeciesPair
 from gtdb_species_clusters.intra_sp_derep import IntraSpeciesDereplication
 from gtdb_species_clusters.intra_genus_ani import IntraGenusANI
 from gtdb_species_clusters.rep_genomic_similarity import RepGenomicSimilarity
@@ -757,6 +758,22 @@ class OptionsParser():
 
         self.logger.info('Done.')
 
+    def ani_sp_pair(self, args):
+        """Calculate all pairwise ANI/AF values between genomes in two species."""
+
+        check_file_exists(args.gtdb_metadata_file)
+        check_file_exists(args.genome_path_file)
+
+        make_sure_path_exists(args.output_dir)
+
+        p = ANI_SpeciesPair(args.ani_cache_file, args.cpus, args.output_dir)
+        p.run(args.gtdb_metadata_file,
+              args.genome_path_file,
+              args.species1,
+              args.species2)
+
+        self.logger.info('Done.')
+
     def intra_sp_derep(self, args):
         """Dereplicate GTDB species clusters using ANI/AF criteria."""
 
@@ -1025,6 +1042,8 @@ class OptionsParser():
             self.pmc_cluster_stats(args)
         elif args.subparser_name == 'merge_test':
             self.merge_test(args)
+        elif args.subparser_name == 'ani_sp_pair':
+            self.ani_sp_pair(args)
         elif args.subparser_name == 'intra_sp_derep':
             self.intra_sp_derep(args)
         elif args.subparser_name == 'intra_genus_ani':

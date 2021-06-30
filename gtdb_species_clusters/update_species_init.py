@@ -397,12 +397,18 @@ class UpdateSpeciesInit(object):
             used_sp_names[proposed_gtdb_sp] = rid
 
         self.logger.info(f' - updated name of {num_updates:,} GTDB clusters.')
-        self.logger.warning(
-            f' - GTDB generic name does not reflect type strain of species and NCBI genus assignment changed this release for {num_conflicting_generic:,} species clusters.')
-        self.logger.warning(
-            f' - GTDB specific name does not reflect type strain of species for {num_conflicting_specific:,} species clusters.')
-        self.logger.warning(
-            f' - same name assigned to {dup_name_count:,} species clusters.')
+
+        if num_conflicting_generic > 0:
+            self.logger.warning(
+                f' - GTDB generic name does not reflect type strain of species and NCBI genus assignment changed this release for {num_conflicting_generic:,} species clusters.')
+
+        if num_conflicting_specific > 0:
+            self.logger.warning(
+                f' - GTDB specific name does not reflect type strain of species for {num_conflicting_specific:,} species clusters.')
+
+        if dup_name_count > 0:
+            self.logger.warning(
+                f' - same name assigned to {dup_name_count:,} species clusters.')
 
     def name_binomial_clusters(self,
                                rids_by_naming_priority,
@@ -509,8 +515,10 @@ class UpdateSpeciesInit(object):
             used_sp_names[proposed_gtdb_sp] = rid
 
         self.logger.info(f' - updated name of {num_updates:,} GTDB clusters.')
-        self.logger.warning(
-            f' - same name assigned to {dup_name_count:,} species clusters.')
+
+        if dup_name_count > 0:
+            self.logger.warning(
+                f' - same name assigned to {dup_name_count:,} species clusters.')
 
     def name_placeholder_clusters(self,
                                   rids_by_naming_priority,

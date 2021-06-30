@@ -567,6 +567,7 @@ class RepActions():
         num_gtdb_ncbi_type_sp = 0
         num_gtdb_type_sp = 0
         num_ncbi_type_sp = 0
+        num_ncbi_reps = 0
         num_complete = 0
         num_isolate = 0
         anis = []
@@ -639,6 +640,11 @@ class RepActions():
                     improvement_list.append(
                         'replaced with genome from type strain of species according to NCBI')
 
+                if cur_genomes[new_rid].is_ncbi_representative() and not cur_genomes[prev_updated_rid].is_ncbi_representative():
+                    num_ncbi_reps += 1
+                    improvement_list.append(
+                            'replaced with genome considered to be NCBI representative of species')
+
                 gtdb_type_subsp_improv = cur_genomes[new_rid].is_gtdb_type_subspecies(
                 ) and not cur_genomes[prev_updated_rid].is_gtdb_type_subspecies()
                 ncbi_type_subsp_improv = cur_genomes[new_rid].is_ncbi_type_subspecies(
@@ -689,6 +695,8 @@ class RepActions():
             f'   - {num_gtdb_type_sp:,} replaced with GTDB genome from type strain')
         self.logger.info(
             f'   - {num_ncbi_type_sp:,} replaced with NCBI genome from type strain')
+        self.logger.info(
+            f'   - {num_ncbi_reps:,} replaced with NCBI species representative genome')
         self.logger.info(
             f'   - {num_isolate:,} replaced MAG/SAG with isolate')
         self.logger.info(
@@ -1010,7 +1018,7 @@ class RepActions():
         num_retired_sp = sum(
             [1 for v in self.new_reps.values() if v[0] is None])
         num_replaced_rids = sum(
-            [1 for v in self.new_reps.values() if v[0] is not None])
+            [1 for rid, v in self.new_reps.items() if v[0] is not None and rid in prev_genomes.sp_clusters])
         self.logger.info(f'Identified {num_retired_sp:,} retired species.')
         self.logger.info(
             f'Identified {num_replaced_rids:,} species with a modified representative genome.')

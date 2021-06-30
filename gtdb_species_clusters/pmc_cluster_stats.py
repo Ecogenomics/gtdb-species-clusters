@@ -227,21 +227,19 @@ class PMC_ClusterStats(object):
         with open(cluster_file) as f:
             headers = f.readline().strip().split('\t')
 
-            type_sp_index = headers.index('NCBI species')
-            type_genome_index = headers.index('Type genome')
+            rid_index = headers.index('Representative genome')
+            sp_index = headers.index('GTDB species')
             num_clustered_index = headers.index('No. clustered genomes')
             clustered_genomes_index = headers.index('Clustered genomes')
-            closest_type_index = headers.index('Closest type genome')
-            ani_radius_index = headers.index('ANI radius')
-            af_index = headers.index('AF closest')
+            ani_radius_index = headers.index('ANI circumscription radius')
 
             for line in f:
                 line_split = line.strip().split('\t')
 
-                rid = line_split[type_genome_index]
+                rid = line_split[rid_index]
                 rid = canonical_gid(rid)
 
-                species[rid] = line_split[type_sp_index]
+                species[rid] = line_split[sp_index]
 
                 clusters[rid] = set()
                 num_clustered = int(line_split[num_clustered_index])
@@ -251,9 +249,8 @@ class PMC_ClusterStats(object):
                         clusters[rid].add(gid)
 
                 cluster_radius[rid] = GenomeRadius(ani=float(line_split[ani_radius_index]),
-                                                   af=float(
-                                                       line_split[af_index]),
-                                                   neighbour_gid=line_split[closest_type_index])
+                                                   af=self.af_sp,
+                                                   neighbour_gid=None)
 
         return clusters, species, cluster_radius
 

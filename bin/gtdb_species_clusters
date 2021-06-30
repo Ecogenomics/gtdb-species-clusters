@@ -79,9 +79,10 @@ def print_help():
 
     Inspect species clusters:
       merge_test      -> Produce information relevant to merging two sister species
+      ani_sp_pair     -> Calculate all pairwise ANI/AF values between genomes in two species
       intra_sp_derep  -> Dereplicate GTDB species clusters using ANI/AF criteria
       intra_genus_ani -> Calculate intra-genus ANI/AF values between GTDB representative genomes
-      ani_af_reps     -> Calculate ANI/AF betwenn GTDB representative genomes with the same genus
+      ani_af_reps     -> Calculate ANI/AF between GTDB representative genomes with the same genus
 
     Inspect genomes:
       type_status -> Report information related to a genome being type material
@@ -774,7 +775,7 @@ if __name__ == '__main__':
     pmc_validate_parser.add_argument('--silent', help="suppress output", action='store_true')
 
     # cluster genomes to selected GTDB type genomes
-    pmc_cluster_stats_parser = subparsers.add_parser('cluster_stats',
+    pmc_cluster_stats_parser = subparsers.add_parser('pmc_cluster_stats',
                                                      formatter_class=argparse.ArgumentDefaultsHelpFormatter,
                                                      description='Calculate final statistics for species clusters.')
     pmc_cluster_stats_parser.add_argument('cluster_file', help='file specifying species clusters')
@@ -802,6 +803,19 @@ if __name__ == '__main__':
     merge_test_parser.add_argument('--ani_cache_file', help='file with precomputed ANI and AF values')
     merge_test_parser.add_argument('-c', '--cpus', help='number of cpus', type=int, default=1)
     merge_test_parser.add_argument('--silent', help="suppress output", action='store_true')
+
+    # calculate all pairwise ANI/AF values between genomes in two species
+    ani_sp_pair_parser = subparsers.add_parser('ani_sp_pair',
+                                              formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+                                              description='Calculate all pairwise ANI/AF values between genomes in two species.')
+    ani_sp_pair_parser.add_argument('gtdb_metadata_file', help="file with GTDB metadata (TSV file)")
+    ani_sp_pair_parser.add_argument('genome_path_file', help="file indicating data directory for GTDB genomes")
+    ani_sp_pair_parser.add_argument('species1', help="species to inspect for merging")
+    ani_sp_pair_parser.add_argument('species2', help="species to inspect for merging")
+    ani_sp_pair_parser.add_argument('output_dir', help="output directory")
+    ani_sp_pair_parser.add_argument('--ani_cache_file', help='file with precomputed ANI and AF values')
+    ani_sp_pair_parser.add_argument('-c', '--cpus', help='number of cpus', type=int, default=1)
+    ani_sp_pair_parser.add_argument('--silent', help="suppress output", action='store_true')
 
     # dereplicate GTDB species clusters using ANI/AF criteria
     intra_sp_derep_parser = subparsers.add_parser('intra_sp_derep',
