@@ -198,7 +198,8 @@ class PMC_Validation(object):
                         and canonical_species(gtdb_species) in gtdb_type_species):
                     validated_count += 1
                 elif not test_same_epithet(gtdb_specific, ncbi_specific):
-                    invalid_type_strain[rid] = (rid, gtdb_species, ncbi_species)
+                    invalid_type_strain[rid] = (
+                        rid, gtdb_species, ncbi_species)
                 else:
                     validated_count += 1
 
@@ -1104,7 +1105,8 @@ class PMC_Validation(object):
                 if not within_gtdb_genus:
                     gtdb_genera = ['{}: {} (RED={:.2f})'.format(
                         rid, final_taxonomy[rid][Taxonomy.GENUS_INDEX], red_genus[final_taxonomy[rid][Taxonomy.GENUS_INDEX]]) for rid in rids]
-                    invalid_missing_ncbi_genera[ncbi_genus] = (ncbi_genus, ', '.join(gtdb_genera))
+                    invalid_missing_ncbi_genera[ncbi_genus] = (
+                        ncbi_genus, ', '.join(gtdb_genera))
                 else:
                     validated_count += 1
 
@@ -1259,7 +1261,8 @@ class PMC_Validation(object):
                 if likely_valid_change:
                     validated_count += 1
                 else:
-                    invalid_placeholder[prev_genus] = (prev_genus, cur_genus, len(rids))
+                    invalid_placeholder[prev_genus] = (
+                        prev_genus, cur_genus, len(rids))
 
         self.report_validation(
             invalid_placeholder,
@@ -1287,7 +1290,8 @@ class PMC_Validation(object):
             ncbi_specific = specific_epithet(ncbi_sp)
 
             if not test_same_epithet(gtdb_specific, ncbi_specific):
-                invalid_unambiguous[rid] = (rid, gtdb_species, ncbi_sp, ','.join(lpsn.sp_synonyms[ncbi_sp]))
+                invalid_unambiguous[rid] = (
+                    rid, gtdb_species, ncbi_sp, ','.join(lpsn.sp_synonyms[ncbi_sp]))
             else:
                 validated_count += 1
 
@@ -1384,7 +1388,8 @@ class PMC_Validation(object):
                     ncbi_species = cur_genomes[gid].ncbi_taxa.species
                     ncbi_species = ncbi_synonyms.get(
                         ncbi_species, ncbi_species)
-                    invalid_misclassified[gid] = (gid, gtdb_species, ncbi_species)
+                    invalid_misclassified[gid] = (
+                        gid, gtdb_species, ncbi_species)
                 else:
                     validated_count += 1
 
@@ -1418,8 +1423,10 @@ class PMC_Validation(object):
                     gtdb_taxon_gids[taxon].add(rid)
 
         # check if GTDB taxa is a merger of multiple NCBI taxa
-        fout = open(os.path.join(self.output_dir, 'validate_merged_taxa.tsv'), 'w')
-        fout.write('Case\tGTDB taxon\tPriority taxon\tYear of priority\tTaxa priority\tGTDB representatives\n')
+        fout = open(os.path.join(self.output_dir,
+                                 'validate_merged_taxa.tsv'), 'w')
+        fout.write(
+            'Case\tGTDB taxon\tPriority taxon\tYear of priority\tTaxa priority\tGTDB representatives\n')
         num_cases = 0
         for gtdb_taxon, type_gids in gtdb_taxon_gids.items():
             # Validate families and orders
@@ -1496,7 +1503,48 @@ class PMC_Validation(object):
 
         fout.close()
 
-        self.logger.info(f' - identified {num_cases:,} cases (see validate_merged_taxa.tsv)')
+        self.logger.info(
+            f' - identified {num_cases:,} cases (see validate_merged_taxa.tsv)')
+
+    def validate_suffix_of_specific_names(self, final_taxonomy, cur_genomes, lpsn):
+        """Validate suffix of specific names by comparison with LPSN names.
+
+        Example: Lacrimispora algidixylanolyticum vs. L. algidixylanolytica   
+        """
+
+        # get LPSN names in genus
+        lpsn_species_in_genus = defaultdict(set)
+        for lpsn_taxon in lpsn.taxa:
+            if lpsn_taxon.startswith('s__'):
+                lpsn_genus = lpsn_taxon.split()[0].replace('s__', 'g__')
+                lpsn_species_in_genus[lpsn_genus].add(lpsn_taxon)
+
+        invalid_suffix = {}
+        validated_count = 0
+        for gid, taxa in final_taxonomy.items():
+            gtdb_genus = taxa[Taxonomy.GENUS_INDEX]
+            gtdb_sp = taxa[Taxonomy.SPECIES_INDEX]
+            gtdb_specific = gtdb_sp.split()[1]
+
+            # check if name is recognized at LPSN
+            if gtdb_sp in lpsn_species_in_genus[gtdb_genus]:
+                validated_count += 1
+                continue
+
+            # check if a name that only differs in the suffix of
+            # the specific name is recognized at LPSN
+            for lpsn_sp in lpsn_species_in_genus[gtdb_genus]:
+                lpsn_specific = lpsn_sp.split()[1]
+
+                if test_same_epithet(lpsn_specific, gtdb_specific):
+                    invalid_suffix[gid] = (
+                        gid, gtdb_sp, cur_genomes[gid].ncbi_taxa.species, lpsn_sp)
+
+        self.report_validation(
+            invalid_suffix,
+            validated_count,
+            ' - identified {:,} GTDB species with specific names with suffix that differ slightly from LPSN name (Genome ID, GTDB species, NCBI species, matched LPSN species):'.format(
+                len(invalid_suffix)))
 
     def validate_taxa_by_lpsn_type_material(self, final_taxonomy, lpsn):
         """Validating placement of taxon based on LPSN type material."""
@@ -2335,6 +2383,12 @@ class PMC_Validation(object):
                                 check_capitalization=True,
                                 report_errors=True)
 
+        # validate suffix of specific names by looking for small deviations relative to LPSN names
+        self.logger.info("Validating suffix of specific names.")
+        self.validate_suffix_of_specific_names(
+            final_taxonomy, cur_genomes, lpsn)
+        sys.exit(-1)
+
         # validate application of names for merged taxa
         self.logger.info("Validating names of merged taxa.")
         self.validate_merged_taxa(final_taxonomy, cur_genomes, lpsn)
@@ -2343,11 +2397,6 @@ class PMC_Validation(object):
         self.logger.info(
             "Validating placement of higher taxon names based on LPSN type material")
         self.validate_taxa_by_lpsn_type_material(final_taxonomy, lpsn)
-
-        # validate pplacement of higher taxon names derived from stem of GTDB genera
-        self.logger.info(
-            "Validating placement of higher taxon names derived from stem of GTDB genera.")
-        self.validate_taxa_by_genus_stem(final_taxonomy)
 
         # validate that GTDB is using the 'correct' names as specified at LPSN
         self.logger.info(
@@ -2361,6 +2410,11 @@ class PMC_Validation(object):
         self.validate_genus_transfer_specific_epithet(final_taxonomy,
                                                       cur_genomes,
                                                       lpsn)
+
+        # validate pplacement of higher taxon names derived from stem of GTDB genera
+        self.logger.info(
+            "Validating placement of higher taxon names derived from stem of GTDB genera.")
+        self.validate_taxa_by_genus_stem(final_taxonomy)
 
         # validate that all species names are unique
         self.logger.info('Validating that species names are unique.')
