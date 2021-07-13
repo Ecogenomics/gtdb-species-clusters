@@ -1543,7 +1543,7 @@ class PMC_Validation(object):
         self.report_validation(
             invalid_suffix,
             validated_count,
-            ' - identified {:,} GTDB species with specific names with suffix that differ slightly from LPSN name (Genome ID, GTDB species, NCBI species, matched LPSN species):'.format(
+            ' - identified {:,} GTDB species with specific name with suffix that differs slightly from LPSN name (Genome ID, GTDB species, NCBI species, matched LPSN species):'.format(
                 len(invalid_suffix)))
 
     def validate_taxa_by_lpsn_type_material(self, final_taxonomy, lpsn):
@@ -2387,7 +2387,6 @@ class PMC_Validation(object):
         self.logger.info("Validating suffix of specific names.")
         self.validate_suffix_of_specific_names(
             final_taxonomy, cur_genomes, lpsn)
-        sys.exit(-1)
 
         # validate application of names for merged taxa
         self.logger.info("Validating names of merged taxa.")
