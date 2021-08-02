@@ -35,13 +35,15 @@ from biolib.common import make_sure_path_exists
 
 from gtdb_species_clusters import __version__
 from gtdb_species_clusters.main import OptionsParser
+from gtdb_species_clusters import defaults as Defaults
 
 
 def print_help():
     """Help menu."""
 
     print('')
-    print('                ...::: GTDB Species Clusters v' + __version__ + ' :::...''')
+    print('                ...::: GTDB Species Clusters v' +
+          __version__ + ' :::...''')
     print('''\
 
     Update species clusters:
@@ -126,7 +128,8 @@ def logger_setup(output_dir, silent):
 
     if output_dir:
         make_sure_path_exists(output_dir)
-        file_logger = logging.FileHandler(os.path.join(output_dir, 'gtdb_species_clusters.log'), 'a')
+        file_logger = logging.FileHandler(os.path.join(
+            output_dir, 'gtdb_species_clusters.log'), 'a')
         file_logger.setFormatter(log_format)
         logger.addHandler(file_logger)
 
@@ -157,11 +160,13 @@ if __name__ == '__main__':
                                       help="file with GTDB metadata for previous GTDB release (TSV file)")
     u_new_genomes_parser.add_argument('cur_gtdb_metadata_file',
                                       help="file with GTDB metadata for current GTDB release (TSV file)")
-    u_new_genomes_parser.add_argument('cur_genome_paths', help="file with path to genomes in current GTDB release")
+    u_new_genomes_parser.add_argument(
+        'cur_genome_paths', help="file with path to genomes in current GTDB release")
     u_new_genomes_parser.add_argument('ncbi_assembly_summary_genbank',
                                       help="file with NCBI metadata for GenBank genome assemblies")
     u_new_genomes_parser.add_argument('output_dir', help="output directory")
-    u_new_genomes_parser.add_argument('--silent', help="suppress output", action='store_true')
+    u_new_genomes_parser.add_argument(
+        '--silent', help="suppress output", action='store_true')
 
     # quality check new and updated genomes
     u_qc_genomes_parser = subparsers.add_parser('u_qc_genomes',
@@ -177,7 +182,8 @@ if __name__ == '__main__':
         'cur_gtdb_domain_report', help="GTDB report of number of bac120 and ar122 marker genes (gtdb power domain_report)")
     u_qc_genomes_parser.add_argument(
         'gtdb_type_strains_ledger', help="file listing genomes to consider as being the type strain for valid or effectively published species name")
-    u_qc_genomes_parser.add_argument('qc_exception_file', help="file listing genomes to retain regardless of quality")
+    u_qc_genomes_parser.add_argument(
+        'qc_exception_file', help="file listing genomes to retain regardless of quality")
     u_qc_genomes_parser.add_argument(
         'ncbi_env_bioproject_ledger', help="file indicating NCBI BioProjects composed on MAGs or SAGs incorrectly annotated at NCBI")
     u_qc_genomes_parser.add_argument('output_dir', help="output directory")
@@ -197,7 +203,8 @@ if __name__ == '__main__':
         '--min_N50', help='minimum N50 of scaffolds for a genome to be a type genome', type=int, default=DEFAULT_QC_MIN_N50)
     u_qc_genomes_parser.add_argument(
         '--max_ambiguous', help='maximum number of ambiguous bases within contigs for a genome to be a type genome', type=int, default=DEFAULT_QC_MAX_AMBIGUOUS)
-    u_qc_genomes_parser.add_argument('--silent', help="suppress output", action='store_true')
+    u_qc_genomes_parser.add_argument(
+        '--silent', help="suppress output", action='store_true')
 
     # perform initial classification of new and updated genomes using GTDB-Tk
     u_gtdbtk_parser = subparsers.add_parser('u_gtdbtk',
@@ -210,8 +217,10 @@ if __name__ == '__main__':
     u_gtdbtk_parser.add_argument('output_dir', help="output directory")
     u_gtdbtk_parser.add_argument(
         '--batch_size', help="number of genome to process with GTDB-Tk in each batch", type=int, default=5000)
-    u_gtdbtk_parser.add_argument('-c', '--cpus', help='number of cpus', type=int, default=1)
-    u_gtdbtk_parser.add_argument('--silent', help="suppress output", action='store_true')
+    u_gtdbtk_parser.add_argument(
+        '-c', '--cpus', help='number of cpus', type=int, default=1)
+    u_gtdbtk_parser.add_argument(
+        '--silent', help="suppress output", action='store_true')
 
     # identify type genomes based on type 16S rRNA sequences indicated at LPSN
     u_lpsn_rna_types_parser = subparsers.add_parser('u_lpsn_rna_types',
@@ -232,8 +241,10 @@ if __name__ == '__main__':
     u_lpsn_rna_types_parser.add_argument(
         'untrustworthy_type_ledger', help="file listing genomes that should be considered untrustworthy as type material")
     u_lpsn_rna_types_parser.add_argument('output_dir', help="output directory")
-    u_lpsn_rna_types_parser.add_argument('-c', '--cpus', help='number of cpus', type=int, default=1)
-    u_lpsn_rna_types_parser.add_argument('--silent', help="suppress output", action='store_true')
+    u_lpsn_rna_types_parser.add_argument(
+        '-c', '--cpus', help='number of cpus', type=int, default=1)
+    u_lpsn_rna_types_parser.add_argument(
+        '--silent', help="suppress output", action='store_true')
 
     # resolve cases where a species has multiple genomes assembled from the type strain
     u_resolve_types_parser = subparsers.add_parser('u_resolve_types',
@@ -247,7 +258,8 @@ if __name__ == '__main__':
         'qc_passed_file', help="file indicating genomes that have passed QC (u_qc_genomes: qc_passed.tsv)")
     u_resolve_types_parser.add_argument('ncbi_genbank_assembly_file',
                                         help="NCBI GenBank assembly file indicating potentially erroneous genomes")
-    u_resolve_types_parser.add_argument('ltp_taxonomy_file', help="file with LTP taxonomy strings")
+    u_resolve_types_parser.add_argument(
+        'ltp_taxonomy_file', help="file with LTP taxonomy strings")
     u_resolve_types_parser.add_argument(
         'gtdb_type_strains_ledger', help="file listing genomes to consider as being the type strain for valid or effectively published species name")
     u_resolve_types_parser.add_argument(
@@ -255,9 +267,12 @@ if __name__ == '__main__':
     u_resolve_types_parser.add_argument(
         'ncbi_env_bioproject_ledger', help="file indicating NCBI BioProjects composed on MAGs or SAGs incorrectly annotated at NCBI")
     u_resolve_types_parser.add_argument('output_dir', help="output directory")
-    u_resolve_types_parser.add_argument('--ani_cache_file', help='file with precomputed ANI and AF values')
-    u_resolve_types_parser.add_argument('-c', '--cpus', help='number of cpus', type=int, default=1)
-    u_resolve_types_parser.add_argument('--silent', help="suppress output", action='store_true')
+    u_resolve_types_parser.add_argument(
+        '--ani_cache_file', help='file with precomputed ANI and AF values')
+    u_resolve_types_parser.add_argument(
+        '-c', '--cpus', help='number of cpus', type=int, default=1)
+    u_resolve_types_parser.add_argument(
+        '--silent', help="suppress output", action='store_true')
 
     # identify species representatives that have changed from previous release
     u_rep_changes_parser = subparsers.add_parser('u_rep_changes',
@@ -284,7 +299,8 @@ if __name__ == '__main__':
     u_rep_changes_parser.add_argument(
         'ncbi_env_bioproject_ledger', help="file indicating NCBI BioProjects composed on MAGs or SAGs incorrectly annotated at NCBI")
     u_rep_changes_parser.add_argument('output_dir', help="output directory")
-    u_rep_changes_parser.add_argument('--silent', help="suppress output", action='store_true')
+    u_rep_changes_parser.add_argument(
+        '--silent', help="suppress output", action='store_true')
 
     # perform initial actions required for changed representatives
     u_rep_actions_parser = subparsers.add_parser('u_rep_actions',
@@ -321,9 +337,12 @@ if __name__ == '__main__':
     u_rep_actions_parser.add_argument(
         'lpsn_gss_file', help="table from lpsn.dsmz.de with nomenclature information (lpsn_gss_<date>.csv)")
     u_rep_actions_parser.add_argument('output_dir', help="output directory")
-    u_rep_actions_parser.add_argument('--ani_cache_file', help='file with precomputed ANI and AF values')
-    u_rep_actions_parser.add_argument('-c', '--cpus', help='number of cpus', type=int, default=1)
-    u_rep_actions_parser.add_argument('--silent', help="suppress output", action='store_true')
+    u_rep_actions_parser.add_argument(
+        '--ani_cache_file', help='file with precomputed ANI and AF values')
+    u_rep_actions_parser.add_argument(
+        '-c', '--cpus', help='number of cpus', type=int, default=1)
+    u_rep_actions_parser.add_argument(
+        '--silent', help="suppress output", action='store_true')
 
     # select representative for each validly or effectively published species name at NCBI
     u_sel_reps_parser = subparsers.add_parser('u_sel_reps',
@@ -345,16 +364,21 @@ if __name__ == '__main__':
         'gtdb_type_strains_ledger', help="file listing genomes to consider as being the type strain for valid or effectively published species name")
     u_sel_reps_parser.add_argument('ncbi_untrustworthy_sp_ledger',
                                    help="file listing genomes with NCBI species assignments deemed to be untrustworthy")
-    u_sel_reps_parser.add_argument('sp_priority_ledger', help="file resolving nomenclatural priority of species names")
-    u_sel_reps_parser.add_argument('genus_priority_ledger', help="file resolving nomenclatural priority of genus names")
+    u_sel_reps_parser.add_argument(
+        'sp_priority_ledger', help="file resolving nomenclatural priority of species names")
+    u_sel_reps_parser.add_argument(
+        'genus_priority_ledger', help="file resolving nomenclatural priority of genus names")
     u_sel_reps_parser.add_argument(
         'ncbi_env_bioproject_ledger', help="file indicating NCBI BioProjects composed on MAGs or SAGs incorrectly annotated at NCBI")
     u_sel_reps_parser.add_argument(
         'lpsn_gss_file', help="table from lpsn.dsmz.de with nomenclature information (lpsn_gss_<date>.csv)")
     u_sel_reps_parser.add_argument('output_dir', help="output directory")
-    u_sel_reps_parser.add_argument('--ani_cache_file', help='file with precomputed ANI and AF values')
-    u_sel_reps_parser.add_argument('-c', '--cpus', help='number of cpus', type=int, default=1)
-    u_sel_reps_parser.add_argument('--silent', help="suppress output", action='store_true')
+    u_sel_reps_parser.add_argument(
+        '--ani_cache_file', help='file with precomputed ANI and AF values')
+    u_sel_reps_parser.add_argument(
+        '-c', '--cpus', help='number of cpus', type=int, default=1)
+    u_sel_reps_parser.add_argument(
+        '--silent', help="suppress output", action='store_true')
 
     # cluster genomes to selected GTDB type genomes
     u_cluster_named_reps_parser = subparsers.add_parser('u_cluster_named_reps',
@@ -380,14 +404,18 @@ if __name__ == '__main__':
         'gtdb_type_strains_ledger', help="file listing genomes to consider as being the type strain for valid or effectively published species name")
     u_cluster_named_reps_parser.add_argument(
         'ncbi_env_bioproject_ledger', help="file indicating NCBI BioProjects composed on MAGs or SAGs incorrectly annotated at NCBI")
-    u_cluster_named_reps_parser.add_argument('output_dir', help="output directory")
-    u_cluster_named_reps_parser.add_argument('--ani_cache_file', help='file with precomputed ANI and AF values')
     u_cluster_named_reps_parser.add_argument(
-        '--ani_sp', help='minimum ANI for defining species clusters', type=float, default=95)
+        'output_dir', help="output directory")
     u_cluster_named_reps_parser.add_argument(
-        '--af_sp', help='minimum AF for defining species clusters', type=float, default=0.65)
-    u_cluster_named_reps_parser.add_argument('-c', '--cpus', help='number of cpus', type=int, default=1)
-    u_cluster_named_reps_parser.add_argument('--silent', help="suppress output", action='store_true')
+        '--ani_cache_file', help='file with precomputed ANI and AF values')
+    u_cluster_named_reps_parser.add_argument(
+        '--ani_sp', help='minimum ANI for defining species clusters', type=float, default=Defaults.ANI_SP)
+    u_cluster_named_reps_parser.add_argument(
+        '--af_sp', help='minimum AF for defining species clusters', type=float, default=Defaults.AF_SP)
+    u_cluster_named_reps_parser.add_argument(
+        '-c', '--cpus', help='number of cpus', type=int, default=1)
+    u_cluster_named_reps_parser.add_argument(
+        '--silent', help="suppress output", action='store_true')
 
     # infer de novo species clusters and type genomes for remaining genomes
     u_cluster_de_novo_parser = subparsers.add_parser('u_cluster_de_novo',
@@ -411,14 +439,18 @@ if __name__ == '__main__':
         'gtdb_type_strains_ledger', help="file listing genomes to consider as being the type strain for valid or effectively published species name")
     u_cluster_de_novo_parser.add_argument(
         'ncbi_env_bioproject_ledger', help="file indicating NCBI BioProjects composed on MAGs or SAGs incorrectly annotated at NCBI")
-    u_cluster_de_novo_parser.add_argument('output_dir', help="output directory")
-    u_cluster_de_novo_parser.add_argument('--ani_cache_file', help='file with precomputed ANI and AF values')
     u_cluster_de_novo_parser.add_argument(
-        '--ani_sp', help='minimum ANI for defining species clusters', type=float, default=95)
+        'output_dir', help="output directory")
     u_cluster_de_novo_parser.add_argument(
-        '--af_sp', help='minimum AF for defining species clusters', type=float, default=0.65)
-    u_cluster_de_novo_parser.add_argument('-c', '--cpus', help='number of cpus', type=int, default=1)
-    u_cluster_de_novo_parser.add_argument('--silent', help="suppress output", action='store_true')
+        '--ani_cache_file', help='file with precomputed ANI and AF values')
+    u_cluster_de_novo_parser.add_argument(
+        '--ani_sp', help='minimum ANI for defining species clusters', type=float, default=Defaults.ANI_SP)
+    u_cluster_de_novo_parser.add_argument(
+        '--af_sp', help='minimum AF for defining species clusters', type=float, default=Defaults.AF_SP)
+    u_cluster_de_novo_parser.add_argument(
+        '-c', '--cpus', help='number of cpus', type=int, default=1)
+    u_cluster_de_novo_parser.add_argument(
+        '--silent', help="suppress output", action='store_true')
 
     # summary statistics indicating changes to GTDB species cluster membership
     u_cluster_stats_parser = subparsers.add_parser('u_cluster_stats',
@@ -441,7 +473,8 @@ if __name__ == '__main__':
     u_cluster_stats_parser.add_argument(
         'ncbi_env_bioproject_ledger', help="file indicating NCBI BioProjects composed on MAGs or SAGs incorrectly annotated at NCBI")
     u_cluster_stats_parser.add_argument('output_dir', help="output directory")
-    u_cluster_stats_parser.add_argument('--silent', help="suppress output", action='store_true')
+    u_cluster_stats_parser.add_argument(
+        '--silent', help="suppress output", action='store_true')
 
     # identify genomes with erroneous NCBI species assignments
     u_ncbi_erroneous_parser = subparsers.add_parser('u_ncbi_erroneous',
@@ -466,7 +499,8 @@ if __name__ == '__main__':
     u_ncbi_erroneous_parser.add_argument(
         'ncbi_env_bioproject_ledger', help="file indicating NCBI BioProjects composed on MAGs or SAGs incorrectly annotated at NCBI")
     u_ncbi_erroneous_parser.add_argument('output_dir', help="output directory")
-    u_ncbi_erroneous_parser.add_argument('--silent', help="suppress output", action='store_true')
+    u_ncbi_erroneous_parser.add_argument(
+        '--silent', help="suppress output", action='store_true')
 
     # determine synonyms for validly or effectively published species
     u_synonyms_parser = subparsers.add_parser('u_synonyms',
@@ -488,14 +522,17 @@ if __name__ == '__main__':
         'ani_af_rep_vs_nonrep', help="file with pairwise ANI values between representative and non-representative genomes (u_cluster_named_reps: ani_af_rep_vs_nonrep.pkl)")
     u_synonyms_parser.add_argument(
         'gtdb_type_strains_ledger', help="file listing genomes to consider as being the type strain for valid or effectively published species name")
-    u_synonyms_parser.add_argument('sp_priority_ledger', help="file resolving nomenclatural priority of species names")
-    u_synonyms_parser.add_argument('genus_priority_ledger', help="file resolving nomenclatural priority of genus names")
+    u_synonyms_parser.add_argument(
+        'sp_priority_ledger', help="file resolving nomenclatural priority of species names")
+    u_synonyms_parser.add_argument(
+        'genus_priority_ledger', help="file resolving nomenclatural priority of genus names")
     u_synonyms_parser.add_argument(
         'ncbi_env_bioproject_ledger', help="file indicating NCBI BioProjects composed on MAGs or SAGs incorrectly annotated at NCBI")
     u_synonyms_parser.add_argument(
         'lpsn_gss_file', help="table from lpsn.dsmz.de with nomenclature information (lpsn_gss_<date>.csv)")
     u_synonyms_parser.add_argument('output_dir', help="output directory")
-    u_synonyms_parser.add_argument('--silent', help="suppress output", action='store_true')
+    u_synonyms_parser.add_argument(
+        '--silent', help="suppress output", action='store_true')
 
     # produce curation trees highlighting new NCBI taxa
     u_curation_tree_parser = subparsers.add_parser('u_curation_trees',
@@ -518,8 +555,10 @@ if __name__ == '__main__':
     u_curation_tree_parser.add_argument(
         'ncbi_env_bioproject_ledger', help="file indicating NCBI BioProjects composed on MAGs or SAGs incorrectly annotated at NCBI")
     u_curation_tree_parser.add_argument('output_dir', help="output directory")
-    u_curation_tree_parser.add_argument('--output_prefix', help="output prefix", default='gtdb_rX')
-    u_curation_tree_parser.add_argument('--silent', help="suppress output", action='store_true')
+    u_curation_tree_parser.add_argument(
+        '--output_prefix', help="output prefix", default='gtdb_rX')
+    u_curation_tree_parser.add_argument(
+        '--silent', help="suppress output", action='store_true')
 
     # produce initial best guess at GTDB species clusters
     u_species_init_parser = subparsers.add_parser('u_species_init',
@@ -560,7 +599,8 @@ if __name__ == '__main__':
     u_species_init_parser.add_argument(
         'lpsn_gss_file', help="table from lpsn.dsmz.de with nomenclature information (lpsn_gss_<date>.csv)")
     u_species_init_parser.add_argument('output_dir', help="output directory")
-    u_species_init_parser.add_argument('--silent', help="suppress output", action='store_true')
+    u_species_init_parser.add_argument(
+        '--silent', help="suppress output", action='store_true')
 
     # establish final species names based on manual curation
     u_pmc_species_names_parser = subparsers.add_parser('u_pmc_species_names',
@@ -602,18 +642,23 @@ if __name__ == '__main__':
         'ncbi_env_bioproject_ledger', help="file indicating NCBI BioProjects composed on MAGs or SAGs incorrectly annotated at NCBI")
     u_pmc_species_names_parser.add_argument(
         'lpsn_gss_file', help="table from lpsn.dsmz.de with nomenclature information (lpsn_gss_<date>.csv)")
-    u_pmc_species_names_parser.add_argument('output_dir', help="output directory")
-    u_pmc_species_names_parser.add_argument('--silent', help="suppress output", action='store_true')
+    u_pmc_species_names_parser.add_argument(
+        'output_dir', help="output directory")
+    u_pmc_species_names_parser.add_argument(
+        '--silent', help="suppress output", action='store_true')
 
     # identify species names manually set by curators
     pmc_manual_species_parser = subparsers.add_parser('pmc_manual_species',
                                                       formatter_class=argparse.ArgumentDefaultsHelpFormatter,
                                                       description='Identify species names manually set by curators.')
-    pmc_manual_species_parser.add_argument('init_taxonomy', help="initial taxonomy file")
+    pmc_manual_species_parser.add_argument(
+        'init_taxonomy', help="initial taxonomy file")
     pmc_manual_species_parser.add_argument(
         'manually_curated_tree', help="tree decorated with manually curated taxonomy")
-    pmc_manual_species_parser.add_argument('output_dir', help="output directory")
-    pmc_manual_species_parser.add_argument('--silent', help="suppress output", action='store_true')
+    pmc_manual_species_parser.add_argument(
+        'output_dir', help="output directory")
+    pmc_manual_species_parser.add_argument(
+        '--silent', help="suppress output", action='store_true')
 
     # replace generic names with genus assignment
     pmc_replace_generic_parser = subparsers.add_parser('pmc_replace_generic',
@@ -621,9 +666,12 @@ if __name__ == '__main__':
                                                        description='Replace generic names with genus assignment.')
     pmc_replace_generic_parser.add_argument(
         'manual_species_names', help="file indicating manually curated species names (u_manual_species: manual_species_names.tsv)")
-    pmc_replace_generic_parser.add_argument('manual_taxonomy', help="manually curated taxonomy file")
-    pmc_replace_generic_parser.add_argument('output_dir', help="output directory")
-    pmc_replace_generic_parser.add_argument('--silent', help="suppress output", action='store_true')
+    pmc_replace_generic_parser.add_argument(
+        'manual_taxonomy', help="manually curated taxonomy file")
+    pmc_replace_generic_parser.add_argument(
+        'output_dir', help="output directory")
+    pmc_replace_generic_parser.add_argument(
+        '--silent', help="suppress output", action='store_true')
 
     # check for agreement between GTDB genera and genomes assembled from type species of genus
     pmc_check_type_species_parser = subparsers.add_parser('pmc_check_type_species',
@@ -649,8 +697,10 @@ if __name__ == '__main__':
         'ncbi_env_bioproject_ledger', help="file indicating NCBI BioProjects composed on MAGs or SAGs incorrectly annotated at NCBI")
     pmc_check_type_species_parser.add_argument(
         'lpsn_gss_file', help="table from lpsn.dsmz.de with nomenclature information (lpsn_gss_<date>.csv)")
-    pmc_check_type_species_parser.add_argument('output_dir', help="output directory")
-    pmc_check_type_species_parser.add_argument('--silent', help="suppress output", action='store_true')
+    pmc_check_type_species_parser.add_argument(
+        'output_dir', help="output directory")
+    pmc_check_type_species_parser.add_argument(
+        '--silent', help="suppress output", action='store_true')
 
     # check for agreement between GTDB species and genomes assembled from type strain of species
     pmc_check_type_strains_parser = subparsers.add_parser('pmc_check_type_strains',
@@ -670,8 +720,10 @@ if __name__ == '__main__':
         'gtdb_type_strains_ledger', help="file listing genomes to consider as being the type strain for valid or effectively published species name")
     pmc_check_type_strains_parser.add_argument(
         'ncbi_env_bioproject_ledger', help="file indicating NCBI BioProjects composed on MAGs or SAGs incorrectly annotated at NCBI")
-    pmc_check_type_strains_parser.add_argument('output_dir', help="output directory")
-    pmc_check_type_strains_parser.add_argument('--silent', help="suppress output", action='store_true')
+    pmc_check_type_strains_parser.add_argument(
+        'output_dir', help="output directory")
+    pmc_check_type_strains_parser.add_argument(
+        '--silent', help="suppress output", action='store_true')
 
     # establish final species names based on manual curation
     pmc_species_names_parser = subparsers.add_parser('pmc_species_names',
@@ -717,8 +769,10 @@ if __name__ == '__main__':
         'ncbi_env_bioproject_ledger', help="file indicating NCBI BioProjects composed on MAGs or SAGs incorrectly annotated at NCBI")
     pmc_species_names_parser.add_argument(
         'lpsn_gss_file', help="table from lpsn.dsmz.de with nomenclature information (lpsn_gss_<date>.csv)")
-    pmc_species_names_parser.add_argument('output_dir', help="output directory")
-    pmc_species_names_parser.add_argument('--silent', help="suppress output", action='store_true')
+    pmc_species_names_parser.add_argument(
+        'output_dir', help="output directory")
+    pmc_species_names_parser.add_argument(
+        '--silent', help="suppress output", action='store_true')
 
     # pmc_validate           -> Validate final species names
     pmc_validate_parser = subparsers.add_parser('pmc_validate',
@@ -728,7 +782,8 @@ if __name__ == '__main__':
         'manual_sp_names', help="file indicating species names explicitly set by manually curated (pmc_manual_species: manual_species_names.tsv)")
     pmc_validate_parser.add_argument(
         'final_taxonomy', help="file with final taxonomy (pmc_species_names: final_taxonomy.tsv)")
-    pmc_validate_parser.add_argument('final_scaled_tree', help="Newick file with scaled curation tree")
+    pmc_validate_parser.add_argument(
+        'final_scaled_tree', help="Newick file with scaled curation tree")
     pmc_validate_parser.add_argument(
         'pmc_custom_species', help="file indicating post-curation, manual species assignments that are hard to automatically generate")
     pmc_validate_parser.add_argument(
@@ -772,50 +827,71 @@ if __name__ == '__main__':
                                      help="skip tests for valid taxonomy strings (useful when taxonomy still has unresolved genus assignments)")
     pmc_validate_parser.add_argument('--skip_genus_checks', action='store_true',
                                      help="skip tests related to validating genus/generic names")
-    pmc_validate_parser.add_argument('--silent', help="suppress output", action='store_true')
+    pmc_validate_parser.add_argument(
+        '--silent', help="suppress output", action='store_true')
 
     # cluster genomes to selected GTDB type genomes
     pmc_cluster_stats_parser = subparsers.add_parser('pmc_cluster_stats',
                                                      formatter_class=argparse.ArgumentDefaultsHelpFormatter,
                                                      description='Calculate final statistics for species clusters.')
-    pmc_cluster_stats_parser.add_argument('cluster_file', help='file specifying species clusters')
-    pmc_cluster_stats_parser.add_argument('genome_path_file', help="file indicating path to genome files (TSV file)")
+    pmc_cluster_stats_parser.add_argument(
+        'cluster_file', help='file specifying species clusters')
+    pmc_cluster_stats_parser.add_argument(
+        'genome_path_file', help="file indicating path to genome files (TSV file)")
     pmc_cluster_stats_parser.add_argument(
         'gtdb_metadata_file', help="metadata file from GTDB with NCBI taxonomy information (TSV file)")
-    pmc_cluster_stats_parser.add_argument('output_dir', help="output directory")
-    pmc_cluster_stats_parser.add_argument('--ani_cache_file', help='file with precomputed ANI and AF values')
+    pmc_cluster_stats_parser.add_argument(
+        'output_dir', help="output directory")
+    pmc_cluster_stats_parser.add_argument(
+        '--ani_cache_file', help='file with precomputed ANI and AF values')
     pmc_cluster_stats_parser.add_argument(
         '--max_genomes', help='maximum randomly selected genomes to consider in a species cluster', type=int, default=100)
     pmc_cluster_stats_parser.add_argument(
-        '--af_sp', help='minimum AF for defining species clusters', type=float, default=0.65)
-    pmc_cluster_stats_parser.add_argument('-c', '--cpus', help='number of cpus', type=int, default=1)
-    pmc_cluster_stats_parser.add_argument('--silent', help="suppress output", action='store_true')
+        '--af_sp', help='minimum AF for defining species clusters', type=float, default=Defaults.AF_SP)
+    pmc_cluster_stats_parser.add_argument(
+        '-c', '--cpus', help='number of cpus', type=int, default=1)
+    pmc_cluster_stats_parser.add_argument(
+        '--silent', help="suppress output", action='store_true')
 
     # compare current and previous representatives
     merge_test_parser = subparsers.add_parser('merge_test',
                                               formatter_class=argparse.ArgumentDefaultsHelpFormatter,
                                               description='Produce information relevant to merging two sister species.')
-    merge_test_parser.add_argument('gtdb_metadata_file', help="file with GTDB metadata (TSV file)")
-    merge_test_parser.add_argument('genome_path_file', help="file indicating data directory for GTDB genomes")
-    merge_test_parser.add_argument('species1', help="species to inspect for merging")
-    merge_test_parser.add_argument('species2', help="species to inspect for merging")
+    merge_test_parser.add_argument(
+        'gtdb_metadata_file', help="file with GTDB metadata (TSV file)")
+    merge_test_parser.add_argument(
+        'genome_path_file', help="file indicating data directory for GTDB genomes")
+    merge_test_parser.add_argument(
+        'species1', help="species to inspect for merging")
+    merge_test_parser.add_argument(
+        'species2', help="species to inspect for merging")
     merge_test_parser.add_argument('output_dir', help="output directory")
-    merge_test_parser.add_argument('--ani_cache_file', help='file with precomputed ANI and AF values')
-    merge_test_parser.add_argument('-c', '--cpus', help='number of cpus', type=int, default=1)
-    merge_test_parser.add_argument('--silent', help="suppress output", action='store_true')
+    merge_test_parser.add_argument(
+        '--ani_cache_file', help='file with precomputed ANI and AF values')
+    merge_test_parser.add_argument(
+        '-c', '--cpus', help='number of cpus', type=int, default=1)
+    merge_test_parser.add_argument(
+        '--silent', help="suppress output", action='store_true')
 
     # calculate all pairwise ANI/AF values between genomes in two species
     ani_sp_pair_parser = subparsers.add_parser('ani_sp_pair',
-                                              formatter_class=argparse.ArgumentDefaultsHelpFormatter,
-                                              description='Calculate all pairwise ANI/AF values between genomes in two species.')
-    ani_sp_pair_parser.add_argument('gtdb_metadata_file', help="file with GTDB metadata (TSV file)")
-    ani_sp_pair_parser.add_argument('genome_path_file', help="file indicating data directory for GTDB genomes")
-    ani_sp_pair_parser.add_argument('species1', help="species to inspect for merging")
-    ani_sp_pair_parser.add_argument('species2', help="species to inspect for merging")
+                                               formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+                                               description='Calculate all pairwise ANI/AF values between genomes in two species.')
+    ani_sp_pair_parser.add_argument(
+        'gtdb_metadata_file', help="file with GTDB metadata (TSV file)")
+    ani_sp_pair_parser.add_argument(
+        'genome_path_file', help="file indicating data directory for GTDB genomes")
+    ani_sp_pair_parser.add_argument(
+        'species1', help="species to inspect for merging")
+    ani_sp_pair_parser.add_argument(
+        'species2', help="species to inspect for merging")
     ani_sp_pair_parser.add_argument('output_dir', help="output directory")
-    ani_sp_pair_parser.add_argument('--ani_cache_file', help='file with precomputed ANI and AF values')
-    ani_sp_pair_parser.add_argument('-c', '--cpus', help='number of cpus', type=int, default=1)
-    ani_sp_pair_parser.add_argument('--silent', help="suppress output", action='store_true')
+    ani_sp_pair_parser.add_argument(
+        '--ani_cache_file', help='file with precomputed ANI and AF values')
+    ani_sp_pair_parser.add_argument(
+        '-c', '--cpus', help='number of cpus', type=int, default=1)
+    ani_sp_pair_parser.add_argument(
+        '--silent', help="suppress output", action='store_true')
 
     # dereplicate GTDB species clusters using ANI/AF criteria
     intra_sp_derep_parser = subparsers.add_parser('intra_sp_derep',
@@ -823,44 +899,57 @@ if __name__ == '__main__':
                                                   description='Dereplicate GTDB species clusters using ANI/AF criteria.')
     intra_sp_derep_parser.add_argument(
         'gtdb_clusters_file', help="file indicating representatives of each GTDB species cluster (u_cluster_de_novo: gtdb_clusters_de_novo.tsv)")
-    intra_sp_derep_parser.add_argument('gtdb_metadata_file', help="file with metadata for GTDB genomes (TSV file)")
+    intra_sp_derep_parser.add_argument(
+        'gtdb_metadata_file', help="file with metadata for GTDB genomes (TSV file)")
     intra_sp_derep_parser.add_argument(
         'genomic_path_file', help="file indicating  path to previous genomic FASTA files for genomes")
     intra_sp_derep_parser.add_argument('output_dir', help="output directory")
-    intra_sp_derep_parser.add_argument('--ani_cache_file', help='file with precomputed ANI and AF values')
+    intra_sp_derep_parser.add_argument(
+        '--ani_cache_file', help='file with precomputed ANI and AF values')
     intra_sp_derep_parser.add_argument(
         '--derep_ani', help='ANI threshold for intra-species dereplication [0, 100]', type=float, default=99)
     intra_sp_derep_parser.add_argument(
         '--derep_af', help='AF threshold for intra-species dereplication [0, 1]', type=float, default=0.90)
     intra_sp_derep_parser.add_argument(
         '--max_genomes_per_sp', help='maximum genomes to consider in a species', type=int, default=250)
-    intra_sp_derep_parser.add_argument('-c', '--cpus', help='number of cpus', type=int, default=1)
-    intra_sp_derep_parser.add_argument('--silent', help="suppress output", action='store_true')
+    intra_sp_derep_parser.add_argument(
+        '-c', '--cpus', help='number of cpus', type=int, default=1)
+    intra_sp_derep_parser.add_argument(
+        '--silent', help="suppress output", action='store_true')
 
     # calculate intra-genus ANI/AF values between GTDB representative genomes
     intra_genus_ani_parser = subparsers.add_parser('intra_genus_ani',
                                                    formatter_class=argparse.ArgumentDefaultsHelpFormatter,
                                                    description='Calculate intra-genus ANI/AF values between GTDB representative genomes.')
-    intra_genus_ani_parser.add_argument('target_genus', help="genus of interest (e.g., g__Enterobacter)")
-    intra_genus_ani_parser.add_argument('gtdb_metadata_file', help="file with metadata for GTDB genomes (TSV file)")
+    intra_genus_ani_parser.add_argument(
+        'target_genus', help="genus of interest (e.g., g__Enterobacter)")
+    intra_genus_ani_parser.add_argument(
+        'gtdb_metadata_file', help="file with metadata for GTDB genomes (TSV file)")
     intra_genus_ani_parser.add_argument(
         'genomic_path_file', help="file indicating  path to previous genomic FASTA files for genomes")
     intra_genus_ani_parser.add_argument('output_dir', help="output directory")
-    intra_genus_ani_parser.add_argument('--ani_cache_file', help='file with precomputed ANI and AF values')
-    intra_genus_ani_parser.add_argument('-c', '--cpus', help='number of cpus', type=int, default=1)
-    intra_genus_ani_parser.add_argument('--silent', help="suppress output", action='store_true')
+    intra_genus_ani_parser.add_argument(
+        '--ani_cache_file', help='file with precomputed ANI and AF values')
+    intra_genus_ani_parser.add_argument(
+        '-c', '--cpus', help='number of cpus', type=int, default=1)
+    intra_genus_ani_parser.add_argument(
+        '--silent', help="suppress output", action='store_true')
 
     # calculate ANI/AF betwenn GTDB representative genomes with the same genus
     ani_af_reps_parser = subparsers.add_parser('ani_af_reps',
                                                formatter_class=argparse.ArgumentDefaultsHelpFormatter,
                                                description='Calculate ANI/AF betwenn GTDB representative genomes with the same genus.')
-    ani_af_reps_parser.add_argument('gtdb_metadata_file', help="file with metadata for GTDB genomes (TSV file)")
+    ani_af_reps_parser.add_argument(
+        'gtdb_metadata_file', help="file with metadata for GTDB genomes (TSV file)")
     ani_af_reps_parser.add_argument(
         'genomic_path_file', help="file indicating  path to previous genomic FASTA files for genomes")
     ani_af_reps_parser.add_argument('output_dir', help="output directory")
-    ani_af_reps_parser.add_argument('--ani_cache_file', help='file with precomputed ANI and AF values')
-    ani_af_reps_parser.add_argument('-c', '--cpus', help='number of cpus', type=int, default=1)
-    ani_af_reps_parser.add_argument('--silent', help="suppress output", action='store_true')
+    ani_af_reps_parser.add_argument(
+        '--ani_cache_file', help='file with precomputed ANI and AF values')
+    ani_af_reps_parser.add_argument(
+        '-c', '--cpus', help='number of cpus', type=int, default=1)
+    ani_af_reps_parser.add_argument(
+        '--silent', help="suppress output", action='store_true')
 
     # report information related to a genome being type material
     type_status_parser = subparsers.add_parser('type_status',
@@ -878,16 +967,21 @@ if __name__ == '__main__':
         'gtdb_type_strains_ledger', help="file listing genomes to consider as being the type strain for valid or effectively published species name")
     type_status_parser.add_argument(
         'ncbi_env_bioproject_ledger', help="file indicating NCBI BioProjects composed on MAGs or SAGs incorrectly annotated at NCBI")
-    type_status_parser.add_argument('genome_ids', nargs='+', help="IDs for genomes of interest")
-    type_status_parser.add_argument('--silent', help="suppress output", action='store_true')
+    type_status_parser.add_argument(
+        'genome_ids', nargs='+', help="IDs for genomes of interest")
+    type_status_parser.add_argument(
+        '--silent', help="suppress output", action='store_true')
 
     # compare current and previous representatives
     rep_compare_parser = subparsers.add_parser('rep_compare',
                                                formatter_class=argparse.ArgumentDefaultsHelpFormatter,
                                                description='Compare current and previous representatives.')
-    rep_compare_parser.add_argument('cur_metadata_file', help="metadata file for all genomes in current GTDB release")
-    rep_compare_parser.add_argument('prev_metadata_file', help="metadata file for all genomes in previous GTDB release")
-    rep_compare_parser.add_argument('--silent', help="suppress output", action='store_true')
+    rep_compare_parser.add_argument(
+        'cur_metadata_file', help="metadata file for all genomes in current GTDB release")
+    rep_compare_parser.add_argument(
+        'prev_metadata_file', help="metadata file for all genomes in previous GTDB release")
+    rep_compare_parser.add_argument(
+        '--silent', help="suppress output", action='store_true')
 
     # play to explore new ideas or calculate one off statistics relted to species clusters
     sandbox_parser = subparsers.add_parser('sandbox',
@@ -905,14 +999,17 @@ if __name__ == '__main__':
         'untrustworthy_type_file', help="file listing genomes that should be considered untrustworthy as type material (u_resolve_types: untrustworthy_type_material.tsv)")
     sandbox_parser.add_argument(
         'gtdb_type_strains_ledger', help="file listing genomes to consider as being the type strain for valid or effectively published species name")
-    sandbox_parser.add_argument('sp_priority_ledger', help="file resolving nomenclatural priority of species names")
-    sandbox_parser.add_argument('genus_priority_ledger', help="file resolving nomenclatural priority of genus names")
+    sandbox_parser.add_argument(
+        'sp_priority_ledger', help="file resolving nomenclatural priority of species names")
+    sandbox_parser.add_argument(
+        'genus_priority_ledger', help="file resolving nomenclatural priority of genus names")
     sandbox_parser.add_argument('ncbi_env_bioproject_ledger',
                                 help="file indicating NCBI BioProjects composed on MAGs or SAGs incorrectly annotated at NCBI")
     sandbox_parser.add_argument(
         'lpsn_gss_file', help="table from lpsn.dsmz.de with nomenclature information (lpsn_gss_<date>.csv)")
     sandbox_parser.add_argument('output_dir', help="output directory")
-    sandbox_parser.add_argument('--silent', help="suppress output", action='store_true')
+    sandbox_parser.add_argument(
+        '--silent', help="suppress output", action='store_true')
 
     # get and check options
     args = None

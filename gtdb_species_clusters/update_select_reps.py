@@ -15,10 +15,6 @@
 #                                                                             #
 ###############################################################################
 
-# TO DO:
-# - What happens to G000284175 (Rickettsia montanensis) in u_sel_reps
-# -- shouldn't this show up as an ANI neighbour?
-
 import os
 import sys
 import logging
@@ -40,6 +36,7 @@ from gtdb_species_clusters.species_clusters import SpeciesClusters
 from gtdb_species_clusters.genome_utils import select_highest_quality
 
 from gtdb_species_clusters.species_priority_manager import SpeciesPriorityManager
+from gtdb_species_clusters import defaults as Defaults
 
 
 class UpdateSelectRepresentatives():
@@ -47,14 +44,14 @@ class UpdateSelectRepresentatives():
 
     def __init__(self, ani_cache_file, cpus, output_dir):
         """Initialization."""
-        
-        # List of validly published NCBI species that are 
-        # considered synonyms under the GTDB and are ignored 
+
+        # List of validly published NCBI species that are
+        # considered synonyms under the GTDB and are ignored
         # in the sense that representatives are not selected
-        # for these species. A more formal way should be 
-        # considered for handling this (e.g., a ledger 
-        # indicating GTDB synonyms), but since this is 
-        # a special case for Shigella at the moment it 
+        # for these species. A more formal way should be
+        # considered for handling this (e.g., a ledger
+        # indicating GTDB synonyms), but since this is
+        # a special case for Shigella at the moment it
         # is being explicitly handled here.
         self.invalid_ncbi_sp = set(['s__Shigella flexneri',
                                     's__Shigella sonnei',
@@ -69,10 +66,10 @@ class UpdateSelectRepresentatives():
         self.logger = logging.getLogger('timestamp')
 
         self.min_intra_strain_ani = 99.0
-        self.min_mash_ani = 90.0
+        self.min_mash_ani = Defaults.MASH_MIN_ANI
 
-        self.max_ani_neighbour = 97.0
-        self.max_af_neighbour = 0.65
+        self.max_ani_neighbour = Defaults.ANI_SYNONYMS
+        self.max_af_neighbour = Defaults.AF_SP
 
         self.fastani = FastANI(ani_cache_file, cpus)
 
@@ -1022,7 +1019,7 @@ class UpdateSelectRepresentatives():
             if ncbi_sp in self.invalid_ncbi_sp:
                 # skip species not recognized under the GTDB
                 continue
-                
+
             type_gids = type_strain_genomes[ncbi_sp]
             type_cluster_count = sum([1 for gid in type_gids
                                       if updated_sp_clusters.get_representative(gid) is not None])
@@ -1040,7 +1037,7 @@ class UpdateSelectRepresentatives():
                         self.logger.warning('Identified {:,} of {:,} type strain genomes for {} in GTDB species clusters.'.format(
                             type_cluster_count,
                             len(type_gids),
-                            ncbi_sp))                    
+                            ncbi_sp))
             else:
                 # species has no type strain genomes, so we check if a genome with
                 # this species name is a GTDB representative or if the majority of

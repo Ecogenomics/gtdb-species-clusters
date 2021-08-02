@@ -169,7 +169,7 @@ class Genome(object):
         return self.gtdb_type_species_of_genus
 
     def is_gtdb_type_strain(self):
-        """Check if genome is a type strain genome in GTDB."""
+        """Check if genome is a type strain of species in GTDB."""
 
         if self.gtdb_untrustworthy_as_type:
             return False

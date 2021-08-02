@@ -37,6 +37,7 @@ from gtdb_species_clusters.taxon_utils import read_gtdb_taxonomy
 from gtdb_species_clusters.type_genome_utils import GenomeRadius
 
 from gtdb_species_clusters.fastani import FastANI
+from gtdb_species_clusters import defaults as Defaults
 
 
 class PMC_ClusterStats(object):
@@ -69,7 +70,7 @@ class PMC_ClusterStats(object):
                                                           'ani_to_medoid',
                                                           'mean_ani_to_medoid',
                                                           'mean_ani_to_rep',
-                                                          'ani_below_95'))
+                                                          'ani_below_sp_threshold'))
 
     def find_multiple_reps(self, clusters, cluster_radius):
         """Determine number of non-rep genomes within ANI radius of multiple rep genomes.
@@ -325,7 +326,7 @@ class PMC_ClusterStats(object):
                                                 ani_to_medoid=-1,
                                                 mean_ani_to_medoid=-1,
                                                 mean_ani_to_rep=-1,
-                                                ani_below_95=-1)
+                                                ani_below_sp_threshold=-1)
             else:
                 if len(cids) > self.max_genomes_for_stats:
                     cids = set(random.sample(cids, self.max_genomes_for_stats))
@@ -388,7 +389,7 @@ class PMC_ClusterStats(object):
                         ani_af, rid, medoid_gid)[0],
                     mean_ani_to_medoid=mean_ani_to_medoid,
                     mean_ani_to_rep=mean_ani_to_rep,
-                    ani_below_95=sum([1 for ani in anis if ani < 95]))
+                    ani_below_sp_threshold=sum([1 for ani in anis if ani < Defaults.ANI_SP]))
 
         sys.stdout.write('\n')
 
@@ -410,7 +411,7 @@ class PMC_ClusterStats(object):
         fout.write(
             '\tMin pairwise ANI\tMean pairwise ANI\tStd pairwise ANI\tMedian pairwise ANI')
         fout.write(
-            '\tANI to medoid\tMean ANI to medoid\tMean ANI to rep (w/ subsampling)\tANI pairs <95%')
+            f'\tANI to medoid\tMean ANI to medoid\tMean ANI to rep (w/ subsampling)\tANI pairs <{Defaults.ANI_SP}%')
         fout.write(
             '\tClosest species\tClosest rep genome\tANI radius\tAF closest')
         fout.write('\tClustered genomes\n')
@@ -431,7 +432,7 @@ class PMC_ClusterStats(object):
                 pairwise_stats[rid].ani_to_medoid,
                 pairwise_stats[rid].mean_ani_to_medoid,
                 pairwise_stats[rid].mean_ani_to_rep,
-                pairwise_stats[rid].ani_below_95))
+                pairwise_stats[rid].ani_below_sp_threshold))
 
             if cluster_radius[rid].neighbour_gid != 'N/A':
                 fout.write('\t%s\t%s\t%.2f\t%.2f' % (
@@ -440,7 +441,8 @@ class PMC_ClusterStats(object):
                     cluster_radius[rid].ani,
                     cluster_radius[rid].af))
             else:
-                fout.write('\t%s\t%s\t%.2f\t%.2f' % ('N/A', 'N/A', 95, 0))
+                fout.write('\t%s\t%s\t%.2f\t%.2f' %
+                           ('N/A', 'N/A', Defaults.ANI_SP, 0))
 
             fout.write('\t%s\n' % ','.join(clusters[rid]))
 

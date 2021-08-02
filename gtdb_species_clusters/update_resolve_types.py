@@ -28,6 +28,7 @@ from gtdb_species_clusters.fastani import FastANI
 from gtdb_species_clusters.genomes import Genomes
 from gtdb_species_clusters.genome_utils import canonical_gid
 from gtdb_species_clusters.taxon_utils import generic_name, specific_epithet, canonical_taxon
+from gtdb_species_clusters import defaults as Defaults
 
 
 class ResolveTypes():
@@ -441,7 +442,7 @@ class ResolveTypes():
         all_similar = True
         for gid1, gid2 in combinations(type_gids, 2):
             ani, af = FastANI.symmetric_ani(ani_af, gid1, gid2)
-            if ani < 99 or af < 0.65:
+            if ani < 99 or af < Defaults.AF_SP:
                 all_similar = False
 
             anis.append(ani)
@@ -591,7 +592,7 @@ class ResolveTypes():
             untrustworthy_gids = {}
             gtdb_resolved_sp_conflict = False
             unresolved_species = False
-            note = 'All type strain genomes have ANI >99% and AF >65%.'
+            note = f'All type strain genomes have ANI >99% and AF >{Defaults.AF_SP}%.'
             if not all_similar:
                 note = ''
 
@@ -601,7 +602,7 @@ class ResolveTypes():
 
                 # write out highly divergent cases for manual inspection;
                 # these should be compared to the automated selection
-                if np_mean(anis) < 95:
+                if np_mean(anis) < Defaults.ANI_SP:
                     for gid in type_gids:
                         ltp_species = self.ltp_species(gid, ltp_metadata)
 

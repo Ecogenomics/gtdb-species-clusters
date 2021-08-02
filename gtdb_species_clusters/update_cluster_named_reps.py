@@ -33,6 +33,7 @@ from gtdb_species_clusters.genomes import Genomes
 from gtdb_species_clusters.type_genome_utils import (GenomeRadius,
                                                      write_rep_radius,
                                                      write_clusters)
+from gtdb_species_clusters import defaults as Defaults
 
 
 class UpdateClusterNamedReps(object):
@@ -51,9 +52,9 @@ class UpdateClusterNamedReps(object):
         self.ani_sp = ani_sp
         self.af_sp = af_sp
 
-        self.max_ani_neighbour = 97.0
-        self.max_af_neighbour = 0.65
-        self.min_mash_ani = 90.0
+        self.max_ani_neighbour = Defaults.ANI_SYNONYMS
+        self.max_af_neighbour = Defaults.AF_SP
+        self.min_mash_ani = Defaults.MASH_MIN_ANI
 
         self.ClusteredGenome = namedtuple('ClusteredGenome', 'ani af gid')
 
