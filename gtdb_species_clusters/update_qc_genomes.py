@@ -146,7 +146,7 @@ class QcGenomes():
         fout_failed.write(
             '\tFailed marker percentage\tFailed no. contigs\tFailed N50 contigs')
         fout_failed.write(
-            '\tFailed ambiguous bases\tNCBI exclude from RefSeq\n')
+            '\tFailed ambiguous bases\tNCBI exclude from RefSeq\tMarked in GTDB ledger\n')
 
         passed_qc_gids = set()
         failed_qc_gids = set()
@@ -178,7 +178,8 @@ class QcGenomes():
                     cur_genomes[gid].ambiguous_bases,
                     cur_genomes[gid].score_type_strain(),
                     'Passed QC' if passed_qc else 'Flagged as exception',
-                    excluded_from_refseq_note.get(gid, '')))
+                    excluded_from_refseq_note.get(gid, ''),
+                    gid in filter_exceptions))
             else:
                 failed_qc_gids.add(gid)
                 fout_failed.write('{}\t{}\t{}'.format(
@@ -200,7 +201,8 @@ class QcGenomes():
                     failed_tests['contig_count'],
                     failed_tests['N50'],
                     failed_tests['ambig'],
-                    excluded_from_refseq_note.get(gid, '')))
+                    excluded_from_refseq_note.get(gid, ''),
+                    gid in filter_exceptions))
         fout_passed.close()
         fout_failed.close()
 
