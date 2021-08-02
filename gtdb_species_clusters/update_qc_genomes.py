@@ -24,6 +24,7 @@ from gtdb_species_clusters.genome_utils import (canonical_gid,
 
 from gtdb_species_clusters.genomes import Genomes
 from gtdb_species_clusters.genome_utils import same_assembly_version
+from gtdb_species_clusters import defaults as Defaults
 
 
 class QcGenomes():
@@ -437,9 +438,12 @@ class QcGenomes():
 
         # parse genomes flagged as exceptions from QC
         self.logger.info('Parsing QC ledger:')
-        retain_exceptions, filter_exceptions = self.parse_qc_exception_file(qc_exception_file)
-        self.logger.info(f' - identified {len(retain_exceptions):,} genomes flagged for retention')
-        self.logger.info(f' - identified {len(filter_exceptions):,} genomes flagged for removal')
+        retain_exceptions, filter_exceptions = self.parse_qc_exception_file(
+            qc_exception_file)
+        self.logger.info(
+            f' - identified {len(retain_exceptions):,} genomes flagged for retention')
+        self.logger.info(
+            f' - identified {len(filter_exceptions):,} genomes flagged for removal')
 
         # get percentage of bac120 or ar122 marker genes
         marker_perc = self.parse_marker_percentages(gtdb_domain_report)

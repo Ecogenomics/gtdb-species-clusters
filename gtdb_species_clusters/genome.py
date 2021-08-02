@@ -459,9 +459,4 @@ class Genome(object):
             failed_tests['ambig'] += 1
             failed = True
 
-        # added May 12, 2021
-        if self.is_ncbi_anomalous_assembly():
-            failed_tests['ncbi_anomalous'] += 1
-            failed = True
-
         return not failed

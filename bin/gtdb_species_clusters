@@ -139,15 +139,6 @@ def logger_setup(output_dir, silent):
 
 if __name__ == '__main__':
 
-    DEFAULT_QC_MIN_COMP = 50
-    DEFAULT_QC_MAX_CONT = 10
-    DEFAULT_QC_MIN_QUALITY = 50
-    DEFAULT_QC_SH_EXCEPTION = 80
-    DEFAULT_QC_MIN_PERC_MARKERS = 40
-    DEFAULT_QC_MAX_CONTIGS = 1000
-    DEFAULT_QC_MIN_N50 = 5000
-    DEFAULT_QC_MAX_AMBIGUOUS = 100000
-
     # initialize the options parser
     parser = argparse.ArgumentParser(add_help=False)
     subparsers = parser.add_subparsers(help="--", dest='subparser_name')
@@ -188,21 +179,21 @@ if __name__ == '__main__':
         'ncbi_env_bioproject_ledger', help="file indicating NCBI BioProjects composed on MAGs or SAGs incorrectly annotated at NCBI")
     u_qc_genomes_parser.add_argument('output_dir', help="output directory")
     u_qc_genomes_parser.add_argument(
-        '--min_comp', help='minimum completeness for a genome to be a type genome [0, 100]', type=float, default=DEFAULT_QC_MIN_COMP)
+        '--min_comp', help='minimum completeness for a genome to be a type genome [0, 100]', type=float, default=Defaults.QC_MIN_COMP)
     u_qc_genomes_parser.add_argument(
-        '--max_cont', help='maximum contamination for a genome to be a type genome  [0, 100]', type=float, default=DEFAULT_QC_MAX_CONT)
+        '--max_cont', help='maximum contamination for a genome to be a type genome  [0, 100]', type=float, default=Defaults.QC_MAX_CONT)
     u_qc_genomes_parser.add_argument(
-        '--min_quality', help='minimum genome quality (comp - 5*cont) to be a type genome  [0, 100]', type=float, default=DEFAULT_QC_MIN_QUALITY)
+        '--min_quality', help='minimum genome quality (comp - 5*cont) to be a type genome  [0, 100]', type=float, default=Defaults.QC_MIN_QUALITY)
     u_qc_genomes_parser.add_argument(
-        '--sh_exception', help='minimum strain heterogenity to retain genomes with upto 20%% contamination [0, 100]', type=float, default=DEFAULT_QC_SH_EXCEPTION)
+        '--sh_exception', help='minimum strain heterogenity to retain genomes with upto 20%% contamination [0, 100]', type=float, default=Defaults.QC_SH_EXCEPTION)
     u_qc_genomes_parser.add_argument(
-        '--min_perc_markers', help='minimum percentage of bac120 or ar122 marker genes', type=float, default=DEFAULT_QC_MIN_PERC_MARKERS)
+        '--min_perc_markers', help='minimum percentage of bac120 or ar122 marker genes', type=float, default=Defaults.QC_MIN_PERC_MARKERS)
     u_qc_genomes_parser.add_argument(
-        '--max_contigs', help='maximum number of contigs for a genome to be a type genome', type=int, default=DEFAULT_QC_MAX_CONTIGS)
+        '--max_contigs', help='maximum number of contigs for a genome to be a type genome', type=int, default=Defaults.QC_MAX_CONTIGS)
     u_qc_genomes_parser.add_argument(
-        '--min_N50', help='minimum N50 of scaffolds for a genome to be a type genome', type=int, default=DEFAULT_QC_MIN_N50)
+        '--min_N50', help='minimum N50 of scaffolds for a genome to be a type genome', type=int, default=Defaults.QC_MIN_N50)
     u_qc_genomes_parser.add_argument(
-        '--max_ambiguous', help='maximum number of ambiguous bases within contigs for a genome to be a type genome', type=int, default=DEFAULT_QC_MAX_AMBIGUOUS)
+        '--max_ambiguous', help='maximum number of ambiguous bases within contigs for a genome to be a type genome', type=int, default=Defaults.QC_MAX_AMBIGUOUS)
     u_qc_genomes_parser.add_argument(
         '--silent', help="suppress output", action='store_true')
 
