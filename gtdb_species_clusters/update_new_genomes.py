@@ -158,8 +158,12 @@ class NewGenomes():
                 tokens = line.strip().split('\t')
                 accn = tokens[0]
                 genome_path = tokens[1]
-                gid = tokens[2]
-                assert canonical_gid(accn) == gid
+
+                if len(tokens) == 3:
+                    gid = tokens[2]
+                    assert canonical_gid(accn) == gid
+                else:
+                    gid = canonical_gid(accn)
 
                 if gid not in cur_accns:
                     # a genome may not be part of the GTDB release
