@@ -100,7 +100,7 @@ class QcGenomes():
         filter_exceptions = set()
         with open(qc_exception_file, encoding='utf-8') as f:
             header = f.readline().strip().split('\t')
-            include_idx = header.index('Include in tree')
+            include_idx = header.index('Include')
 
             for line in f:
                 tokens = line.strip().split('\t')
@@ -139,7 +139,7 @@ class QcGenomes():
         header += '\tMarkers (%)\tNo. contigs\tN50 contigs\tAmbiguous bases'
 
         fout_passed.write(
-            header + '\tScore\tNote\tNCBI exclude from RefSeq\n')
+            header + '\tScore\tNote\tNCBI exclude from RefSeq\tMarked in GDB ledger\n')
         fout_failed.write(header)
         fout_failed.write(
             '\tFailed completeness\tFailed contamination\tFailed quality')
@@ -167,7 +167,7 @@ class QcGenomes():
                 passed_qc_gids.add(gid)
                 fout_passed.write('{}\t{}\t{}'.format(
                     gid, cur_genomes[gid].ncbi_taxa.species, cur_genomes[gid].gtdb_taxa))
-                fout_passed.write('\t{:.2f}\t{:.2f}\t{:.2f}\t{}\t{:.2f}\t{}\t{}\t{}\t{:.2f}\t{}\t{}\n'.format(
+                fout_passed.write('\t{:.2f}\t{:.2f}\t{:.2f}\t{}\t{:.2f}\t{}\t{}\t{}\t{:.2f}\t{}\t{}\t{}\n'.format(
                     cur_genomes[gid].comp,
                     cur_genomes[gid].cont,
                     cur_genomes[gid].comp - 5*cur_genomes[gid].cont,
@@ -177,9 +177,9 @@ class QcGenomes():
                     cur_genomes[gid].contig_n50,
                     cur_genomes[gid].ambiguous_bases,
                     cur_genomes[gid].score_type_strain(),
-                    'Passed QC' if passed_qc else 'Flagged as exception',
+                    'Passed QC' if passed_qc else 'Retained as exception',
                     excluded_from_refseq_note.get(gid, ''),
-                    gid in filter_exceptions))
+                    gid in retain_exceptions))
             else:
                 failed_qc_gids.add(gid)
                 fout_failed.write('{}\t{}\t{}'.format(
@@ -193,7 +193,7 @@ class QcGenomes():
                     cur_genomes[gid].contig_count,
                     cur_genomes[gid].contig_n50,
                     cur_genomes[gid].ambiguous_bases))
-                fout_failed.write('\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\n'.format(
+                fout_failed.write('\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\n'.format(
                     failed_tests['comp'],
                     failed_tests['cont'],
                     failed_tests['qual'],
@@ -418,19 +418,19 @@ class QcGenomes():
         """Quality check all potential GTDB genomes."""
 
         # create previous and current GTDB genome sets
-        self.logger.info('Creating previous GTDB genome set.')
+        self.logger.info('Creating previous GTDB genome set:')
         prev_genomes = Genomes()
         prev_genomes.load_from_metadata_file(prev_gtdb_metadata_file,
                                              gtdb_type_strains_ledger=gtdb_type_strains_ledger,
                                              ncbi_genbank_assembly_file=ncbi_genbank_assembly_file,
                                              ncbi_env_bioproject_ledger=ncbi_env_bioproject_ledger)
         self.logger.info(
-            f' - previous genome set contains {len(prev_genomes):,} genomes.')
-        self.logger.info(' - previous genome set has {:,} species clusters spanning {:,} genomes.'.format(
+            f' - previous genome set contains {len(prev_genomes):,} genomes')
+        self.logger.info(' - previous genome set has {:,} species clusters spanning {:,} genomes'.format(
             len(prev_genomes.sp_clusters),
             prev_genomes.sp_clusters.total_num_genomes()))
 
-        self.logger.info('Creating current GTDB genome set.')
+        self.logger.info('Creating current GTDB genome set:')
         cur_genomes = Genomes()
         cur_genomes.load_from_metadata_file(cur_gtdb_metadata_file,
                                             gtdb_type_strains_ledger=gtdb_type_strains_ledger,

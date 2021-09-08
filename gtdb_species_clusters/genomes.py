@@ -326,8 +326,8 @@ class Genomes(object):
                     else:
                         conflicting_domain_count += 1
 
-        self.logger.info(f' - updated {update_count:,} genomes.')
-        self.logger.info(f' - identified {conflicting_domain_count:,} genomes with conflicting domain assignments.')
+        self.logger.info(f' - updated {update_count:,} genomes')
+        self.logger.info(f' - identified {conflicting_domain_count:,} genomes with conflicting domain assignments')
 
     def load_from_metadata_file(self,
                                 metadata_file,
@@ -349,7 +349,7 @@ class Genomes(object):
                 for line in f:
                     line_split = line.strip().split('\t')
                     pass_qc_gids.add(line_split[0].strip())
-            self.logger.info(f' - identified {len(pass_qc_gids):,} genomes passing QC.')
+            self.logger.info(f' - identified {len(pass_qc_gids):,} genomes passing QC')
 
         gtdb_type_strains = set()
         if gtdb_type_strains_ledger:
@@ -359,7 +359,7 @@ class Genomes(object):
                     tokens = line.strip().split('\t')
                     gid = canonical_gid(tokens[0].strip())
                     gtdb_type_strains.add(gid)
-            self.logger.info(f' - identified {len(gtdb_type_strains):,} manually annotated as type strain genomes.')
+            self.logger.info(f' - identified {len(gtdb_type_strains):,} manually annotated as type strain genomes')
 
         excluded_from_refseq_note = {}
         ncbi_bioproject = {}
@@ -379,13 +379,13 @@ class Genomes(object):
         if untrustworthy_type_ledger:
             untrustworthy_as_type = self.parse_untrustworthy_type_ledger(untrustworthy_type_ledger)
             self.logger.info(
-                f' - identified {len(untrustworthy_as_type):,} genomes annotated as untrustworthy as type by GTDB.')
+                f' - identified {len(untrustworthy_as_type):,} genomes annotated as untrustworthy as type by GTDB')
 
         untrustworthy_ncbi_sp = set()
         if ncbi_untrustworthy_sp_ledger:
             untrustworthy_ncbi_sp = self.parse_ncbi_untrustworthy_sp_ledger(ncbi_untrustworthy_sp_ledger)
             self.logger.info(
-                f' - identified {len(untrustworthy_ncbi_sp):,} genomes annotated as having untrustworthy NCBI species assignments.')
+                f' - identified {len(untrustworthy_ncbi_sp):,} genomes annotated as having untrustworthy NCBI species assignments')
 
         with open(metadata_file, encoding='utf-8') as f:
             headers = f.readline().strip().split('\t')
