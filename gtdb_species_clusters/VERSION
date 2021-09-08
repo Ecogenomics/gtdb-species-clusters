@@ -1,3 +1,7 @@
+0.3.2
+- start of R207
+- improved logging and added assertion to u_new_genomes
+
 0.3.1
 - updated percent marker gene QC criteria from 40% to 50%
 

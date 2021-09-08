@@ -60,7 +60,7 @@ class NewGenomes():
             ncbi_assembly_summary_genbank):
         """Identify new or modified genomes."""
 
-        self.logger.info('Reading previous GTDB genomes.')
+        self.logger.info('Reading previous GTDB genomes:')
         prev_accns = {}
         gtdb_taxonomy = {}
         gtdb_rep = {}
@@ -85,10 +85,10 @@ class NewGenomes():
                 gtdb_rep[cid] = tokens[gtdb_rep_index]
                 ncbi_genome_category[cid] = tokens[ncbi_genome_cat_index]
 
-        self.logger.info(f' - identified {len(prev_accns):,} genomes.')
+        self.logger.info(f' - identified {len(prev_accns):,} genomes')
 
         # get genomes in current release
-        self.logger.info('Reading current GTDB genomes.')
+        self.logger.info('Reading current GTDB genomes:')
         cur_accns = {}
         with open(cur_gtdb_metadata_file, encoding='utf-8') as f:
             f.readline()
@@ -99,7 +99,7 @@ class NewGenomes():
                     continue
 
                 cur_accns[canonical_gid(gid)] = gid
-        self.logger.info(f' - identified {len(cur_accns):,} genomes.')
+        self.logger.info(f' - identified {len(cur_accns):,} genomes')
 
         # get equivalent GenBank and RefSeq genome assemblies
         self.logger.info(
@@ -125,7 +125,7 @@ class NewGenomes():
                         identical_accns[rs_accn] = gb_accn
 
         # identify new and modified genome IDs
-        self.logger.info('Identifying new or modified genome IDs.')
+        self.logger.info('Identifying new or modified genome IDs:')
         new_gids = set()
         updated_gids = set()
         for cur_gid in cur_accns:
@@ -143,13 +143,13 @@ class NewGenomes():
         num_lost_gtdb_reps = sum(
             [1 for gid in lost_gids if gtdb_rep[gid] == 't'])
         self.logger.info(
-            f' - identified {len(new_gids):,} new, {len(updated_gids):,} updated, and {len(lost_gids):,} lost genomes.')
+            f' - identified {len(new_gids):,} new, {len(updated_gids):,} updated, and {len(lost_gids):,} lost genomes')
         self.logger.info(
-            f' - {num_lost_gtdb_reps:,} lost genomes were GTDB representatives.')
+            f' - {num_lost_gtdb_reps:,} lost genomes were GTDB representatives')
 
         # get path to current GTDB genome directories
         self.logger.info(
-            'Identifying path to genomic files for current GTDB genomes.')
+            'Identifying path to genomic files for current GTDB genomes:')
         cur_genome_files = {}
         skipped_genomes = 0
         fout = open(os.path.join(self.output_dir, 'skipped_genomes.tsv'), 'w')
@@ -181,10 +181,12 @@ class NewGenomes():
 
         fout.close()
 
+        assert len(cur_genome_files) == len(cur_accns)
+
         self.logger.info(
-            f' - identified genomic file for {len(cur_genome_files):,} genomes.')
+            f' - identified genomic file for {len(cur_genome_files):,} genomes')
         self.logger.info(
-            f' - skipped {skipped_genomes:,} genomes without GTDB metadata.')
+            f' - skipped {skipped_genomes:,} genomes without GTDB metadata')
 
         # write out new or modified genome IDs
         self.logger.info(
