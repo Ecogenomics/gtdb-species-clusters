@@ -24,6 +24,7 @@ from biolib.common import check_file_exists, make_sure_path_exists
 from gtdb_species_clusters.update_new_genomes import NewGenomes
 from gtdb_species_clusters.update_qc_genomes import QcGenomes
 from gtdb_species_clusters.update_lpsn_ssu_types import LPSN_SSU_Types
+from gtdb_species_clusters.update_ani_cache import Update_ANI_Cache
 from gtdb_species_clusters.update_resolve_types import ResolveTypes
 from gtdb_species_clusters.update_gtdbtk import GTDB_Tk
 from gtdb_species_clusters.update_rep_changes import RepChanges
@@ -132,6 +133,19 @@ class OptionsParser():
               args.ncbi_genbank_assembly_file,
               args.gtdb_type_strains_ledger,
               args.untrustworthy_type_ledger)
+
+        self.logger.info('Done.')
+
+    def u_update_ani_cache(self, args):
+        """Update ANI cache to remove entries for updates genomes."""
+
+        check_file_exists(args.genomes_new_updated_file)
+        check_file_exists(args.prev_ani_cache)
+
+        p = Update_ANI_Cache()
+        p.run(args.genomes_new_updated_file,
+              args.prev_ani_cache,
+              args.out_ani_cache)
 
         self.logger.info('Done.')
 
@@ -1000,6 +1014,8 @@ class OptionsParser():
             self.u_qc_genomes(args)
         elif args.subparser_name == 'u_lpsn_rna_types':
             self.u_lpsn_rna_types(args)
+        elif args.subparser_name == 'u_update_ani_cache':
+            self.u_update_ani_cache(args)
         elif args.subparser_name == 'u_resolve_types':
             self.u_resolve_types(args)
         elif args.subparser_name == 'u_gtdbtk':

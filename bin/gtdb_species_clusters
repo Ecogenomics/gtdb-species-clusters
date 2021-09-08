@@ -51,6 +51,7 @@ def print_help():
       u_qc_genomes         -> Quality check new and updated genomes
       u_gtdbtk             -> Perform initial classification of new and updated genomes using GTDB-Tk
       u_lpsn_rna_types     -> Identify type genomes based on type 16S rRNA sequences indicated at LPSN
+      u_update_ani_cache   -> Update ANI cache to remove entries for updates genomes
       u_resolve_types      -> Resolve cases where a species has multiple genomes assembled from the type strain
       u_rep_changes        -> Identify lost, updated, reassigned, and unchanged species representatives
       u_rep_actions        -> Perform initial actions required for modified representatives
@@ -210,8 +211,7 @@ if __name__ == '__main__':
         '--batch_size', help="number of genome to process with GTDB-Tk in each batch", type=int, default=5000)
     u_gtdbtk_parser.add_argument(
         '-c', '--cpus', help='number of cpus', type=int, default=1)
-    u_gtdbtk_parser.add_argument(
-        '--silent', help="suppress output", action='store_true')
+    u_gtdbtk_parser.add_argument('--silent', help="suppress output", action='store_true')
 
     # identify type genomes based on type 16S rRNA sequences indicated at LPSN
     u_lpsn_rna_types_parser = subparsers.add_parser('u_lpsn_rna_types',
@@ -234,8 +234,17 @@ if __name__ == '__main__':
     u_lpsn_rna_types_parser.add_argument('output_dir', help="output directory")
     u_lpsn_rna_types_parser.add_argument(
         '-c', '--cpus', help='number of cpus', type=int, default=1)
-    u_lpsn_rna_types_parser.add_argument(
-        '--silent', help="suppress output", action='store_true')
+    u_lpsn_rna_types_parser.add_argument('--silent', help="suppress output", action='store_true')
+
+    # update ANI cache to remove entries for updates genomes
+    u_update_ani_cache_parser = subparsers.add_parser('u_update_ani_cache',
+                                                   formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+                                                   description='Update ANI cache to remove entries for updates genomes.')
+    u_update_ani_cache_parser.add_argument(
+        'genomes_new_updated_file', help="file indicating new and updated genomes (u_new_genomes: genomes_new_updated.tsv)")
+    u_update_ani_cache_parser.add_argument('prev_ani_cache', help="ANI cache file from previous GTDB release")
+    u_update_ani_cache_parser.add_argument('out_ani_cache', help="updated ANI cache file")
+    u_update_ani_cache_parser.add_argument('--silent', help="suppress output", action='store_true')
 
     # resolve cases where a species has multiple genomes assembled from the type strain
     u_resolve_types_parser = subparsers.add_parser('u_resolve_types',
