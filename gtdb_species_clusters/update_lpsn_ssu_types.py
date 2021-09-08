@@ -156,6 +156,7 @@ class LPSN_SSU_Types():
         fout.write('Genome ID\tCandidatus\tSpecies\trRNA\tIs GTDB type genome\tIs NCBI type genome\tGTDB type strain genomes\n')
 
         processed = 0
+        missing_type_designation = 0
         while True:
             results = queue_writer.get(block=True, timeout=None)
             if results is None:
@@ -173,6 +174,9 @@ class LPSN_SSU_Types():
                     cur_genomes[gid].is_ncbi_type_strain(),
                     ','.join(gtdb_type_strains[lpsn_sp])))
 
+                if not cur_genomes[gid].is_gtdb_type_strain():
+                    missing_type_designation += 1
+
             processed += 1
             statusStr = '-> Processing {:,} of {:,} ({:.2f}%) species.'.format(
                 processed,
@@ -185,6 +189,10 @@ class LPSN_SSU_Types():
 
         fout.close()
 
+        if missing_type_designation > 0:
+            self.logger.warning(
+                f"[IMPORTANT]: add the {missing_type_designation:,} genomes where `Is GTDB type genome` is FALSE to the `gtdb_type_strains` ledger.")
+
     def run(self,
             lpsn_metadata_file,
             cur_gtdb_metadata_file,
@@ -196,7 +204,7 @@ class LPSN_SSU_Types():
         """Identify type genomes based on type 16S rRNA sequences indicated at LPSN."""
 
         # create current GTDB genome sets
-        self.logger.info('Creating current GTDB genome set.')
+        self.logger.info('Creating current GTDB genome set:')
         cur_genomes = Genomes()
         cur_genomes.load_from_metadata_file(cur_gtdb_metadata_file,
                                             gtdb_type_strains_ledger=gtdb_type_strains_ledger,
@@ -207,7 +215,7 @@ class LPSN_SSU_Types():
         cur_genomes.load_genomic_file_paths(cur_genomic_path_file)
 
         # get LPSN species names with specified sequence type material
-        self.logger.info('Parsing LPSN type 16S rRNA data.')
+        self.logger.info('Parsing LPSN type 16S rRNA data:')
         lpsn_sp_type_ssu = self.parse_lpsn_ssu_metadata(lpsn_metadata_file)
         self.logger.info(f' - identified {len(lpsn_sp_type_ssu):,} species with type 16S rRNA sequence.')
 
@@ -268,6 +276,3 @@ class LPSN_SSU_Types():
             for p in worker_proc:
                 p.terminate()
             write_proc.terminate()
-
-        self.logger.info(
-            "[IMPORTANT]: add genomes where `Is GTDB type genome` is FALSE to the `gtdb_type_strains` ledger.")

@@ -475,7 +475,7 @@ class ResolveTypes():
             f' - identified {len(ltp_defined_species):,} species.')
 
         # create current GTDB genome sets
-        self.logger.info('Creating current GTDB genome set.')
+        self.logger.info('Creating current GTDB genome set:')
         cur_genomes = Genomes()
         cur_genomes.load_from_metadata_file(cur_gtdb_metadata_file,
                                             gtdb_type_strains_ledger=gtdb_type_strains_ledger,
@@ -488,11 +488,11 @@ class ResolveTypes():
 
         # parsing genomes manually established to be untrustworthy as type
         self.logger.info(
-            'Determining genomes manually annotated as untrustworthy as type.')
+            'Determining genomes manually annotated as untrustworthy as type:')
         manual_untrustworthy_types = self.parse_untrustworthy_type_ledger(
             untrustworthy_type_ledger)
         self.logger.info(
-            f' - identified {len(manual_untrustworthy_types):,} genomes manually annotated as untrustworthy as type.')
+            f' - identified {len(manual_untrustworthy_types):,} genomes manually annotated as untrustworthy as type')
 
         # Identify NCBI species with multiple genomes assembled from type strain of species. This
         # is done using a series of heuristics that aim to ensure that the selected type strain
@@ -501,10 +501,10 @@ class ResolveTypes():
         # database that indicates a single `type genome assembly` for each species instead
         # of just indicating a type strain from which many (sometimes dissimilar) assemblies exist.
         self.logger.info(
-            'Determining number of type strain genomes in each NCBI species.')
+            'Determining number of type strain genomes in each NCBI species:')
         multi_type_strains_sp = self.sp_with_mult_type_strains(cur_genomes)
         self.logger.info(
-            f' - identified {len(multi_type_strains_sp):,} NCBI species with multiple assemblies indicated as being type strain genomes.')
+            f' - identified {len(multi_type_strains_sp):,} NCBI species with multiple assemblies indicated as being type strain genomes')
 
         # resolve species with multiple type strain genomes
         fout = open(os.path.join(self.output_dir,
