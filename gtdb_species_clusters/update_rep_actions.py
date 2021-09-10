@@ -302,7 +302,8 @@ class RepActions():
                               rep_change_summary_file,
                               prev_genomes,
                               cur_genomes,
-                              new_updated_sp_clusters):
+                              new_updated_sp_clusters,
+                              disbanded_rids):
         """Handle representatives with updated genomes."""
 
         # get genomes with specific changes
@@ -317,6 +318,9 @@ class RepActions():
         # calculate ANI between previous and current genomes
         assembly_score_change = []
         for prev_rid, prev_gtdb_sp in genomic_update_gids.items():
+            if prev_rid in disbanded_rids:
+                continue
+
             # check that genome hasn't been lost which should
             # be handled differently
             assert prev_rid in cur_genomes
@@ -386,7 +390,8 @@ class RepActions():
                                 rep_change_summary_file,
                                 prev_genomes,
                                 cur_genomes,
-                                new_updated_sp_clusters):
+                                new_updated_sp_clusters,
+                                disbanded_rids):
         """Handle representatives which have lost type strain genome status."""
 
         # get genomes with new NCBI species assignments
@@ -399,6 +404,9 @@ class RepActions():
             f' - identified {len(ncbi_type_species_lost):,} genomes')
 
         for prev_rid, prev_gtdb_sp in ncbi_type_species_lost.items():
+            if prev_rid in disbanded_rids:
+                continue
+
             # check that genome hasn't been lost which should
             # be handled differently
             assert prev_rid in cur_genomes
@@ -448,7 +456,8 @@ class RepActions():
     def action_domain_change(self,
                              rep_change_summary_file,
                              prev_genomes,
-                             cur_genomes):
+                             cur_genomes,
+                             disbanded_rids):
         """Handle representatives which have new domain assignments."""
 
         # get genomes with new NCBI species assignments
@@ -460,6 +469,9 @@ class RepActions():
         self.logger.info(f' - identified {len(domain_changed):,} genomes')
 
         for prev_rid, prev_gtdb_sp in domain_changed.items():
+            if prev_rid in disbanded_rids:
+                continue
+
             action = 'DOMAIN_CHECK:REASSIGNED'
             params = {}
             params['prev_gtdb_domain'] = prev_genomes[prev_rid].gtdb_taxa.domain
@@ -476,7 +488,8 @@ class RepActions():
                                          rep_change_summary_file,
                                          prev_genomes,
                                          cur_genomes,
-                                         new_updated_sp_clusters):
+                                         new_updated_sp_clusters,
+                                         disbanded_rids):
         """Check if representative considered to have an anomalous assembly at NCBI should be replaced."""
 
         # get genomes with specific changes
@@ -492,8 +505,10 @@ class RepActions():
         num_frameshifted_proteins = 0
         num_anomalous = 0
         for idx, (prev_rid, prev_gtdb_sp) in enumerate(ncbi_problematic_rids.items()):
-            # check that genome hasn't been lost which should
-            # be handled differently
+            if prev_rid in disbanded_rids:
+                continue
+
+            # check that genome hasn't been lost which should be handled differently
             assert prev_rid in cur_genomes
 
             sp_cids = self.genomes_in_current_sp_cluster(prev_rid,
@@ -514,6 +529,9 @@ class RepActions():
             # get latest representative of GTDB species clusters as it may
             # have been updated by a previous update rule
             prev_updated_rid = self.get_updated_rid(prev_rid)
+            if prev_updated_rid is None:
+                self.logger.error("Returned 'None' as updated representative: {prev_rid}")
+                sys.exit(-1)
 
             prev_rep_score = cur_genomes[prev_rid].score_ani(100)
             new_rid, top_score, ani, af = self.top_ani_score(prev_rid,
@@ -729,7 +747,8 @@ class RepActions():
     def action_naming_priority(self,
                                prev_genomes,
                                cur_genomes,
-                               new_updated_sp_clusters):
+                               new_updated_sp_clusters,
+                               disbanded_rids):
         """Check if representative should be replace with genome with higher nomenclatural priority."""
 
         self.logger.info(
@@ -746,6 +765,9 @@ class RepActions():
         anis = []
         afs = []
         for prev_rid in prev_genomes.sp_clusters:
+            if prev_rid in disbanded_rids:
+                continue
+                
             # get type strain genomes in GTDB species cluster, including genomes new to this release
             type_strain_gids = [gid for gid in prev_genomes.sp_clusters[prev_rid]
                                 if gid in cur_genomes and cur_genomes[gid].is_effective_type_strain()]
@@ -991,21 +1013,25 @@ class RepActions():
         self.action_genomic_update(rep_change_summary_file,
                                    prev_genomes,
                                    cur_genomes,
-                                   new_updated_sp_clusters)
+                                   new_updated_sp_clusters,
+                                   disbanded_rids)
 
         self.action_type_strain_lost(rep_change_summary_file,
                                      prev_genomes,
                                      cur_genomes,
-                                     new_updated_sp_clusters)
+                                     new_updated_sp_clusters,
+                                     disbanded_rids)
 
         self.action_domain_change(rep_change_summary_file,
                                   prev_genomes,
-                                  cur_genomes)
+                                  cur_genomes,
+                                  disbanded_rids)
 
         self.action_ncbi_anomalous_assemblies(rep_change_summary_file,
                                               prev_genomes,
                                               cur_genomes,
-                                              new_updated_sp_clusters)
+                                              new_updated_sp_clusters,
+                                              disbanded_rids)
 
         if True:  # ***DEBUG FLAG
             improved_reps = self.action_improved_rep(cur_genomes,
@@ -1026,7 +1052,8 @@ class RepActions():
 
         self.action_naming_priority(prev_genomes,
                                     cur_genomes,
-                                    new_updated_sp_clusters)
+                                    new_updated_sp_clusters,
+                                    disbanded_rids)
 
         # report basic statistics
         num_retired_sp = sum(
