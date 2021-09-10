@@ -46,7 +46,7 @@ class RepChanges():
         """Identify species representatives that have changed from previous release."""
 
         # create previous and current GTDB genome sets
-        self.logger.info('Creating previous GTDB genome set.')
+        self.logger.info('Creating previous GTDB genome set:')
         prev_genomes = Genomes()
         prev_genomes.load_from_metadata_file(prev_gtdb_metadata_file,
                                              gtdb_type_strains_ledger=gtdb_type_strains_ledger,
@@ -54,12 +54,12 @@ class RepChanges():
                                              untrustworthy_type_ledger=untrustworthy_type_file,
                                              ncbi_env_bioproject_ledger=ncbi_env_bioproject_ledger)
         self.logger.info(
-            f' - previous genome set contains {len(prev_genomes):,} genomes.')
-        self.logger.info(' - previous genome set has {:,} species clusters spanning {:,} genomes.'.format(
+            f' - previous genome set contains {len(prev_genomes):,} genomes')
+        self.logger.info(' - previous genome set has {:,} species clusters spanning {:,} genomes'.format(
             len(prev_genomes.sp_clusters),
             prev_genomes.sp_clusters.total_num_genomes()))
 
-        self.logger.info('Creating current GTDB genome set.')
+        self.logger.info('Creating current GTDB genome set:')
         cur_genomes = Genomes()
         cur_genomes.load_from_metadata_file(cur_gtdb_metadata_file,
                                             gtdb_type_strains_ledger=gtdb_type_strains_ledger,
@@ -71,19 +71,19 @@ class RepChanges():
 
         # get previous and current genomes from type strains
         self.logger.info(
-            'Determining genomes identified as being assembled from type strain.')
+            'Determining genomes identified as being assembled from type strain')
         prev_type_strain_gids = prev_genomes.gtdb_type_strain_genomes()
         cur_type_strain_gids = cur_genomes.gtdb_type_strain_genomes()
         new_type_strain_gids = cur_type_strain_gids - prev_type_strain_gids
-        self.logger.info(' - identified {:,} previous and {:,} current genomes from type strain.'.format(
+        self.logger.info(' - identified {:,} previous and {:,} current genomes from type strain'.format(
             len(prev_type_strain_gids),
             len(cur_type_strain_gids)))
-        self.logger.info(' - {:,} type strain genomes are new to the current genome set.'.format(
+        self.logger.info(' - {:,} type strain genomes are new to the current genome set'.format(
             len(new_type_strain_gids)))
 
         # create expanded previous GTDB species clusters
         self.logger.info(
-            'Creating species clusters of new and updated genomes based on GTDB-Tk classifications.')
+            'Creating species clusters of new and updated genomes based on GTDB-Tk classifications:')
         new_updated_sp_clusters = SpeciesClusters()
         new_updated_sp_clusters.create_expanded_clusters(prev_genomes,
                                                          genomes_new_updated_file,
@@ -95,14 +95,13 @@ class RepChanges():
 
         # read GTDB clusters to be disbanded
         self.logger.info(
-            'Parsing ledger indicating GTDB clusters to be disbanded.')
+            'Parsing ledger indicating GTDB clusters to be disbanded:')
         disbanded_rids = parse_disbanded_cluster_ledger(disband_cluster_ledger)
         self.logger.info(
-            ' - identified {:,} clusters to be disbanded.'.format(len(disbanded_rids)))
+            ' - identified {:,} clusters to be disbanded'.format(len(disbanded_rids)))
 
         # determine status of each previous GTDB representative
-        self.logger.info(
-            'Determining status of each previous GTDB representative.')
+        self.logger.info('Determining status of each previous GTDB representative:')
 
         fout_summary = open(os.path.join(
             self.output_dir, 'rep_change_summary.tsv'), 'w')
@@ -262,7 +261,7 @@ class RepChanges():
         num_prev_sp_clusters = len(prev_genomes.sp_clusters)
         num_rep_changes_perc = num_rep_changes*100.0/num_prev_sp_clusters
         self.logger.info(
-            f' - identified {num_rep_changes:,} ({num_rep_changes_perc:.1f}%) species with a change to the representative genome.')
+            f' - identified {num_rep_changes:,} ({num_rep_changes_perc:.1f}%) species with a change to the representative genome')
 
         self.logger.info('Genomic changes:')
         unchanged_perc = len(unchanged_genome)*100.0 / num_prev_sp_clusters

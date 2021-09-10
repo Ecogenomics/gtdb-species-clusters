@@ -58,7 +58,7 @@ class SpeciesPriorityManager(object):
     def _parse_sp_priority_ledger(self, species_priority_ledger):
         """Parse manually resolved priority cases."""
 
-        self.logger.info('Parsing species priority ledger.')
+        self.logger.info('Parsing species priority ledger:')
         self.manual_sp_priority = defaultdict(lambda: {})
         self.manual_species_priority_year = {}
 
@@ -95,12 +95,12 @@ class SpeciesPriorityManager(object):
                 num_cases += 1
 
         self.logger.info(
-            f' - identified {num_cases:,} manually resolved cases.')
+            f' - identified {num_cases:,} manually resolved cases')
 
     def _parse_genus_priority_ledger(self, genus_priority_ledger):
         """Parse manually resolved priority cases."""
 
-        self.logger.info('Parsing genus priority ledger.')
+        self.logger.info('Parsing genus priority ledger:')
         self.manual_genus_priority = defaultdict(lambda: {})
 
         num_cases = 0
@@ -128,7 +128,7 @@ class SpeciesPriorityManager(object):
                 num_cases += 1
 
         self.logger.info(
-            f' - identified {num_cases:,} manually resolved cases.')
+            f' - identified {num_cases:,} manually resolved cases')
 
     def _parse_lpsn_gss(self, lpsn_gss_file):
         """Parse genus priority information and validity of names from LPSN GSS metadata file."""
@@ -206,8 +206,8 @@ class SpeciesPriorityManager(object):
                                                          priority_year))
 
         self.logger.info(
-            f' - established genus priority for {genus_priority_count:,} genera using LPSN GSS metadata.')
-        self.logger.info(' - identified {:,} genera, {:,} species and {:,} subpecies with validly published names in LPSN GSS metadata.'.format(
+            f' - established genus priority for {genus_priority_count:,} genera using LPSN GSS metadata')
+        self.logger.info(' - identified {:,} genera, {:,} species and {:,} subpecies with validly published names in LPSN GSS metadata'.format(
             valid_genera_count,
             valid_species_count,
             valid_subsp_count))

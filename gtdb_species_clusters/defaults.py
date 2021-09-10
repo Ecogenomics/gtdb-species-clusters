@@ -10,7 +10,7 @@ QC_MAX_AMBIGUOUS = 100000
 
 # criteria for defining ANI-based species clusters
 ANI_SP = 95
-AF_SP = 0.65
+AF_SP = 0.5
 
 # criteria used for defining synonyms
 ANI_SYNONYMS = 0.97

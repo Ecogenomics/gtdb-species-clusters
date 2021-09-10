@@ -161,20 +161,20 @@ class SpeciesClusters():
         gtdbtk_classifications = read_gtdbtk_classifications(
             gtdbtk_classify_file)
         self.logger.info(
-            f' - identified {len(gtdbtk_classifications):,} classifications.')
+            f' - identified {len(gtdbtk_classifications):,} classifications')
 
         # get new and updated genomes in current GTDB release
         self.new_gids, self.updated_gids = read_cur_new_updated(
             genomes_new_updated_file)
         self.logger.info(
-            f' - identified {len(self.new_gids):,} new and {len(self.updated_gids):,} updated genomes.')
+            f' - identified {len(self.new_gids):,} new and {len(self.updated_gids):,} updated genomes')
 
         # get list of genomes passing QC
         gids_pass_qc = read_qc_file(qc_passed_file)
         new_pass_qc = len(self.new_gids.intersection(gids_pass_qc))
         updated_pass_qc = len(self.updated_gids.intersection(gids_pass_qc))
         self.logger.info(
-            f' - identified {new_pass_qc:,} new and {updated_pass_qc:,} updated genomes as passing QC.')
+            f' - identified {new_pass_qc:,} new and {updated_pass_qc:,} updated genomes as passing QC')
 
         # create mapping between species and representatives
         original_sp_clusters = prev_genomes.sp_clusters
@@ -210,12 +210,15 @@ class SpeciesClusters():
                 orig_sp = orig_gid_sp_map[gid]
                 if orig_sp != sp:
                     if prev_genomes[gid].is_gtdb_sp_rep():
+                        # A GTDB species representative can changed to the point where
+                        # it no longer clusters with its previous genome assembly and 
+                        # instead is placed into a different species cluster
+                        # (e.g. GCA_005518205.1 was updated to GCA_005518205.2 in R207,
+                        # and as a result clustered with the species cluster represented by
+                        # GCA_005518235.1).
                         self.logger.warning(
                             f'Updated GTDB representative {gid} reassigned from {orig_sp} to {sp} (manual inspection required to ensure this is properly resolved).')
-                        # sys.exit(-1)
-                        # If a GTDB species representative has changed to the point where
-                        # it no longer clusters with its previous genome this requires
-                        # some thought to ensure this situation is being handled.
+                        
             else:
                 self.logger.error(
                     f"Genome {gid} specified in GTDB-Tk results is neither 'new' or 'updated'")
