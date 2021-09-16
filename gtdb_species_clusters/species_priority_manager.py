@@ -42,7 +42,7 @@ class SpeciesPriorityManager(object):
         self.output_dir = output_dir
 
         self._fout_ambiguous_priority = open(os.path.join(
-            output_dir, 'amiguous_sp_priority.tsv'), 'w')
+            output_dir, 'ambiguous_sp_priority.tsv'), 'w')
         self._fout_ambiguous_priority.write(
             'NCBI species A\tNCBI species B\tPriority year\n')
 
