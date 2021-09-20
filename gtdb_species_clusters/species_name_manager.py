@@ -71,7 +71,7 @@ class SpeciesNameManager():
 
         if is_placeholder_sp_epithet(specific):
             self.logger.error(
-                'Only Latin specific names should have a suffix: {}'.format(specific))
+                f'Only Latin specific names should have a suffix: generic = {generic}; specific = {specific}')
             sys.exit(-1)
 
         sp = 's__{} {}'.format(generic, specific)

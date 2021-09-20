@@ -109,32 +109,42 @@ def parse_updated_species_reps(updated_species_reps):
 
 
 def resolve_merged_prev_representatives(cur_rid, prev_genomes, updated_gtdb_rids, prev_rids_in_cluster):
-    """Determine best representative to associated with new species cluster contains multiple previous representative.
+    """Determine best representative to associated with new species cluster containing multiple previous representative.
 
-    This association between previous and new representatives is used in some instances to establish
-    the most suitable name for a species cluster.
+    This association between previous and new representatives is used 
+    to establish the most suitable name for a species cluster.
     """
 
+    sel_prev_rid = None
     if cur_rid in prev_genomes:
         # if current representative was a previous representative,
         # it is the most natural choice
-        return cur_rid
+        sel_prev_rid = cur_rid
     elif cur_rid in updated_gtdb_rids:
         prev_rid = updated_gtdb_rids[cur_rid]
         if prev_rid in prev_rids_in_cluster:
             # makes sense to use the previous representative that was explicitly
             # updated to the new, current representative
-            return prev_rid
+            sel_prev_rid = prev_rid
         else:
-            logging.getLogger('timestamp').error('[ERROR] Updated representative of cluster {} no longer contains the previous representative of cluster: {}'.format(
+            logging.getLogger('timestamp').error('Updated representative of cluster {} no longer contains the previous representative of cluster: {}'.format(
                 cur_rid,
                 prev_rid))
             sys.exit(-1)
     else:
-        logging.getLogger('timestamp').error('[ERROR] Updated representative of cluster {} contains multiple previous representative and situation could not be resolved: {}'.format(
-            cur_rid,
-            prev_rid))
-        sys.exit(-1)
+        # the current representative of the cluster is a new genome which doesn't
+        # provide any guidance on which of the previous representatives to select
+        # so just pick the genome with the highest assembly score
+        highest_prev_gid = None
+        highest_score = 0
+        for prev_rid in prev_rids_in_cluster:
+            if prev_genomes[prev_rid].score_assembly() > highest_score:
+                highest_score = prev_genomes[prev_rid].score_assembly()
+                highest_prev_gid = prev_rid
+
+        sel_prev_rid = highest_prev_gid
+
+    return sel_prev_rid
 
 
 def infer_prev_gtdb_reps(prev_genomes, cur_clusters, updated_gtdb_rids):
