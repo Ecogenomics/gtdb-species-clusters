@@ -211,7 +211,8 @@ if __name__ == '__main__':
         '--batch_size', help="number of genome to process with GTDB-Tk in each batch", type=int, default=5000)
     u_gtdbtk_parser.add_argument(
         '-c', '--cpus', help='number of cpus', type=int, default=1)
-    u_gtdbtk_parser.add_argument('--silent', help="suppress output", action='store_true')
+    u_gtdbtk_parser.add_argument(
+        '--silent', help="suppress output", action='store_true')
 
     # identify type genomes based on type 16S rRNA sequences indicated at LPSN
     u_lpsn_rna_types_parser = subparsers.add_parser('u_lpsn_rna_types',
@@ -234,17 +235,21 @@ if __name__ == '__main__':
     u_lpsn_rna_types_parser.add_argument('output_dir', help="output directory")
     u_lpsn_rna_types_parser.add_argument(
         '-c', '--cpus', help='number of cpus', type=int, default=1)
-    u_lpsn_rna_types_parser.add_argument('--silent', help="suppress output", action='store_true')
+    u_lpsn_rna_types_parser.add_argument(
+        '--silent', help="suppress output", action='store_true')
 
     # update ANI cache to remove entries for updates genomes
     u_update_ani_cache_parser = subparsers.add_parser('u_update_ani_cache',
-                                                   formatter_class=argparse.ArgumentDefaultsHelpFormatter,
-                                                   description='Update ANI cache to remove entries for updates genomes.')
+                                                      formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+                                                      description='Update ANI cache to remove entries for updates genomes.')
     u_update_ani_cache_parser.add_argument(
         'genomes_new_updated_file', help="file indicating new and updated genomes (u_new_genomes: genomes_new_updated.tsv)")
-    u_update_ani_cache_parser.add_argument('prev_ani_cache', help="ANI cache file from previous GTDB release")
-    u_update_ani_cache_parser.add_argument('out_ani_cache', help="updated ANI cache file")
-    u_update_ani_cache_parser.add_argument('--silent', help="suppress output", action='store_true')
+    u_update_ani_cache_parser.add_argument(
+        'prev_ani_cache', help="ANI cache file from previous GTDB release")
+    u_update_ani_cache_parser.add_argument(
+        'out_ani_cache', help="updated ANI cache file")
+    u_update_ani_cache_parser.add_argument(
+        '--silent', help="suppress output", action='store_true')
 
     # resolve cases where a species has multiple genomes assembled from the type strain
     u_resolve_types_parser = subparsers.add_parser('u_resolve_types',
@@ -527,6 +532,8 @@ if __name__ == '__main__':
     u_synonyms_parser.add_argument(
         'genus_priority_ledger', help="file resolving nomenclatural priority of genus names")
     u_synonyms_parser.add_argument(
+        'ncbi_untrustworthy_sp_ledger', help="file listing genomes with NCBI species assignments deemed to be untrustworthy")
+    u_synonyms_parser.add_argument(
         'ncbi_env_bioproject_ledger', help="file indicating NCBI BioProjects composed on MAGs or SAGs incorrectly annotated at NCBI")
     u_synonyms_parser.add_argument(
         'lpsn_gss_file', help="table from lpsn.dsmz.de with nomenclature information (lpsn_gss_<date>.csv)")
@@ -553,6 +560,8 @@ if __name__ == '__main__':
     u_curation_tree_parser.add_argument(
         'gtdb_type_strains_ledger', help="file listing genomes to consider as being the type strain for valid or effectively published species name")
     u_curation_tree_parser.add_argument(
+        'ncbi_untrustworthy_sp_ledger', help="file listing genomes with NCBI species assignments deemed to be untrustworthy")
+    u_curation_tree_parser.add_argument(
         'ncbi_env_bioproject_ledger', help="file indicating NCBI BioProjects composed on MAGs or SAGs incorrectly annotated at NCBI")
     u_curation_tree_parser.add_argument('output_dir', help="output directory")
     u_curation_tree_parser.add_argument(
@@ -573,11 +582,7 @@ if __name__ == '__main__':
     u_species_init_parser.add_argument('prev_gtdb_metadata_file',
                                        help="file with GTDB metadata for previous GTDB release (TSV file)")
     u_species_init_parser.add_argument(
-        'prev_genomic_path_file', help="file indicating  path to previous genomic FASTA files for genomes")
-    u_species_init_parser.add_argument(
         'cur_gtdb_metadata_file', help="file with GTDB metadata for current GTDB release (TSV file)")
-    u_species_init_parser.add_argument(
-        'cur_genomic_path_file', help="file indicating path to current genomic FASTA files for genomes")
     u_species_init_parser.add_argument(
         'qc_passed_file', help="file indicating genomes that have passed QC (u_qc_genomes: qc_passed.tsv)")
     u_species_init_parser.add_argument(
@@ -594,6 +599,8 @@ if __name__ == '__main__':
         'sp_priority_ledger', help="file resolving nomenclatural priority of species names")
     u_species_init_parser.add_argument(
         'genus_priority_ledger', help="file resolving nomenclatural priority of genus names")
+    u_species_init_parser.add_argument(
+        'ncbi_untrustworthy_sp_ledger', help="file listing genomes with NCBI species assignments deemed to be untrustworthy")
     u_species_init_parser.add_argument(
         'ncbi_env_bioproject_ledger', help="file indicating NCBI BioProjects composed on MAGs or SAGs incorrectly annotated at NCBI")
     u_species_init_parser.add_argument(
@@ -638,6 +645,8 @@ if __name__ == '__main__':
         'genus_priority_ledger', help="file resolving nomenclatural priority of genus names")
     u_pmc_species_names_parser.add_argument(
         'specific_epithet_ledger', help="file indicating required changes to the suffix of specific epithet due to transfers to a new genus")
+    u_pmc_species_names_parser.add_argument(
+        'ncbi_untrustworthy_sp_ledger', help="file listing genomes with NCBI species assignments deemed to be untrustworthy")
     u_pmc_species_names_parser.add_argument(
         'ncbi_env_bioproject_ledger', help="file indicating NCBI BioProjects composed on MAGs or SAGs incorrectly annotated at NCBI")
     u_pmc_species_names_parser.add_argument(

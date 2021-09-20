@@ -591,14 +591,12 @@ class ResolveTypes():
 
             untrustworthy_gids = {}
             gtdb_resolved_sp_conflict = False
-            unresolved_species = False
             note = f'All type strain genomes have ANI >99% and AF >{Defaults.AF_SP}%.'
             if not all_similar:
                 note = ''
 
                 # need to establish which genomes are untrustworthy as type
                 num_divergent += 1
-                unresolved_species = True
 
                 # write out highly divergent cases for manual inspection;
                 # these should be compared to the automated selection
@@ -632,6 +630,7 @@ class ResolveTypes():
                                                                                                  ltp_metadata,
                                                                                                  ltp_defined_species,
                                                                                                  cur_genomes)
+
                 if resolved:
                     note = "Species resolved by removing genomes considered `untrustworthy as type` and with a LTP BLAST hit confirming the assembly is likely untrustworthy"
                     ncbi_ltp_resolved += 1
@@ -694,8 +693,6 @@ class ResolveTypes():
                         ncbi_rep_resolved += 1
 
                 if resolved:
-                    unresolved_species = False
-
                     # check if type strain genomes marked as trusted or untrusted conflict
                     # with current GTDB species assignment
                     untrustworthy_gtdb_sp_match = False
@@ -716,7 +713,6 @@ class ResolveTypes():
                     note = 'Species is unresolved; manual curation is required!'
                     unresolved_sp_count += 1
 
-                if unresolved_species:
                     for gid in type_gids:
                         ltp_species = self.ltp_species(gid, ltp_metadata)
 

@@ -39,6 +39,7 @@ class UpdateErroneousNCBI():
     def identify_misclassified_genomes_cluster(self, cur_genomes, cur_clusters, ncbi_untrustworthy_sp_ledger):
         """Identify genomes with erroneous NCBI species assignments, based on GTDB clustering of type strain genomes."""
 
+        # Note: ideally such species should have been excluded upfront
         forbidden_names = set(['cyanobacterium'])
 
         # get mapping from genomes to their representatives
@@ -71,7 +72,7 @@ class UpdateErroneousNCBI():
                             sys.exit(-1)
 
                         ncbi_type_anchored_species[ncbi_type_species] = rid
-        self.logger.info(' - identified {:,} NCBI species anchored by a type strain genome.'.format(
+        self.logger.info(' - identified {:,} NCBI species anchored by a type strain genome'.format(
             len(ncbi_type_anchored_species)))
 
         # identify genomes with erroneous NCBI species assignments
@@ -114,7 +115,7 @@ class UpdateErroneousNCBI():
 
         misclassified_species = {
             cur_genomes[gid].ncbi_taxa.species for gid in misclassified_gids}
-        self.logger.info(' - identified {:,} genomes from {:,} species as having misclassified NCBI species assignments.'.format(
+        self.logger.info(' - identified {:,} genomes from {:,} species as having misclassified NCBI species assignments'.format(
             len(misclassified_gids),
             len(misclassified_species)))
 
@@ -152,7 +153,7 @@ class UpdateErroneousNCBI():
         self.logger.info(
             'Reading named and previous placeholder GTDB species clusters.')
         cur_clusters, _rep_radius = read_clusters(gtdb_clusters_file)
-        self.logger.info(' - identified {:,} clusters spanning {:,} genomes.'.format(
+        self.logger.info(' - identified {:,} clusters spanning {:,} genomes'.format(
             len(cur_clusters),
             sum([len(gids) + 1 for gids in cur_clusters.values()])))
 

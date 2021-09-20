@@ -1,3 +1,11 @@
+0.3.4
+- modified genomes.is_effective_type_strain() method to return False if genome is considered to have an untrustworthy NCBI species assignment
+- added `ncbi_untrustworthy_sp_ledger` to update_synonyms method to properly handle genomes that shouldn't be considered type strain genomes
+
+0.3.3
+- slight refactoring of u_resolve_types; did not change methodology
+- improved logging
+
 0.3.2
 - start of R207
 - improved logging and added assertion to u_new_genomes

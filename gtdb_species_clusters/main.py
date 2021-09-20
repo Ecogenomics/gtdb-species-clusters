@@ -362,6 +362,7 @@ class OptionsParser():
         check_file_exists(args.gtdb_type_strains_ledger)
         check_file_exists(args.sp_priority_ledger)
         check_file_exists(args.genus_priority_ledger)
+        check_file_exists(args.ncbi_untrustworthy_sp_ledger)
         check_file_exists(args.ncbi_env_bioproject_ledger)
         check_file_exists(args.lpsn_gss_file)
         make_sure_path_exists(args.output_dir)
@@ -377,6 +378,7 @@ class OptionsParser():
               args.gtdb_type_strains_ledger,
               args.sp_priority_ledger,
               args.genus_priority_ledger,
+              args.ncbi_untrustworthy_sp_ledger,
               args.ncbi_env_bioproject_ledger,
               args.lpsn_gss_file)
 
@@ -448,6 +450,7 @@ class OptionsParser():
         check_file_exists(args.ncbi_genbank_assembly_file)
         check_file_exists(args.untrustworthy_type_file)
         check_file_exists(args.gtdb_type_strains_ledger)
+        check_file_exists(args.ncbi_untrustworthy_sp_ledger)
         check_file_exists(args.ncbi_env_bioproject_ledger)
         make_sure_path_exists(args.output_dir)
 
@@ -459,6 +462,7 @@ class OptionsParser():
               args.ncbi_genbank_assembly_file,
               args.untrustworthy_type_file,
               args.gtdb_type_strains_ledger,
+              args.ncbi_untrustworthy_sp_ledger,
               args.ncbi_env_bioproject_ledger)
 
         self.logger.info('Done.')
@@ -468,9 +472,7 @@ class OptionsParser():
 
         check_file_exists(args.gtdb_clusters_file)
         check_file_exists(args.prev_gtdb_metadata_file)
-        check_file_exists(args.prev_genomic_path_file)
         check_file_exists(args.cur_gtdb_metadata_file)
-        check_file_exists(args.cur_genomic_path_file)
         check_file_exists(args.qc_passed_file)
         check_file_exists(args.gtdbtk_classify_file)
         check_file_exists(args.ncbi_genbank_assembly_file)
@@ -479,6 +481,7 @@ class OptionsParser():
         check_file_exists(args.gtdb_type_strains_ledger)
         check_file_exists(args.sp_priority_ledger)
         check_file_exists(args.genus_priority_ledger)
+        check_file_exists(args.ncbi_untrustworthy_sp_ledger)
         check_file_exists(args.ncbi_env_bioproject_ledger)
         check_file_exists(args.lpsn_gss_file)
         make_sure_path_exists(args.output_dir)
@@ -486,9 +489,7 @@ class OptionsParser():
         p = UpdateSpeciesInit(args.output_dir)
         p.run(args.gtdb_clusters_file,
               args.prev_gtdb_metadata_file,
-              args.prev_genomic_path_file,
               args.cur_gtdb_metadata_file,
-              args.cur_genomic_path_file,
               args.qc_passed_file,
               args.gtdbtk_classify_file,
               args.ncbi_genbank_assembly_file,
@@ -497,6 +498,7 @@ class OptionsParser():
               args.gtdb_type_strains_ledger,
               args.sp_priority_ledger,
               args.genus_priority_ledger,
+              args.ncbi_untrustworthy_sp_ledger,
               args.ncbi_env_bioproject_ledger,
               args.lpsn_gss_file)
 
@@ -598,6 +600,7 @@ class OptionsParser():
         check_file_exists(args.sp_priority_ledger)
         check_file_exists(args.genus_priority_ledger)
         check_file_exists(args.specific_epithet_ledger)
+        check_file_exists(args.ncbi_untrustworthy_sp_ledger)
         check_file_exists(args.ncbi_env_bioproject_ledger)
         check_file_exists(args.lpsn_gss_file)
         make_sure_path_exists(args.output_dir)
@@ -621,6 +624,7 @@ class OptionsParser():
               args.sp_priority_ledger,
               args.genus_priority_ledger,
               args.specific_epithet_ledger,
+              args.ncbi_untrustworthy_sp_ledger,
               args.ncbi_env_bioproject_ledger,
               args.lpsn_gss_file)
 
@@ -647,6 +651,7 @@ class OptionsParser():
         check_file_exists(args.sp_priority_ledger)
         check_file_exists(args.genus_priority_ledger)
         check_file_exists(args.specific_epithet_ledger)
+        check_file_exists(args.ncbi_untrustworthy_sp_ledger)
         check_file_exists(args.ncbi_env_bioproject_ledger)
         check_file_exists(args.lpsn_gss_file)
         make_sure_path_exists(args.output_dir)
@@ -670,6 +675,7 @@ class OptionsParser():
               args.sp_priority_ledger,
               args.genus_priority_ledger,
               args.specific_epithet_ledger,
+              args.ncbi_untrustworthy_sp_ledger,
               args.ncbi_env_bioproject_ledger,
               args.lpsn_gss_file)
 
@@ -834,8 +840,8 @@ class OptionsParser():
         make_sure_path_exists(args.output_dir)
 
         p = RepGenomicSimilarity(args.ani_cache_file,
-                          args.cpus,
-                          args.output_dir)
+                                 args.cpus,
+                                 args.output_dir)
 
         p.run(args.gtdb_metadata_file,
               args.genomic_path_file)

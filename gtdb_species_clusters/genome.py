@@ -260,6 +260,9 @@ class Genome(object):
     def is_effective_type_strain(self):
         """Check if genome is a valid or effectively published type strain of species."""
 
+        if self.ncbi_untrustworthy_sp:
+            return False
+
         if self.is_gtdb_type_strain():
             return True
 
