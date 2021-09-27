@@ -351,14 +351,17 @@ class Genomes(object):
                     pass_qc_gids.add(line_split[0].strip())
             self.logger.info(f' - identified {len(pass_qc_gids):,} genomes passing QC')
 
-        gtdb_type_strains = set()
+        gtdb_type_strains = {}
         if gtdb_type_strains_ledger:
             with open(gtdb_type_strains_ledger) as f:
                 f.readline()
                 for line in f:
                     tokens = line.strip().split('\t')
                     gid = canonical_gid(tokens[0].strip())
-                    gtdb_type_strains.add(gid)
+                    sp = tokens[1].strip()
+                    if not sp.startswith('s__'):
+                        sp = 's__' + sp
+                    gtdb_type_strains[gid] = sp
             self.logger.info(f' - identified {len(gtdb_type_strains):,} manually annotated as type strain genomes')
 
         excluded_from_refseq_note = {}
@@ -455,6 +458,10 @@ class Genomes(object):
                 if gid in gtdb_type_strains:
                     gtdb_type = 'type strain of species'
                     gtdb_type_sources = 'GTDB curator'
+
+                    # force specified species name into GTDB taxonomy string
+                    gtdb_taxonomy.species(gtdb_type_strains[gid])
+                    
                 gtdb_type_species_of_genus = line_split[gtdb_type_species_of_genus_index] == 't'
 
                 ncbi_type = line_split[ncbi_type_index]
