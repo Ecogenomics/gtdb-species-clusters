@@ -460,7 +460,7 @@ class Genomes(object):
                     gtdb_type_sources = 'GTDB curator'
 
                     # force specified species name into GTDB taxonomy string
-                    gtdb_taxonomy.species(gtdb_type_strains[gid])
+                    gtdb_taxonomy.species = gtdb_type_strains[gid]
                     
                 gtdb_type_species_of_genus = line_split[gtdb_type_species_of_genus_index] == 't'
 
@@ -496,7 +496,7 @@ class Genomes(object):
 
                 gtdb_is_rep = line_split[gtdb_rep_index] == 't'
                 gtdb_rid = canonical_gid(line_split[gtdb_genome_rep_index])
-                if create_sp_clusters:
+                if create_sp_clusters and gtdb_rid != 'none':
                     self.sp_clusters.update_sp_cluster(gtdb_rid, gid, gtdb_taxonomy.species)
 
                 lpsn_priority_year = Genome.NO_PRIORITY_YEAR

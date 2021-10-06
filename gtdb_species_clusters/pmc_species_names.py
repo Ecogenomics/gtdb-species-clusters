@@ -860,6 +860,84 @@ class PMC_SpeciesNames(object):
         self.logger.info(
             'Updated curation tree written to: {}'.format(output_tree))
 
+    def write_taxonomy(self, 
+                        final_taxonomy, 
+                        cur_genomes, 
+                        unambiguous_ncbi_sp,
+                        ambiguous_ncbi_sp,
+                        ncbi_synonyms, 
+                        unambiguous_ncbi_subsp, 
+                        ambiguous_ncbi_subsp):
+        """Write taxonomy information to file."""
+
+        # write out standard taxonomy file
+        final_taxonomy_file = os.path.join(
+            self.output_dir, 'final_taxonomy.tsv')
+        fout = open(final_taxonomy_file, 'w')
+        for rid, taxa in final_taxonomy.items():
+            fout.write('{}\t{}\n'.format(
+                rid,
+                ';'.join(taxa)))
+        fout.close()
+        self.logger.info(
+            'Final taxonomy written to: {}'.format(final_taxonomy_file))
+
+        # write out taxonomy file with NCBI species classification for
+        # all genomes in GTDB species clusters
+        sp_classification_file = os.path.join(self.output_dir, 'gtdb_sp_clusters.ncbi_sp.tsv')
+        fout = open(sp_classification_file, 'w')
+        fout.write('Genome ID\tGTDB taxonomy\tGTDB species\tNo. clustered\tNCBI species\n')
+        for rid, taxa in final_taxonomy.items():
+            ncbi_sp = []
+            for cid in cur_genomes.sp_clusters[rid]:
+                ncbi_sp.append(f'{cid}: {cur_genomes[cid].ncbi_taxa.species}')
+
+            fout.write('{}\t{}\t{}\t{}\t{}\n'.format(
+                rid,
+                ';'.join(taxa),
+                taxa[Taxonomy.SPECIES_INDEX],
+                len(ncbi_sp),
+                ','.join(ncbi_sp)
+            ))
+        fout.close()
+
+        # write out final taxonomy with additional metadata
+        fout = open(os.path.join(self.output_dir,
+                                 'final_taxonomy_metadata.tsv'), 'w')
+        fout.write(
+            'Genome ID\tGTDB taxonomy\tType strain\tEffective type strain\tType species')
+        fout.write(
+            '\tNCBI species\tNCBI representative\tNCBI species classification\tNCBI subspecies classification\n')
+        for rid, taxa in final_taxonomy.items():
+            ncbi_species = cur_genomes[rid].ncbi_taxa.species
+            ncbi_sp_classification = 'n/a'
+            if ncbi_species in unambiguous_ncbi_sp:
+                ncbi_sp_classification = 'UNAMBIGUOUS'
+            elif ncbi_species in ambiguous_ncbi_sp:
+                ncbi_sp_classification = 'AMBIGUOUS'
+            elif ncbi_species in ncbi_synonyms:
+                ncbi_sp_classification = 'SYNONYM: {}'.format(
+                    ncbi_synonyms[ncbi_species])
+
+            ncbi_subspecies = cur_genomes[rid].ncbi_unfiltered_taxa.subspecies
+            ncbi_subsp_classification = 'n/a'
+            if ncbi_subspecies in unambiguous_ncbi_subsp:
+                ncbi_subsp_classification = 'UNAMBIGUOUS'
+            elif ncbi_subspecies in ambiguous_ncbi_subsp:
+                ncbi_subsp_classification = 'AMBIGUOUS'
+
+            fout.write('{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\n'.format(
+                rid,
+                ';'.join(taxa),
+                cur_genomes[rid].is_gtdb_type_strain(),
+                cur_genomes[rid].is_effective_type_strain(),
+                cur_genomes[rid].is_gtdb_type_species(),
+                ncbi_species,
+                cur_genomes[rid].is_ncbi_representative(),
+                ncbi_sp_classification,
+                ncbi_subsp_classification))
+        fout.close()
+
     def run(self,
             curation_tree,
             manual_taxonomy,
@@ -923,7 +1001,7 @@ class PMC_SpeciesNames(object):
         cur_genomes = Genomes()
         cur_genomes.load_from_metadata_file(cur_gtdb_metadata_file,
                                             gtdb_type_strains_ledger=gtdb_type_strains_ledger,
-                                            create_sp_clusters=False,
+                                            create_sp_clusters=True,
                                             qc_passed_file=qc_passed_file,
                                             ncbi_genbank_assembly_file=ncbi_genbank_assembly_file,
                                             untrustworthy_type_ledger=untrustworthy_type_file,
@@ -1061,53 +1139,13 @@ class PMC_SpeciesNames(object):
             sp_names[sp] = rid
 
         # write out final taxonomy
-        final_taxonomy_file = os.path.join(
-            self.output_dir, 'final_taxonomy.tsv')
-        fout = open(final_taxonomy_file, 'w')
-        for rid, taxa in final_taxonomy.items():
-            fout.write('{}\t{}\n'.format(
-                rid,
-                ';'.join(taxa)))
-        fout.close()
-        self.logger.info(
-            'Final taxonomy written to: {}'.format(final_taxonomy_file))
-
-        # write out final taxonomy with additional metadata
-        fout = open(os.path.join(self.output_dir,
-                                 'final_taxonomy_metadata.tsv'), 'w')
-        fout.write(
-            'Genome ID\tGTDB taxonomy\tType strain\tEffective type strain\tType species')
-        fout.write(
-            '\tNCBI species\tNCBI representative\tNCBI species classification\tNCBI subspecies classification\n')
-        for rid, taxa in final_taxonomy.items():
-            ncbi_species = cur_genomes[rid].ncbi_taxa.species
-            ncbi_sp_classification = 'n/a'
-            if ncbi_species in unambiguous_ncbi_sp:
-                ncbi_sp_classification = 'UNAMBIGUOUS'
-            elif ncbi_species in ambiguous_ncbi_sp:
-                ncbi_sp_classification = 'AMBIGUOUS'
-            elif ncbi_species in ncbi_synonyms:
-                ncbi_sp_classification = 'SYNONYM: {}'.format(
-                    ncbi_synonyms[ncbi_species])
-
-            ncbi_subspecies = cur_genomes[rid].ncbi_unfiltered_taxa.subspecies
-            ncbi_subsp_classification = 'n/a'
-            if ncbi_subspecies in unambiguous_ncbi_subsp:
-                ncbi_subsp_classification = 'UNAMBIGUOUS'
-            elif ncbi_subspecies in ambiguous_ncbi_subsp:
-                ncbi_subsp_classification = 'AMBIGUOUS'
-
-            fout.write('{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\n'.format(
-                rid,
-                ';'.join(taxa),
-                cur_genomes[rid].is_gtdb_type_strain(),
-                cur_genomes[rid].is_effective_type_strain(),
-                cur_genomes[rid].is_gtdb_type_species(),
-                ncbi_species,
-                cur_genomes[rid].is_ncbi_representative(),
-                ncbi_sp_classification,
-                ncbi_subsp_classification))
-        fout.close()
+        self.write_taxonomy(final_taxonomy, 
+                            cur_genomes, 
+                            unambiguous_ncbi_sp, 
+                            ambiguous_ncbi_sp,
+                            ncbi_synonyms, 
+                            unambiguous_ncbi_subsp, 
+                            ambiguous_ncbi_subsp)
 
         # re-decorate curation tree
         if curation_tree is not None:

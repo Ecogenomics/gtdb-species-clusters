@@ -109,9 +109,9 @@ class SpeciesClusters():
         """Update species cluster."""
 
         if rid in self.species_names and self.species_names[rid] != sp_name:
-            self.logger.error('GTDB representative {} appears to have two names: {} {}'.format(
+            self.logger.warning('GTDB representative {} appears to have two names: {} {}'.format(
                 rid, self.species_names[rid], sp_name))
-            sys.exit(-1)
+            #sys.exit(-1)
 
         self.sp_clusters[rid].add(gid)
         self.species_names[rid] = sp_name
