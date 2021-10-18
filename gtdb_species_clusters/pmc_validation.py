@@ -1506,6 +1506,60 @@ class PMC_Validation(object):
         self.logger.info(
             f' - identified {num_cases:,} cases (see validate_merged_taxa.tsv)')
 
+    def validate_parent_child_placeholder_names(self, final_taxonomy):
+        """Validate parent-child placeholder names for simple, unnecessary changes.
+
+        This test primarily aims to catch simply typos where the parent and child
+        should in fact have identical names.
+        
+        Example: f__JDFR-13 conflicts with g__JdFR-13
+        """
+
+        invalid_name = {}
+        validated_count = 0
+        for gid, taxa in final_taxonomy.items():
+            for rank_idx, parent in enumerate(taxa[0:Taxonomy.GENUS_INDEX]):
+                child = taxa[rank_idx+1]
+
+                if parent[3:] != child[3:] and parent[3:].lower() == child[3:].lower():
+                    # identical except for a change in captialization
+                    invalid_name[gid] = (gid, parent, child)
+
+        self.report_validation(
+            invalid_name,
+            validated_count,
+            ' - identified {:,} GTDB placeholder names that may conflict with child name (Genome ID, Parent name, Child name):'.format(
+                len(invalid_name)))
+
+    def validate_placeholder_names_not_latin(self, final_taxonomy, lpsn):
+        """Validate placeholder names that might be mistaken as Latin names. 
+
+        Placeholder names should always have a number or additional capitalized letters
+        to clear indicate they are not a Latin name. Catching cases violating these rules
+        is challenging even though they are often obvious to humans (e.g. g__Notlatin). 
+        Right now, this test simply looks for names under 5 characters that appear to be
+        Latin under the assumption this is too short for valid Latin names.
+        
+        Example: g__Gsub
+        """
+
+        invalid_name = {}
+        validated_count = 0
+        for gid, taxa in final_taxonomy.items():
+            for taxon in taxa:
+                if taxon in lpsn.taxa:
+                    continue
+
+                if not is_placeholder_taxon(taxon) and len(taxon[3:]) <= 5:
+                    # Latin-looking name that is under 6 characters
+                    invalid_name[taxon] = (taxon,)
+
+        self.report_validation(
+            invalid_name,
+            validated_count,
+            " - identified {:,} GTDB Latin-looking names that are short and may in fact be placehold names (GTDB Taxon):".format(
+                len(invalid_name)))
+
     def validate_suffix_of_specific_names(self, final_taxonomy, cur_genomes, lpsn):
         """Validate suffix of specific names by comparison with LPSN names.
 
@@ -2382,6 +2436,14 @@ class PMC_Validation(object):
                                 check_duplicate_names=True,
                                 check_capitalization=True,
                                 report_errors=True)
+
+        # validate parent-child placeholder names (e.g. f__JDFR-13 conflicts with g__JdFR-13)
+        self.logger.info('Validating parent-child placeholder names for simple typos.')
+        self.validate_parent_child_placeholder_names(final_taxonomy)
+        
+        # validate placeholder names that might be mistaken as Latin names (e.g., g__Gsub)
+        self.logger.info('Validating placeholder names that might be mistaken as Latin names.')
+        self.validate_placeholder_names_not_latin(final_taxonomy, lpsn)
 
         # validate suffix of specific names by looking for small deviations relative to LPSN names
         self.logger.info("Validating suffix of specific names.")

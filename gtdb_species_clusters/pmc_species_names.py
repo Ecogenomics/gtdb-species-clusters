@@ -863,6 +863,7 @@ class PMC_SpeciesNames(object):
     def write_taxonomy(self, 
                         final_taxonomy, 
                         cur_genomes, 
+                        cur_clusters,
                         unambiguous_ncbi_sp,
                         ambiguous_ncbi_sp,
                         ncbi_synonyms, 
@@ -889,7 +890,7 @@ class PMC_SpeciesNames(object):
         fout.write('Genome ID\tGTDB taxonomy\tGTDB species\tNo. clustered\tNCBI species\n')
         for rid, taxa in final_taxonomy.items():
             ncbi_sp = []
-            for cid in cur_genomes.sp_clusters[rid]:
+            for cid in cur_clusters[rid]:
                 ncbi_sp.append(f'{cid}: {cur_genomes[cid].ncbi_taxa.species}')
 
             fout.write('{}\t{}\t{}\t{}\t{}\n'.format(
@@ -1001,7 +1002,7 @@ class PMC_SpeciesNames(object):
         cur_genomes = Genomes()
         cur_genomes.load_from_metadata_file(cur_gtdb_metadata_file,
                                             gtdb_type_strains_ledger=gtdb_type_strains_ledger,
-                                            create_sp_clusters=True,
+                                            create_sp_clusters=False,
                                             qc_passed_file=qc_passed_file,
                                             ncbi_genbank_assembly_file=ncbi_genbank_assembly_file,
                                             untrustworthy_type_ledger=untrustworthy_type_file,
@@ -1141,6 +1142,7 @@ class PMC_SpeciesNames(object):
         # write out final taxonomy
         self.write_taxonomy(final_taxonomy, 
                             cur_genomes, 
+                            cur_clusters,
                             unambiguous_ncbi_sp, 
                             ambiguous_ncbi_sp,
                             ncbi_synonyms, 
