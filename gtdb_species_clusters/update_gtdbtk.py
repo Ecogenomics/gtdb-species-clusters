@@ -138,7 +138,8 @@ class GTDB_Tk():
                 continue
 
             os.makedirs(out_dir)
-            cmd = 'gtdbtk classify_wf --cpus {} --force --batchfile {} --out_dir {}'.format(
+            cmd = 'gtdbtk classify_wf --cpus {} --pplacer_cpus {} --force --batchfile {} --out_dir {}'.format(
+                self.cpus,
                 self.cpus,
                 genome_batch_file,
                 out_dir)
