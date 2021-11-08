@@ -49,6 +49,8 @@ from gtdb_species_clusters.taxon_utils import (generic_name,
                                                is_placeholder_sp_epithet,
                                                is_latin_sp_epithet,
                                                is_suffixed_taxon,
+                                               is_alphanumeric_taxon,
+                                               is_suffixed_sp_epithet,
                                                taxon_type,
                                                specific_epithet_type,
                                                test_same_epithet,
@@ -1511,7 +1513,7 @@ class PMC_Validation(object):
 
         This test primarily aims to catch simply typos where the parent and child
         should in fact have identical names.
-        
+
         Example: f__JDFR-13 conflicts with g__JdFR-13
         """
 
@@ -1539,7 +1541,7 @@ class PMC_Validation(object):
         is challenging even though they are often obvious to humans (e.g. g__Notlatin). 
         Right now, this test simply looks for names under 5 characters that appear to be
         Latin under the assumption this is too short for valid Latin names.
-        
+
         Example: g__Gsub
         """
 
@@ -1552,12 +1554,43 @@ class PMC_Validation(object):
 
                 if not is_placeholder_taxon(taxon) and len(taxon[3:]) <= 5:
                     # Latin-looking name that is under 6 characters
-                    invalid_name[taxon] = (taxon,)
+                    invalid_name[taxon] = (gid, taxon)
+                else:
+                    validated_count += 1
 
         self.report_validation(
             invalid_name,
             validated_count,
             " - identified {:,} GTDB Latin-looking names that are short and may in fact be placehold names (GTDB Taxon):".format(
+                len(invalid_name)))
+
+    def validate_sp_with_alphanumeric_generic_names(self, final_taxonomy):
+        """Validate species with alphanumeric generic names do not have suffixed Latin specific names.
+
+        Examples:     
+          s__DTPE01 lauensis_A
+          s__DRZC01 fontis_A    
+        """
+
+        invalid_name = {}
+        validated_count = 0
+        for gid, taxa in final_taxonomy.items():
+            genus = taxa[Taxonomy.GENUS_INDEX]
+            species = taxa[Taxonomy.SPECIES_INDEX]
+            specific = specific_epithet(species)
+
+            assert species.startswith(genus.replace('g__', 's__'))
+
+            if is_alphanumeric_taxon(genus) and is_suffixed_sp_epithet(specific):
+                # Latin-looking name that is under 6 characters
+                invalid_name[gid] = (gid, species)
+            else:
+                validated_count += 1
+
+        self.report_validation(
+            invalid_name,
+            validated_count,
+            " - identified {:,} GTDB species names with an alphanumeric generic name and suffixed Latin specific name:".format(
                 len(invalid_name)))
 
     def validate_suffix_of_specific_names(self, final_taxonomy, cur_genomes, lpsn):
@@ -2438,15 +2471,25 @@ class PMC_Validation(object):
                                 report_errors=True)
 
         # validate parent-child placeholder names (e.g. f__JDFR-13 conflicts with g__JdFR-13)
-        self.logger.info('Validating parent-child placeholder names for simple typos.')
-        self.validate_parent_child_placeholder_names(final_taxonomy)
-        
+        # Note: It was decided that this capitalization inconsistency is acceptable in order
+        # to avoid replacing long-standing placeholder names with slight modifications.
+        #self.logger.info('Validating parent-child placeholder names for simple typos.')
+        # self.validate_parent_child_placeholder_names(final_taxonomy)
+
         # validate placeholder names that might be mistaken as Latin names (e.g., g__Gsub)
-        self.logger.info('Validating placeholder names that might be mistaken as Latin names.')
+        self.logger.info(
+            'Validating placeholder names that might be mistaken as Latin names.')
         self.validate_placeholder_names_not_latin(final_taxonomy, lpsn)
 
+        # validate alphanumeric generic names do not have suffixed Latin specific names
+        # (e.g., s__DTPE01 lauensis_A is considered invalid)
+        self.logger.info(
+            'Validating species with alphanumeric generic names do not have suffixed Latin specific names.')
+        self.validate_sp_with_alphanumeric_generic_names(final_taxonomy)
+
         # validate suffix of specific names by looking for small deviations relative to LPSN names
-        self.logger.info("Validating suffix of specific names.")
+        self.logger.info(
+            "Validating suffix of specific names by identifying small deviations from LPSN names.")
         self.validate_suffix_of_specific_names(
             final_taxonomy, cur_genomes, lpsn)
 

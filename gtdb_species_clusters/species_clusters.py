@@ -158,8 +158,7 @@ class SpeciesClusters():
         assert(not self.new_gids and not self.updated_gids)
 
         # read GTDB-Tk classifications for new and updated genomes
-        gtdbtk_classifications = read_gtdbtk_classifications(
-            gtdbtk_classify_file)
+        gtdbtk_classifications = read_gtdbtk_classifications(gtdbtk_classify_file)
         self.logger.info(
             f' - identified {len(gtdbtk_classifications):,} classifications')
 
@@ -199,7 +198,7 @@ class SpeciesClusters():
             if sp not in orig_sp_rid_map:
                 self.logger.error(
                     f'GTDB-Tk results indicated a new species for {gid}: {sp}')
-                sys.exit(-1)
+                #sys.exit(-1)
 
             orig_rid = orig_sp_rid_map[sp]
             if gid in self.new_gids:
