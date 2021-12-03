@@ -1,3 +1,6 @@
+0.3.6
+- modified u_curation_trees so all genomes in a GTDB species cluster are considered and not just the representative genome
+
 0.3.5
 - modified u_pmc_species_names to produce gtdb_sp_clusters.ncbi_sp.tsv file indicating NCBI species name of all genomes in a GTDB species cluster
 

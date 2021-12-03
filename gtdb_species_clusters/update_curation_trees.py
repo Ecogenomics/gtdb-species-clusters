@@ -46,20 +46,29 @@ class UpdateCurationTrees():
 
             # get NCBI taxa in previous GTDB release
             prev_ncbi_taxa = set()
-            for gid in prev_genomes:
-                ncbi_taxa = prev_genomes[gid].ncbi_taxa.get_taxa(rank_index)
+            for rid in prev_genomes:
+                ncbi_taxa = prev_genomes[rid].ncbi_taxa.get_taxa(rank_index)
                 prev_ncbi_taxa.add(ncbi_taxa)
+
+                for cid in prev_genomes.sp_clusters[rid]:
+                    ncbi_taxa = prev_genomes[cid].ncbi_taxa.get_taxa(
+                        rank_index)
+                    prev_ncbi_taxa.add(ncbi_taxa)
+
             self.logger.info(' - identified {:,} NCBI taxa in previous GTDB release'.format(
                 len(prev_ncbi_taxa)))
 
             # get NCBI taxa in current GTDB release
             cur_ncbi_taxa = set()
             taxon_domain = {}
-            for rid in cur_clusters:
-                ncbi_taxa = cur_genomes[rid].ncbi_taxa.get_taxa(rank_index)
-                cur_ncbi_taxa.add(ncbi_taxa)
+            for rid, cluster in cur_clusters.items():
+                assert rid in cluster
 
-                taxon_domain[ncbi_taxa] = cur_genomes[rid].ncbi_taxa.domain
+                for cid in cluster:
+                    ncbi_taxa = cur_genomes[cid].ncbi_taxa.get_taxa(rank_index)
+                    cur_ncbi_taxa.add(ncbi_taxa)
+                    taxon_domain[ncbi_taxa] = cur_genomes[cid].ncbi_taxa.domain
+
             self.logger.info(' - identified {:,} NCBI taxa in current GTDB release'.format(
                 len(cur_ncbi_taxa)))
 
@@ -68,12 +77,15 @@ class UpdateCurationTrees():
             self.logger.info(' - identified {:,} NCBI taxa that are new to the current GTDB release'.format(
                 len(new_ncbi_taxa)))
 
-            # determine genomes from new NCBI taxa
+            # determine species clusters with 1 or more genomes from a new NCBI taxa
             new_taxa_rids = defaultdict(list)
-            for rid in cur_clusters:
-                ncbi_taxa = cur_genomes[rid].ncbi_taxa.get_taxa(rank_index)
-                if ncbi_taxa in new_ncbi_taxa:
-                    new_taxa_rids[ncbi_taxa].append(rid)
+            for rid, cluster in cur_clusters.items():
+                assert rid in cluster
+
+                for cid in cluster:
+                    ncbi_taxa = cur_genomes[cid].ncbi_taxa.get_taxa(rank_index)
+                    if ncbi_taxa in new_ncbi_taxa:
+                        new_taxa_rids[ncbi_taxa].append(rid)
 
             # report each new NCBI taxa
             out_table = os.path.join(
