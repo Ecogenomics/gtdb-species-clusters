@@ -153,7 +153,7 @@ def infer_prev_gtdb_reps(prev_genomes, cur_clusters, updated_gtdb_rids):
     This can't just be taken from the `updated_species_reps` file since the
     final results of de novo cluster can, in some rare cases, cause small movements
     in the genomes associated with each species clusters and the generation or loss of
-    a representative
+    a representative.
     """
 
     prev_rids = set(prev_genomes.sp_clusters)

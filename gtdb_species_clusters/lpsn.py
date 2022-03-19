@@ -53,13 +53,15 @@ class LPSN(object):
         years = re.sub(r'emend\.[^\d]*\d{4}', '', references)
         years = re.sub(r'ex [^\d]*\d{4}', ' ', years)
         years = re.findall('[1-3][0-9]{3}', years, re.DOTALL)
-        years = [int(y) for y in years if int(y) <= datetime.datetime.now().year]
+        years = [int(y) for y in years if int(
+            y) <= datetime.datetime.now().year]
 
         if len(years) == 0:
             # assume this name is validated through ICN and just take the first
             # date given as the year of priority
             years = re.findall('[1-3][0-9]{3}', references, re.DOTALL)
-            years = [int(y) for y in years if int(y) <= datetime.datetime.now().year]
+            years = [int(y) for y in years if int(
+                y) <= datetime.datetime.now().year]
 
         return years[0]
 
@@ -72,7 +74,8 @@ class LPSN(object):
             self.taxa = self.parse_lpsn_data_file(lpsn_data)
 
         if lpsn_gss_metadata_file:
-            self.sp_correct_names, self.sp_synonyms = self.parse_lpsn_gss_file(lpsn_gss_metadata_file)
+            self.sp_correct_names, self.sp_synonyms = self.parse_lpsn_gss_file(
+                lpsn_gss_metadata_file)
 
     def type_material(self, taxon):
         """Get type material of taxon."""
@@ -93,8 +96,8 @@ class LPSN(object):
                          'genus': 'g__',
                          'species': 's__'}
 
-        # family is never type material
-        type_prefixes = {0: 'c__', 1: 'o__', 2: 'g__', 3: 's__', 4: ''}
+        type_prefixes = {0: 'c__', 1: 'o__',
+                         2: 'f__', 3: 'g__', 4: 's__', 5: ''}
 
         taxa = {}
         with open(lpsn_data) as f:
@@ -120,24 +123,28 @@ class LPSN(object):
                 priority_citations = tokens[priority_idx]
                 if priority_citations.lower() == 'n/a':
                     continue
-                taxon_priority_year = LPSN.parse_lpsn_priority_year(priority_citations)
+                taxon_priority_year = LPSN.parse_lpsn_priority_year(
+                    priority_citations)
 
                 type_taxa = []
                 for idx, type_idx in enumerate(range(type_class_idx, type_strain_idx+1)):
                     type_taxon = tokens[type_idx]
                     if type_taxon.lower() != 'n/a':
-                        type_taxa.append(f"{type_prefixes[idx]}{type_taxon.replace('Candidatus ', '')}")
+                        type_taxa.append(
+                            f"{type_prefixes[idx]}{type_taxon.replace('Candidatus ', '')}")
 
                 if len(type_taxa) == 0:
                     # No type material for this LPSN taxon which occurs
                     # for placeholder taxa and candidatus taxa
                     type_taxa = ['n/a']
                 elif len(type_taxa) > 1:
-                    self.logger.error(f'Identified multiple type taxa for {taxon}: {type_taxa}')
+                    self.logger.error(
+                        f'Identified multiple type taxa for {taxon}: {type_taxa}')
                     sys.exit(-1)
 
                 type_taxon = type_taxa[0]
-                taxa[taxon] = LPSN_Taxon(taxon, taxon_priority_year, type_taxon, None)
+                taxa[taxon] = LPSN_Taxon(
+                    taxon, taxon_priority_year, type_taxon, None)
 
         # fill in priority year information for type taxa
         missing_type_count = 0
@@ -180,7 +187,8 @@ class LPSN(object):
                         taxon = 's__{} {} subsp. {}'.format(
                             tokens[genus_idx].strip(), tokens[sp_idx].strip(), tokens[subsp_idx].strip())
                     elif tokens[genus_idx] != '' and tokens[sp_idx] != '':
-                        taxon = 's__{} {}'.format(tokens[genus_idx].strip(), tokens[sp_idx].strip())
+                        taxon = 's__{} {}'.format(
+                            tokens[genus_idx].strip(), tokens[sp_idx].strip())
                     else:
                         taxon = 'g__{}'.format(tokens[genus_idx].strip())
 
@@ -207,7 +215,8 @@ class LPSN(object):
                         pass
                     elif tokens[genus_idx] != '' and tokens[sp_idx] != '':
                         # process species
-                        taxon = 's__{} {}'.format(tokens[genus_idx].strip(), tokens[sp_idx].strip())
+                        taxon = 's__{} {}'.format(
+                            tokens[genus_idx].strip(), tokens[sp_idx].strip())
 
                         if 'correct name' in tokens[status_idx]:
                             assert tokens[record_lnk_idx] == ''

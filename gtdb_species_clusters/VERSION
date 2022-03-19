@@ -1,3 +1,6 @@
+0.3.7
+- updates for GTDB R207
+
 0.3.6
 - modified u_curation_trees so all genomes in a GTDB species cluster are considered and not just the representative genome
 

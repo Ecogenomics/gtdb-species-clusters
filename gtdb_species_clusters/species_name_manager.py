@@ -72,7 +72,7 @@ class SpeciesNameManager():
         if is_placeholder_sp_epithet(specific):
             self.logger.error(
                 f'Only Latin specific names should have a suffix: generic = {generic}; specific = {specific}')
-            sys.exit(-1)
+            raise Exception('Invalid species epithet')
 
         sp = 's__{} {}'.format(generic, specific)
         next_suffix = self.taxon_suffix_manager.next_suffix(sp)

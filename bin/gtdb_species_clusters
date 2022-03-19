@@ -663,7 +663,7 @@ if __name__ == '__main__':
     pmc_manual_species_parser.add_argument(
         'init_taxonomy', help="initial taxonomy file")
     pmc_manual_species_parser.add_argument(
-        'manually_curated_tree', help="tree decorated with manually curated taxonomy")
+        'manually_curated_tree', help="scaled tree decorated with manually curated taxonomy")
     pmc_manual_species_parser.add_argument(
         'output_dir', help="output directory")
     pmc_manual_species_parser.add_argument(
@@ -739,7 +739,7 @@ if __name__ == '__main__':
                                                      formatter_class=argparse.ArgumentDefaultsHelpFormatter,
                                                      description='Establish final species names based on manual curation.')
     pmc_species_names_parser.add_argument(
-        'curation_tree', help="manually curated tree to relabel with final species names")
+        'curation_tree', help="scaled, manually curated tree to relabel with final species names")
     pmc_species_names_parser.add_argument(
         'manual_sp_names', help="file indicating species names explicitly set by manually curated (pmc_manual_species: manual_species_names.tsv)")
     pmc_species_names_parser.add_argument(
@@ -774,6 +774,8 @@ if __name__ == '__main__':
         'genus_priority_ledger', help="file resolving nomenclatural priority of genus names")
     pmc_species_names_parser.add_argument(
         'specific_epithet_ledger', help="file indicating required changes to the suffix of specific epithet due to transfers to a new genus")
+    pmc_species_names_parser.add_argument(
+        'ncbi_untrustworthy_sp_ledger', help="file listing genomes with NCBI species assignments deemed to be untrustworthy")
     pmc_species_names_parser.add_argument(
         'ncbi_env_bioproject_ledger', help="file indicating NCBI BioProjects composed on MAGs or SAGs incorrectly annotated at NCBI")
     pmc_species_names_parser.add_argument(

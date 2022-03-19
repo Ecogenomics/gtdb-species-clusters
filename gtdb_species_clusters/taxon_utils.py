@@ -172,7 +172,12 @@ def specific_epithet(species_name):
     if species_name == 's__':
         return ''
 
-    _generic, specific = species_name.split()
+    try:
+        specific = species_name.split()[-1]
+    except:
+        logging.getLogger('timestamp').error(
+            f'Invalid species name: {species_name}')
+        sys.exit(1)
 
     return specific
 
@@ -186,8 +191,9 @@ def generic_name(species_name):
     try:
         generic, _specific = species_name.split()
     except:
-        logging.getLogger('timestamp').error(f'Invalid species name: {species_name}')
-        sys.exit(-1)
+        logging.getLogger('timestamp').error(
+            f'Invalid species name: {species_name}')
+        sys.exit(1)
 
     return generic.replace('s__', '')
 

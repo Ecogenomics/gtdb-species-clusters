@@ -100,7 +100,7 @@ class NCBI_SpeciesManager():
                     ncbi_sp,
                     len(gtdb_rids),
                     [(rid, self.cur_genomes[rid].gtdb_taxa.species) for rid in gtdb_rids]))
-                sys.exit(-1)
+                # sys.exit(-1)
 
     def identify_type_strain_synonyms(self, ncbi_misclassified_gids):
         """Identify synonyms arising from multiple type strain genomes residing in the same GTDB cluster.

@@ -287,11 +287,17 @@ class PMC_SpeciesNames(object):
                 ncbi_species = cur_genomes[rid].ncbi_taxa.species
                 ncbi_specific = specific_epithet(ncbi_species)
 
+                # check if specific name is valid. Ideally, this would never
+                # occur, but occassionally invalid specific names are not
+                # caught when initially creating the standardized NCBI taxonomy.
+                if ncbi_specific and ncbi_specific[0].isupper():
+                    ncbi_specific = None
+
                 # if genome is considered to have an erroneous NCBI
                 # species name, determine if it is at least in the
                 # same GTDB family
                 misclassified_diff_family = False
-                if rid in ncbi_misclassified_gids:
+                if rid in ncbi_misclassified_gids and ncbi_species in ncbi_species_type_strain_rid:
                     gtdb_family = final_taxonomy[rid][Taxonomy.FAMILY_INDEX]
                     type_rid = ncbi_species_type_strain_rid[ncbi_species]
                     type_strain_gtdb_family = final_taxonomy[type_rid][Taxonomy.FAMILY_INDEX]
@@ -860,15 +866,15 @@ class PMC_SpeciesNames(object):
         self.logger.info(
             'Updated curation tree written to: {}'.format(output_tree))
 
-    def write_taxonomy(self, 
-                        final_taxonomy, 
-                        cur_genomes, 
-                        cur_clusters,
-                        unambiguous_ncbi_sp,
-                        ambiguous_ncbi_sp,
-                        ncbi_synonyms, 
-                        unambiguous_ncbi_subsp, 
-                        ambiguous_ncbi_subsp):
+    def write_taxonomy(self,
+                       final_taxonomy,
+                       cur_genomes,
+                       cur_clusters,
+                       unambiguous_ncbi_sp,
+                       ambiguous_ncbi_sp,
+                       ncbi_synonyms,
+                       unambiguous_ncbi_subsp,
+                       ambiguous_ncbi_subsp):
         """Write taxonomy information to file."""
 
         # write out standard taxonomy file
@@ -885,9 +891,11 @@ class PMC_SpeciesNames(object):
 
         # write out taxonomy file with NCBI species classification for
         # all genomes in GTDB species clusters
-        sp_classification_file = os.path.join(self.output_dir, 'gtdb_sp_clusters.ncbi_sp.tsv')
+        sp_classification_file = os.path.join(
+            self.output_dir, 'gtdb_sp_clusters.ncbi_sp.tsv')
         fout = open(sp_classification_file, 'w')
-        fout.write('Genome ID\tGTDB taxonomy\tGTDB species\tNo. clustered\tNCBI species\n')
+        fout.write(
+            'Genome ID\tGTDB taxonomy\tGTDB species\tNo. clustered\tNCBI species\n')
         for rid, taxa in final_taxonomy.items():
             ncbi_sp = []
             for cid in cur_clusters[rid]:
@@ -1113,7 +1121,9 @@ class PMC_SpeciesNames(object):
             'Mapping current GTDB representatives to previous representatives.')
         updated_gtdb_rids = parse_updated_species_reps(updated_species_reps)
         new_to_prev_rid = infer_prev_gtdb_reps(
-            prev_genomes, cur_clusters, updated_gtdb_rids)
+            prev_genomes,
+            cur_clusters,
+            updated_gtdb_rids)
         self.logger.info(
             ' - mapped {:,} current representatives to previous representatives.'.format(len(new_to_prev_rid)))
 
@@ -1140,13 +1150,13 @@ class PMC_SpeciesNames(object):
             sp_names[sp] = rid
 
         # write out final taxonomy
-        self.write_taxonomy(final_taxonomy, 
-                            cur_genomes, 
+        self.write_taxonomy(final_taxonomy,
+                            cur_genomes,
                             cur_clusters,
-                            unambiguous_ncbi_sp, 
+                            unambiguous_ncbi_sp,
                             ambiguous_ncbi_sp,
-                            ncbi_synonyms, 
-                            unambiguous_ncbi_subsp, 
+                            ncbi_synonyms,
+                            unambiguous_ncbi_subsp,
                             ambiguous_ncbi_subsp)
 
         # re-decorate curation tree
