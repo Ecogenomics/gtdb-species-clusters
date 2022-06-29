@@ -24,7 +24,6 @@ from gtdb_species_clusters.genome_utils import (canonical_gid,
 
 from gtdb_species_clusters.genomes import Genomes
 from gtdb_species_clusters.genome_utils import same_assembly_version
-from gtdb_species_clusters import defaults as Defaults
 
 
 class QcGenomes():
@@ -43,8 +42,8 @@ class QcGenomes():
         with open(gtdb_domain_report, encoding='utf-8') as f:
             header = f.readline().rstrip().split('\t')
 
-            bac_marker_perc_index = header.index('Bacterial Marker Percentage')
-            ar_marker_perc_index = header.index('Archaeal Marker Percentage')
+            bac_marker_perc_index = header.index('Bac120 Markers (%)')
+            ar_marker_perc_index = header.index('Ar53 Markers (%)')
 
             for line in f:
                 line_split = line.strip().split('\t')
@@ -64,8 +63,8 @@ class QcGenomes():
             header = f.readline().rstrip().split('\t')
 
             domain_index = header.index('Predicted domain')
-            bac_marker_perc_index = header.index('Bacterial Marker Percentage')
-            ar_marker_perc_index = header.index('Archaeal Marker Percentage')
+            bac_marker_perc_index = header.index('Bac120 Markers (%)')
+            ar_marker_perc_index = header.index('Ar53 Markers (%)')
             ncbi_taxonomy_index = header.index('NCBI taxonomy')
             gtdb_taxonomy_index = header.index('GTDB taxonomy')
 
