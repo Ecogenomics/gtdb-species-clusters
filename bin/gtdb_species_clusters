@@ -78,7 +78,7 @@ def print_help():
       pmc_check_type_strains -> Check for agreement between GTDB species and genomes assembled from type strain of species
       pmc_validate           -> Validate final species names
       pmc_name_stats         -> [TBD] Summary statistics indicating changes to GTDB species cluster names
-      pmc_cluster_stats      -> Calculate final statistics for species clusters (???)
+      pmc_cluster_stats      -> Calculate final statistics for species clusters [Run with website data; not critical]
 
     Inspect species clusters:
       merge_test      -> Produce information relevant to merging two sister species
@@ -846,11 +846,11 @@ if __name__ == '__main__':
                                                      formatter_class=argparse.ArgumentDefaultsHelpFormatter,
                                                      description='Calculate final statistics for species clusters.')
     pmc_cluster_stats_parser.add_argument(
-        'cluster_file', help='file specifying species clusters')
+        'sp_cluster_file', help='file specifying species clusters (GTDB website: sp_clusters_r202.tsv)')
     pmc_cluster_stats_parser.add_argument(
         'genome_path_file', help="file indicating path to genome files (TSV file)")
     pmc_cluster_stats_parser.add_argument(
-        'gtdb_metadata_file', help="metadata file from GTDB with NCBI taxonomy information (TSV file)")
+        'gtdb_metadata_file', help="metadata file with final GTDB taxonomy information (GTDB website: ar122_metadata_r202.tsv)")
     pmc_cluster_stats_parser.add_argument(
         'output_dir', help="output directory")
     pmc_cluster_stats_parser.add_argument(

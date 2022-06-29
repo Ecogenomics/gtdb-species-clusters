@@ -749,7 +749,7 @@ class OptionsParser():
     def pmc_cluster_stats(self, args):
         """Calculate final statistics for species cluster."""
 
-        check_file_exists(args.cluster_file)
+        check_file_exists(args.sp_cluster_file)
         check_file_exists(args.genome_path_file)
         check_file_exists(args.gtdb_metadata_file)
 
@@ -758,7 +758,7 @@ class OptionsParser():
                              args.ani_cache_file,
                              args.cpus,
                              args.output_dir)
-        p.run(args.cluster_file,
+        p.run(args.sp_cluster_file,
               args.genome_path_file,
               args.gtdb_metadata_file)
 

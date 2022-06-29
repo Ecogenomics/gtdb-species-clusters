@@ -219,7 +219,7 @@ class PMC_ClusterStats(object):
                 af))
         fout.close()
 
-    def parse_clusters(self, cluster_file):
+    def parse_sp_clusters(self, cluster_file):
         """Parse species clustering information."""
 
         species = {}
@@ -228,11 +228,11 @@ class PMC_ClusterStats(object):
         with open(cluster_file) as f:
             headers = f.readline().strip().split('\t')
 
-            rid_index = headers.index('Representative genome')
+            rid_index = headers.index('Representative')
             sp_index = headers.index('GTDB species')
             num_clustered_index = headers.index('No. clustered genomes')
             clustered_genomes_index = headers.index('Clustered genomes')
-            ani_radius_index = headers.index('ANI circumscription radius')
+            ani_radius_index = headers.index('ANI radius')
 
             for line in f:
                 line_split = line.strip().split('\t')
@@ -448,7 +448,7 @@ class PMC_ClusterStats(object):
 
         fout.close()
 
-    def run(self, cluster_file, genome_path_file, metadata_file):
+    def run(self, sp_cluster_file, genome_path_file, metadata_file):
         """Calculate statistics for species cluster."""
 
         # read the GTDB taxonomy
@@ -462,7 +462,8 @@ class PMC_ClusterStats(object):
 
         # determine type genomes and genomes clustered to type genomes
         self.logger.info('Reading species clusters.')
-        clusters, species, cluster_radius = self.parse_clusters(cluster_file)
+        clusters, species, cluster_radius = self.parse_sp_clusters(
+            sp_cluster_file)
         self.logger.info(f'Identified {len(clusters):,} species clusters.')
 
         # determine species assignment for clustered genomes
@@ -507,7 +508,10 @@ class PMC_ClusterStats(object):
 
         # find closest representative genome to each representative genome
         self.intragenus_pairwise_ani(
-            clusters, species, genome_files, gtdb_taxonomy)
+            clusters,
+            species,
+            genome_files,
+            gtdb_taxonomy)
 
         # identify statistics relative to representative genome
         rep_stats = self.rep_genome_stats(clusters, genome_files)
