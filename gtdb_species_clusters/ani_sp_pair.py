@@ -37,7 +37,7 @@ class ANI_SpeciesPair():
         self.cpus = cpus
         self.output_dir = output_dir
 
-        self.logger = logging.getLogger('timestamp')
+        self.log = logging.getLogger('timestamp')
 
         self.fastani = FastANI(ani_cache_file, cpus)
 
@@ -48,11 +48,11 @@ class ANI_SpeciesPair():
         """Calculate all pairwise ANI/AF values between genomes in two species."""
 
         # read GTDB species clusters
-        self.logger.info('Reading GTDB species clusters.')
+        self.log.info('Reading GTDB species clusters.')
         genomes = Genomes()
         genomes.load_from_metadata_file(gtdb_metadata_file)
         genomes.load_genomic_file_paths(genome_path_file)
-        self.logger.info(' - identified {:,} species clusters spanning {:,} genomes.'.format(
+        self.log.info(' - identified {:,} species clusters spanning {:,} genomes.'.format(
             len(genomes.sp_clusters),
             genomes.sp_clusters.total_num_genomes()))
 
@@ -67,24 +67,24 @@ class ANI_SpeciesPair():
                 rid2 = gid
 
         if rid1 is None:
-            self.logger.error(
+            self.log.error(
                 f'Unable to find representative genome for {species1}.')
             sys.exit(-1)
 
         if rid2 is None:
-            self.logger.error(
+            self.log.error(
                 f'Unable to find representative genome for {species2}.')
             sys.exit(-1)
 
-        self.logger.info(' - identified {:,} genomes in {}.'.format(
+        self.log.info(' - identified {:,} genomes in {}.'.format(
             len(genomes.sp_clusters[rid1]),
             species1))
-        self.logger.info(' - identified {:,} genomes in {}.'.format(
+        self.log.info(' - identified {:,} genomes in {}.'.format(
             len(genomes.sp_clusters[rid2]),
             species2))
 
         # calculate pairwise ANI between all genomes
-        self.logger.info(f'Calculating pairwise ANI between all genomes.')
+        self.log.info(f'Calculating pairwise ANI between all genomes.')
         all_gids = genomes.sp_clusters[rid1].union(genomes.sp_clusters[rid2])
         gid_pairs = [(gid1, gid2) for gid1, gid2 in permutations(all_gids, 2)]
         ani_af = self.fastani.pairs(gid_pairs, genomes.genomic_files)

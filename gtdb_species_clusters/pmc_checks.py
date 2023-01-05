@@ -34,20 +34,20 @@ class PMC_Checks():
 
         self.output_dir = output_dir
 
-        self.logger = logging.getLogger('timestamp')
+        self.log = logging.getLogger('timestamp')
 
     def manual_species(self, init_taxonomy, manually_curated_tree):
         """Identify species names manually set by curators."""
 
         # read initial and manually curated taxonomy
-        self.logger.info('Reading initial species names.')
+        self.log.info('Reading initial species names.')
         init_taxonomy = Taxonomy().read(init_taxonomy, use_canonical_gid=True)
         init_num_gids = sum(
             [1 for gid in init_taxonomy if not gid.startswith('D-')])
-        self.logger.info(
+        self.log.info(
             ' - read taxonomy for {:,} genomes.'.format(init_num_gids))
 
-        self.logger.info('Reading manually-curated species names from tree.')
+        self.log.info('Reading manually-curated species names from tree.')
         mc_tree = dendropy.Tree.get_from_path(manually_curated_tree,
                                               schema='newick',
                                               rooting='force-rooted',
@@ -61,17 +61,17 @@ class PMC_Checks():
 
             mc_sp = taxa[-1]
             if not mc_sp.startswith('s__') or mc_sp == 's__':
-                self.logger.error(
+                self.log.error(
                     'Most specific classification for {} is {}.'.format(gid, taxa))
                 continue
 
             mc_specific[gid] = specific_epithet(mc_sp)
 
-        self.logger.info(
+        self.log.info(
             ' - read taxonomy for {:,} genomes.'.format(len(mc_specific)))
 
         # report genomes with modified specific name assignment
-        self.logger.info(
+        self.log.info(
             'Identifying genomes with manually-curated species names.')
         fout = open(os.path.join(self.output_dir,
                                  'manual_species_names.tsv'), 'w')
@@ -93,14 +93,14 @@ class PMC_Checks():
 
         fout.close()
 
-        self.logger.info(
+        self.log.info(
             ' - identified {:,} manually-curated species names.'.format(num_mc))
 
     def replace_generic(self, manual_species_names, manual_taxonomy):
         """Replace generic names with genus assignment."""
 
         # read manually-curated species names
-        self.logger.info('Reading manually-curated species names.')
+        self.log.info('Reading manually-curated species names.')
         mc_species = {}
         with open(manual_species_names) as f:
             f.readline()
@@ -108,19 +108,19 @@ class PMC_Checks():
             for line in f:
                 tokens = line.strip().split('\t')
                 mc_species[tokens[0]] = tokens[2]
-        self.logger.info(
+        self.log.info(
             ' - read manually-curated species for {:,} genomes.'.format(len(mc_species)))
 
         # read manual taxonomy file
-        self.logger.info('Reading manually-curated taxonomy.')
+        self.log.info('Reading manually-curated taxonomy.')
         mc_taxonomy = Taxonomy().read(manual_taxonomy, use_canonical_gid=True)
         mc_num_gids = sum(
             [1 for gid in mc_taxonomy if not gid.startswith('D-')])
-        self.logger.info(
+        self.log.info(
             ' - read taxonomy for {:,} genomes.'.format(mc_num_gids))
 
         # replace generic names with genus names
-        self.logger.info('Creating taxonomy file with updated species names.')
+        self.log.info('Creating taxonomy file with updated species names.')
         fout = open(os.path.join(self.output_dir,
                                  'taxonomy_updated_sp.tsv'), 'w')
         num_genomes = 0
@@ -131,7 +131,7 @@ class PMC_Checks():
             genus = taxa[Taxonomy.GENUS_INDEX]
             generic = genus.replace('g__', '')
             if not generic:
-                self.logger.error(
+                self.log.error(
                     'Genome is missing genus assignment: {}'.format(gid))
                 sys.exit(-1)
 
@@ -139,14 +139,14 @@ class PMC_Checks():
 
             if gid in mc_species:
                 if generic not in species and species != 's__':
-                    self.logger.error('Genus assignment does not agree with manually-curated species assignment: {} {} {}'.format(
+                    self.log.error('Genus assignment does not agree with manually-curated species assignment: {} {} {}'.format(
                         gid,
                         mc_species[gid],
                         '; '.join(mc_taxonomy[gid])))
 
             sp_tokens = species.split()
             if len(sp_tokens) < 2:
-                self.logger.error(
+                self.log.error(
                     'Species name appear to be erroneous: {} {}'.format(gid, species))
                 specific = '<unassigned>'
             else:
@@ -161,4 +161,4 @@ class PMC_Checks():
             num_genomes += 1
 
         fout.close()
-        self.logger.info(' - processed {:,} genomes.'.format(num_genomes))
+        self.log.info(' - processed {:,} genomes.'.format(num_genomes))

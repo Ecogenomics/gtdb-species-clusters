@@ -24,7 +24,7 @@ class Update_ANI_Cache():
     def __init__(self):
         """Initialization."""
 
-        self.logger = logging.getLogger('timestamp')
+        self.log = logging.getLogger('timestamp')
 
     def run(self, genomes_new_updated_file, prev_ani_cache, out_ani_cache):
         """Update ANI cache to remove entries for updates genomes."""
@@ -33,7 +33,7 @@ class Update_ANI_Cache():
         # shouldn't contain any genomes marked as NEW so it seems wies
         # to filtered them here in case this situation does somehow
         # occur.
-        self.logger.info('Identifying new or updated genomes:')
+        self.log.info('Identifying new or updated genomes:')
         new_updated_gids = set()
         with open(genomes_new_updated_file, encoding='utf-8') as f:
             header = f.readline().strip().split('\t')
@@ -47,11 +47,11 @@ class Update_ANI_Cache():
                 if tokens[status_idx].upper() in ['NEW', 'UPDATED']:
                     new_updated_gids.add(gid)
 
-        self.logger.info(
+        self.log.info(
             f' - identified {len(new_updated_gids):,} new or updated genomes to remove from ANI cache')
 
         # remove updated genomes from ANI cache
-        self.logger.info('Updating ANI cache:')
+        self.log.info('Updating ANI cache:')
         fout = open(out_ani_cache, 'w')
         filtered_rows = 0
         retained_rows = 0
@@ -74,5 +74,5 @@ class Update_ANI_Cache():
 
         fout.close()
 
-        self.logger.info(
+        self.log.info(
             f' - filtered {filtered_rows:,} rows and retained {retained_rows:,} rows')

@@ -16,13 +16,12 @@
 ###############################################################################
 
 import os
-import sys
 import logging
 from collections import defaultdict
 
-from gtdb_species_clusters.genomes import Genomes
+from gtdblib.util.bio.accession import canonical_gid
 
-from gtdb_species_clusters.genome_utils import canonical_gid
+from gtdb_species_clusters.genomes import Genomes
 from gtdb_species_clusters.type_genome_utils import read_clusters
 from gtdb_species_clusters.taxon_utils import specific_epithet
 
@@ -34,7 +33,7 @@ class UpdateErroneousNCBI():
         """Initialization."""
 
         self.output_dir = output_dir
-        self.logger = logging.getLogger('timestamp')
+        self.log = logging.getLogger('timestamp')
 
     def identify_misclassified_genomes_cluster(self, cur_genomes, cur_clusters, ncbi_untrustworthy_sp_ledger):
         """Identify genomes with erroneous NCBI species assignments, based on GTDB clustering of type strain genomes."""
@@ -68,17 +67,17 @@ class UpdateErroneousNCBI():
                     if ncbi_type_species != 's__' and ncbi_specific not in forbidden_names:
                         if (ncbi_type_species in ncbi_type_anchored_species
                                 and rid != ncbi_type_anchored_species[ncbi_type_species]):
-                            self.logger.error('NCBI species {} has multiple effective type strain genomes in different clusters.'.format(
+                            self.log.error('NCBI species {} has multiple effective type strain genomes in different clusters.'.format(
                                 ncbi_type_species))
                             unresolved_type_strains = True
 
                         ncbi_type_anchored_species[ncbi_type_species] = rid
 
         if unresolved_type_strains:
-            self.logger.error(
+            self.log.error(
                 'The unresolved type strains listed above must be resolved.')
 
-        self.logger.info(' - identified {:,} NCBI species anchored by a type strain genome'.format(
+        self.log.info(' - identified {:,} NCBI species anchored by a type strain genome'.format(
             len(ncbi_type_anchored_species)))
 
         # identify genomes with erroneous NCBI species assignments
@@ -121,7 +120,7 @@ class UpdateErroneousNCBI():
 
         misclassified_species = {
             cur_genomes[gid].ncbi_taxa.species for gid in misclassified_gids}
-        self.logger.info(' - identified {:,} genomes from {:,} species as having misclassified NCBI species assignments'.format(
+        self.log.info(' - identified {:,} genomes from {:,} species as having misclassified NCBI species assignments'.format(
             len(misclassified_gids),
             len(misclassified_species)))
 
@@ -140,7 +139,7 @@ class UpdateErroneousNCBI():
         """Cluster genomes to selected GTDB representatives."""
 
         # create current GTDB genome sets
-        self.logger.info('Creating current GTDB genome set.')
+        self.log.info('Creating current GTDB genome set.')
         cur_genomes = Genomes()
         cur_genomes.load_from_metadata_file(cur_gtdb_metadata_file,
                                             gtdb_type_strains_ledger=gtdb_type_strains_ledger,
@@ -152,19 +151,19 @@ class UpdateErroneousNCBI():
                                             ncbi_env_bioproject_ledger=ncbi_env_bioproject_ledger)
 
         # get path to previous and current genomic FASTA files
-        self.logger.info('Reading path to current genomic FASTA files.')
+        self.log.info('Reading path to current genomic FASTA files.')
         cur_genomes.load_genomic_file_paths(cur_genomic_path_file)
 
         # read named GTDB species clusters
-        self.logger.info(
+        self.log.info(
             'Reading named and previous placeholder GTDB species clusters.')
         cur_clusters, _rep_radius = read_clusters(gtdb_clusters_file)
-        self.logger.info(' - identified {:,} clusters spanning {:,} genomes'.format(
+        self.log.info(' - identified {:,} clusters spanning {:,} genomes'.format(
             len(cur_clusters),
             sum([len(gids) + 1 for gids in cur_clusters.values()])))
 
         # identify genomes with erroneous NCBI species assignments
-        self.logger.info(
+        self.log.info(
             'Identifying genomes with erroneous NCBI species assignments as established by GTDB cluster of type strain genomes.')
         self.identify_misclassified_genomes_cluster(
             cur_genomes, cur_clusters, ncbi_untrustworthy_sp_ledger)

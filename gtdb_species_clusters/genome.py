@@ -78,7 +78,7 @@ class Genome(object):
     def __post_init__(self):
         """Post data initialization."""
 
-        self.logger = logging.getLogger('timestamp')
+        self.log = logging.getLogger('timestamp')
 
         if self.gid.startswith('UBA'):
             self.ncbi_genome_category = 'metagenome'
@@ -114,7 +114,7 @@ class Genome(object):
             return False
 
         if 'subsp.' not in ncbi_subspecies:
-            self.logger.warning(
+            self.log.warning(
                 f'Genome {self.gid} has invalid subspecies: {ncbi_subspecies}')
             return False
 

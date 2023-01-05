@@ -17,14 +17,15 @@
 
 import os
 import sys
-import re
 import logging
 from collections import defaultdict
+
+from gtdblib.util.bio.accession import canonical_gid
 
 from gtdb_species_clusters.genome import Genome
 from gtdb_species_clusters.taxa import Taxa
 from gtdb_species_clusters.species_clusters import SpeciesClusters
-from gtdb_species_clusters.genome_utils import canonical_gid, exclude_from_refseq, parse_ncbi_bioproject, read_gtdbtk_classifications
+from gtdb_species_clusters.genome_utils import exclude_from_refseq, parse_ncbi_bioproject, read_gtdbtk_classifications
 from gtdb_species_clusters.taxon_utils import is_placeholder_taxon
 
 
@@ -42,7 +43,7 @@ class Genomes(object):
 
         self.full_gid = {}  # translate from canonical GID to NCBI accession
 
-        self.logger = logging.getLogger('timestamp')
+        self.log = logging.getLogger('timestamp')
 
     def __str__(self):
         """User-friendly string representation."""
@@ -96,7 +97,7 @@ class Genomes(object):
 
                     sp = line_split[1].strip().replace('Candidatus ', '')
                     if gid not in self.genomes:
-                        self.logger.warning(
+                        self.log.warning(
                             f'Genome {gid} in species exception list not defined in genome set.')
                         continue
 
@@ -115,7 +116,7 @@ class Genomes(object):
                     gid = canonical_gid(line_split[0].strip())
                     genus = line_split[1].strip()
                     if gid not in self.genomes:
-                        self.logger.warning(
+                        self.log.warning(
                             f'Genome {gid} in genus exception list not defined in genome set.')
                         continue
 
@@ -131,7 +132,7 @@ class Genomes(object):
 
                     # sanity check ledgers
                     if gid in species_updates and genus not in species_updates[gid]:
-                        self.logger.error(
+                        self.log.error(
                             f'Species and genus ledgers have conflicting assignments for {gid}.')
                         sys.exit(-1)
 
@@ -157,7 +158,7 @@ class Genomes(object):
             if self.genomes[gid].gtdb_taxa.species == gtdb_sp:
                 return gid
 
-        self.logger.error(
+        self.log.error(
             f'Failed to find representative of GTDB species for {gtdb_sp}.')
         sys.exit(-1)
 
@@ -324,7 +325,7 @@ class Genomes(object):
         # taxonomy will not be reflected in the latest GTDB database. The
         # exception is if a genome has changed domains, in which case the
         # previous assignment is invalid.
-        self.logger.info(
+        self.log.info(
             'Setting GTDB taxonomy of genomes in current genome set.')
 
         update_count = 0
@@ -342,8 +343,8 @@ class Genomes(object):
                     else:
                         conflicting_domain_count += 1
 
-        self.logger.info(f' - updated {update_count:,} genomes')
-        self.logger.info(
+        self.log.info(f' - updated {update_count:,} genomes')
+        self.log.info(
             f' - identified {conflicting_domain_count:,} genomes with conflicting domain assignments')
 
     def load_from_metadata_file(self,
@@ -366,7 +367,7 @@ class Genomes(object):
                 for line in f:
                     line_split = line.strip().split('\t')
                     pass_qc_gids.add(line_split[0].strip())
-            self.logger.info(
+            self.log.info(
                 f' - identified {len(pass_qc_gids):,} genomes passing QC')
 
         gtdb_type_strains = {}
@@ -380,7 +381,7 @@ class Genomes(object):
                     if not sp.startswith('s__'):
                         sp = 's__' + sp
                     gtdb_type_strains[gid] = sp
-            self.logger.info(
+            self.log.info(
                 f' - identified {len(gtdb_type_strains):,} manually annotated as type strain genomes')
 
         excluded_from_refseq_note = {}
@@ -402,14 +403,14 @@ class Genomes(object):
         if untrustworthy_type_ledger:
             untrustworthy_as_type = self.parse_untrustworthy_type_ledger(
                 untrustworthy_type_ledger)
-            self.logger.info(
+            self.log.info(
                 f' - identified {len(untrustworthy_as_type):,} genomes annotated as untrustworthy as type by GTDB')
 
         untrustworthy_ncbi_sp = set()
         if ncbi_untrustworthy_sp_ledger:
             untrustworthy_ncbi_sp = self.parse_ncbi_untrustworthy_sp_ledger(
                 ncbi_untrustworthy_sp_ledger)
-            self.logger.info(
+            self.log.info(
                 f' - identified {len(untrustworthy_ncbi_sp):,} genomes annotated as having untrustworthy NCBI species assignments')
 
         with open(metadata_file, encoding='utf-8') as f:

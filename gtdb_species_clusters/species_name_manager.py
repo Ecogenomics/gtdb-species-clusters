@@ -36,7 +36,7 @@ class SpeciesNameManager():
     def __init__(self, prev_genomes, cur_genomes):
         """Initialization."""
 
-        self.logger = logging.getLogger('timestamp')
+        self.log = logging.getLogger('timestamp')
 
         self.taxon_suffix_manager = TaxonSuffixManager()
 
@@ -70,7 +70,7 @@ class SpeciesNameManager():
         """Determine suffix for species."""
 
         if is_placeholder_sp_epithet(specific):
-            self.logger.error(
+            self.log.error(
                 f'Only Latin specific names should have a suffix: generic = {generic}; specific = {specific}')
             raise Exception('Invalid species epithet')
 

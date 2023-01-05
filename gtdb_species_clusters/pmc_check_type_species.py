@@ -31,7 +31,7 @@ class PMC_CheckTypeSpecies(object):
         """Initialization."""
 
         self.output_dir = output_dir
-        self.logger = logging.getLogger('timestamp')
+        self.log = logging.getLogger('timestamp')
 
     def run(self,
             manual_taxonomy,
@@ -53,13 +53,13 @@ class PMC_CheckTypeSpecies(object):
                                                   self.output_dir)
 
         # identify species and genus names updated during manual curation
-        self.logger.info('Parsing manually curated taxonomy.')
+        self.log.info('Parsing manually curated taxonomy.')
         mc_taxonomy = Taxonomy().read(manual_taxonomy, use_canonical_gid=True)
-        self.logger.info(
+        self.log.info(
             ' - read taxonomy for {:,} genomes.'.format(len(mc_taxonomy)))
 
         # create current GTDB genome sets
-        self.logger.info('Creating current GTDB genome set.')
+        self.log.info('Creating current GTDB genome set.')
         cur_genomes = Genomes()
         cur_genomes.load_from_metadata_file(cur_gtdb_metadata_file,
                                             gtdb_type_strains_ledger=gtdb_type_strains_ledger,
@@ -68,11 +68,11 @@ class PMC_CheckTypeSpecies(object):
                                             ncbi_genbank_assembly_file=ncbi_genbank_assembly_file,
                                             untrustworthy_type_ledger=untrustworthy_type_file,
                                             ncbi_env_bioproject_ledger=ncbi_env_bioproject_ledger)
-        self.logger.info(
+        self.log.info(
             f' - current genome set contains {len(cur_genomes):,} genomes.')
 
         # establish appropriate species names for GTDB clusters with new representatives
-        self.logger.info(
+        self.log.info(
             'Identifying type species genomes with incongruent GTDB genus assignments.')
         fout = open(os.path.join(self.output_dir,
                                  'type_species_incongruencies.tsv'), 'w')
@@ -105,6 +105,6 @@ class PMC_CheckTypeSpecies(object):
                             priority_status,
                             cur_genomes[rid].excluded_from_refseq_note))
 
-        self.logger.info(
+        self.log.info(
             ' - identified {:,} genomes with incongruent genus assignments.'.format(num_incongruent))
         fout.close()

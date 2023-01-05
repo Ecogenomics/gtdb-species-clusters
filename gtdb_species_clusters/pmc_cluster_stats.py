@@ -31,11 +31,11 @@ from numpy import (mean as np_mean,
 
 from biolib.external.execute import check_dependencies
 
-from gtdb_species_clusters.genome_utils import read_genome_path, canonical_gid
+from gtdblib.util.bio.accession import canonical_gid
+
+from gtdb_species_clusters.genome_utils import read_genome_path
 from gtdb_species_clusters.taxon_utils import read_gtdb_taxonomy
-
 from gtdb_species_clusters.type_genome_utils import GenomeRadius
-
 from gtdb_species_clusters.fastani import FastANI
 from gtdb_species_clusters import defaults as Defaults
 
@@ -51,7 +51,7 @@ class PMC_ClusterStats(object):
         self.cpus = cpus
         self.output_dir = output_dir
 
-        self.logger = logging.getLogger('timestamp')
+        self.log = logging.getLogger('timestamp')
 
         self.af_sp = af_sp
 
@@ -80,7 +80,7 @@ class PMC_ClusterStats(object):
         clustering has been performed.
         """
 
-        self.logger.info(
+        self.log.info(
             'Determine number of non-rep genomes within ANI radius of multiple rep genomes.')
 
         # get clustered genomes IDs
@@ -88,7 +88,7 @@ class PMC_ClusterStats(object):
         for rid in clusters:
             clustered_gids += clusters[rid]
 
-        self.logger.info('Considering {:,} representatives and {:,} non-representative genomes.'.format(
+        self.log.info('Considering {:,} representatives and {:,} non-representative genomes.'.format(
             len(clusters),
             len(clustered_gids)))
 
@@ -119,7 +119,7 @@ class PMC_ClusterStats(object):
     def intragenus_pairwise_ani(self, clusters, species, genome_files, gtdb_taxonomy):
         """Determine pairwise intra-genus ANI between representative genomes."""
 
-        self.logger.info(
+        self.log.info(
             'Calculating pairwise intra-genus ANI values between GTDB representatives.')
 
         # get genus for each representative
@@ -129,7 +129,7 @@ class PMC_ClusterStats(object):
             assert genus[rid] == gtdb_taxonomy[rid][5].replace('g__', '')
 
         # get pairs above Mash threshold
-        self.logger.info('Determining intra-genus genome pairs.')
+        self.log.info('Determining intra-genus genome pairs.')
         ani_pairs = []
         for qid in clusters:
             for rid in clusters:
@@ -144,11 +144,11 @@ class PMC_ClusterStats(object):
                 ani_pairs.append((qid, rid))
                 ani_pairs.append((rid, qid))
 
-        self.logger.info(
+        self.log.info(
             'Identified {:,} intra-genus genome pairs.'.format(len(ani_pairs)))
 
         # calculate ANI between pairs
-        self.logger.info(
+        self.log.info(
             'Calculating ANI between {:,} genome pairs:'.format(len(ani_pairs)))
         if True:  # ***DEBUGGING
             ani_af = self.fastani.pairs(ani_pairs, genome_files)
@@ -258,7 +258,7 @@ class PMC_ClusterStats(object):
     def rep_genome_stats(self, clusters, genome_files):
         """Calculate statistics relative to representative genome."""
 
-        self.logger.info('Calculating statistics to cluster representatives:')
+        self.log.info('Calculating statistics to cluster representatives:')
         stats = {}
         for idx, (rid, cids) in enumerate(clusters.items()):
             if len(cids) == 0:
@@ -303,9 +303,9 @@ class PMC_ClusterStats(object):
     def pairwise_stats(self, clusters, genome_files):
         """Calculate statistics for all pairwise comparisons in a species cluster."""
 
-        self.logger.info(
+        self.log.info(
             f'Restricting pairwise comparisons to {self.max_genomes_for_stats:,} randomly selected genomes.')
-        self.logger.info(
+        self.log.info(
             'Calculating statistics for all pairwise comparisons in a species cluster:')
 
         stats = {}
@@ -371,7 +371,7 @@ class PMC_ClusterStats(object):
                                            for gid in gids if gid != rid])
 
                 if mean_ani_to_medoid < mean_ani_to_rep:
-                    self.logger.error('mean_ani_to_medoid < mean_ani_to_rep')
+                    self.log.error('mean_ani_to_medoid < mean_ani_to_rep')
                     sys.exit(-1)
 
                 # calculate statistics
@@ -452,19 +452,19 @@ class PMC_ClusterStats(object):
         """Calculate statistics for species cluster."""
 
         # read the GTDB taxonomy
-        self.logger.info('Reading GTDB taxonomy from metadata file.')
+        self.log.info('Reading GTDB taxonomy from metadata file.')
         gtdb_taxonomy = read_gtdb_taxonomy(metadata_file)
 
         # get path to genome FASTA files
-        self.logger.info('Reading path to genome FASTA files.')
+        self.log.info('Reading path to genome FASTA files.')
         genome_files = read_genome_path(genome_path_file)
-        self.logger.info(f'Read path for {len(genome_files):,} genomes.')
+        self.log.info(f'Read path for {len(genome_files):,} genomes.')
 
         # determine type genomes and genomes clustered to type genomes
-        self.logger.info('Reading species clusters.')
+        self.log.info('Reading species clusters.')
         clusters, species, cluster_radius = self.parse_sp_clusters(
             sp_cluster_file)
-        self.logger.info(f'Identified {len(clusters):,} species clusters.')
+        self.log.info(f'Identified {len(clusters):,} species clusters.')
 
         # determine species assignment for clustered genomes
         clustered_species = {}

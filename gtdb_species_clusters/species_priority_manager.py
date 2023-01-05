@@ -37,7 +37,7 @@ class SpeciesPriorityManager(object):
                  output_dir):
         """Initialization."""
 
-        self.logger = logging.getLogger('timestamp')
+        self.log = logging.getLogger('timestamp')
 
         self.output_dir = output_dir
 
@@ -58,7 +58,7 @@ class SpeciesPriorityManager(object):
     def _parse_sp_priority_ledger(self, species_priority_ledger):
         """Parse manually resolved priority cases."""
 
-        self.logger.info('Parsing species priority ledger:')
+        self.log.info('Parsing species priority ledger:')
         self.manual_sp_priority = defaultdict(lambda: {})
         self.manual_species_priority_year = {}
 
@@ -83,7 +83,7 @@ class SpeciesPriorityManager(object):
                 assert spB.startswith('s__')
                 assert priority_sp.startswith('s__')
                 if priority_sp not in [spA, spB]:
-                    self.logger.error('Error in species priority ledger. Species {} cannot have priority for {} and {}.'.format(
+                    self.log.error('Error in species priority ledger. Species {} cannot have priority for {} and {}.'.format(
                         priority_sp, spA, spB))
                     sys.exit(-1)
 
@@ -94,13 +94,13 @@ class SpeciesPriorityManager(object):
                 self.manual_species_priority_year[spB] = year
                 num_cases += 1
 
-        self.logger.info(
+        self.log.info(
             f' - identified {num_cases:,} manually resolved cases')
 
     def _parse_genus_priority_ledger(self, genus_priority_ledger):
         """Parse manually resolved priority cases."""
 
-        self.logger.info('Parsing genus priority ledger:')
+        self.log.info('Parsing genus priority ledger:')
         self.manual_genus_priority = defaultdict(lambda: {})
 
         num_cases = 0
@@ -127,7 +127,7 @@ class SpeciesPriorityManager(object):
                 self.manual_genus_priority[genusB][genusA] = priority_genus
                 num_cases += 1
 
-        self.logger.info(
+        self.log.info(
             f' - identified {num_cases:,} manually resolved cases')
 
     def _parse_lpsn_gss(self, lpsn_gss_file):
@@ -196,7 +196,7 @@ class SpeciesPriorityManager(object):
                                 and self.lpsn_genus_priority[taxon] != priority_year):
                             # conflict that can't be attributed to one of the entries being
                             # considered an illegitimate name
-                            self.logger.error('Conflicting genus priority for {}: {} {}'.format(
+                            self.log.error('Conflicting genus priority for {}: {} {}'.format(
                                 taxon, priority_year, self.lpsn_genus_priority[taxon]))
 
                         self.lpsn_genus_priority[taxon] = priority_year
@@ -205,9 +205,9 @@ class SpeciesPriorityManager(object):
                                                          tokens[author_idx],
                                                          priority_year))
 
-        self.logger.info(
+        self.log.info(
             f' - established genus priority for {genus_priority_count:,} genera using LPSN GSS metadata')
-        self.logger.info(' - identified {:,} genera, {:,} species and {:,} subpecies with validly published names in LPSN GSS metadata'.format(
+        self.log.info(' - identified {:,} genera, {:,} species and {:,} subpecies with validly published names in LPSN GSS metadata'.format(
             valid_genera_count,
             valid_species_count,
             valid_subsp_count))
@@ -339,8 +339,8 @@ class SpeciesPriorityManager(object):
         # is ambiguous using just publication date so species need
         # to be in the priority ledger
         if ncbi_sp1 not in self.manual_sp_priority or ncbi_sp2 not in self.manual_sp_priority[ncbi_sp1]:
-            self.logger.error('Ambiguous priority based on publication date.')
-            self.logger.error('Species need to be manually resolved in priority ledger: {}: {} / {} / {}, {}: {} / {} / {}'.format(
+            self.log.error('Ambiguous priority based on publication date.')
+            self.log.error('Species need to be manually resolved in priority ledger: {}: {} / {} / {}, {}: {} / {} / {}'.format(
                 gid1, ncbi_sp1, cur_genomes[gid1].is_gtdb_type_strain(
                 ), cur_genomes[gid1].is_effective_type_strain(),
                 gid2, ncbi_sp2, cur_genomes[gid2].is_gtdb_type_strain(), cur_genomes[gid2].is_effective_type_strain()))

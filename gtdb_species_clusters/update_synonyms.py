@@ -32,7 +32,7 @@ class UpdateSynonyms():
 
         self.output_dir = output_dir
 
-        self.logger = logging.getLogger('timestamp')
+        self.log = logging.getLogger('timestamp')
 
     def run(self, gtdb_clusters_file,
             cur_gtdb_metadata_file,
@@ -50,7 +50,7 @@ class UpdateSynonyms():
         """Cluster genomes to selected GTDB representatives."""
 
         # create current GTDB genome sets
-        self.logger.info('Creating current GTDB genome set.')
+        self.log.info('Creating current GTDB genome set.')
         cur_genomes = Genomes()
         cur_genomes.load_from_metadata_file(cur_gtdb_metadata_file,
                                             gtdb_type_strains_ledger=gtdb_type_strains_ledger,
@@ -62,14 +62,14 @@ class UpdateSynonyms():
                                             ncbi_env_bioproject_ledger=ncbi_env_bioproject_ledger)
 
         # read named GTDB species clusters
-        self.logger.info('Reading GTDB species clusters.')
+        self.log.info('Reading GTDB species clusters.')
         cur_clusters, _rep_radius = read_clusters(gtdb_clusters_file)
-        self.logger.info(' - identified {:,} clusters spanning {:,} genomes'.format(
+        self.log.info(' - identified {:,} clusters spanning {:,} genomes'.format(
             len(cur_clusters),
             sum([len(gids) + 1 for gids in cur_clusters.values()])))
 
         # identified genomes with misclassified species assignments at NCBI
-        self.logger.info(
+        self.log.info(
             'Identify genomes with misclassified NCBI species assignments.')
         ncbi_species_mngr = NCBI_SpeciesManager(cur_genomes,
                                                 cur_clusters,
@@ -77,7 +77,7 @@ class UpdateSynonyms():
                                                 self.output_dir)
         ncbi_misclassified_gids = ncbi_species_mngr.parse_ncbi_misclassified_table(
             ncbi_misclassified_file)
-        self.logger.info(' - identified {:,} genomes with erroneous NCBI species assignments'.format(
+        self.log.info(' - identified {:,} genomes with erroneous NCBI species assignments'.format(
             len(ncbi_misclassified_gids)))
 
         # identify NCBI species considered to be synonyms under the GTDB
@@ -87,7 +87,7 @@ class UpdateSynonyms():
             ncbi_misclassified_gids)
 
         # read ANI and AF between representatives and non-representative genomes
-        self.logger.info(
+        self.log.info(
             'Reading ANI and AF between representative and non-representative genomes.')
         ani_af = pickle.load(open(ani_af_rep_vs_nonrep, 'rb'))
 

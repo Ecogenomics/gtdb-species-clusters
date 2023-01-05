@@ -19,9 +19,9 @@ import sys
 import logging
 from collections import defaultdict
 
+from gtdblib.util.bio.accession import canonical_gid
 
-from gtdb_species_clusters.genome_utils import (canonical_gid,
-                                                read_cur_new_updated,
+from gtdb_species_clusters.genome_utils import (read_cur_new_updated,
                                                 read_qc_file,
                                                 read_gtdbtk_classifications)
 
@@ -37,7 +37,7 @@ class SpeciesClusters():
     def __init__(self):
         """Initialization."""
 
-        self.logger = logging.getLogger('timestamp')
+        self.log = logging.getLogger('timestamp')
 
         self.sp_clusters = defaultdict(set)
         self.species_names = {}
@@ -109,7 +109,7 @@ class SpeciesClusters():
         """Update species cluster."""
 
         if rid in self.species_names and self.species_names[rid] != sp_name:
-            self.logger.warning('GTDB representative {} appears to have two names: {} {} {}'.format(
+            self.log.warning('GTDB representative {} appears to have two names: {} {} {}'.format(
                 rid, self.species_names[rid], sp_name, gid))
             # sys.exit(-1)
 
@@ -155,25 +155,25 @@ class SpeciesClusters():
                                  gtdbtk_classify_file):
         """Expand species clusters to include genome in current GTDB release."""
 
-        assert(not self.new_gids and not self.updated_gids)
+        assert (not self.new_gids and not self.updated_gids)
 
         # read GTDB-Tk classifications for new and updated genomes
         gtdbtk_classifications = read_gtdbtk_classifications(
             gtdbtk_classify_file)
-        self.logger.info(
+        self.log.info(
             f' - identified {len(gtdbtk_classifications):,} classifications')
 
         # get new and updated genomes in current GTDB release
         self.new_gids, self.updated_gids = read_cur_new_updated(
             genomes_new_updated_file)
-        self.logger.info(
+        self.log.info(
             f' - identified {len(self.new_gids):,} new and {len(self.updated_gids):,} updated genomes')
 
         # get list of genomes passing QC
         gids_pass_qc = read_qc_file(qc_passed_file)
         new_pass_qc = len(self.new_gids.intersection(gids_pass_qc))
         updated_pass_qc = len(self.updated_gids.intersection(gids_pass_qc))
-        self.logger.info(
+        self.log.info(
             f' - identified {new_pass_qc:,} new and {updated_pass_qc:,} updated genomes as passing QC')
 
         # create mapping between species and representatives
@@ -197,7 +197,7 @@ class SpeciesClusters():
                 continue
 
             if sp not in orig_sp_rid_map:
-                self.logger.error(
+                self.log.error(
                     f'GTDB-Tk results indicated a new species for {gid}: {sp}')
                 # sys.exit(-1)
 
@@ -216,15 +216,15 @@ class SpeciesClusters():
                         # (e.g. GCA_005518205.1 was updated to GCA_005518205.2 in R207,
                         # and as a result clustered with the species cluster represented by
                         # GCA_005518235.1).
-                        self.logger.warning(
+                        self.log.warning(
                             f'Updated GTDB representative {gid} reassigned from {orig_sp} to {sp} (manual inspection required to ensure this is properly resolved).')
 
             else:
-                self.logger.error(
+                self.log.error(
                     f"Genome {gid} specified in GTDB-Tk results is neither 'new' or 'updated'")
                 sys.exit(-1)
 
-        self.logger.info(
+        self.log.info(
             f' - identified {new_sp:,} genomes not assigned to an existing GTDB species cluster')
 
         assert len(self.sp_clusters) == len(self.species_names)

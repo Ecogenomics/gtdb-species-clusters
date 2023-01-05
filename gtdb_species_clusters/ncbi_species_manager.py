@@ -48,7 +48,7 @@ class NCBI_SpeciesManager():
     def __init__(self, cur_genomes, cur_clusters, mc_species, output_dir):
         """Initialization."""
 
-        self.logger = logging.getLogger('timestamp')
+        self.log = logging.getLogger('timestamp')
 
         self.output_dir = output_dir
         self.cur_genomes = cur_genomes
@@ -62,7 +62,7 @@ class NCBI_SpeciesManager():
 
         # identify NCBI species with genomes assembled from type strain of species
         self.ncbi_sp_type_strain_genomes = cur_genomes.ncbi_sp_effective_type_genomes()
-        self.logger.info(' - identified effective type strain genomes for {:,} NCBI species'.format(
+        self.log.info(' - identified effective type strain genomes for {:,} NCBI species'.format(
             len(self.ncbi_sp_type_strain_genomes)))
 
         self.validate_type_strain_clustering(mc_species)
@@ -70,7 +70,7 @@ class NCBI_SpeciesManager():
     def validate_type_strain_clustering(self, mc_species):
         """Validate that all type strain genomes for an NCBI species occur in a single GTDB cluster."""
 
-        self.logger.info(
+        self.log.info(
             'Verifying that all type strain genomes for a NCBI species occur in a single GTDB cluster.')
         rid_map = {}
         for rid, gids in self.cur_clusters.items():
@@ -96,7 +96,7 @@ class NCBI_SpeciesManager():
                 gtdb_rids.add(rid)
 
             if len(gtdb_rids) > 1:
-                self.logger.error('Type strain genomes from NCBI species {} were assigned to {:,} GTDB species clusters: {}.'.format(
+                self.log.error('Type strain genomes from NCBI species {} were assigned to {:,} GTDB species clusters: {}.'.format(
                     ncbi_sp,
                     len(gtdb_rids),
                     [(rid, self.cur_genomes[rid].gtdb_taxa.species) for rid in gtdb_rids]))
@@ -110,7 +110,7 @@ class NCBI_SpeciesManager():
         """
 
         # identify type strain synonyms
-        self.logger.info('Identifying type strain synonyms.')
+        self.log.info('Identifying type strain synonyms.')
         type_strain_synonyms = defaultdict(list)
         failed_type_strain_priority = 0
         for rid, gids in self.cur_clusters.items():
@@ -139,12 +139,12 @@ class NCBI_SpeciesManager():
                 type_strain_synonyms[rid].append(gid)
                 processed_sp.add(cur_ncbi_sp)
 
-        self.logger.info(' - identified {:,} GTDB representatives resulting in {:,} type strain synonyms'.format(
+        self.log.info(' - identified {:,} GTDB representatives resulting in {:,} type strain synonyms'.format(
             len(type_strain_synonyms),
             sum([len(gids) for gids in type_strain_synonyms.values()])))
 
         if failed_type_strain_priority:
-            self.logger.warning(
+            self.log.warning(
                 f'Identified {failed_type_strain_priority:,} non-type strain representatives that failed to priotize an effective type strain genome.')
 
         return type_strain_synonyms
@@ -198,7 +198,7 @@ class NCBI_SpeciesManager():
                     consensus_synonyms[gtdb_rid].append(q_sorted[0][0])
                     break
 
-        self.logger.info(' - identified {:,} GTDB representatives resulting in {:,} majority vote synonyms'.format(
+        self.log.info(' - identified {:,} GTDB representatives resulting in {:,} majority vote synonyms'.format(
             len(consensus_synonyms),
             sum([len(gids) for gids in consensus_synonyms.values()])))
 
@@ -281,11 +281,11 @@ class NCBI_SpeciesManager():
                     fout.write('\n')
 
         if incorrect_priority:
-            self.logger.warning(
+            self.log.warning(
                 f' - identified {incorrect_priority:,} synonyms with incorrect priority')
 
         if failed_type_strain_priority:
-            self.logger.warning(
+            self.log.warning(
                 f' - identified {failed_type_strain_priority:,} synonyms that failed to priotize the type strain of the species')
 
     def parse_synonyms_table(self, synonym_file):
@@ -402,7 +402,7 @@ class NCBI_SpeciesManager():
                 ncbi_type_strain_species.append(ncbi_species)
             else:
                 ncbi_nontype_species.append(ncbi_species)
-        self.logger.info(' - identified {:,} NCBI species with effective type strain genome and {:,} NCBI species without a type strain genome'.format(
+        self.log.info(' - identified {:,} NCBI species with effective type strain genome and {:,} NCBI species without a type strain genome'.format(
             len(ncbi_type_strain_species), len(ncbi_nontype_species)))
 
         # establish if NCBI species can be unambiguously assigned to a GTDB species cluster
@@ -502,7 +502,7 @@ class NCBI_SpeciesManager():
                     ncbi_sp_str,
                     ''))
             else:
-                self.logger.error('Multiple GTDB species clusters represented by type strain genomes of {}: {}'.format(
+                self.log.error('Multiple GTDB species clusters represented by type strain genomes of {}: {}'.format(
                     ncbi_species, type_strain_rids))
                 sys.exit(-1)
 
@@ -534,7 +534,7 @@ class NCBI_SpeciesManager():
         gtdb_rep_ncbi_sp_assignments = {}
         for ncbi_species, (gtdb_rid, _classification) in unambiguous_ncbi_sp.items():
             if gtdb_rid in gtdb_rep_ncbi_sp_assignments:
-                self.logger.error('GTDB representative {} assigned to multiple unambiguous NCBI species: {} {}'.format(
+                self.log.error('GTDB representative {} assigned to multiple unambiguous NCBI species: {} {}'.format(
                     gtdb_rid,
                     gtdb_rep_ncbi_sp_assignments[gtdb_rid],
                     ncbi_species))
@@ -585,7 +585,7 @@ class NCBI_SpeciesManager():
                 ncbi_type_subspecies.append(ncbi_subspecies)
             else:
                 ncbi_nontype_subspecies.append(ncbi_subspecies)
-        self.logger.info(' - identified {:,} NCBI species with effective type strain genome and {:,} NCBI species without a type strain genome'.format(
+        self.log.info(' - identified {:,} NCBI species with effective type strain genome and {:,} NCBI species without a type strain genome'.format(
             len(ncbi_type_subspecies), len(ncbi_nontype_subspecies)))
 
         # establish if NCBI subspecies can be unambiguously assigned to a GTDB species cluster
@@ -706,7 +706,7 @@ class NCBI_SpeciesManager():
                     warn_str = 'Multiple GTDB species clusters contain type genomes of {}: {}'.format(
                         ncbi_subspecies,
                         type_rids)
-                    self.logger.warning(warn_str)
+                    self.log.warning(warn_str)
                 else:
                     warn_str = 'GTDB species clusters contain multiple subspecies with type strain.'
 

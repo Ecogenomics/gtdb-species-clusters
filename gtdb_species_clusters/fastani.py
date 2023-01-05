@@ -29,7 +29,7 @@ from collections import defaultdict
 
 from biolib.external.execute import check_dependencies, run
 
-from gtdb_species_clusters.genome_utils import canonical_gid
+from gtdblib.util.bio.accession import canonical_gid
 
 
 class FastANI():
@@ -69,12 +69,12 @@ class FastANI():
 
         self.cpus = cpus
 
-        self.logger = logging.getLogger('timestamp')
+        self.log = logging.getLogger('timestamp')
 
         self.ani_cache_file = ani_cache_file
         self._read_cache()
 
-        self.logger.info('Using FastANI v{}.'.format(self._get_version()))
+        self.log.info('Using FastANI v{}.'.format(self._get_version()))
 
     def __del__(self):
         """Destructor."""
@@ -119,10 +119,10 @@ class FastANI():
                     self.ani_cache[gid1][gid2] = (ani, af)
                     cache_size += 1
 
-                self.logger.info(
+                self.log.info(
                     f'Read ANI cache with {cache_size:,} entries.')
             else:
-                self.logger.warning(
+                self.log.warning(
                     f'ANI cache file does not exist: {self.ani_cache_file}')
 
     def write_cache(self, silence=False):
@@ -139,7 +139,7 @@ class FastANI():
             fout.close()
 
             if not silence:
-                self.logger.info(
+                self.log.info(
                     f'Wrote ANI cache with {cache_size:,} entries.')
 
     def _get_genome_id(self, genome_path):

@@ -61,7 +61,7 @@ class OptionsParser():
 
     def __init__(self):
         """Initialization"""
-        self.logger = logging.getLogger()
+        self.log = logging.getLogger()
 
     def u_new_genomes(self, args):
         """Identify new and updated genomes."""
@@ -108,7 +108,7 @@ class OptionsParser():
               args.min_N50,
               args.max_ambiguous)
 
-        self.logger.info(
+        self.log.info(
             f'Quality checking information written to: {args.output_dir}')
 
     def u_lpsn_rna_types(self, args):
@@ -1021,7 +1021,7 @@ class OptionsParser():
         elif args.subparser_name == 'sandbox':
             self.sandbox(args)
         else:
-            self.logger.error(
+            self.log.error(
                 f'Unknown gtdb_species_clusters command: {args.subparser_name}\n')
             sys.exit()
 

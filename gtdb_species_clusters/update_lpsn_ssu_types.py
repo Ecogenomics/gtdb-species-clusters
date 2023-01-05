@@ -17,17 +17,11 @@
 
 import os
 import sys
-import time
 import logging
-import datetime
 import multiprocessing as mp
 from collections import defaultdict
 
 from gtdb_species_clusters.genomes import Genomes
-from gtdb_species_clusters.genome_utils import canonical_gid
-from gtdb_species_clusters.taxon_utils import generic_name, specific_epithet
-
-from biolib.taxonomy import Taxonomy
 
 
 class LPSN_SSU_Types():
@@ -53,7 +47,7 @@ class LPSN_SSU_Types():
 
         self.cpus = cpus
         self.output_dir = output_dir
-        self.logger = logging.getLogger('timestamp')
+        self.log = logging.getLogger('timestamp')
 
     def parse_ncbi_assem_report(self, assem_report):
         """Parse sequence information from NCBI Assembly Report."""
@@ -140,7 +134,8 @@ class LPSN_SSU_Types():
 
                 if rRNA in seq_ids:
                     found_ssu = True
-                    queue_out.put((found_ssu, gid, gid in ncbi_candidatus, lpsn_sp, rRNA))
+                    queue_out.put(
+                        (found_ssu, gid, gid in ncbi_candidatus, lpsn_sp, rRNA))
 
                     # safe to break since a given rRNA sequence
                     # can appear in at most one genome
@@ -152,8 +147,10 @@ class LPSN_SSU_Types():
     def _writer(self, cur_genomes, gtdb_type_strains, num_sp, queue_writer):
         """Store or write results of worker threads in a single thread."""
 
-        fout = open(os.path.join(self.output_dir, 'lpsn_ssu_type_genomes.tsv'), 'w')
-        fout.write('Genome ID\tCandidatus\tSpecies\trRNA\tIs GTDB type genome\tIs NCBI type genome\tGTDB type strain genomes\n')
+        fout = open(os.path.join(self.output_dir,
+                    'lpsn_ssu_type_genomes.tsv'), 'w')
+        fout.write(
+            'Genome ID\tCandidatus\tSpecies\trRNA\tIs GTDB type genome\tIs NCBI type genome\tGTDB type strain genomes\n')
 
         processed = 0
         missing_type_designation = 0
@@ -190,7 +187,7 @@ class LPSN_SSU_Types():
         fout.close()
 
         if missing_type_designation > 0:
-            self.logger.warning(
+            self.log.warning(
                 f"[IMPORTANT]: add the {missing_type_designation:,} genomes where `Is GTDB type genome` is FALSE to the `gtdb_type_strains` ledger.")
 
     def run(self,
@@ -204,7 +201,7 @@ class LPSN_SSU_Types():
         """Identify type genomes based on type 16S rRNA sequences indicated at LPSN."""
 
         # create current GTDB genome sets
-        self.logger.info('Creating current GTDB genome set:')
+        self.log.info('Creating current GTDB genome set:')
         cur_genomes = Genomes()
         cur_genomes.load_from_metadata_file(cur_gtdb_metadata_file,
                                             gtdb_type_strains_ledger=gtdb_type_strains_ledger,
@@ -215,9 +212,10 @@ class LPSN_SSU_Types():
         cur_genomes.load_genomic_file_paths(cur_genomic_path_file)
 
         # get LPSN species names with specified sequence type material
-        self.logger.info('Parsing LPSN type 16S rRNA data:')
+        self.log.info('Parsing LPSN type 16S rRNA data:')
         lpsn_sp_type_ssu = self.parse_lpsn_ssu_metadata(lpsn_metadata_file)
-        self.logger.info(f' - identified {len(lpsn_sp_type_ssu):,} species with type 16S rRNA sequence.')
+        self.log.info(
+            f' - identified {len(lpsn_sp_type_ssu):,} species with type 16S rRNA sequence.')
 
         # get NCBI species assignments for genomes and genomes marked as being
         # type strain genomes
@@ -235,11 +233,13 @@ class LPSN_SSU_Types():
             if cur_genomes[gid].is_gtdb_type_strain():
                 gtdb_type_strains[ncbi_sp].add(gid)
 
-            ncbi_assem_report[gid] = cur_genomes.genomic_files[gid].replace('_genomic.fna', '_assembly_report.txt')
+            ncbi_assem_report[gid] = cur_genomes.genomic_files[gid].replace(
+                '_genomic.fna', '_assembly_report.txt')
 
         # match LPSN species with type rRNA sequences to genomes
         # with the same NCBI species classification
-        self.logger.info('Identifying type genomes through LPSN type 16S rRNA sequences.')
+        self.log.info(
+            'Identifying type genomes through LPSN type 16S rRNA sequences.')
 
         worker_queue = mp.Queue()
         writer_queue = mp.Queue()

@@ -33,26 +33,26 @@ class TaxonSuffixManager():
     def __init__(self):
         """Initialize."""
 
-        self.logger = logging.getLogger('timestamp')
+        self.log = logging.getLogger('timestamp')
         self.prev_taxonomy_dir = '/srv/projects/gtdb/data/taxonomy_gtdb'
 
         # get all previous taxonomy files
-        self.logger.info('Reading previous GTDB taxonomy files in {}:'.format(
+        self.log.info('Reading previous GTDB taxonomy files in {}:'.format(
             self.prev_taxonomy_dir))
         taxonomies = defaultdict(lambda: {})
         for f in os.listdir(self.prev_taxonomy_dir):
             if f.endswith('.tsv') and 'gtdb' in f:
-                self.logger.info(f'  {f}')
+                self.log.info(f'  {f}')
                 taxonomy_file = os.path.join(self.prev_taxonomy_dir, f)
 
                 taxonomy_id = '_'.join(f.split('_')[0:2])
                 taxonomies[taxonomy_id].update(Taxonomy().read(taxonomy_file))
 
-        self.logger.info(
+        self.log.info(
             'Considering taxonomy from {:,} previous releases.'.format(len(taxonomies)))
 
         # get highest alphabetic suffix for each taxon
-        self.logger.info(
+        self.log.info(
             'Determining highest polyphyletic alphabetic suffix for each taxon.')
 
         self.taxon_suffix = {}

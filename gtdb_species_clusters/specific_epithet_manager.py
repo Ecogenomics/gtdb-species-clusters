@@ -34,7 +34,7 @@ class SpecificEpithetManager():
     def __init__(self):
         """Initialize."""
 
-        self.logger = logging.getLogger('timestamp')
+        self.log = logging.getLogger('timestamp')
 
         self.curated_epithet_changes = {}
         self.previously_curated = {}
@@ -44,7 +44,7 @@ class SpecificEpithetManager():
     def parse_specific_epithet_ledger(self, specific_epithet_ledger):
         """Parse manually curated changes to specific names resulting from genus transfers."""
 
-        self.logger.info('Reading manually-curate specific epithet changes.')
+        self.log.info('Reading manually-curate specific epithet changes.')
         mc_count = 0
         with open(specific_epithet_ledger) as f:
             header = f.readline().strip().split('\t')
@@ -83,7 +83,7 @@ class SpecificEpithetManager():
                     self.curated_epithet_changes[species_orig] = species_corr
                     mc_count += 1
 
-        self.logger.info(
+        self.log.info(
             ' - identified {:,} specified cases.'.format(mc_count))
 
     def translate_species(self, gtdb_species):
@@ -106,7 +106,8 @@ class SpecificEpithetManager():
         # get species in GTDB genus
         generic_rids = defaultdict(list)
         for rid in cur_taxonomy:
-            gtdb_generic = cur_taxonomy[rid][Taxonomy.GENUS_INDEX].replace('g__', '')
+            gtdb_generic = cur_taxonomy[rid][Taxonomy.GENUS_INDEX].replace(
+                'g__', '')
             if rid in mc_species:
                 gtdb_generic = generic_name(mc_species[rid])
 
@@ -149,7 +150,7 @@ class SpecificEpithetManager():
                     self.sp_epithet_map[gtdb_generic][ncbi_specific] = top_gtdb_specific
 
                 if map_perc != 100:
-                    self.logger.warning('Imperfect suffix mapping between {} {} to {} at {:.1f}%.'.format(
+                    self.log.warning('Imperfect suffix mapping between {} {} to {} at {:.1f}%.'.format(
                         gtdb_generic,
                         top_gtdb_specific,
                         ncbi_specific,
@@ -180,7 +181,7 @@ class SpecificEpithetManager():
                             top_ncbi_generic,
                             ncbi_specific))
                     else:
-                        self.logger.warning('Imperfect GTDB to NCBI genus mapping for {} {} -> {}'.format(
+                        self.log.warning('Imperfect GTDB to NCBI genus mapping for {} {} -> {}'.format(
                             gtdb_generic,
                             gtdb_specific,
                             ncbi_generic_counter))
@@ -223,7 +224,8 @@ class SpecificEpithetManager():
                         # here we just skip cases where the last 56+ characters are
                         # the same to catch cases like 'bacter', 'vibrio', 'plasma',
                         # 'spora', 'monas', etc.
-                        lcs = longest_common_suffix(gtdb_generic, top_ncbi_generic)
+                        lcs = longest_common_suffix(
+                            gtdb_generic, top_ncbi_generic)
                         if len(lcs) >= 5:
                             continue
 

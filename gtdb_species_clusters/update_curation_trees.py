@@ -34,14 +34,14 @@ class UpdateCurationTrees():
         self.output_dir = output_dir
         self.output_prefix = output_prefix
 
-        self.logger = logging.getLogger('timestamp')
+        self.log = logging.getLogger('timestamp')
 
     def new_ncbi_taxa(self, prev_genomes, cur_genomes, cur_clusters):
         """Determine new NCBI taxa as these should be considered by curators."""
 
         for rank_index in range(1, 7):
             rank_label = Taxonomy.rank_labels[rank_index]
-            self.logger.info(
+            self.log.info(
                 f'Determining new NCBI taxa at rank of {rank_label}.')
 
             # get NCBI taxa in previous GTDB release
@@ -55,7 +55,7 @@ class UpdateCurationTrees():
                         rank_index)
                     prev_ncbi_taxa.add(ncbi_taxa)
 
-            self.logger.info(' - identified {:,} NCBI taxa in previous GTDB release'.format(
+            self.log.info(' - identified {:,} NCBI taxa in previous GTDB release'.format(
                 len(prev_ncbi_taxa)))
 
             # get NCBI taxa in current GTDB release
@@ -69,12 +69,12 @@ class UpdateCurationTrees():
                     cur_ncbi_taxa.add(ncbi_taxa)
                     taxon_domain[ncbi_taxa] = cur_genomes[cid].ncbi_taxa.domain
 
-            self.logger.info(' - identified {:,} NCBI taxa in current GTDB release'.format(
+            self.log.info(' - identified {:,} NCBI taxa in current GTDB release'.format(
                 len(cur_ncbi_taxa)))
 
             # determine new NCBI taxa
             new_ncbi_taxa = cur_ncbi_taxa - prev_ncbi_taxa
-            self.logger.info(' - identified {:,} NCBI taxa that are new to the current GTDB release'.format(
+            self.log.info(' - identified {:,} NCBI taxa that are new to the current GTDB release'.format(
                 len(new_ncbi_taxa)))
 
             # determine species clusters with 1 or more genomes from a new NCBI taxa
@@ -122,7 +122,7 @@ class UpdateCurationTrees():
         """Perform initial actions required for changed representatives."""
 
         # create previous and current GTDB genome sets
-        self.logger.info('Creating previous GTDB genome set.')
+        self.log.info('Creating previous GTDB genome set.')
         prev_genomes = Genomes()
         prev_genomes.load_from_metadata_file(prev_gtdb_metadata_file,
                                              gtdb_type_strains_ledger=gtdb_type_strains_ledger,
@@ -130,11 +130,11 @@ class UpdateCurationTrees():
                                              untrustworthy_type_ledger=untrustworthy_type_file,
                                              ncbi_untrustworthy_sp_ledger=ncbi_untrustworthy_sp_ledger,
                                              ncbi_env_bioproject_ledger=ncbi_env_bioproject_ledger)
-        self.logger.info(' - previous genome set has {:,} species clusters spanning {:,} genomes'.format(
+        self.log.info(' - previous genome set has {:,} species clusters spanning {:,} genomes'.format(
             len(prev_genomes.sp_clusters),
             prev_genomes.sp_clusters.total_num_genomes()))
 
-        self.logger.info('Creating current GTDB genome set.')
+        self.log.info('Creating current GTDB genome set.')
         cur_genomes = Genomes()
         cur_genomes.load_from_metadata_file(cur_gtdb_metadata_file,
                                             gtdb_type_strains_ledger=gtdb_type_strains_ledger,
@@ -146,9 +146,9 @@ class UpdateCurationTrees():
                                             ncbi_env_bioproject_ledger=ncbi_env_bioproject_ledger)
 
         # read named GTDB species clusters
-        self.logger.info('Reading GTDB species clusters.')
+        self.log.info('Reading GTDB species clusters.')
         cur_clusters, _ = read_clusters(gtdb_clusters_file)
-        self.logger.info(' - identified {:,} clusters spanning {:,} genomes'.format(
+        self.log.info(' - identified {:,} clusters spanning {:,} genomes'.format(
             len(cur_clusters),
             sum([len(gids) + 1 for gids in cur_clusters.values()])))
 

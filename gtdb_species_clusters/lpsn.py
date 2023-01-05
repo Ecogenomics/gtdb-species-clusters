@@ -68,7 +68,7 @@ class LPSN(object):
     def __init__(self, lpsn_data, lpsn_gss_metadata_file):
         """Initialization."""
 
-        self.logger = logging.getLogger('timestamp')
+        self.log = logging.getLogger('timestamp')
 
         if lpsn_data:
             self.taxa = self.parse_lpsn_data_file(lpsn_data)
@@ -138,7 +138,7 @@ class LPSN(object):
                     # for placeholder taxa and candidatus taxa
                     type_taxa = ['n/a']
                 elif len(type_taxa) > 1:
-                    self.logger.error(
+                    self.log.error(
                         f'Identified multiple type taxa for {taxon}: {type_taxa}')
                     sys.exit(-1)
 
@@ -163,7 +163,7 @@ class LPSN(object):
             taxa[taxon].type_material_priority_year = type_priority
 
         if missing_type_count:
-            self.logger.error(
+            self.log.error(
                 f'Identified {missing_type_count:,} taxa without entries for type material. This is currently a known issue that needs to be addressed.')
 
         return taxa

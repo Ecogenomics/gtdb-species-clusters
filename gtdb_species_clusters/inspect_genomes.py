@@ -17,9 +17,9 @@
 
 import logging
 
-from gtdb_species_clusters.genomes import Genomes
-from gtdb_species_clusters.genome_utils import canonical_gid
+from gtdblib.util.bio.accession import canonical_gid
 
+from gtdb_species_clusters.genomes import Genomes
 from gtdb_species_clusters.prettytable import PrettyTable
 
 
@@ -29,7 +29,7 @@ class InspectGenomes(object):
     def __init__(self):
         """Initialization."""
 
-        self.logger = logging.getLogger('timestamp')
+        self.log = logging.getLogger('timestamp')
 
     def type_status(self,
                     cur_gtdb_metadata_file,
@@ -42,7 +42,7 @@ class InspectGenomes(object):
         """Report information related to a genome being type material."""
 
         # create current GTDB genome sets
-        self.logger.info('Creating current GTDB genome set.')
+        self.log.info('Creating current GTDB genome set.')
         cur_genomes = Genomes()
         cur_genomes.load_from_metadata_file(cur_gtdb_metadata_file,
                                             gtdb_type_strains_ledger=gtdb_type_strains_ledger,
@@ -51,7 +51,7 @@ class InspectGenomes(object):
                                             ncbi_genbank_assembly_file=ncbi_genbank_assembly_file,
                                             untrustworthy_type_ledger=untrustworthy_type_file,
                                             ncbi_env_bioproject_ledger=ncbi_env_bioproject_ledger)
-        self.logger.info(
+        self.log.info(
             f' - current genome set contains {len(cur_genomes):,} genomes.')
 
         # report information
@@ -61,7 +61,7 @@ class InspectGenomes(object):
         for gid in genome_ids:
             gid = canonical_gid(gid)
             if gid not in cur_genomes:
-                self.logger.warning(f'Genome {gid} not in current genome set.')
+                self.log.warning(f'Genome {gid} not in current genome set.')
                 continue
 
             pt.add_row([gid,

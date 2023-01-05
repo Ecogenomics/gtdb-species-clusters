@@ -30,7 +30,7 @@ class RepChanges():
         """Initialization."""
 
         self.output_dir = output_dir
-        self.logger = logging.getLogger('timestamp')
+        self.log = logging.getLogger('timestamp')
 
     def run(self,
             prev_gtdb_metadata_file,
@@ -46,20 +46,20 @@ class RepChanges():
         """Identify species representatives that have changed from previous release."""
 
         # create previous and current GTDB genome sets
-        self.logger.info('Creating previous GTDB genome set:')
+        self.log.info('Creating previous GTDB genome set:')
         prev_genomes = Genomes()
         prev_genomes.load_from_metadata_file(prev_gtdb_metadata_file,
                                              gtdb_type_strains_ledger=gtdb_type_strains_ledger,
                                              ncbi_genbank_assembly_file=ncbi_genbank_assembly_file,
                                              untrustworthy_type_ledger=untrustworthy_type_file,
                                              ncbi_env_bioproject_ledger=ncbi_env_bioproject_ledger)
-        self.logger.info(
+        self.log.info(
             f' - previous genome set contains {len(prev_genomes):,} genomes')
-        self.logger.info(' - previous genome set has {:,} species clusters spanning {:,} genomes'.format(
+        self.log.info(' - previous genome set has {:,} species clusters spanning {:,} genomes'.format(
             len(prev_genomes.sp_clusters),
             prev_genomes.sp_clusters.total_num_genomes()))
 
-        self.logger.info('Creating current GTDB genome set:')
+        self.log.info('Creating current GTDB genome set:')
         cur_genomes = Genomes()
         cur_genomes.load_from_metadata_file(cur_gtdb_metadata_file,
                                             gtdb_type_strains_ledger=gtdb_type_strains_ledger,
@@ -70,38 +70,39 @@ class RepChanges():
                                             ncbi_env_bioproject_ledger=ncbi_env_bioproject_ledger)
 
         # get previous and current genomes from type strains
-        self.logger.info(
+        self.log.info(
             'Determining genomes identified as being assembled from type strain')
         prev_type_strain_gids = prev_genomes.gtdb_type_strain_genomes()
         cur_type_strain_gids = cur_genomes.gtdb_type_strain_genomes()
         new_type_strain_gids = cur_type_strain_gids - prev_type_strain_gids
-        self.logger.info(' - identified {:,} previous and {:,} current genomes from type strain'.format(
+        self.log.info(' - identified {:,} previous and {:,} current genomes from type strain'.format(
             len(prev_type_strain_gids),
             len(cur_type_strain_gids)))
-        self.logger.info(' - {:,} type strain genomes are new to the current genome set'.format(
+        self.log.info(' - {:,} type strain genomes are new to the current genome set'.format(
             len(new_type_strain_gids)))
 
         # create expanded previous GTDB species clusters
-        self.logger.info(
+        self.log.info(
             'Creating species clusters of new and updated genomes based on GTDB-Tk classifications:')
         new_updated_sp_clusters = SpeciesClusters()
         new_updated_sp_clusters.create_expanded_clusters(prev_genomes,
                                                          genomes_new_updated_file,
                                                          qc_passed_file,
                                                          gtdbtk_classify_file)
-        self.logger.info('Identified {:,} expanded species clusters spanning {:,} genomes.'.format(
+        self.log.info('Identified {:,} expanded species clusters spanning {:,} genomes.'.format(
             len(new_updated_sp_clusters),
             new_updated_sp_clusters.total_num_genomes()))
 
         # read GTDB clusters to be disbanded
-        self.logger.info(
+        self.log.info(
             'Parsing ledger indicating GTDB clusters to be disbanded:')
         disbanded_rids = parse_disbanded_cluster_ledger(disband_cluster_ledger)
-        self.logger.info(
+        self.log.info(
             ' - identified {:,} clusters to be disbanded'.format(len(disbanded_rids)))
 
         # determine status of each previous GTDB representative
-        self.logger.info('Determining status of each previous GTDB representative:')
+        self.log.info(
+            'Determining status of each previous GTDB representative:')
 
         fout_summary = open(os.path.join(
             self.output_dir, 'rep_change_summary.tsv'), 'w')
@@ -260,56 +261,56 @@ class RepChanges():
 
         num_prev_sp_clusters = len(prev_genomes.sp_clusters)
         num_rep_changes_perc = num_rep_changes*100.0/num_prev_sp_clusters
-        self.logger.info(
+        self.log.info(
             f' - identified {num_rep_changes:,} ({num_rep_changes_perc:.1f}%) species with a change to the representative genome')
 
-        self.logger.info('Genomic changes:')
+        self.log.info('Genomic changes:')
         unchanged_perc = len(unchanged_genome)*100.0 / num_prev_sp_clusters
         updated_perc = len(updated_genome)*100.0 / num_prev_sp_clusters
         lost_perc = len(lost_genome)*100.0 / num_prev_sp_clusters
-        self.logger.info(
+        self.log.info(
             f'  unchanged_genome: {len(unchanged_genome):,} ({unchanged_perc:.1f}%)')
-        self.logger.info(
+        self.log.info(
             f'  updated_genome: {len(updated_genome):,} ({updated_perc:.1f}%)')
-        self.logger.info(
+        self.log.info(
             f'  lost_genome: {len(lost_genome):,} ({lost_perc:.1f}%)')
 
-        self.logger.info('NCBI species assignment changes:')
+        self.log.info('NCBI species assignment changes:')
         cur_sp_count = len(unchanged_genome) + len(updated_genome)
         unchanged_sp_perc = len(unchanged_sp)*100.0 / cur_sp_count
         reassigned_sp_perc = len(reassigned_sp)*100.0 / cur_sp_count
-        self.logger.info(
+        self.log.info(
             f'  unchanged_sp: {len(unchanged_sp):,} ({unchanged_sp_perc:.1f}%)')
-        self.logger.info(
+        self.log.info(
             f'  reassigned_sp: {len(reassigned_sp):,} ({reassigned_sp_perc:.1f}%)')
 
-        self.logger.info('Status of type strain genome declarations:')
+        self.log.info('Status of type strain genome declarations:')
         prev_ts_count = len(unchanged_type_strain) + len(lost_type_strain)
         unchanged_type_strain_perc = len(
             unchanged_type_strain)*100.0 / prev_ts_count
         lost_type_strain_perc = len(lost_type_strain)*100.0 / prev_ts_count
         gain_type_strain_perc = len(gain_type_strain)*100.0 / prev_ts_count
         new_type_strain_perc = len(new_type_strain)*100.0 / prev_ts_count
-        self.logger.info(
+        self.log.info(
             f'  unchanged_type_strain: {len(unchanged_type_strain):,} ({unchanged_type_strain_perc:.1f}%)')
-        self.logger.info(
+        self.log.info(
             f'  lost_type_strain: {len(lost_type_strain):,} ({lost_type_strain_perc:.1f}%)')
-        self.logger.info(
+        self.log.info(
             f'  gain_type_strain: {len(gain_type_strain):,} ({gain_type_strain_perc:.1f}%)')
-        self.logger.info(
+        self.log.info(
             f'  new_type_strain: {len(new_type_strain):,} ({new_type_strain_perc:.1f}%)')
 
-        self.logger.info('GTDB domain assignment change:')
+        self.log.info('GTDB domain assignment change:')
         unchanged_domain_perc = len(
             unchanged_domain)*100.0 / num_prev_sp_clusters
         changed_domain_perc = len(changed_domain)*100.0 / num_prev_sp_clusters
-        self.logger.info(
+        self.log.info(
             f'  unchanged: {len(unchanged_domain):,} ({unchanged_domain_perc:.1f}%)')
-        self.logger.info(
+        self.log.info(
             f'  reassigned: {len(changed_domain):,} ({changed_domain_perc:.1f}%)')
 
-        self.logger.info('Identified {:,} representatives marked as anomalous assemblies at NCBI.'.format(
+        self.log.info('Identified {:,} representatives marked as anomalous assemblies at NCBI.'.format(
             len(ncbi_anomalous_assembly)))
 
-        self.logger.info(
+        self.log.info(
             'Identified {:,} GTDB clusters to be disbanded.'.format(disbanded_count))

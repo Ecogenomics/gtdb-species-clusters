@@ -43,7 +43,7 @@ class RepGenomicSimilarity(object):
         self.cpus = cpus
         self.output_dir = output_dir
 
-        self.logger = logging.getLogger('timestamp')
+        self.log = logging.getLogger('timestamp')
 
         self.fastani = FastANI(ani_cache_file, cpus)
 
@@ -52,16 +52,16 @@ class RepGenomicSimilarity(object):
         """Dereplicate GTDB species clusters using ANI/AF criteria."""
 
         # create GTDB genome sets
-        self.logger.info('Creating GTDB genome set.')
+        self.log.info('Creating GTDB genome set.')
         genomes = Genomes()
         genomes.load_from_metadata_file(gtdb_metadata_file)
         genomes.load_genomic_file_paths(genomic_path_file)
-        self.logger.info(' - genome set has {:,} species clusters spanning {:,} genomes.'.format(
+        self.log.info(' - genome set has {:,} species clusters spanning {:,} genomes.'.format(
             len(genomes.sp_clusters),
             genomes.sp_clusters.total_num_genomes()))
 
         # get GTDB representatives from same genus
-        self.logger.info('Identifying GTDB representatives in the same genus.')
+        self.log.info('Identifying GTDB representatives in the same genus.')
         genus_gids = defaultdict(list)
         num_reps = 0
         for gid in genomes:
@@ -71,10 +71,11 @@ class RepGenomicSimilarity(object):
             gtdb_genus = genomes[gid].gtdb_taxa.genus
             genus_gids[gtdb_genus].append(gid)
             num_reps += 1
-        self.logger.info(f' - identified {len(genus_gids):,} genera spanning {num_reps:,} representatives')
+        self.log.info(
+            f' - identified {len(genus_gids):,} genera spanning {num_reps:,} representatives')
 
         # get all intragenus comparisons
-        self.logger.info('Determining all intragenus comparisons.')
+        self.log.info('Determining all intragenus comparisons.')
         gid_pairs = []
         for gids in genus_gids.values():
             if len(gids) < 2:
@@ -82,16 +83,20 @@ class RepGenomicSimilarity(object):
 
             for g1, g2 in permutations(gids, 2):
                 gid_pairs.append((g1, g2))
-        self.logger.info(f' - identified {len(gid_pairs):,} intragenus comparisons')
+        self.log.info(
+            f' - identified {len(gid_pairs):,} intragenus comparisons')
 
         # calculate FastANI ANI/AF between target genomes
-        self.logger.info('Calculating ANI between intragenus pairs.')
-        ani_af = self.fastani.pairs(gid_pairs, genomes.genomic_files, report_progress=True, check_cache=True)
+        self.log.info('Calculating ANI between intragenus pairs.')
+        ani_af = self.fastani.pairs(
+            gid_pairs, genomes.genomic_files, report_progress=True, check_cache=True)
         self.fastani.write_cache(silence=True)
 
         # write out results
-        fout = open(os.path.join(self.output_dir, 'intragenus_ani_af_reps.tsv'), 'w')
-        fout.write('Query ID\tQuery species\tTarget ID\tTarget species\tANI\tAF\n')
+        fout = open(os.path.join(self.output_dir,
+                    'intragenus_ani_af_reps.tsv'), 'w')
+        fout.write(
+            'Query ID\tQuery species\tTarget ID\tTarget species\tANI\tAF\n')
         for qid in ani_af:
             for rid in ani_af:
                 ani, af = FastANI.symmetric_ani(ani_af, qid, rid)

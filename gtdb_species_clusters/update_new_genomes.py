@@ -18,27 +18,36 @@
 import os
 import sys
 import logging
+from typing import Dict
 
-from gtdb_species_clusters.genome_utils import canonical_gid
+from gtdblib.util.bio.accession import canonical_gid
 
 
 class NewGenomes():
     """Identify new or modified genomes."""
 
-    def __init__(self, output_dir):
-        """Initialization."""
+    def __init__(self, output_dir: str):
+        """Initialization.
+
+        :param output_dir: Output directory.
+        """
 
         self.output_dir = output_dir
-        self.logger = logging.getLogger('timestamp')
+        self.log = logging.getLogger("rich")
 
-    def same_genome_accn(self, accn1, accn2, identical_accns):
-        """Check if NCBI genome accessions are the same."""
+    def same_genome_accn(self, accn1: str, accn2: str, identical_accns: Dict[str, str]):
+        """Check if NCBI genome accessions are the same.
+
+        :param accn1: First accession to compare.
+        :param accn2: Second accession to compare.
+        :param identical_accns: Map indicating GenBank and RefSeq accessions considered to be identical.
+        """
 
         if accn1 == accn2:
             return True
 
         if canonical_gid(accn1) != canonical_gid(accn2):
-            self.logger.error('Genomes have different canonical genome IDs: {}, {}, {}, {}'.format(
+            self.log.error('Genomes have different canonical genome IDs: {}, {}, {}, {}'.format(
                 accn1,
                 canonical_gid(accn1),
                 accn2,
@@ -54,13 +63,20 @@ class NewGenomes():
         return False
 
     def run(self,
-            prev_gtdb_metadata_file,
-            cur_gtdb_metadata_file,
-            cur_genome_paths,
-            ncbi_assembly_summary_genbank):
-        """Identify new or modified genomes."""
+            prev_gtdb_metadata_file: str,
+            cur_gtdb_metadata_file: str,
+            cur_genome_paths: str,
+            ncbi_assembly_summary_genbank: str):
+        """Identify new or modified genomes.
 
-        self.logger.info('Reading previous GTDB genomes:')
+        :param prev_gtdb_metadata_file: File with genome metadata for previous GTDB release.
+        :param cur_gtdb_metadata_file: File with genome metadata for current GTDB release.
+        :param cur_genome_paths: File with path to data files for genomes in current GTDB release.
+        :param ncbi_assembly_summary_genbank: File with NCBI assembly summary metadata.
+        """
+
+        # get data for genomes in previous GTDB release
+        self.log.info('Reading previous GTDB genomes:')
         prev_accns = {}
         gtdb_taxonomy = {}
         gtdb_rep = {}
@@ -76,19 +92,16 @@ class NewGenomes():
                 tokens = line.strip().split('\t')
 
                 gid = tokens[0]
-                if gid.startswith('U'):  # only concerned with genomes at NCBI
-                    continue
-
                 cid = canonical_gid(gid)
                 prev_accns[cid] = gid
                 gtdb_taxonomy[cid] = tokens[gtdb_index]
                 gtdb_rep[cid] = tokens[gtdb_rep_index]
                 ncbi_genome_category[cid] = tokens[ncbi_genome_cat_index]
 
-        self.logger.info(f' - identified {len(prev_accns):,} genomes')
+        self.log.info(f' - identified {len(prev_accns):,} genomes')
 
         # get genomes in current release
-        self.logger.info('Reading current GTDB genomes:')
+        self.log.info('Reading current GTDB genomes:')
         cur_accns = {}
         with open(cur_gtdb_metadata_file, encoding='utf-8') as f:
             f.readline()
@@ -99,21 +112,21 @@ class NewGenomes():
                     continue
 
                 cur_accns[canonical_gid(gid)] = gid
-        self.logger.info(f' - identified {len(cur_accns):,} genomes')
+        self.log.info(f' - identified {len(cur_accns):,} genomes')
 
         # get equivalent GenBank and RefSeq genome assemblies
-        self.logger.info(
+        self.log.info(
             'Determining identical GenBank and RefSeq accessions.')
         identical_accns = {}
         with open(ncbi_assembly_summary_genbank, encoding='utf-8') as f:
             for line in f:
-                if line.startswith('#'):
-                    if 'assembly_accession' in line:
-                        header = line.strip().split('\t')
-
-                        gb_accn_index = header.index('# assembly_accession')
-                        rs_accn_index = header.index('gbrs_paired_asm')
-                        paired_asm_index = header.index('paired_asm_comp')
+                if line.startswith('# assembly_accession'):
+                    header = line.strip().split('\t')
+                    gb_accn_index = header.index('# assembly_accession')
+                    rs_accn_index = header.index('gbrs_paired_asm')
+                    paired_asm_index = header.index('paired_asm_comp')
+                elif line.startswith('#'):
+                    continue
                 else:
                     tokens = line.strip().split('\t')
 
@@ -125,7 +138,7 @@ class NewGenomes():
                         identical_accns[rs_accn] = gb_accn
 
         # identify new and modified genome IDs
-        self.logger.info('Identifying new or modified genome IDs:')
+        self.log.info('Identifying new or modified genome IDs:')
         new_gids = set()
         updated_gids = set()
         for cur_gid in cur_accns:
@@ -142,13 +155,13 @@ class NewGenomes():
         lost_gids = set(prev_accns) - set(cur_accns)
         num_lost_gtdb_reps = sum(
             [1 for gid in lost_gids if gtdb_rep[gid] == 't'])
-        self.logger.info(
+        self.log.info(
             f' - identified {len(new_gids):,} new, {len(updated_gids):,} updated, and {len(lost_gids):,} lost genomes')
-        self.logger.info(
+        self.log.info(
             f' - {num_lost_gtdb_reps:,} lost genomes were GTDB representatives')
 
         # get path to current GTDB genome directories
-        self.logger.info(
+        self.log.info(
             'Identifying path to genomic files for current GTDB genomes:')
         cur_genome_files = {}
         skipped_genomes = 0
@@ -183,13 +196,13 @@ class NewGenomes():
 
         assert len(cur_genome_files) == len(cur_accns)
 
-        self.logger.info(
+        self.log.info(
             f' - identified genomic file for {len(cur_genome_files):,} genomes')
-        self.logger.info(
+        self.log.info(
             f' - skipped {skipped_genomes:,} genomes without GTDB metadata')
 
         # write out new or modified genome IDs
-        self.logger.info(
+        self.log.info(
             'Writing out path to new and updated genomic FASTA files.')
         output_file = os.path.join(self.output_dir, 'genomes_new_updated.tsv')
         fout = open(output_file, 'w')

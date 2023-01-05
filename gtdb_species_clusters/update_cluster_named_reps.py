@@ -47,7 +47,7 @@ class UpdateClusterNamedReps(object):
         self.cpus = cpus
         self.output_dir = output_dir
 
-        self.logger = logging.getLogger('timestamp')
+        self.log = logging.getLogger('timestamp')
 
         self.ani_sp = ani_sp
         self.af_sp = af_sp
@@ -100,14 +100,14 @@ class UpdateClusterNamedReps(object):
                     # to remain as seperate clusters if they exceed these thresholds by
                     # a small margin as this can simply be due to differences in the
                     # version of FastANI used to calculate ANI and AF.
-                    self.logger.warning('ANI neighbours {} and {} have ANI={:.2f} and AF={:.2f}.'.format(
+                    self.log.warning('ANI neighbours {} and {} have ANI={:.2f} and AF={:.2f}.'.format(
                         rep_gid1, rep_gid2,
                         ani, af))
 
                 if ani > rep_radius[rep_gid1].ani:
                     if af < self.af_sp:
                         af_warning_count += 1
-                        # self.logger.warning('ANI for {} and {} is >{:.2f}, but AF <{:.2f} [pair skipped].'.format(
+                        # self.log.warning('ANI for {} and {} is >{:.2f}, but AF <{:.2f} [pair skipped].'.format(
                         #                        rep_gid1,
                         #                        rep_gid2,
                         #                        ani, af))
@@ -117,12 +117,12 @@ class UpdateClusterNamedReps(object):
                                                         af=af,
                                                         neighbour_gid=rep_gid2)
 
-        self.logger.info('ANI circumscription radius: min={:.2f}, mean={:.2f}, max={:.2f}'.format(
+        self.log.info('ANI circumscription radius: min={:.2f}, mean={:.2f}, max={:.2f}'.format(
             min([d.ani for d in rep_radius.values()]),
             np_mean([d.ani for d in rep_radius.values()]),
             max([d.ani for d in rep_radius.values()])))
 
-        self.logger.warning('Identified {:,} genome pairs meeting ANI radius criteria, but with an AF <{:.2f}'.format(
+        self.log.warning('Identified {:,} genome pairs meeting ANI radius criteria, but with an AF <{:.2f}'.format(
             af_warning_count,
             self.af_sp))
 
@@ -175,18 +175,18 @@ class UpdateClusterNamedReps(object):
                         mash_ani_pairs.append((qid, rid))
                         mash_ani_pairs.append((rid, qid))
 
-            self.logger.info('Identified {:,} genome pairs with a Mash ANI >= {:.1f}%.'.format(
+            self.log.info('Identified {:,} genome pairs with a Mash ANI >= {:.1f}%.'.format(
                 len(mash_ani_pairs), self.min_mash_ani))
 
             # calculate ANI between pairs
-            self.logger.info(
+            self.log.info(
                 'Calculating ANI between {:,} genome pairs:'.format(len(mash_ani_pairs)))
             ani_af = self.fastani.pairs(
                 mash_ani_pairs, cur_genomes.genomic_files)
             pickle.dump(ani_af, open(os.path.join(
                 self.output_dir, 'ani_af_rep_vs_nonrep.pkl'), 'wb'))
         else:
-            self.logger.warning('Using previously calculated results in: {}'.format(
+            self.log.warning('Using previously calculated results in: {}'.format(
                 'ani_af_rep_vs_nonrep.pkl'))
             ani_af = pickle.load(
                 open(os.path.join(self.output_dir, 'ani_af_rep_vs_nonrep.pkl'), 'rb'))
@@ -242,7 +242,7 @@ class UpdateClusterNamedReps(object):
         sys.stdout.write('\n')
 
         num_unclustered = len(non_reps) - num_clustered
-        self.logger.info('Assigned {:,} genomes to {:,} representatives; {:,} genomes remain unclustered.'.format(
+        self.log.info('Assigned {:,} genomes to {:,} representatives; {:,} genomes remain unclustered.'.format(
             sum([len(clusters[rid]) for rid in clusters]),
             len(clusters),
             num_unclustered))
@@ -263,7 +263,7 @@ class UpdateClusterNamedReps(object):
         """Cluster genomes to selected GTDB representatives."""
 
         # create current GTDB genome sets
-        self.logger.info('Creating current GTDB genome set.')
+        self.log.info('Creating current GTDB genome set.')
         cur_genomes = Genomes()
         cur_genomes.load_from_metadata_file(cur_gtdb_metadata_file,
                                             gtdb_type_strains_ledger=gtdb_type_strains_ledger,
@@ -274,7 +274,7 @@ class UpdateClusterNamedReps(object):
                                             create_sp_clusters=False)
 
         # get path to previous and current genomic FASTA files
-        self.logger.info('Reading path to current genomic FASTA files.')
+        self.log.info('Reading path to current genomic FASTA files.')
         cur_genomes.load_genomic_file_paths(cur_genomic_path_file)
 
         # get representative genomes
@@ -289,29 +289,29 @@ class UpdateClusterNamedReps(object):
                 assert gid in cur_genomes
                 rep_gids.add(gid)
 
-        self.logger.info(
+        self.log.info(
             'Identified representative genomes for {:,} species.'.format(len(rep_gids)))
 
         # calculate circumscription radius for representative genomes
-        self.logger.info(
+        self.log.info(
             'Determining ANI species circumscription for {:,} representative genomes.'.format(len(rep_gids)))
         rep_radius = self._rep_radius(rep_gids, rep_ani_file)
         write_rep_radius(rep_radius, cur_genomes, os.path.join(
             self.output_dir, 'gtdb_rep_ani_radius.tsv'))
 
         # calculate ANI between representative and non-representative genomes
-        self.logger.info(
+        self.log.info(
             'Calculating ANI between representative and non-representative genomes.')
         ani_af = self._calculate_ani(
             cur_genomes, rep_gids, rep_mash_sketch_file)
-        self.logger.info(
+        self.log.info(
             ' - ANI values determined for {:,} query genomes.'.format(len(ani_af)))
-        self.logger.info(' - ANI values determined for {:,} genome pairs.'.format(
+        self.log.info(' - ANI values determined for {:,} genome pairs.'.format(
             sum([len(ani_af[qid]) for qid in ani_af])))
 
         # cluster remaining genomes to representatives
         non_reps = set(cur_genomes.genomes) - set(rep_radius)
-        self.logger.info(
+        self.log.info(
             'Clustering {:,} non-representatives to {:,} representatives using species-specific ANI radii.'.format(len(non_reps), len(rep_radius)))
         clusters = self._cluster(ani_af, non_reps, rep_radius)
 

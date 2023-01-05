@@ -21,7 +21,9 @@ from collections import namedtuple
 
 from numpy import (mean as np_mean)
 
-from gtdb_species_clusters.genome_utils import canonical_gid, read_gtdb_metadata
+from gtdblib.util.bio.accession import canonical_gid
+
+from gtdb_species_clusters.genome_utils import read_gtdb_metadata
 
 
 NCBI_TYPE_SPECIES = set(['assembly from type material',

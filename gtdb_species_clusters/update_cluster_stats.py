@@ -30,12 +30,12 @@ class UpdateClusterStats(object):
         """Initialization."""
 
         self.output_dir = output_dir
-        self.logger = logging.getLogger('timestamp')
+        self.log = logging.getLogger('timestamp')
 
     def _parse_updated_sp_reps(self, updated_sp_rep_file):
         """Determine GTDB species clusters with new representatives."""
 
-        self.logger.info('Identifying updated GTDB representatives.')
+        self.log.info('Identifying updated GTDB representatives.')
 
         updated_rids = {}
         num_updated_rids = 0
@@ -59,7 +59,7 @@ class UpdateClusterStats(object):
 
                 updated_rids[prev_rid] = new_rid
 
-        self.logger.info(
+        self.log.info(
             f' - identified {num_updated_rids:,} updated and {num_lost_rids:,} lost representatives.')
 
         return updated_rids
@@ -76,18 +76,18 @@ class UpdateClusterStats(object):
         """Summary statistics indicating changes to GTDB species cluster membership."""
 
         # create previous and current GTDB genome sets
-        self.logger.info('Creating previous GTDB genome set.')
+        self.log.info('Creating previous GTDB genome set.')
         prev_genomes = Genomes()
         prev_genomes.load_from_metadata_file(prev_gtdb_metadata_file,
                                              gtdb_type_strains_ledger=gtdb_type_strains_ledger,
                                              ncbi_genbank_assembly_file=ncbi_genbank_assembly_file,
                                              untrustworthy_type_ledger=untrustworthy_type_file,
                                              ncbi_env_bioproject_ledger=ncbi_env_bioproject_ledger)
-        self.logger.info(' - previous genome set has {:,} species clusters spanning {:,} genomes.'.format(
+        self.log.info(' - previous genome set has {:,} species clusters spanning {:,} genomes.'.format(
             len(prev_genomes.sp_clusters),
             prev_genomes.sp_clusters.total_num_genomes()))
 
-        self.logger.info('Creating current GTDB genome set.')
+        self.log.info('Creating current GTDB genome set.')
         cur_genomes = Genomes()
         cur_genomes.load_from_metadata_file(cur_gtdb_metadata_file,
                                             gtdb_type_strains_ledger=gtdb_type_strains_ledger,
@@ -98,23 +98,23 @@ class UpdateClusterStats(object):
                                             ncbi_env_bioproject_ledger=ncbi_env_bioproject_ledger)
 
         # report changes in genome sets
-        self.logger.info('Comparing previous and current genome sets:')
+        self.log.info('Comparing previous and current genome sets:')
         prev_gids = set(prev_genomes)
         new_gids = set(cur_genomes)
         num_same_genomes = len(prev_gids.intersection(new_gids))
         num_lost_genomes = len(prev_gids - new_gids)
         num_new_genomes = len(new_gids - prev_gids)
-        self.logger.info(
+        self.log.info(
             f' - identified {num_same_genomes:,} genomes as being present in both genome sets')
-        self.logger.info(
+        self.log.info(
             f' - identified {num_lost_genomes:,} genomes as being lost from the previous genome set')
-        self.logger.info(
+        self.log.info(
             f' - identified {num_new_genomes:,} genomes as being new to the current genome set')
 
         # get new GTDB species clusters
-        self.logger.info('Reading current GTDB clusters:')
+        self.log.info('Reading current GTDB clusters:')
         new_clusters, _ = read_clusters(gtdb_clusters_file)
-        self.logger.info(' - current genome set has {:,} species clusters spanning {:,} genomes'.format(
+        self.log.info(' - current genome set has {:,} species clusters spanning {:,} genomes'.format(
             len(new_clusters),
             sum(len(cids) for cids in new_clusters.values())))
 
@@ -124,11 +124,11 @@ class UpdateClusterStats(object):
                 new_rid_map[cid] = rid
 
         # get mapping of previous GTDB representatives to new GTDB species clusters
-        self.logger.info(
+        self.log.info(
             'Mapping previous GTDB representatives to new representatives.')
         prev_to_new_rid = prev_genomes.sp_clusters.updated_representatives(
             new_clusters)
-        self.logger.info(
+        self.log.info(
             ' - mapped {:,} previous representatives.'.format(len(prev_to_new_rid)))
 
         new_to_prev_rids = defaultdict(list)
@@ -136,7 +136,7 @@ class UpdateClusterStats(object):
             new_to_prev_rids[new_rid].append(prev_rid)
 
         # tabulate changes in GTDB species clusters
-        self.logger.info('Calculating statistics of GTDB species clusters.')
+        self.log.info('Calculating statistics of GTDB species clusters.')
 
         fout = open(os.path.join(self.output_dir,
                                  'gtdb_sp_clusters_change_stats.tsv'), 'w')
@@ -262,38 +262,38 @@ class UpdateClusterStats(object):
         # report genome statistics
         assert len(prev_gids) == total_num_same + \
             total_num_lost + total_num_migrated_in
-        self.logger.info(
+        self.log.info(
             f'There were {len(prev_gids):,} genomes in the previous release:')
-        self.logger.info(' - identified {:,} ({:.2f}%) genomes that were assigned to same species cluster'.format(
+        self.log.info(' - identified {:,} ({:.2f}%) genomes that were assigned to same species cluster'.format(
             total_num_same,
             total_num_same*100.0/len(prev_gids)))
-        self.logger.info(' - identified {:,} ({:.2f}%) genomes that were lost from the species cluster'.format(
+        self.log.info(' - identified {:,} ({:.2f}%) genomes that were lost from the species cluster'.format(
             total_num_lost,
             total_num_lost*100.0/len(prev_gids)))
-        self.logger.info(' - identified {:,} ({:.2f}%) genomes that migrated between species cluster'.format(
+        self.log.info(' - identified {:,} ({:.2f}%) genomes that migrated between species cluster'.format(
             total_num_migrated_in,
             total_num_migrated_in*100.0/len(prev_gids)))
-        self.logger.info('Identified {:,} new genomes which is a {:.2f}% increase.'.format(
+        self.log.info('Identified {:,} new genomes which is a {:.2f}% increase.'.format(
             total_num_new,
             len(new_gids)*100.0/len(prev_gids) - 100))
 
         # report representative statistics
         assert len(prev_genomes.sp_clusters) == rep_unchanged_count + \
             rep_changed_count + rep_lost_count + rep_merger_count
-        self.logger.info(
+        self.log.info(
             f'There were {len(prev_genomes.sp_clusters):,} previous GTDB species representatives:')
-        self.logger.info(' - identified {:,} ({:.2f}%) unchanged representatives'.format(
+        self.log.info(' - identified {:,} ({:.2f}%) unchanged representatives'.format(
             rep_unchanged_count,
             rep_unchanged_count*100.0/len(prev_genomes.sp_clusters)))
-        self.logger.info(' - identified {:,} ({:.2f}%) changed representatives'.format(
+        self.log.info(' - identified {:,} ({:.2f}%) changed representatives'.format(
             rep_changed_count,
             rep_changed_count*100.0/len(prev_genomes.sp_clusters)))
-        self.logger.info(' - identified {:,} ({:.2f}%) lost representatives'.format(
+        self.log.info(' - identified {:,} ({:.2f}%) lost representatives'.format(
             rep_lost_count,
             rep_lost_count*100.0/len(prev_genomes.sp_clusters)))
-        self.logger.info(' - identified {:,} ({:.2f}%) merged representatives'.format(
+        self.log.info(' - identified {:,} ({:.2f}%) merged representatives'.format(
             rep_merger_count,
             rep_merger_count*100.0/len(prev_genomes.sp_clusters)))
-        self.logger.info('Identified {:,} new representatives which is a {:.2f}% increase.'.format(
+        self.log.info('Identified {:,} new representatives which is a {:.2f}% increase.'.format(
             new_cluster_count,
             len(new_clusters)*100.0/len(prev_genomes.sp_clusters) - 100))

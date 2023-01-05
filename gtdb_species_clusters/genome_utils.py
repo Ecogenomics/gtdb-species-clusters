@@ -19,28 +19,6 @@ import os
 from collections import namedtuple
 
 
-def canonical_gid(gid):
-    """Get canonical form of NCBI genome accession.
-
-    Example:
-        G005435135 -> G005435135
-        GCF_005435135.1 -> G005435135
-        GCF_005435135.1_ASM543513v1_genomic -> G005435135
-        RS_GCF_005435135.1 -> G005435135
-        GB_GCA_005435135.1 -> G005435135
-    """
-
-    if gid.startswith('U'):
-        return gid
-
-    gid = gid.replace('RS_', '').replace('GB_', '')
-    gid = gid.replace('GCA_', 'G').replace('GCF_', 'G')
-    if '.' in gid:
-        gid = gid[0:gid.find('.')]
-
-    return gid
-
-
 def same_assembly_version(ncbi_accn1, ncbi_accn2):
     """Check if NCBi accessions have same version number."""
 

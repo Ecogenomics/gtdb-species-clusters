@@ -24,7 +24,7 @@ from collections import defaultdict
 
 from biolib.external.execute import check_dependencies, run
 
-from gtdb_species_clusters.genome_utils import canonical_gid
+from gtdblib.util.bio.accession import canonical_gid
 
 
 class Mash():
@@ -37,9 +37,9 @@ class Mash():
 
         self.cpus = cpus
 
-        self.logger = logging.getLogger('timestamp')
+        self.log = logging.getLogger('timestamp')
 
-        self.logger.info('Using Mash v{}.'.format(self._get_version()))
+        self.log.info('Using Mash v{}.'.format(self._get_version()))
 
     def _get_version(self):
         """Returns the version of Mash on the system path.
@@ -84,7 +84,7 @@ class Mash():
             fout.close()
 
             if not silence:
-                self.logger.info(
+                self.log.info(
                     f'Creating Mash sketch for {len(gids):,} genomes.')
             cmd = 'mash sketch -l -p %d -k 16 -s 5000 -o %s %s 2> /dev/null' % (self.cpus,
                                                                                 sketch_file,
@@ -92,14 +92,14 @@ class Mash():
             run(cmd)
         else:
             if not silence:
-                self.logger.warning('Using previously generated sketch file.')
+                self.log.warning('Using previously generated sketch file.')
 
     def dist_pairwise(self, min_dist, sketch_file, dist_file, silence=False):
         """Calculate pairwise Mash distance between genomes."""
 
         if not os.path.exists(dist_file):
             if not silence:
-                self.logger.info(
+                self.log.info(
                     f'Calculating pairwise Mash distances between genomes (d = {min_dist:.2f}).')
             cmd = 'mash dist -p {} -d {} -v {} {} {} > {} 2> /dev/null'.format(
                 self.cpus,
@@ -111,7 +111,7 @@ class Mash():
             run(cmd)
         else:
             if not silence:
-                self.logger.warning(
+                self.log.warning(
                     'Using previously generated pairwise distance file.')
 
     def dist(self, min_dist, ref_sketch_file, query_sketch_file, dist_file, silence=False):
@@ -119,7 +119,7 @@ class Mash():
 
         if not os.path.exists(dist_file):
             if not silence:
-                self.logger.info(
+                self.log.info(
                     f'Calculating Mash distances between reference and query genomes (d = {min_dist:.2f}).')
             cmd = 'mash dist -p {} -d {} -v {} {} {} > {} 2> /dev/null'.format(
                 self.cpus,
@@ -131,7 +131,7 @@ class Mash():
             run(cmd)
         else:
             if not silence:
-                self.logger.warning(
+                self.log.warning(
                     'Using previously generated pairwise distance file.')
 
     def read_ani(self, dist_file):

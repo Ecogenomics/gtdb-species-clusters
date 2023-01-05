@@ -40,7 +40,7 @@ class Sandbox(object):
         """Initialization."""
 
         self.output_dir = output_dir
-        self.logger = logging.getLogger('timestamp')
+        self.log = logging.getLogger('timestamp')
 
     def parse_lpsn_scrape_sp_priorities(self):
         """Get priority of species from scraping LPSN website."""
@@ -71,13 +71,15 @@ class Sandbox(object):
                 years = re.sub(r'emend\.[^\d]*\d{4}', '', references)
                 years = re.sub(r'ex [^\d]*\d{4}', ' ', years)
                 years = re.findall('[1-3][0-9]{3}', years, re.DOTALL)
-                years = [int(y) for y in years if int(y) <= datetime.datetime.now().year]
+                years = [int(y) for y in years if int(
+                    y) <= datetime.datetime.now().year]
 
                 if len(years) == 0:
                     # assume this name is validated through ICN and just take the first
                     # date given as the year of priority
                     years = re.findall('[1-3][0-9]{3}', references, re.DOTALL)
-                    years = [int(y) for y in years if int(y) <= datetime.datetime.now().year]
+                    years = [int(y) for y in years if int(
+                        y) <= datetime.datetime.now().year]
 
                 lpsn_sp_priorities[sp] = years[0]
 
@@ -89,7 +91,7 @@ class Sandbox(object):
     def parse_lpsn_sp_priorities(self, lpsn_gss_file):
         """Get priority of species from LPSN GSS file."""
 
-        self.logger.info('Reading priority references from LPSN.')
+        self.log.info('Reading priority references from LPSN.')
         lpsn_sp_priorities = {}
         illegitimate_names = set()
         with open(lpsn_gss_file, encoding='utf-8', errors='ignore') as f:
@@ -114,7 +116,8 @@ class Sandbox(object):
 
                     status = tokens[status_idx].strip().replace('"', '')
                     status_tokens = [t.strip() for t in status.split(';')]
-                    status_tokens = [tt.strip() for t in status_tokens for tt in t.split(',')]
+                    status_tokens = [tt.strip()
+                                     for t in status_tokens for tt in t.split(',')]
 
                     if 'illegitimate name' in status_tokens:
                         illegitimate_names.add(species)
@@ -129,19 +132,21 @@ class Sandbox(object):
                     years = re.sub(r'emend\.[^\d]*\d{4}', '', references)
                     years = re.sub(r'ex [^\d]*\d{4}', ' ', years)
                     years = re.findall('[1-3][0-9]{3}', years, re.DOTALL)
-                    years = [int(y) for y in years if int(y) <= datetime.datetime.now().year]
+                    years = [int(y) for y in years if int(
+                        y) <= datetime.datetime.now().year]
 
                     if (species not in illegitimate_names
                         and species in lpsn_sp_priorities
                             and years[0] != lpsn_sp_priorities[species]):
                         # conflict that can't be attributed to one of the entries being
                         # considered an illegitimate name
-                        self.logger.error('Conflicting priority references for {}: {} {}'.format(
+                        self.log.error('Conflicting priority references for {}: {} {}'.format(
                             species, years, lpsn_sp_priorities[species]))
 
                     lpsn_sp_priorities[species] = years[0]
 
-        self.logger.info(f' - establish priority for {len(lpsn_sp_priorities):,} species using LPSN GSS metadata.')
+        self.log.info(
+            f' - establish priority for {len(lpsn_sp_priorities):,} species using LPSN GSS metadata.')
 
         return lpsn_sp_priorities
 
@@ -166,7 +171,8 @@ class Sandbox(object):
             bacdive_priority = cur_genomes[gid].dsmz_priority_year
 
             lpsn_priority = Genome.NO_PRIORITY_YEAR
-            ncbi_sp = cur_genomes[gid].ncbi_taxa.species.replace('[', '').replace(']', '')
+            ncbi_sp = cur_genomes[gid].ncbi_taxa.species.replace(
+                '[', '').replace(']', '')
             if ncbi_sp in lpsn_sp_priorities:
                 lpsn_priority = lpsn_sp_priorities[ncbi_sp]
             elif ncbi_sp in lpsn_scrape_sp_priorities:
@@ -240,7 +246,8 @@ class Sandbox(object):
         print('good_rids', len(good_rids))
 
         # write out bad cases
-        fout = open(os.path.join(self.output_dir, 'gtdb_r95_incorrect_sp_priority.tsv'), 'w')
+        fout = open(os.path.join(self.output_dir,
+                    'gtdb_r95_incorrect_sp_priority.tsv'), 'w')
         fout.write(
             'GTDB representative\tGTDB species\tNCBI species\tYear of priority\tCorrected NCBI species with priority\tYear of priority\n')
         for rid in bad_rids:
@@ -269,7 +276,7 @@ class Sandbox(object):
         #references = "(ex Ahrens 1968) Uchino et al. 1999 emend. Liu et al. 2016"
 
         # get priority references for species at LPSN
-        self.logger.info('Reading priority references from LPSN.')
+        self.log.info('Reading priority references from LPSN.')
         sp_approved_lists_1980 = set()
         lpsn_sp_priorities = defaultdict(list)
         with open(lpsn_gss_file, encoding='utf-8', errors='ignore') as f:
@@ -294,7 +301,8 @@ class Sandbox(object):
 
                     status = tokens[status_idx].strip().replace('"', '')
                     status_tokens = [t.strip() for t in status.split(';')]
-                    status_tokens = [tt.strip() for t in status_tokens for tt in t.split(',')]
+                    status_tokens = [tt.strip()
+                                     for t in status_tokens for tt in t.split(',')]
 
                     if 'illegitimate name' in status_tokens:
                         continue
@@ -307,10 +315,11 @@ class Sandbox(object):
                     years = re.sub(r'emend\.[^\d]*\d{4}', '', references)
                     years = re.sub(r'ex [^\d]*\d{4}', ' ', years)
                     years = re.findall('[1-3][0-9]{3}', years, re.DOTALL)
-                    years = [int(y) for y in years if int(y) <= datetime.datetime.now().year]
+                    years = [int(y) for y in years if int(
+                        y) <= datetime.datetime.now().year]
 
                     if species in lpsn_sp_priorities and years != lpsn_sp_priorities[species]:
-                        self.logger.error('Conflicting priority references for {}: {} {}'.format(
+                        self.log.error('Conflicting priority references for {}: {} {}'.format(
                             species, years, lpsn_sp_priorities[species]))
 
                     lpsn_sp_priorities[species] = years
@@ -318,12 +327,15 @@ class Sandbox(object):
                     if 'Approved Lists 1980' in ref_str:
                         sp_approved_lists_1980.add(species)
 
-        self.logger.info(f' - establish priority for {len(lpsn_sp_priorities):,} species using LPSN GSS metadata.')
+        self.log.info(
+            f' - establish priority for {len(lpsn_sp_priorities):,} species using LPSN GSS metadata.')
 
         # get current date of priority for type strain of species
-        self.logger.info('Determing NCBI species with year of priority in GTDB metadata.')
+        self.log.info(
+            'Determing NCBI species with year of priority in GTDB metadata.')
         fout = open(os.path.join(self.output_dir, 'gtdb_sp_priority.tsv'), 'w')
-        fout.write('Representative ID\tNCBI species\tGTDB species\tGTDB type strain\tGTDB type subspecies\tPriority\n')
+        fout.write(
+            'Representative ID\tNCBI species\tGTDB species\tGTDB type strain\tGTDB type subspecies\tPriority\n')
         cur_priority_year = {}
         for rid in cur_genomes:
             ncbi_sp = cur_genomes[rid].ncbi_taxa.species
@@ -345,7 +357,7 @@ class Sandbox(object):
 
             if ncbi_sp in cur_priority_year and priority != cur_priority_year[ncbi_sp][1]:
                 prev_rid, prev_priority = cur_priority_year[ncbi_sp]
-                self.logger.error('NCBI species has conflicting priority dates: {}/{}/{}/{}, {}/{}/{}/{}'.format(
+                self.log.error('NCBI species has conflicting priority dates: {}/{}/{}/{}, {}/{}/{}/{}'.format(
                     rid,
                     ncbi_sp,
                     cur_genomes[rid].gtdb_taxa.species,
@@ -359,10 +371,11 @@ class Sandbox(object):
 
         fout.close()
 
-        self.logger.info(' - identified year of priority for {:,} NCBI species.'.format(len(cur_priority_year)))
+        self.log.info(
+            ' - identified year of priority for {:,} NCBI species.'.format(len(cur_priority_year)))
 
         # get number of species that follow "first reference" and "second reference" priority rule
-        self.logger.info('Evaluating priorities used in GTDB compared to LPSN:')
+        self.log.info('Evaluating priorities used in GTDB compared to LPSN:')
         single_year_agree = 0
         single_year_disagree = 0
         first_year_agree = 0
@@ -401,21 +414,21 @@ class Sandbox(object):
                     print('multiple priority references', sp,
                           lpsn_sp_priorities[sp], gtdb_priority_year, gtdb_priority_year == cur_genomes[rid].dsmz_priority_year)
 
-        self.logger.info(' - single priority reference, same priority year: {:,} ({:.1f}%)'.format(
+        self.log.info(' - single priority reference, same priority year: {:,} ({:.1f}%)'.format(
             single_year_agree, single_year_agree*100.0 / (single_year_agree+single_year_disagree)))
-        self.logger.info(' - single priority reference, different priority year: {:,} ({:.1f}%)'.format(
+        self.log.info(' - single priority reference, different priority year: {:,} ({:.1f}%)'.format(
             single_year_disagree, single_year_disagree*100.0 / (single_year_agree+single_year_disagree)))
 
-        self.logger.info(' - multiple priority references, same first LPSN priority year: {:,} ({:.1f}%)'.format(
+        self.log.info(' - multiple priority references, same first LPSN priority year: {:,} ({:.1f}%)'.format(
             first_year_agree, first_year_agree*100.0 / (first_year_agree+first_year_disagree)))
-        self.logger.info(' - multiple priority references, different first LPSN priority year: {:,} ({:.1f}%)'.format(
+        self.log.info(' - multiple priority references, different first LPSN priority year: {:,} ({:.1f}%)'.format(
             first_year_disagree, first_year_disagree*100.0 / (first_year_agree+first_year_disagree)))
 
-        self.logger.info(' - multiple priority references, same last LPSN priority year: {:,} ({:.1f}%)'.format(
+        self.log.info(' - multiple priority references, same last LPSN priority year: {:,} ({:.1f}%)'.format(
             last_year_agree, last_year_agree*100.0 / (last_year_agree+last_year_disagree)))
-        self.logger.info(' - multiple priority references, different last LPSN priority year: {:,} ({:.1f}%)'.format(
+        self.log.info(' - multiple priority references, different last LPSN priority year: {:,} ({:.1f}%)'.format(
             last_year_disagree, last_year_disagree*100.0 / (last_year_agree+last_year_disagree)))
-        self.logger.info(' - multiple priority references, different last LPSN priority year result of using DSMZ priority: {:,} ({:.1f}%)'.format(
+        self.log.info(' - multiple priority references, different last LPSN priority year result of using DSMZ priority: {:,} ({:.1f}%)'.format(
             last_year_from_dsmz, last_year_from_dsmz*100.0 / last_year_disagree))
 
     def run(self,
@@ -432,7 +445,7 @@ class Sandbox(object):
         """Play to explore new ideas or calculate one off statistics relted to species clusters."""
 
         # *** test NCBI type material designations
-        self.logger.info('Creating current GTDB genome set.')
+        self.log.info('Creating current GTDB genome set.')
         cur_genomes = Genomes()
         cur_genomes.load_from_metadata_file(cur_gtdb_metadata_file,
                                             gtdb_type_strains_ledger=gtdb_type_strains_ledger,
@@ -442,7 +455,8 @@ class Sandbox(object):
                                             untrustworthy_type_ledger=untrustworthy_type_file,
                                             ncbi_env_bioproject_ledger=ncbi_env_bioproject_ledger)
 
-        print('ncbi_taxa.species', cur_genomes['G000155855'].ncbi_taxa.species())
+        print('ncbi_taxa.species',
+              cur_genomes['G000155855'].ncbi_taxa.species())
         return
 
         # *** test priorities
@@ -453,7 +467,8 @@ class Sandbox(object):
         same_p = 0
         for sp in set(lpsn_sp_priorities).intersection(lpsn_scrape_sp_priorities):
             if lpsn_sp_priorities[sp] != lpsn_scrape_sp_priorities[sp]:
-                print('diff', sp, lpsn_sp_priorities[sp], lpsn_scrape_sp_priorities[sp])
+                print('diff', sp,
+                      lpsn_sp_priorities[sp], lpsn_scrape_sp_priorities[sp])
                 diff_p += 1
             else:
                 same_p += 1
@@ -461,21 +476,23 @@ class Sandbox(object):
         print('diff_p', diff_p)
         print('same_p', same_p)
 
-        print('exclusive to scraping file', len(set(lpsn_scrape_sp_priorities) - set(lpsn_sp_priorities)))
-        print('exclusive to gss file', len(set(lpsn_sp_priorities) - set(lpsn_scrape_sp_priorities)))
+        print('exclusive to scraping file', len(
+            set(lpsn_scrape_sp_priorities) - set(lpsn_sp_priorities)))
+        print('exclusive to gss file', len(
+            set(lpsn_sp_priorities) - set(lpsn_scrape_sp_priorities)))
 
         return  # ***
 
         # create previous and current GTDB genome sets
         if False:
-            self.logger.info('Creating previous GTDB genome set.')
+            self.log.info('Creating previous GTDB genome set.')
             prev_genomes = Genomes()
             prev_genomes.load_from_metadata_file(prev_gtdb_metadata_file,
                                                  gtdb_type_strains_ledger=gtdb_type_strains_ledger,
                                                  ncbi_genbank_assembly_file=ncbi_genbank_assembly_file,
                                                  untrustworthy_type_ledger=untrustworthy_type_file,
                                                  ncbi_env_bioproject_ledger=ncbi_env_bioproject_ledger)
-            self.logger.info(' - previous genome set has {:,} species clusters spanning {:,} genomes.'.format(
+            self.log.info(' - previous genome set has {:,} species clusters spanning {:,} genomes.'.format(
                 len(prev_genomes.sp_clusters),
                 prev_genomes.sp_clusters.total_num_genomes()))
 
@@ -483,7 +500,7 @@ class Sandbox(object):
             self.eval_priority_gtdb_clusters(prev_genomes, lpsn_gss_file)
 
         # create current GTDB genome sets
-        self.logger.info('Creating current GTDB genome set.')
+        self.log.info('Creating current GTDB genome set.')
         cur_genomes = Genomes()
         cur_genomes.load_from_metadata_file(cur_gtdb_metadata_file,
                                             gtdb_type_strains_ledger=gtdb_type_strains_ledger,

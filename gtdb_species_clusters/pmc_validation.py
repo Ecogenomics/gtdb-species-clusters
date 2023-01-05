@@ -30,12 +30,12 @@ from Levenshtein import (distance as lvn_distance)
 from biolib.taxonomy import Taxonomy
 from biolib.newick import parse_label
 
-from gtdb_species_clusters.genomes import Genomes
+from gtdblib.util.bio.accession import canonical_gid
 
+from gtdb_species_clusters.genomes import Genomes
 from gtdb_species_clusters.taxon_suffix_manager import TaxonSuffixManager
 from gtdb_species_clusters.species_priority_manager import SpeciesPriorityManager
 from gtdb_species_clusters.ncbi_species_manager import NCBI_SpeciesManager
-from gtdb_species_clusters.genome_utils import canonical_gid
 from gtdb_species_clusters.type_genome_utils import (read_clusters,
                                                      parse_updated_species_reps,
                                                      infer_prev_gtdb_reps,
@@ -66,7 +66,7 @@ class PMC_Validation(object):
         """Initialization."""
 
         self.output_dir = output_dir
-        self.logger = logging.getLogger('timestamp')
+        self.log = logging.getLogger('timestamp')
 
     def ncbi_specific_name_support(self, rid, gtdb_specific, cur_genomes, cur_clusters):
         """Validate assignment of specific name based on NCBI assignment of genomes in species cluster."""
@@ -255,7 +255,7 @@ class PMC_Validation(object):
                 else:
                     validated_count += 1
 
-        self.logger.info(
+        self.log.info(
             f' - identified {incorrect_synonym_count:,} cases where GTDB uses a name considered a synonym at LPSN (see validate_lpsn_correct_sp.tsv)')
         self.report_validation(
             incorrect_names,
@@ -554,7 +554,7 @@ class PMC_Validation(object):
         """Validate final assignments against a set of ground truth assignments."""
 
         if ground_truth_test_cases.lower() == 'none':
-            self.logger.info(
+            self.log.info(
                 ' - no ground truth cases provided for validation.')
             return
 
@@ -945,7 +945,7 @@ class PMC_Validation(object):
                 ncbi_genera_gids[ncbi_genus].add(gid)
                 gids_with_ncbi_genus.add(gid)
 
-        self.logger.info(
+        self.log.info(
             ' - identified {:,} NCBI genera.'.format(len(ncbi_genera_gids)))
 
         # get GTDB genus assignments of genomes
@@ -974,7 +974,7 @@ class PMC_Validation(object):
                 if ncbi_genus_in_gtdb_genus_perc > 50:
                     gtdb_mergers[gtdb_genus].append(ncbi_genus)
                     merged_ncbi_genera += 1
-        self.logger.info(
+        self.log.info(
             ' - identified {:,} NCBI genera that were merged with GTDB genera.'.format(merged_ncbi_genera))
 
         # establish percentage of genomes descendant from each GTDB genus
@@ -1012,7 +1012,7 @@ class PMC_Validation(object):
                         type_species_of_genus = True
                     else:
                         if ncbi_genus not in gtdb_mergers[gtdb_genus]:
-                            self.logger.warning('GTDB genus {} contains type species for {}.'.format(
+                            self.log.warning('GTDB genus {} contains type species for {}.'.format(
                                 gtdb_genus,
                                 cur_genomes[gtdb_gid].ncbi_taxa.genus))
 
@@ -1027,7 +1027,7 @@ class PMC_Validation(object):
 
         fout.close()
 
-        self.logger.info(
+        self.log.info(
             ' - identified {:,} GTDB genera with <50% congruence with underlying NCBI genera.'.format(gtdb_genus_minority_support))
 
     def validate_missing_ncbi_genera(self, final_taxonomy, cur_genomes, curation_tree):
@@ -1052,7 +1052,7 @@ class PMC_Validation(object):
                     red_genus[taxa[-1]] = node.root_distance
 
         median_red_genera = np_median(list(red_genus.values()))
-        self.logger.info(
+        self.log.info(
             ' - median RED of genera: {:.3f}'.format(median_red_genera))
 
         # get all genera present in the GTDB
@@ -1065,7 +1065,7 @@ class PMC_Validation(object):
             ncbi_genus = cur_genomes[rid].ncbi_taxa.genus
             if ncbi_genus != 'g__' and ncbi_genus not in gtdb_genera:
                 missing_ncbi_genera[ncbi_genus].append(rid)
-        self.logger.info(
+        self.log.info(
             ' - found {:,} NCBI genera not represented in the GTDB.'.format(len(missing_ncbi_genera)))
 
         invalid_missing_ncbi_genera = {}
@@ -1227,7 +1227,7 @@ class PMC_Validation(object):
             [final_taxonomy[rid][Taxonomy.GENUS_INDEX] for rid in final_taxonomy])
         prev_gtdb_genera = set(
             [prev_genomes[rid].gtdb_taxa.genus for rid in prev_genomes.sp_clusters])
-        self.logger.info(' - identified {:,} current and {:,} previous GTDB genera.'.format(
+        self.log.info(' - identified {:,} current and {:,} previous GTDB genera.'.format(
             len(cur_gtdb_genera),
             len(prev_gtdb_genera)))
 
@@ -1505,7 +1505,7 @@ class PMC_Validation(object):
 
         fout.close()
 
-        self.logger.info(
+        self.log.info(
             f' - identified {num_cases:,} cases (see validate_merged_taxa.tsv)')
 
     def validate_parent_child_placeholder_names(self, final_taxonomy):
@@ -1534,11 +1534,11 @@ class PMC_Validation(object):
                 len(invalid_name)))
 
     def validate_placeholder_names_not_latin(self, final_taxonomy, lpsn):
-        """Validate placeholder names that might be mistaken as Latin names. 
+        """Validate placeholder names that might be mistaken as Latin names.
 
         Placeholder names should always have a number or additional capitalized letters
         to clear indicate they are not a Latin name. Catching cases violating these rules
-        is challenging even though they are often obvious to humans (e.g. g__Notlatin). 
+        is challenging even though they are often obvious to humans (e.g. g__Notlatin).
         Right now, this test simply looks for names under 5 characters that appear to be
         Latin under the assumption this is too short for valid Latin names.
 
@@ -1567,9 +1567,9 @@ class PMC_Validation(object):
     def validate_sp_with_alphanumeric_generic_names(self, final_taxonomy):
         """Validate species with alphanumeric generic names do not have suffixed Latin specific names.
 
-        Examples:     
+        Examples:
           s__DTPE01 lauensis_A
-          s__DRZC01 fontis_A    
+          s__DRZC01 fontis_A
         """
 
         invalid_name = {}
@@ -1596,7 +1596,7 @@ class PMC_Validation(object):
     def validate_suffix_of_specific_names(self, final_taxonomy, cur_genomes, lpsn):
         """Validate suffix of specific names by comparison with LPSN names.
 
-        Example: Lacrimispora algidixylanolyticum vs. L. algidixylanolytica   
+        Example: Lacrimispora algidixylanolyticum vs. L. algidixylanolytica
         """
 
         # get LPSN names in genus
@@ -2061,42 +2061,42 @@ class PMC_Validation(object):
                 # genome must be from other domain
                 pass
 
-        self.logger.info(
+        self.log.info(
             ' - total previous species names: {:,}'.format(total_names))
-        self.logger.info(' - unmodified names: {:,} ({:.2f}%)'.format(
+        self.log.info(' - unmodified names: {:,} ({:.2f}%)'.format(
             same_species_names,
             same_species_names*100.0/total_names))
-        self.logger.info(' - modified species names: {:,} ({:.2f}%)'.format(
+        self.log.info(' - modified species names: {:,} ({:.2f}%)'.format(
             len(modified_species),
             len(modified_species)*100.0/total_names))
 
-        self.logger.info(' - modified generic names: {:,} ({:.2f}%)'.format(
+        self.log.info(' - modified generic names: {:,} ({:.2f}%)'.format(
             len(modified_generic),
             len(modified_generic)*100.0/total_names))
         for prev_type, new_type in product(['LATIN', 'SUFFIXED_LATIN', 'ALPHANUMERIC'], repeat=2):
-            self.logger.info('   - modified generic names from {} to {}: {:,} ({:.2f}%)'.format(
+            self.log.info('   - modified generic names from {} to {}: {:,} ({:.2f}%)'.format(
                 prev_type,
                 new_type,
                 modified_generic_transition[prev_type][new_type],
                 modified_generic_transition[prev_type][new_type]*100.0/len(modified_generic)))
 
-        self.logger.info(' - modified specific names: {:,} ({:.2f}%)'.format(
+        self.log.info(' - modified specific names: {:,} ({:.2f}%)'.format(
             len(modified_specific),
             len(modified_specific)*100.0/total_names))
         for prev_type, new_type in product(['LATIN', 'SUFFIXED_LATIN', 'ALPHANUMERIC'], repeat=2):
-            self.logger.info('   - modified specific names from {} to {}: {:,} ({:.2f}%)'.format(
+            self.log.info('   - modified specific names from {} to {}: {:,} ({:.2f}%)'.format(
                 prev_type,
                 new_type,
                 modified_specific_transition[prev_type][new_type],
                 modified_specific_transition[prev_type][new_type]*100.0/len(modified_specific)))
 
         for specific_change_type, count in modified_specific_type.items():
-            self.logger.info(' - {}: {:,} ({:.2f}%)'.format(
+            self.log.info(' - {}: {:,} ({:.2f}%)'.format(
                 specific_change_type,
                 count,
                 count*100.0/len(modified_specific)))
 
-        self.logger.info(' - lost species clusters: {:,} ({:.2f}%)'.format(
+        self.log.info(' - lost species clusters: {:,} ({:.2f}%)'.format(
             lost_sp_cluster,
             lost_sp_cluster*100.0/total_names))
 
@@ -2174,26 +2174,26 @@ class PMC_Validation(object):
             if prev_gtdb_specific != new_gtdb_specific:
                 gtdb_modified_specific_names += 1
 
-        self.logger.info(
+        self.log.info(
             'Comparison of number of name changes in NCBI and GTDB.')
-        self.logger.info(
+        self.log.info(
             ' - total previous GTDB representatives with NCBI species assignment: {:,}'.format(total_names))
-        self.logger.info(' - modified NCBI species names: {:,} ({:.2f}%)'.format(
+        self.log.info(' - modified NCBI species names: {:,} ({:.2f}%)'.format(
             ncbi_modified_sp_name,
             ncbi_modified_sp_name*100.0/total_names))
-        self.logger.info(' - modified GTDB species names: {:,} ({:.2f}%)'.format(
+        self.log.info(' - modified GTDB species names: {:,} ({:.2f}%)'.format(
             gtdbd_modified_sp_name,
             gtdbd_modified_sp_name*100.0/total_names))
-        self.logger.info(' - modified NCBI genus names: {:,} ({:.2f}%)'.format(
+        self.log.info(' - modified NCBI genus names: {:,} ({:.2f}%)'.format(
             ncbi_modified_genus_names,
             ncbi_modified_genus_names*100.0/total_names))
-        self.logger.info(' - modified GTDB genus names: {:,} ({:.2f}%)'.format(
+        self.log.info(' - modified GTDB genus names: {:,} ({:.2f}%)'.format(
             gtdb_modified_genus_names,
             gtdb_modified_genus_names*100.0/total_names))
-        self.logger.info(' - modified NCBI specific names: {:,} ({:.2f}%)'.format(
+        self.log.info(' - modified NCBI specific names: {:,} ({:.2f}%)'.format(
             ncbi_modified_specific_names,
             ncbi_modified_specific_names*100.0/total_names))
-        self.logger.info(' - modified GTDB specific names: {:,} ({:.2f}%)'.format(
+        self.log.info(' - modified GTDB specific names: {:,} ({:.2f}%)'.format(
             gtdb_modified_specific_names,
             gtdb_modified_specific_names*100.0/total_names))
 
@@ -2206,7 +2206,7 @@ class PMC_Validation(object):
         ncbi_classification_table = os.path.join(
             self.output_dir, 'ncbi_sp_classification.tsv')
         if os.path.exists(ncbi_classification_table):
-            self.logger.warning('Reading classification of NCBI species from existing table: {}'.format(
+            self.log.warning('Reading classification of NCBI species from existing table: {}'.format(
                 ncbi_classification_table))
             ncbi_species, unambiguous_ncbi_sp, ambiguous_ncbi_sp = ncbi_species_mngr.parse_ncbi_classification_table(
                 ncbi_classification_table)
@@ -2224,21 +2224,21 @@ class PMC_Validation(object):
         assert unambiguous_type_strain_count + \
             unambiguous_unanimous_consensus_count == len(unambiguous_ncbi_sp)
 
-        self.logger.info(
+        self.log.info(
             ' - identified {:,} NCBI species.'.format(len(ncbi_species)))
-        self.logger.info(' - identified {:,} ({:.2f}%) as unambiguous assignments.'.format(
+        self.log.info(' - identified {:,} ({:.2f}%) as unambiguous assignments.'.format(
             len(unambiguous_ncbi_sp),
             len(unambiguous_ncbi_sp) * 100.0 / len(ncbi_species)))
-        self.logger.info('   - assigned {:,} ({:.2f}%) by type strain genome.'.format(
+        self.log.info('   - assigned {:,} ({:.2f}%) by type strain genome.'.format(
             unambiguous_type_strain_count,
             unambiguous_type_strain_count * 100.0 / len(ncbi_species)))
-        self.logger.info('   - assigned {:,} ({:.2f}%) by unanimous consensus.'.format(
+        self.log.info('   - assigned {:,} ({:.2f}%) by unanimous consensus.'.format(
             unambiguous_unanimous_consensus_count,
             unambiguous_unanimous_consensus_count * 100.0 / len(ncbi_species)))
-        self.logger.info(' - identified {:,} ({:.2f}%) as ambiguous assignments.'.format(
+        self.log.info(' - identified {:,} ({:.2f}%) as ambiguous assignments.'.format(
             len(ambiguous_ncbi_sp),
             len(ambiguous_ncbi_sp) * 100.0 / len(ncbi_species)))
-        self.logger.info(' - identified {:,} ({:.2f}%) as GTDB synonyms.'.format(
+        self.log.info(' - identified {:,} ({:.2f}%) as GTDB synonyms.'.format(
             len(ncbi_synonyms),
             len(ncbi_synonyms) * 100.0 / len(ncbi_species)))
 
@@ -2254,7 +2254,7 @@ class PMC_Validation(object):
         ncbi_subsp_classification_table = os.path.join(
             self.output_dir, 'ncbi_subsp_classification.tsv')
         if os.path.exists(ncbi_subsp_classification_table):
-            self.logger.warning('Reading classification of NCBI subspecies from existing table: {}'.format(
+            self.log.warning('Reading classification of NCBI subspecies from existing table: {}'.format(
                 ncbi_subsp_classification_table))
             ncbi_subspecies, unambiguous_ncbi_subsp, ambiguous_ncbi_subsp = ncbi_species_mngr.parse_ncbi_classification_table(
                 ncbi_subsp_classification_table)
@@ -2271,18 +2271,18 @@ class PMC_Validation(object):
             unambiguous_unanimous_consensus_count == len(
                 unambiguous_ncbi_subsp)
 
-        self.logger.info(
+        self.log.info(
             ' - identified {:,} NCBI subspecies.'.format(len(ncbi_subspecies)))
-        self.logger.info(' - identified {:,} ({:.2f}%) as unambiguous assignments.'.format(
+        self.log.info(' - identified {:,} ({:.2f}%) as unambiguous assignments.'.format(
             len(unambiguous_ncbi_subsp),
             len(unambiguous_ncbi_subsp) * 100.0 / len(ncbi_subspecies)))
-        self.logger.info('   - assigned {:,} ({:.2f}%) by type strain genome.'.format(
+        self.log.info('   - assigned {:,} ({:.2f}%) by type strain genome.'.format(
             unambiguous_type_strain_count,
             unambiguous_type_strain_count * 100.0 / len(ncbi_subspecies)))
-        self.logger.info('   - assigned {:,} ({:.2f}%) by unanimous consensus.'.format(
+        self.log.info('   - assigned {:,} ({:.2f}%) by unanimous consensus.'.format(
             unambiguous_unanimous_consensus_count,
             unambiguous_unanimous_consensus_count * 100.0 / len(ncbi_subspecies)))
-        self.logger.info(' - identified {:,} ({:.2f}%) as ambiguous assignments.'.format(
+        self.log.info(' - identified {:,} ({:.2f}%) as ambiguous assignments.'.format(
             len(ambiguous_ncbi_subsp),
             len(ambiguous_ncbi_subsp) * 100.0 / len(ncbi_subspecies)))
 
@@ -2316,22 +2316,22 @@ class PMC_Validation(object):
         """Validate final species names."""
 
         # read LPSN metadata
-        self.logger.info('Reading LPSN metadata.')
+        self.log.info('Reading LPSN metadata.')
         lpsn = LPSN(lpsn_data, lpsn_gss_metadata_file)
-        self.logger.info(' - identified {:,} correct LPSN species and {:,} synonyms.'.format(
+        self.log.info(' - identified {:,} correct LPSN species and {:,} synonyms.'.format(
             len(lpsn.sp_correct_names),
             len(lpsn.sp_synonyms)))
-        self.logger.info(' - identified {:,} taxa with defined type material at LPSN.'.format(
+        self.log.info(' - identified {:,} taxa with defined type material at LPSN.'.format(
             len(lpsn.taxa)))
 
         # read manually-curated taxonomy
-        self.logger.info('Parsing final taxonomy.')
+        self.log.info('Parsing final taxonomy.')
         final_taxonomy = Taxonomy().read(final_taxonomy, use_canonical_gid=True)
-        self.logger.info(' - identified taxonomy strings for {:,} genomes.'.format(
+        self.log.info(' - identified taxonomy strings for {:,} genomes.'.format(
             len(final_taxonomy)))
 
         # read species names explicitly set via manual curation
-        self.logger.info('Parsing manually-curated species.')
+        self.log.info('Parsing manually-curated species.')
         self.mc_species = parse_manual_sp_curation_files(
             manual_sp_names, pmc_custom_species)
 
@@ -2342,18 +2342,18 @@ class PMC_Validation(object):
                                                   self.output_dir)
 
         # create previous and current GTDB genome sets
-        self.logger.info('Creating previous GTDB genome set.')
+        self.log.info('Creating previous GTDB genome set.')
         prev_genomes = Genomes()
         prev_genomes.load_from_metadata_file(prev_gtdb_metadata_file,
                                              gtdb_type_strains_ledger=gtdb_type_strains_ledger,
                                              ncbi_genbank_assembly_file=ncbi_genbank_assembly_file,
                                              untrustworthy_type_ledger=untrustworthy_type_file,
                                              ncbi_env_bioproject_ledger=ncbi_env_bioproject_ledger)
-        self.logger.info(' - previous genome set has {:,} species clusters spanning {:,} genomes.'.format(
+        self.log.info(' - previous genome set has {:,} species clusters spanning {:,} genomes.'.format(
             len(prev_genomes.sp_clusters),
             prev_genomes.sp_clusters.total_num_genomes()))
 
-        self.logger.info('Creating current GTDB genome set.')
+        self.log.info('Creating current GTDB genome set.')
         cur_genomes = Genomes()
         cur_genomes.load_from_metadata_file(cur_gtdb_metadata_file,
                                             gtdb_type_strains_ledger=gtdb_type_strains_ledger,
@@ -2362,13 +2362,13 @@ class PMC_Validation(object):
                                             ncbi_genbank_assembly_file=ncbi_genbank_assembly_file,
                                             untrustworthy_type_ledger=untrustworthy_type_file,
                                             ncbi_env_bioproject_ledger=ncbi_env_bioproject_ledger)
-        self.logger.info(
+        self.log.info(
             f' - current genome set contains {len(cur_genomes):,} genomes.')
 
         cur_genomes.set_prev_gtdb_classifications(prev_genomes)
 
         # sanity check
-        self.logger.info(
+        self.log.info(
             'Checking that previous and current genomes have same GTDB assignments.')
         dup_genomes = 0
         for gid in set(cur_genomes).intersection(prev_genomes):
@@ -2376,35 +2376,35 @@ class PMC_Validation(object):
                 if cur_genomes[gid].gtdb_taxa.domain == prev_genomes[gid].gtdb_taxa.domain:
                     # there are known cases of genomes being transferred between domain which
                     # necessitates a different GTDB assignment
-                    self.logger.warning('Current GTDB assignments differ from previous assignment: {}, {}, {}'.format(
+                    self.log.warning('Current GTDB assignments differ from previous assignment: {}, {}, {}'.format(
                         gid, cur_genomes[gid].gtdb_taxa, prev_genomes[gid].gtdb_taxa))
             dup_genomes += 1
-        self.logger.info(
+        self.log.info(
             ' - validate GTDB assignments for {:,} genomes in common.'.format(dup_genomes))
 
         # read named GTDB species clusters
-        self.logger.info('Reading GTDB species clusters.')
+        self.log.info('Reading GTDB species clusters.')
         cur_clusters, _rep_radius = read_clusters(gtdb_clusters_file)
-        self.logger.info(' - identified {:,} clusters spanning {:,} genomes.'.format(
+        self.log.info(' - identified {:,} clusters spanning {:,} genomes.'.format(
             len(cur_clusters),
             sum([len(gids) + 1 for gids in cur_clusters.values()])))
         assert len(set(final_taxonomy) - set(cur_clusters)) == 0
 
         # get mappings between new and previous GTDB representatives
-        self.logger.info(
+        self.log.info(
             'Mapping current GTDB representatives to previous representatives.')
         updated_gtdb_rids = parse_updated_species_reps(updated_species_reps)
         new_to_prev_rid = infer_prev_gtdb_reps(
             prev_genomes, cur_clusters, updated_gtdb_rids)
-        self.logger.info(
+        self.log.info(
             ' - mapped {:,} current representatives to previous representatives.'.format(len(new_to_prev_rid)))
 
         # get species clusters with reassigned representative
-        self.logger.info(
+        self.log.info(
             'Identifying species clusters with reassigned representatives.')
         prev_to_new_rids = prev_genomes.sp_clusters.updated_representatives(
             cur_clusters)
-        self.logger.info(' - mapped {:,} previous representatives to current representatives.'.format(
+        self.log.info(' - mapped {:,} previous representatives to current representatives.'.format(
             len(prev_to_new_rids)))
 
         # get polyphyletic suffixes for GTDB taxa
@@ -2419,32 +2419,32 @@ class PMC_Validation(object):
         self.forbidden_specific_names = ncbi_species_mngr.forbidden_specific_names
 
         # get list of synonyms in order to restrict usage of species names
-        self.logger.info('Reading NCBI synonyms.')
+        self.log.info('Reading NCBI synonyms.')
         ncbi_synonyms = ncbi_species_mngr.parse_synonyms_table(
             ncbi_synonym_file)
-        self.logger.info(' - identified {:,} synonyms from {:,} distinct NCBI species.'.format(
+        self.log.info(' - identified {:,} synonyms from {:,} distinct NCBI species.'.format(
             len(ncbi_synonyms),
             len(set(ncbi_synonyms.values()))))
 
         # get synonyms as GTDB species
-        self.logger.info('Converting NCBI synonyms to GTDB species.')
-        self.logger.info('Reading NCBI synonyms.')
+        self.log.info('Converting NCBI synonyms to GTDB species.')
+        self.log.info('Reading NCBI synonyms.')
         gtdb_synonyms = ncbi_to_gtdb_synonyms(
             ncbi_synonym_file, final_taxonomy)
-        self.logger.info(' - identified {:,} synonyms from {:,} distinct GTDB species.'.format(
+        self.log.info(' - identified {:,} synonyms from {:,} distinct GTDB species.'.format(
             len(gtdb_synonyms),
             len(set(gtdb_synonyms.values()))))
 
         # identified genomes with misclassified species assignments at NCBI
-        self.logger.info(
+        self.log.info(
             'Identify genomes with misclassified NCBI species assignments.')
         ncbi_misclassified_gids = ncbi_species_mngr.parse_ncbi_misclassified_table(
             ncbi_misclassified_file)
-        self.logger.info(' - identified {:,} genomes with erroneous NCBI species assignments'.format(
+        self.log.info(' - identified {:,} genomes with erroneous NCBI species assignments'.format(
             len(ncbi_misclassified_gids)))
 
         # classify each Latin NCBI species as either unambiguously or ambiguously assigned
-        self.logger.info(
+        self.log.info(
             'Classifying NCBI species as unambiguous, ambiguous, or synonym.')
         _ncbi_species, unambiguous_ncbi_sp, _ambiguous_ncbi_sp = self.classify_ncbi_species(
             ncbi_species_mngr,
@@ -2452,14 +2452,14 @@ class PMC_Validation(object):
             ncbi_misclassified_gids)
 
         # classify each NCBI subspecies as either unambiguously or ambiguously assigned
-        self.logger.info(
+        self.log.info(
             'Classifying NCBI subspecies as unambiguous or ambiguous.')
         _ncbi_all_subspecies, unambiguous_ncbi_subsp, _ambiguous_ncbi_subsp = self.classify_ncbi_subspecies(
             ncbi_species_mngr)
 
         # validate properly formatted species names
         if not skip_full_taxonomy_checks:
-            self.logger.info('Performing basic validation of taxonomy.')
+            self.log.info('Performing basic validation of taxonomy.')
             Taxonomy().validate(final_taxonomy,
                                 check_prefixes=True,
                                 check_ranks=True,
@@ -2473,69 +2473,69 @@ class PMC_Validation(object):
         # validate parent-child placeholder names (e.g. f__JDFR-13 conflicts with g__JdFR-13)
         # Note: It was decided that this capitalization inconsistency is acceptable in order
         # to avoid replacing long-standing placeholder names with slight modifications.
-        #self.logger.info('Validating parent-child placeholder names for simple typos.')
+        #self.log.info('Validating parent-child placeholder names for simple typos.')
         # self.validate_parent_child_placeholder_names(final_taxonomy)
 
         # validate placeholder names that might be mistaken as Latin names (e.g., g__Gsub)
-        self.logger.info(
+        self.log.info(
             'Validating placeholder names that might be mistaken as Latin names.')
         self.validate_placeholder_names_not_latin(final_taxonomy, lpsn)
 
         # validate alphanumeric generic names do not have suffixed Latin specific names
         # (e.g., s__DTPE01 lauensis_A is considered invalid)
-        self.logger.info(
+        self.log.info(
             'Validating species with alphanumeric generic names do not have suffixed Latin specific names.')
         self.validate_sp_with_alphanumeric_generic_names(final_taxonomy)
 
         # validate suffix of specific names by looking for small deviations relative to LPSN names
-        self.logger.info(
+        self.log.info(
             "Validating suffix of specific names by identifying small deviations from LPSN names.")
         self.validate_suffix_of_specific_names(
             final_taxonomy, cur_genomes, lpsn)
 
         # validate application of names for merged taxa
-        self.logger.info("Validating names of merged taxa.")
+        self.log.info("Validating names of merged taxa.")
         self.validate_merged_taxa(final_taxonomy, cur_genomes, lpsn)
 
         # validate placement of higher taxon names derived from stem of GTDB genera
-        self.logger.info(
+        self.log.info(
             "Validating placement of higher taxon names based on LPSN type material")
         self.validate_taxa_by_lpsn_type_material(final_taxonomy, lpsn)
 
         # validate that GTDB is using the 'correct' names as specified at LPSN
-        self.logger.info(
+        self.log.info(
             "Validating that GTDB species names are using the 'correct' name according to LPSN.")
         self.validate_lpsn_correct_names(final_taxonomy, lpsn)
 
         # validate that transferred species do not use a specific epithet which
         # has already been validated for the species
-        self.logger.info(
+        self.log.info(
             'Validating that specific epithet of GTDB species names are valid after genus transfers.')
         self.validate_genus_transfer_specific_epithet(final_taxonomy,
                                                       cur_genomes,
                                                       lpsn)
 
         # validate pplacement of higher taxon names derived from stem of GTDB genera
-        self.logger.info(
+        self.log.info(
             "Validating placement of higher taxon names derived from stem of GTDB genera.")
         self.validate_taxa_by_genus_stem(final_taxonomy)
 
         # validate that all species names are unique
-        self.logger.info('Validating that species names are unique.')
+        self.log.info('Validating that species names are unique.')
         self.validate_unique_species_names(final_taxonomy, cur_genomes)
 
         # validate manually-curated species names
-        self.logger.info('Validating manually-curated species names.')
+        self.log.info('Validating manually-curated species names.')
         self.validate_manually_curated_species(final_taxonomy, self.mc_species)
 
         # validate genomes in GTDB type strain ledger
-        self.logger.info('Validating genomes in type strain ledger.')
+        self.log.info('Validating genomes in type strain ledger.')
         mc_type_strain = self.validate_type_strain_ledger(
             final_taxonomy, gtdb_type_strains_ledger)
         self.mc_species.update(mc_type_strain)
 
         # validate genomes in GTDB type strain ledger
-        self.logger.info(
+        self.log.info(
             'Validating genomes in species classification ledger.')
         mc_sp_classification = self.validate_species_classification_ledger(final_taxonomy,
                                                                            cur_clusters,
@@ -2543,38 +2543,38 @@ class PMC_Validation(object):
         self.mc_species.update(mc_sp_classification)
 
         # validate genus and generic names are the same
-        self.logger.info(
+        self.log.info(
             'Validating that genus and generic names are the same.')
         self.validate_genus_generic_match(final_taxonomy)
 
         # validate type species
-        self.logger.info('Validating type species of genus.')
+        self.log.info('Validating type species of genus.')
         self.validate_type_species(
             final_taxonomy, cur_genomes, sp_priority_mngr)
 
         # validate type strain
-        self.logger.info('Validating type strains of species.')
+        self.log.info('Validating type strains of species.')
         self.validate_type_strain(final_taxonomy, cur_genomes)
 
         # validate ground truth test cases
-        self.logger.info('Validating ground truth test cases.')
+        self.log.info('Validating ground truth test cases.')
         self.validate_ground_truth(final_taxonomy, ground_truth_test_cases)
 
         # validate manually established suffixes for specific names changed due to genus transfer
-        self.logger.info(
+        self.log.info(
             'Validating manually-curated specific name suffix changes resulting from genus transfers.')
         self.validate_mannually_curated_specifix_suffix(
             final_taxonomy, cur_genomes, specific_epithet_ledger)
 
         # validate NCBI species considered to have an unambiguous assignment within the GTDB
-        self.logger.info(
+        self.log.info(
             'Validating NCBI species names classified as having an unambiguous assignment within the GTDB.')
         self.validate_unambiguous_ncbi_sp(final_taxonomy,
                                           unambiguous_ncbi_sp,
                                           lpsn)
 
         # validate NCBI species not considered to have an unambiguous assignment within the GTDB
-        self.logger.info(
+        self.log.info(
             'Validating NCBI species names classified as having an ambiguous assignment within the GTDB.')
         self.validate_ambiguous_ncbi_sp(final_taxonomy,
                                         cur_genomes,
@@ -2582,7 +2582,7 @@ class PMC_Validation(object):
                                         unambiguous_ncbi_subsp)
 
         # validate species names of genomes misclassified at NCBI
-        self.logger.info(
+        self.log.info(
             'Validating species names of genomes misclassified at NCBI.')
         self.validate_misclassified_genomes(final_taxonomy,
                                             cur_genomes,
@@ -2592,16 +2592,16 @@ class PMC_Validation(object):
                                             unambiguous_ncbi_subsp)
 
         # validate synonyms
-        self.logger.info('Validating that GTDB synonyms are respected.')
+        self.log.info('Validating that GTDB synonyms are respected.')
         self.validate_synonyms(final_taxonomy, cur_genomes, ncbi_synonyms)
 
         # validate that each GTDB genus has a single type species
-        self.logger.info(
+        self.log.info(
             'Validating that each GTDB genus has a single type species cluster.')
         self.validate_single_type_species(final_taxonomy, cur_genomes)
 
         # validate GTDB specific name assignments without a polyphyletic suffixes
-        self.logger.info(
+        self.log.info(
             'Validating specific name assignments without a placeholder suffix.')
         self.validate_specific_no_suffix(final_taxonomy,
                                          cur_genomes,
@@ -2609,7 +2609,7 @@ class PMC_Validation(object):
                                          unambiguous_ncbi_subsp)
 
         # validate that species clusters use same specific name placeholder suffixes as previously assigned
-        self.logger.info(
+        self.log.info(
             'Validating specific names use same placeholder suffixes as assigned in previous release.')
         self.validate_prev_specific_placeholder_suffixes(final_taxonomy,
                                                          cur_genomes,
@@ -2617,7 +2617,7 @@ class PMC_Validation(object):
                                                          unambiguous_ncbi_sp)
 
         # validate suffix assignment rules for specific names
-        self.logger.info(
+        self.log.info(
             'Validating specific names follow suffix assignment rules.')
         self.validate_specific_placeholder_suffixes(final_taxonomy,
                                                     cur_genomes,
@@ -2625,58 +2625,58 @@ class PMC_Validation(object):
                                                     unambiguous_ncbi_subsp)
 
         # validate spelling of genera
-        self.logger.info('Validating spelling of genera.')
+        self.log.info('Validating spelling of genera.')
         self.validate_genera_spelling(final_taxonomy, cur_genomes)
 
         # validate that no forbidden specific names are used
-        self.logger.info(
+        self.log.info(
             'Validating that no forbidden specific names were used.')
         self.validate_forbidden_specific_names(final_taxonomy)
 
         # validate that Latinized specific names are never used with non-suffixed, placeholder generic names
-        self.logger.info(
+        self.log.info(
             'Validating that Latinized specific names are not used with non-suffixed, placeholder generic names.')
         self.validate_latin_sp_placeholder_generic(final_taxonomy, cur_genomes)
 
         if not skip_genus_checks:
             # validate placeholder suffixes for genera
-            self.logger.info('Validating placeholder suffixes of genera.')
+            self.log.info('Validating placeholder suffixes of genera.')
             self.validate_genera_placeholder_suffixes(
                 final_taxonomy, cur_genomes, new_to_prev_rid)
 
             # read scaled curation tree
             if final_scaled_tree.lower() != 'none':
-                self.logger.info('Reading scaled and decorated tree.')
+                self.log.info('Reading scaled and decorated tree.')
                 curation_tree = dendropy.Tree.get_from_path(final_scaled_tree,
                                                             schema='newick',
                                                             rooting='force-rooted',
                                                             preserve_underscores=True)
                 curation_tree.calc_node_root_distances()
 
-                self.logger.info(
+                self.log.info(
                     'Validating missing NCBI-defined genus names.')
                 self.validate_missing_ncbi_genera(
                     final_taxonomy, cur_genomes, curation_tree)
 
             # validate placeholder genus names lack potential Latin names
-            self.logger.info(
+            self.log.info(
                 'Validating placeholder genus names lack potential Latin names.')
             self.validate_no_latin_genus_name(final_taxonomy, cur_genomes)
 
             # validate that genus names are not a replacement of one placeholder for another
-            self.logger.info(
+            self.log.info(
                 'Validating that genus names are not a change from one placeholder to another.')
             self.validate_genus_placeholder_change(
                 final_taxonomy, cur_genomes, prev_genomes)
 
             # validate monophyly of NCBI genera
-            self.logger.info('Validating monophyly of NCBI genera.')
+            self.log.info('Validating monophyly of NCBI genera.')
             self.validate_ncbi_genera_monophyly(final_taxonomy,
                                                 cur_genomes,
                                                 cur_clusters)
 
         # create table with modified GTDB species names for manual inspection
-        self.logger.info('Creating table with modified GTDB species names.')
+        self.log.info('Creating table with modified GTDB species names.')
         self.report_modified_species_names(final_taxonomy,
                                            cur_genomes,
                                            prev_genomes,

@@ -15,14 +15,13 @@
 #                                                                             #
 ###############################################################################
 
-import os
 import sys
 import logging
 from itertools import takewhile
 
 from biolib.taxonomy import Taxonomy
 
-from gtdb_species_clusters.genome_utils import canonical_gid
+from gtdblib.util.bio.accession import canonical_gid
 
 
 def ncbi_to_gtdb_synonyms(ncbi_synonym_file, final_gtdb_taxonomy):

@@ -34,11 +34,11 @@ class GTDB_Tk():
         check_dependencies(['gtdbtk'])
 
         self.output_dir = output_dir
-        self.logger = logging.getLogger('timestamp')
+        self.log = logging.getLogger('timestamp')
 
         self.cpus = cpus
         if self.cpus > 64:
-            self.logger.error(
+            self.log.error(
                 'Testing indicates pplacer will stale if used with more than 64 CPUs.')
             sys.exit(-1)
 
@@ -49,12 +49,12 @@ class GTDB_Tk():
         """Perform initial classification of new and updated genomes using GTDB-Tk."""
 
         # get list of genomes passing QC
-        self.logger.info('Reading genomes passing QC.')
+        self.log.info('Reading genomes passing QC.')
         gids_pass_qc = read_qc_file(qc_passed_file)
-        self.logger.info(f' - identified {len(gids_pass_qc):,} genomes.')
+        self.log.info(f' - identified {len(gids_pass_qc):,} genomes.')
 
         # get path to genomes passing QC
-        self.logger.info(
+        self.log.info(
             'Reading path to genomic file for new/updated genomes passing QC.')
         genomic_files = []
         new_updated_gids = set()
@@ -73,14 +73,14 @@ class GTDB_Tk():
                     gf = tokens[genomic_file_index]
                     genomic_files.append((gid, gf))
                     new_updated_gids.add(gid)
-        self.logger.info(
+        self.log.info(
             f' - identified {len(genomic_files):,} of {total_count:,} genomes as passing QC.')
 
         # create batch files
         genome_batch_files = []
         batch_dir = os.path.join(self.output_dir, 'genome_batch_files')
         if os.path.exists(batch_dir):
-            self.logger.warning(
+            self.log.warning(
                 f'Using existing genome batch files in {batch_dir}.')
             for f in os.listdir(batch_dir):
                 genome_batch_files.append(os.path.join(batch_dir, f))
@@ -105,7 +105,7 @@ class GTDB_Tk():
                 genome_batch_file = os.path.join(
                     batch_dir, f'genomes_{last_batch_idx+1}.lst')
                 genome_batch_files.append(genome_batch_file)
-                self.logger.info('Added the batch file {} with {:,} genomes.'.format(
+                self.log.info('Added the batch file {} with {:,} genomes.'.format(
                     genome_batch_file,
                     len(missing_gids)))
 
@@ -133,7 +133,7 @@ class GTDB_Tk():
                 1].replace('.lst', '')
             out_dir = os.path.join(self.output_dir, f'gtdbtk_batch{batch_idx}')
             if os.path.exists(out_dir):
-                self.logger.warning(
+                self.log.warning(
                     f'Skipping genome batch {batch_idx} as output directory already exists.')
                 continue
 
@@ -182,9 +182,9 @@ class GTDB_Tk():
 
         fout.close()
 
-        self.logger.info(
+        self.log.info(
             'Identified {:,} genomes as being processed by GTDB-Tk.'.format(len(gtdbtk_processed)))
         skipped_gids = new_updated_gids - gtdbtk_processed
         if len(skipped_gids) > 0:
-            self.logger.warning('Identified {:,} genomes as being skipped by GTDB-Tk.'.format(
+            self.log.warning('Identified {:,} genomes as being skipped by GTDB-Tk.'.format(
                 len(skipped_gids)))

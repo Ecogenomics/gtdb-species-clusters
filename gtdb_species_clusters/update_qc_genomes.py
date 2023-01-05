@@ -19,8 +19,9 @@ import os
 import logging
 from collections import defaultdict
 
-from gtdb_species_clusters.genome_utils import (canonical_gid,
-                                                exclude_from_refseq)
+from gtdblib.util.bio.accession import canonical_gid
+
+from gtdb_species_clusters.genome_utils import exclude_from_refseq
 
 from gtdb_species_clusters.genomes import Genomes
 from gtdb_species_clusters.genome_utils import same_assembly_version
@@ -33,7 +34,7 @@ class QcGenomes():
         """Initialization."""
 
         self.output_dir = output_dir
-        self.logger = logging.getLogger('timestamp')
+        self.log = logging.getLogger('timestamp')
 
     def parse_marker_percentages(self, gtdb_domain_report):
         """Parse percentage of marker genes for each genome."""
@@ -84,14 +85,14 @@ class QcGenomes():
                                for t in line_split[gtdb_taxonomy_index].split(';')][0]
 
                 if ncbi_domain != gtdb_domain and ncbi_domain != 'None':
-                    self.logger.info(
+                    self.log.info(
                         f'NCBI ({ncbi_domain}) and GTDB ({gtdb_domain}) domains disagree in domain report (Bac = {bac_perc:.1f}%; Ar = {ar_perc:.1f}%): {gid}')
                     if cur_genomes[gid].gtdb_taxa.domain != gtdb_domain:
-                        self.logger.error(
+                        self.log.error(
                             f'GTDB ({gtdb_domain}) domains in domain report differs from domain in GTDB taxonomy string ({cur_genomes[gid].gtdb_taxa.domain}): {gid} [THIS MUST BE FIXED BEFORE PROCEEDING]')
 
                 if domain != gtdb_domain and domain != 'None':
-                    self.logger.error(
+                    self.log.error(
                         f'GTDB and predicted domain (Bac = {bac_perc:.1f}%; Ar = {ar_perc:.1f}%) disagree in domain report: {gid} [THIS MUST BE FIXED BEFORE PROCEEDING]')
 
     def parse_qc_exception_file(self, qc_exception_file):
@@ -207,7 +208,7 @@ class QcGenomes():
         fout_passed.close()
         fout_failed.close()
 
-        self.logger.info('Retained {:,} ({:.2f}%) genomes and filtered {:,} ({:.2f}%) genomes.'.format(
+        self.log.info('Retained {:,} ({:.2f}%) genomes and filtered {:,} ({:.2f}%) genomes.'.format(
             len(passed_qc_gids),
             len(passed_qc_gids)*100.0/len(cur_genomes),
             len(failed_qc_gids),
@@ -240,7 +241,7 @@ class QcGenomes():
         # inference.
 
         named_ncbi_species = cur_genomes.named_ncbi_species()
-        self.logger.info(
+        self.log.info(
             f'Performing QC of type genome for each of the {len(named_ncbi_species):,} NCBI species.')
 
         fout_type_fail = open(os.path.join(
@@ -391,14 +392,14 @@ class QcGenomes():
         fout_fail_sp.close()
         fout_sp_lost.close()
 
-        self.logger.info(
+        self.log.info(
             f'Filtered {filtered_genomes:,} genomes assigned to NCBI species.')
-        self.logger.info(
+        self.log.info(
             f'Identified {lost_type:,} species with type genomes failing QC and {lost_sp:,} total species failing QC.')
-        self.logger.info(
+        self.log.info(
             'Genomes from NCBI species filtered by each criterion:')
         for test in sorted(failed_tests_cumulative):
-            self.logger.info(f'{test}: {failed_tests_cumulative[test]:,}')
+            self.log.info(f'{test}: {failed_tests_cumulative[test]:,}')
 
     def run(self,
             prev_gtdb_metadata_file,
@@ -419,19 +420,19 @@ class QcGenomes():
         """Quality check all potential GTDB genomes."""
 
         # create previous and current GTDB genome sets
-        self.logger.info('Creating previous GTDB genome set:')
+        self.log.info('Creating previous GTDB genome set:')
         prev_genomes = Genomes()
         prev_genomes.load_from_metadata_file(prev_gtdb_metadata_file,
                                              gtdb_type_strains_ledger=gtdb_type_strains_ledger,
                                              ncbi_genbank_assembly_file=ncbi_genbank_assembly_file,
                                              ncbi_env_bioproject_ledger=ncbi_env_bioproject_ledger)
-        self.logger.info(
+        self.log.info(
             f' - previous genome set contains {len(prev_genomes):,} genomes')
-        self.logger.info(' - previous genome set has {:,} species clusters spanning {:,} genomes'.format(
+        self.log.info(' - previous genome set has {:,} species clusters spanning {:,} genomes'.format(
             len(prev_genomes.sp_clusters),
             prev_genomes.sp_clusters.total_num_genomes()))
 
-        self.logger.info('Creating current GTDB genome set:')
+        self.log.info('Creating current GTDB genome set:')
         cur_genomes = Genomes()
         cur_genomes.load_from_metadata_file(cur_gtdb_metadata_file,
                                             gtdb_type_strains_ledger=gtdb_type_strains_ledger,
@@ -440,24 +441,24 @@ class QcGenomes():
                                             ncbi_env_bioproject_ledger=ncbi_env_bioproject_ledger)
 
         # parse genomes flagged as exceptions from QC
-        self.logger.info('Parsing QC ledger:')
+        self.log.info('Parsing QC ledger:')
         retain_exceptions, filter_exceptions = self.parse_qc_exception_file(
             qc_exception_file)
-        self.logger.info(
+        self.log.info(
             f' - identified {len(retain_exceptions):,} genomes flagged for retention')
-        self.logger.info(
+        self.log.info(
             f' - identified {len(filter_exceptions):,} genomes flagged for removal')
 
         # get percentage of bac120 or ar122 marker genes
         marker_perc = self.parse_marker_percentages(gtdb_domain_report)
 
         # parse NCBI assembly files
-        self.logger.info('Parsing NCBI assembly files.')
+        self.log.info('Parsing NCBI assembly files.')
         excluded_from_refseq_note = exclude_from_refseq(
             ncbi_genbank_assembly_file)
 
         # QC all genomes
-        self.logger.info('Validating genomes.')
+        self.log.info('Validating genomes.')
         passed_qc_gids, failed_qc_gids = self.qc_genomes(
             cur_genomes,
             marker_perc,
@@ -517,7 +518,7 @@ class QcGenomes():
         fout.close()
 
         if len(unexpected_qc_fail) > 0:
-            self.logger.warning('Identified {:,} genomes that passed QC in previous GTDB release, that failed QC in this release.'.format(
+            self.log.warning('Identified {:,} genomes that passed QC in previous GTDB release, that failed QC in this release.'.format(
                 len(unexpected_qc_fail)))
-            self.logger.warning(
+            self.log.warning(
                 ' - examples: {}'.format(','.join(unexpected_qc_fail[0:10])))

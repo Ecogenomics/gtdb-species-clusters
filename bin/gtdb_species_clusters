@@ -104,41 +104,6 @@ def print_help():
     ''')
 
 
-def logger_setup(output_dir, silent):
-    """Set logging for application.
-
-    Parameters
-    ----------
-    output_dir : str
-        Output directory for log file.
-    silent : boolean
-        Flag indicating if output to stdout should be suppressed.
-    """
-
-    # setup general properties of logger
-    logger = logging.getLogger('')
-    logger.setLevel(logging.DEBUG)
-    log_format = logging.Formatter(fmt="[%(asctime)s] %(levelname)s: %(message)s",
-                                   datefmt="%Y-%m-%d %H:%M:%S")
-
-    # setup logging to console
-    if not silent:
-        stream_logger = logging.StreamHandler(sys.stdout)
-        stream_logger.setFormatter(log_format)
-        stream_logger.setLevel(logging.DEBUG)
-        logger.addHandler(stream_logger)
-
-    if output_dir:
-        make_sure_path_exists(output_dir)
-        file_logger = logging.FileHandler(os.path.join(
-            output_dir, 'gtdb_species_clusters.log'), 'a')
-        file_logger.setFormatter(log_format)
-        logger.addHandler(file_logger)
-
-    logger.info('GTDB Species Clusters v%s' % __version__)
-    logger.info(ntpath.basename(sys.argv[0]) + ' ' + ' '.join(sys.argv[1:]))
-
-
 if __name__ == '__main__':
 
     # initialize the options parser
@@ -1025,40 +990,34 @@ if __name__ == '__main__':
 
     # get and check options
     args = None
-    if(len(sys.argv) == 1 or sys.argv[1] == '-h' or sys.argv == '--help'):
+    if (len(sys.argv) == 1 or sys.argv[1] == '-h' or sys.argv == '--help'):
         print_help()
         sys.exit(0)
     else:
         args = parser.parse_args()
 
-    try:
-        logger_setup(args.output_dir, args.silent)
-    except:
-        logger_setup(None, args.silent)
+    # setup logging
+    log = logging.getLogger("rich")
+    if hasattr(args, 'output_dir'):
+        os.makedirs(args.output_dir, exist_ok=True)
+        log_file = os.path.join(args.output_dir, 'gtdb_species_clusters.log')
+        file_logger = logging.FileHandler(log_file, 'a')
+        file_logger.setFormatter(logging.Formatter(fmt="[%(asctime)s] %(levelname)s: %(message)s",
+                                                   datefmt="%Y-%m-%d %H:%M:%S"))
+        log.addHandler(file_logger)
 
-    # do what we came here to do
+    log.info('GTDB Species Clusters v%s' % __version__)
+    log.info(ntpath.basename(sys.argv[0]) + ' ' + ' '.join(sys.argv[1:]))
+
+    # run specified command
     try:
         start = time.time()
-
-        parser = OptionsParser()
-        if(False):
-            # import pstats
-            # p = pstats.Stats('prof')
-            # p.sort_stats('cumulative').print_stats(10)
-            # p.sort_stats('time').print_stats(10)
-            import cProfile
-            cProfile.run('parser.run(args)', 'prof')
-        elif False:
-            import pdb
-            pdb.run(parser.run(args))
-        else:
-            parser.run(args)
-
+        OptionsParser().run(args)
         end = time.time()
 
         elapsed_time = (end - start) / 60
-        logging.getLogger().info(f'Elapsed time (min): {elapsed_time:.1f}')
-        logging.getLogger().info('Done.')
+        log.info(f'Elapsed time (min): {elapsed_time:.1f}')
+        log.info('Done.')
     except SystemExit:
         print("Controlled exit resulting from an unrecoverable error or warning.")
         raise
