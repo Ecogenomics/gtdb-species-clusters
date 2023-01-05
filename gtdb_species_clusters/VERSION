@@ -1,3 +1,9 @@
+0.3.8
+- update to u_new_genomes to handle genomic FASTA files now being compressed
+- better error checking of correct domain assignment in GTDB when in disagreement with NCBI
+- updates to support change from ar122 to ar53 marker set
+- steps explicitly report time to complete in minutes
+
 0.3.7
 - updates for GTDB R207
 
@@ -78,10 +84,10 @@
 - add method to dump 5S, 16S, and 23S sequences to file
 
 0.0.43
-- improvements to code for assigning genomes to canonical genome set 
+- improvements to code for assigning genomes to canonical genome set
 
 0.0.42
-- initial implementation of code to assign genomes to canonical genome set 
+- initial implementation of code to assign genomes to canonical genome set
 
 0.0.41
 - fixed bug with parsing contig length from SSU file

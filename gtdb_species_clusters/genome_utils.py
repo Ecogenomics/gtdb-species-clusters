@@ -220,6 +220,13 @@ def read_gtdbtk_classifications(gtdbtk_classify_file):
             taxa = [t.strip()
                     for t in line_split[classification_index].split(';')]
 
+            # covert degenerate cases into 7 rank classifications
+            if taxa[0] == 'Unclassified Bacteria':
+                taxa = ['d__Bacteria', 'p__', 'c__',
+                        'o__', 'f__', 'g__', 's__']
+            elif taxa[0] == 'Unclassified Archaea':
+                taxa = ['d__Archaea', 'p__', 'c__', 'o__', 'f__', 'g__', 's__']
+
             classification[gid] = taxa
 
     return classification

@@ -155,7 +155,7 @@ class GTDB_Tk():
                 continue
 
             batch_dir = os.path.join(self.output_dir, batch_dir)
-            ar_summary = os.path.join(batch_dir, 'gtdbtk.ar122.summary.tsv')
+            ar_summary = os.path.join(batch_dir, 'gtdbtk.ar53.summary.tsv')
             bac_summary = os.path.join(batch_dir, 'gtdbtk.bac120.summary.tsv')
 
             for summary_file in [ar_summary, bac_summary]:

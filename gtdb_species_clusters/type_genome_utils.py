@@ -40,6 +40,38 @@ ClusteredGenome = namedtuple('ClusteredGenome', 'ani af gid')
 GenomeRadius = namedtuple('GenomeRadius', 'ani af neighbour_gid')
 
 
+def parse_gtdb_type_strain_ledger(gtdb_type_strains_ledger, cur_genomes):
+    """Read and validate GTDB type strain ledger."""
+
+    gtdb_type_strain_ledger = {}
+    with open(gtdb_type_strains_ledger) as f:
+        header = f.readline().strip().split('\t')
+
+        gid_index = header.index('Genome ID')
+        sp_name_index = header.index('Proposed GTDB species name')
+
+        for line in f:
+            tokens = line.strip().split('\t')
+
+            gid = canonical_gid(tokens[gid_index].strip())
+            gtdb_sp_name = tokens[sp_name_index].strip()
+            if not gtdb_sp_name.startswith('s__'):
+                gtdb_sp_name = 's__' + gtdb_sp_name
+            gtdb_type_strain_ledger[gid] = gtdb_sp_name
+
+            # validate assignment
+            if gid not in cur_genomes:
+                logging.getLogger('timestamp').warning('Genome in GTDB type strain ledger not found in current genome set (Accession; GTDB species): {}; {}'.format(
+                    gid, gtdb_sp_name))
+            else:
+                ncbi_sp = cur_genomes[gid].ncbi_taxa.species
+                if ncbi_sp != 's__' and ncbi_sp != gtdb_sp_name:
+                    logging.getLogger('timestamp').warning('GTDB type strain ledger disagrees with NCBI species assignment (Accession; GTDB species; NCBI species): {}; {}; {}'.format(
+                        gid, gtdb_sp_name, ncbi_sp))
+
+    return gtdb_type_strain_ledger
+
+
 def parse_disbanded_cluster_ledger(disbanded_cluster_ledger):
     """Parse file indicating GTDB species clusters to be disbanded."""
 
@@ -57,7 +89,7 @@ def parse_manual_sp_curation_files(manual_sp_names, pmc_custom_species):
     """Parse files indicating manually curated species names."""
 
     # read species names explicitly set via manual curation
-    logging.getLogger('timestamp').info('Parsing manually-curated species.')
+    logging.getLogger('timestamp').info('Parsing manually-curated species:')
     mc_species = {}
     if not (manual_sp_names is None or manual_sp_names.lower() == 'none'):
         with open(manual_sp_names) as f:
@@ -65,12 +97,12 @@ def parse_manual_sp_curation_files(manual_sp_names, pmc_custom_species):
             for line in f:
                 tokens = line.strip().split('\t')
                 mc_species[tokens[0]] = tokens[2]
-    logging.getLogger('timestamp').info(' - identified manually-curated species names for {:,} genomes.'.format(
+    logging.getLogger('timestamp').info(' - identified manually-curated species names for {:,} genomes'.format(
         len(mc_species)))
 
     # read post-curation, manually defined species
     logging.getLogger('timestamp').info(
-        'Parsing post-curation, manually-curated species.')
+        'Parsing post-curation, manually-curated species:')
     pmc_species = 0
     if not (pmc_custom_species is None or pmc_custom_species.lower() == 'none'):
         with open(pmc_custom_species) as f:
@@ -84,7 +116,7 @@ def parse_manual_sp_curation_files(manual_sp_names, pmc_custom_species):
                         gid, mc_species[gid], species))
                 pmc_species += 1
                 mc_species[gid] = species
-    logging.getLogger('timestamp').info(' - identified post-curation, manually-curated species names for {:,} genomes.'.format(
+    logging.getLogger('timestamp').info(' - identified post-curation, manually-curated species names for {:,} genomes'.format(
         pmc_species))
 
     return mc_species
@@ -111,7 +143,7 @@ def parse_updated_species_reps(updated_species_reps):
 def resolve_merged_prev_representatives(cur_rid, prev_genomes, updated_gtdb_rids, prev_rids_in_cluster):
     """Determine best representative to associated with new species cluster containing multiple previous representative.
 
-    This association between previous and new representatives is used 
+    This association between previous and new representatives is used
     to establish the most suitable name for a species cluster.
     """
 

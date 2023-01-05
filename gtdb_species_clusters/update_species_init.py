@@ -26,10 +26,8 @@ from gtdb_species_clusters.genomes import Genomes
 from gtdb_species_clusters.species_name_manager import SpeciesNameManager
 from gtdb_species_clusters.species_priority_manager import SpeciesPriorityManager
 from gtdb_species_clusters.ncbi_species_manager import NCBI_SpeciesManager
-from gtdb_species_clusters.genome_utils import canonical_gid
 from gtdb_species_clusters.type_genome_utils import (read_clusters,
-                                                     write_clusters,
-                                                     write_rep_radius)
+                                                     parse_gtdb_type_strain_ledger)
 from gtdb_species_clusters.taxon_utils import (generic_name,
                                                specific_epithet,
                                                canonical_taxon,
@@ -759,33 +757,6 @@ class UpdateSpeciesInit(object):
         for rid, sp in cluster_sp_names.items():
             assert cur_genomes[rid].gtdb_taxa.species == sp
 
-    def parse_gtdb_type_strain_ledger(self, gtdb_type_strains_ledger, cur_genomes):
-        """Read and validate GTDB type strain ledger."""
-
-        gtdb_type_strain_ledger = {}
-        with open(gtdb_type_strains_ledger) as f:
-            header = f.readline().strip().split('\t')
-
-            gid_index = header.index('Genome ID')
-            sp_name_index = header.index('Proposed species name')
-
-            for line in f:
-                tokens = line.strip().split('\t')
-
-                gid = canonical_gid(tokens[gid_index].strip())
-                gtdb_sp_name = tokens[sp_name_index].strip()
-                if not gtdb_sp_name.startswith('s__'):
-                    gtdb_sp_name = 's__' + gtdb_sp_name
-                gtdb_type_strain_ledger[gid] = gtdb_sp_name
-
-                # validate assignment
-                ncbi_sp = cur_genomes[gid].ncbi_taxa.species
-                if ncbi_sp != 's__' and ncbi_sp != gtdb_sp_name:
-                    self.logger.warning('GTDB type strain ledger disagrees with NCBI species assignment: {} {} {}'.format(
-                        gid, gtdb_sp_name, ncbi_sp))
-
-        return gtdb_type_strain_ledger
-
     def run(self,
             gtdb_clusters_file,
             prev_gtdb_metadata_file,
@@ -863,7 +834,7 @@ class UpdateSpeciesInit(object):
 
         # read ledger with explicit names for type strain genomes
         self.logger.info('Parsing GTDB type strain ledger.')
-        gtdb_type_strain_ledger = self.parse_gtdb_type_strain_ledger(
+        gtdb_type_strain_ledger = parse_gtdb_type_strain_ledger(
             gtdb_type_strains_ledger, cur_genomes)
         self.logger.info(
             ' - identified {:,} genomes in ledger'.format(len(gtdb_type_strain_ledger)))

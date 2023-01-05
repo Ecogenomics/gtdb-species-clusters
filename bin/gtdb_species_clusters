@@ -30,6 +30,7 @@ import logging
 import ntpath
 import os
 import sys
+import time
 
 from biolib.common import make_sure_path_exists
 
@@ -1037,6 +1038,8 @@ if __name__ == '__main__':
 
     # do what we came here to do
     try:
+        start = time.time()
+
         parser = OptionsParser()
         if(False):
             # import pstats
@@ -1050,6 +1053,12 @@ if __name__ == '__main__':
             pdb.run(parser.run(args))
         else:
             parser.run(args)
+
+        end = time.time()
+
+        elapsed_time = (end - start) / 60
+        logging.getLogger().info(f'Elapsed time (min): {elapsed_time:.1f}')
+        logging.getLogger().info('Done.')
     except SystemExit:
         print("Controlled exit resulting from an unrecoverable error or warning.")
         raise

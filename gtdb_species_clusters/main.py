@@ -79,8 +79,6 @@ class OptionsParser():
               args.cur_genome_paths,
               args.ncbi_assembly_summary_genbank)
 
-        self.logger.info('Done.')
-
     def u_qc_genomes(self, args):
         """Quality check new and updated genomes."""
 
@@ -134,8 +132,6 @@ class OptionsParser():
               args.gtdb_type_strains_ledger,
               args.untrustworthy_type_ledger)
 
-        self.logger.info('Done.')
-
     def u_update_ani_cache(self, args):
         """Update ANI cache to remove entries for updates genomes."""
 
@@ -146,8 +142,6 @@ class OptionsParser():
         p.run(args.genomes_new_updated_file,
               args.prev_ani_cache,
               args.out_ani_cache)
-
-        self.logger.info('Done.')
 
     def u_resolve_types(self, args):
         """Resolve cases where a species has multiple genomes assembled from the type strain."""
@@ -172,8 +166,6 @@ class OptionsParser():
               args.untrustworthy_type_ledger,
               args.ncbi_env_bioproject_ledger)
 
-        self.logger.info('Done.')
-
     def u_gtdbtk(self, args):
         """Perform initial classification of new and updated genomes using GTDB-Tk."""
 
@@ -185,8 +177,6 @@ class OptionsParser():
         p.run(args.genomes_new_updated_file,
               args.qc_passed_file,
               args.batch_size)
-
-        self.logger.info('Done.')
 
     def u_rep_changes(self, args):
         """Identify species representatives that have changed from previous release."""
@@ -214,8 +204,6 @@ class OptionsParser():
               args.disband_cluster_ledger,
               args.gtdb_type_strains_ledger,
               args.ncbi_env_bioproject_ledger)
-
-        self.logger.info('Done.')
 
     def u_rep_actions(self, args):
         """Perform initial actions required for changed representatives."""
@@ -252,8 +240,6 @@ class OptionsParser():
               args.ncbi_env_bioproject_ledger,
               args.lpsn_gss_file)
 
-        self.logger.info('Done.')
-
     def u_sel_reps(self, args):
         """Select representatives for all named species at NCBI."""
 
@@ -287,8 +273,6 @@ class OptionsParser():
               args.ncbi_env_bioproject_ledger,
               args.lpsn_gss_file)
 
-        self.logger.info('Done.')
-
     def u_cluster_named_reps(self, args):
         """Cluster genomes to selected GTDB representatives."""
 
@@ -320,8 +304,6 @@ class OptionsParser():
               args.gtdb_type_strains_ledger,
               args.ncbi_env_bioproject_ledger)
 
-        self.logger.info('Done.')
-
     def u_ncbi_erroneous(self, args):
         """Identify genomes with erroneous NCBI species assignments."""
 
@@ -346,8 +328,6 @@ class OptionsParser():
               args.gtdb_type_strains_ledger,
               args.ncbi_untrustworthy_sp_ledger,
               args.ncbi_env_bioproject_ledger)
-
-        self.logger.info('Done.')
 
     def u_synonyms(self, args):
         """Determine synonyms for validly or effectively published species."""
@@ -382,8 +362,6 @@ class OptionsParser():
               args.ncbi_env_bioproject_ledger,
               args.lpsn_gss_file)
 
-        self.logger.info('Done.')
-
     def u_cluster_de_novo(self, args):
         """Infer de novo species clusters and representatives for remaining genomes."""
 
@@ -413,8 +391,6 @@ class OptionsParser():
               args.gtdb_type_strains_ledger,
               args.ncbi_env_bioproject_ledger)
 
-        self.logger.info('Done.')
-
     def u_cluster_stats(self, args):
         """Summary statistics indicating changes to GTDB species cluster membership."""
 
@@ -437,8 +413,6 @@ class OptionsParser():
               args.untrustworthy_type_file,
               args.gtdb_type_strains_ledger,
               args.ncbi_env_bioproject_ledger)
-
-        self.logger.info('Done.')
 
     def u_curation_trees(self, args):
         """Produce curation trees highlighting new NCBI taxa."""
@@ -464,8 +438,6 @@ class OptionsParser():
               args.gtdb_type_strains_ledger,
               args.ncbi_untrustworthy_sp_ledger,
               args.ncbi_env_bioproject_ledger)
-
-        self.logger.info('Done.')
 
     def u_species_init(self, args):
         """Produce initial best guess at GTDB species clusters."""
@@ -502,8 +474,6 @@ class OptionsParser():
               args.ncbi_env_bioproject_ledger,
               args.lpsn_gss_file)
 
-        self.logger.info('Done.')
-
     def pmc_manual_species(self, args):
         """Identify species names manually set by curators."""
 
@@ -515,8 +485,6 @@ class OptionsParser():
         p.manual_species(args.init_taxonomy,
                          args.manually_curated_tree)
 
-        self.logger.info('Done.')
-
     def pmc_replace_generic(self, args):
         """Replace generic names with genus assignment."""
 
@@ -527,8 +495,6 @@ class OptionsParser():
         p = PMC_Checks(args.output_dir)
         p.replace_generic(args.manual_species_names,
                           args.manual_taxonomy)
-
-        self.logger.info('Done.')
 
     def pmc_check_type_species(self, args):
         """Check for agreement between GTDB genera and genomes assembled from type species of genus."""
@@ -557,8 +523,6 @@ class OptionsParser():
               args.ncbi_env_bioproject_ledger,
               args.lpsn_gss_file)
 
-        self.logger.info('Done.')
-
     def pmc_check_type_strains(self, args):
         """Check for agreement between GTDB species and genomes assembled from type strain of species."""
 
@@ -579,8 +543,6 @@ class OptionsParser():
               args.untrustworthy_type_file,
               args.gtdb_type_strains_ledger,
               args.ncbi_env_bioproject_ledger)
-
-        self.logger.info('Done.')
 
     def u_pmc_species_names(self, args):
         """Refine species names using post-manual curation rules."""
@@ -627,8 +589,6 @@ class OptionsParser():
               args.ncbi_untrustworthy_sp_ledger,
               args.ncbi_env_bioproject_ledger,
               args.lpsn_gss_file)
-
-        self.logger.info('Done.')
 
     def pmc_species_names(self, args):
         """Establish final species names based on manual curation."""
@@ -678,8 +638,6 @@ class OptionsParser():
               args.ncbi_untrustworthy_sp_ledger,
               args.ncbi_env_bioproject_ledger,
               args.lpsn_gss_file)
-
-        self.logger.info('Done.')
 
     def pmc_validate(self, args):
         """Validate final species names."""
@@ -744,8 +702,6 @@ class OptionsParser():
               args.skip_full_taxonomy_checks,
               args.skip_genus_checks)
 
-        self.logger.info('Done.')
-
     def pmc_cluster_stats(self, args):
         """Calculate final statistics for species cluster."""
 
@@ -776,8 +732,6 @@ class OptionsParser():
               args.species1,
               args.species2)
 
-        self.logger.info('Done.')
-
     def ani_sp_pair(self, args):
         """Calculate all pairwise ANI/AF values between genomes in two species."""
 
@@ -791,8 +745,6 @@ class OptionsParser():
               args.genome_path_file,
               args.species1,
               args.species2)
-
-        self.logger.info('Done.')
 
     def intra_sp_derep(self, args):
         """Dereplicate GTDB species clusters using ANI/AF criteria."""
@@ -811,8 +763,6 @@ class OptionsParser():
         p.run(args.gtdb_metadata_file,
               args.genomic_path_file)
 
-        self.logger.info('Done.')
-
     def intra_genus_ani(self, args):
         """Calculate intra-genus ANI/AF values between GTDB representative genomes."""
 
@@ -829,8 +779,6 @@ class OptionsParser():
               args.gtdb_metadata_file,
               args.genomic_path_file)
 
-        self.logger.info('Done.')
-
     def ani_af_reps(self, args):
         """Calculate ANI/AF betwenn GTDB representative genomes with the same genus."""
 
@@ -845,8 +793,6 @@ class OptionsParser():
 
         p.run(args.gtdb_metadata_file,
               args.genomic_path_file)
-
-        self.logger.info('Done.')
 
     def type_status(self, args):
         """Report information related to a genome being type material."""
@@ -866,8 +812,6 @@ class OptionsParser():
                       args.gtdb_type_strains_ledger,
                       args.ncbi_env_bioproject_ledger,
                       args.genome_ids)
-
-        self.logger.info('Done.')
 
     def rep_compare(self, args):
         """Compare current and previous representatives."""
@@ -1006,8 +950,6 @@ class OptionsParser():
               args.genus_priority_ledger,
               args.ncbi_env_bioproject_ledger,
               args.lpsn_gss_file)
-
-        self.logger.info('Done.')
 
     def run(self, args):
         """Parse user arguments and call the correct pipeline(s)"""

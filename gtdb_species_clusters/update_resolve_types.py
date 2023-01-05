@@ -37,7 +37,8 @@ class ResolveTypes():
     def __init__(self, ani_cache_file, cpus, output_dir):
         """Initialization."""
 
-        self.ltp_dir = 'rna_ltp_132'
+        # ToDo: read path from global GTDB release config file
+        self.ltp_dir = 'rna_ltp_01_2022'
         self.ltp_results_file = 'ssu.taxonomy.tsv'
         self.LTP_METADATA = namedtuple(
             'LTP_METADATA', 'taxonomy taxa species ssu_len evalue bitscore aln_len perc_iden perc_aln')
@@ -62,6 +63,10 @@ class ResolveTypes():
 
         if ';type sp.|' in ltp_taxonomy_str:
             taxa = ltp_taxonomy_str.split(';type sp.|')[0].split(';')
+        elif ';type sp. |' in ltp_taxonomy_str:
+            taxa = ltp_taxonomy_str.split(';type sp. |')[0].split(';')
+        elif ';type sp|' in ltp_taxonomy_str:
+            taxa = ltp_taxonomy_str.split(';type sp|')[0].split(';')
         elif ';|' in ltp_taxonomy_str:
             taxa = ltp_taxonomy_str.split(';|')[0].split(';')
         elif '|' in ltp_taxonomy_str:
@@ -71,7 +76,7 @@ class ResolveTypes():
         else:
             taxa = ltp_taxonomy_str.split(';')
 
-        sp = taxa[-1]
+        sp = taxa[-1].replace('"', '')
         if ' subsp. ' in sp:
             sp = ' '.join(sp.split()[0:2])
 

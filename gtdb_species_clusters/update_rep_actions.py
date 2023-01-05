@@ -493,7 +493,7 @@ class RepActions():
         """Check if representative considered to have an anomalous assembly at NCBI should be replaced."""
 
         # get genomes with specific changes
-        self.logger.info('Identifying genomes marked as problematic as NCBI:')
+        self.logger.info('Identifying genomes marked as problematic at NCBI:')
         ncbi_problematic_rids = self.rep_change_gids(rep_change_summary_file,
                                                      'NCBI_ASSEMBLY_QUALITY',
                                                      'NCBI_ANOMALOUS_ASSEMBLY')
@@ -530,7 +530,8 @@ class RepActions():
             # have been updated by a previous update rule
             prev_updated_rid = self.get_updated_rid(prev_rid)
             if prev_updated_rid is None:
-                self.logger.error("Returned 'None' as updated representative: {prev_rid}")
+                self.logger.error(
+                    "Returned 'None' as updated representative: {prev_rid}")
                 sys.exit(-1)
 
             prev_rep_score = cur_genomes[prev_rid].score_ani(100)
@@ -767,7 +768,7 @@ class RepActions():
         for prev_rid in prev_genomes.sp_clusters:
             if prev_rid in disbanded_rids:
                 continue
-                
+
             # get type strain genomes in GTDB species cluster, including genomes new to this release
             type_strain_gids = [gid for gid in prev_genomes.sp_clusters[prev_rid]
                                 if gid in cur_genomes and cur_genomes[gid].is_effective_type_strain()]

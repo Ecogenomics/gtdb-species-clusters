@@ -44,8 +44,8 @@ from gtdb_species_clusters.taxon_utils import (generic_name,
                                                sort_by_naming_priority,
                                                is_latin_sp_epithet,
                                                is_placeholder_sp_epithet,
-                                               test_same_epithet,
-                                               longest_common_suffix)
+                                               test_same_epithet)
+from gtdb_species_clusters.type_genome_utils import parse_gtdb_type_strain_ledger
 
 
 class PMC_SpeciesNames(object):
@@ -649,35 +649,6 @@ class PMC_SpeciesNames(object):
 
         return final_taxonomy
 
-    def parse_gtdb_type_strain_ledger(self, gtdb_type_strains_ledger, cur_genomes):
-        """Read and validate GTDB type strain ledger."""
-
-        gtdb_type_strain_ledger = {}
-        with open(gtdb_type_strains_ledger) as f:
-            header = f.readline().strip().split('\t')
-
-            gid_index = header.index('Genome ID')
-            sp_name_index = header.index('Proposed species name')
-
-            for line in f:
-                tokens = line.strip().split('\t')
-
-                gid = canonical_gid(tokens[gid_index].strip())
-                gtdb_sp_name = tokens[sp_name_index].strip()
-                if not gtdb_sp_name.startswith('s__'):
-                    gtdb_sp_name = 's__' + gtdb_sp_name
-                gtdb_type_strain_ledger[gid] = gtdb_sp_name
-
-                # validate assignment
-                ncbi_sp = cur_genomes[gid].ncbi_taxa.species
-                if ncbi_sp != 's__' and ncbi_sp != gtdb_sp_name:
-                    self.logger.warning('GTDB type strain ledger disagrees with NCBI species assignment: {} {} {}'.format(
-                        gid,
-                        gtdb_sp_name,
-                        ncbi_sp))
-
-        return gtdb_type_strain_ledger
-
     def classify_ncbi_species(self,
                               ncbi_species_mngr,
                               ncbi_synonyms,
@@ -706,20 +677,20 @@ class PMC_SpeciesNames(object):
             unambiguous_majority_vote_count == len(unambiguous_ncbi_sp)
 
         self.logger.info(
-            ' - identified {:,} NCBI species.'.format(len(ncbi_species)))
-        self.logger.info(' - resolved {:,} ({:.2f}%) of species names.'.format(
+            ' - identified {:,} NCBI species'.format(len(ncbi_species)))
+        self.logger.info(' - resolved {:,} ({:.2f}%) of species names'.format(
             len(unambiguous_ncbi_sp),
             len(unambiguous_ncbi_sp) * 100.0 / len(ncbi_species)))
-        self.logger.info('   - assigned {:,} ({:.2f}%) by type strain genome.'.format(
+        self.logger.info('   - assigned {:,} ({:.2f}%) by type strain genome'.format(
             unambiguous_type_strain_count,
             unambiguous_type_strain_count * 100.0 / len(ncbi_species)))
-        self.logger.info('   - assigned {:,} ({:.2f}%) by majority vote.'.format(
+        self.logger.info('   - assigned {:,} ({:.2f}%) by majority vote'.format(
             unambiguous_majority_vote_count,
             unambiguous_majority_vote_count * 100.0 / len(ncbi_species)))
-        self.logger.info(' - identified {:,} ({:.2f}%) as ambiguous assignments.'.format(
+        self.logger.info(' - identified {:,} ({:.2f}%) as ambiguous assignments'.format(
             len(ambiguous_ncbi_sp),
             len(ambiguous_ncbi_sp) * 100.0 / len(ncbi_species)))
-        self.logger.info(' - identified {:,} ({:.2f}%) as GTDB synonyms.'.format(
+        self.logger.info(' - identified {:,} ({:.2f}%) as GTDB synonyms'.format(
             len(ncbi_synonyms),
             len(ncbi_synonyms) * 100.0 / len(ncbi_species)))
 
@@ -748,17 +719,17 @@ class PMC_SpeciesNames(object):
             unambiguous_majority_vote_count == len(unambiguous_ncbi_subsp)
 
         self.logger.info(
-            ' - identified {:,} NCBI subspecies.'.format(len(ncbi_subspecies)))
-        self.logger.info(' - resolved {:,} ({:.2f}%) of species names.'.format(
+            ' - identified {:,} NCBI subspecies'.format(len(ncbi_subspecies)))
+        self.logger.info(' - resolved {:,} ({:.2f}%) of species names'.format(
             len(unambiguous_ncbi_subsp),
             len(unambiguous_ncbi_subsp) * 100.0 / len(ncbi_subspecies)))
-        self.logger.info('   - assigned {:,} ({:.2f}%) by type strain genome.'.format(
+        self.logger.info('   - assigned {:,} ({:.2f}%) by type strain genome'.format(
             unambiguous_type_strain_count,
             unambiguous_type_strain_count * 100.0 / len(ncbi_subspecies)))
-        self.logger.info('   - assigned {:,} ({:.2f}%) by majority vote.'.format(
+        self.logger.info('   - assigned {:,} ({:.2f}%) by majority vote'.format(
             unambiguous_majority_vote_count,
             unambiguous_majority_vote_count * 100.0 / len(ncbi_subspecies)))
-        self.logger.info(' - identified {:,} ({:.2f}%) as ambiguous assignments.'.format(
+        self.logger.info(' - identified {:,} ({:.2f}%) as ambiguous assignments'.format(
             len(ambiguous_ncbi_subsp),
             len(ambiguous_ncbi_subsp) * 100.0 / len(ncbi_subspecies)))
 
@@ -972,9 +943,9 @@ class PMC_SpeciesNames(object):
         """Finalize species names based on results of manual curation."""
 
         # read manually-curated taxonomy
-        self.logger.info('Parsing manually-curated taxonomy.')
+        self.logger.info('Parsing manually-curated taxonomy:')
         mc_taxonomy = Taxonomy().read(manual_taxonomy, use_canonical_gid=True)
-        self.logger.info(' - identified taxonomy strings for {:,} genomes.'.format(
+        self.logger.info(' - identified taxonomy strings for {:,} genomes'.format(
             len(mc_taxonomy)))
 
         # read species names explicitly set via manual curation
@@ -994,7 +965,7 @@ class PMC_SpeciesNames(object):
                     sys.exit(-1)
 
         # create previous and current GTDB genome sets
-        self.logger.info('Creating previous GTDB genome set.')
+        self.logger.info('Creating previous GTDB genome set:')
         prev_genomes = Genomes()
         prev_genomes.load_from_metadata_file(prev_gtdb_metadata_file,
                                              gtdb_type_strains_ledger=gtdb_type_strains_ledger,
@@ -1002,11 +973,11 @@ class PMC_SpeciesNames(object):
                                              untrustworthy_type_ledger=untrustworthy_type_file,
                                              ncbi_untrustworthy_sp_ledger=ncbi_untrustworthy_sp_ledger,
                                              ncbi_env_bioproject_ledger=ncbi_env_bioproject_ledger)
-        self.logger.info(' - previous genome set has {:,} species clusters spanning {:,} genomes.'.format(
+        self.logger.info(' - previous genome set has {:,} species clusters spanning {:,} genomes'.format(
             len(prev_genomes.sp_clusters),
             prev_genomes.sp_clusters.total_num_genomes()))
 
-        self.logger.info('Creating current GTDB genome set.')
+        self.logger.info('Creating current GTDB genome set:')
         cur_genomes = Genomes()
         cur_genomes.load_from_metadata_file(cur_gtdb_metadata_file,
                                             gtdb_type_strains_ledger=gtdb_type_strains_ledger,
@@ -1017,17 +988,17 @@ class PMC_SpeciesNames(object):
                                             ncbi_untrustworthy_sp_ledger=ncbi_untrustworthy_sp_ledger,
                                             ncbi_env_bioproject_ledger=ncbi_env_bioproject_ledger)
         self.logger.info(
-            f' - current genome set contains {len(cur_genomes):,} genomes.')
+            f' - current genome set contains {len(cur_genomes):,} genomes')
 
         cur_genomes.set_prev_gtdb_classifications(prev_genomes)
 
         # read ledger with explicit names for type strain genomes
         self.logger.info(
-            'Validating species names given in GTDB type strain ledger.')
-        gtdb_type_strain_ledger = self.parse_gtdb_type_strain_ledger(
+            'Validating species names given in GTDB type strain ledger:')
+        gtdb_type_strain_ledger = parse_gtdb_type_strain_ledger(
             gtdb_type_strains_ledger, cur_genomes)
         self.logger.info(
-            ' - identified {:,} genomes in ledger.'.format(len(gtdb_type_strain_ledger)))
+            ' - identified {:,} genomes in ledger'.format(len(gtdb_type_strain_ledger)))
         for gid in gtdb_type_strain_ledger:
             if gid not in mc_taxonomy:
                 continue
@@ -1041,9 +1012,9 @@ class PMC_SpeciesNames(object):
                     ledger_sp))
 
         # read named GTDB species clusters
-        self.logger.info('Reading GTDB species clusters.')
+        self.logger.info('Reading GTDB species clusters:')
         cur_clusters, _rep_radius = read_clusters(gtdb_clusters_file)
-        self.logger.info(' - identified {:,} clusters spanning {:,} genomes.'.format(
+        self.logger.info(' - identified {:,} clusters spanning {:,} genomes'.format(
             len(cur_clusters),
             sum([len(gids) + 1 for gids in cur_clusters.values()])))
         assert len(set(mc_taxonomy) - set(cur_clusters)) == 0
@@ -1082,16 +1053,16 @@ class PMC_SpeciesNames(object):
         self.forbidden_specific_names = ncbi_species_mngr.forbidden_specific_names
 
         # get list of synonyms in order to restrict usage of species names
-        self.logger.info('Reading GTDB synonyms.')
+        self.logger.info('Reading GTDB synonyms:')
         ncbi_synonyms = ncbi_species_mngr.parse_synonyms_table(
             ncbi_synonym_file)
-        self.logger.info(' - identified {:,} synonyms from {:,} distinct species.'.format(
+        self.logger.info(' - identified {:,} synonyms from {:,} distinct species'.format(
             len(ncbi_synonyms),
             len(set(ncbi_synonyms.values()))))
 
         # identified genomes with misclassified species assignments at NCBI
         self.logger.info(
-            'Identify genomes with misclassified NCBI species assignments.')
+            'Identify genomes with misclassified NCBI species assignments')
         ncbi_misclassified_gids = ncbi_species_mngr.parse_ncbi_misclassified_table(
             ncbi_misclassified_file)
         self.logger.info(' - identified {:,} genomes with erroneous NCBI species assignments'.format(
@@ -1100,7 +1071,7 @@ class PMC_SpeciesNames(object):
         # classify each Latin NCBI species as either unambiguously or ambiguously assigned
         self.logger.info(
             'Classifying NCBI species as unambiguous, ambiguous, or synonym.')
-        ncbi_species, unambiguous_ncbi_sp, ambiguous_ncbi_sp = self.classify_ncbi_species(
+        _ncbi_species, unambiguous_ncbi_sp, ambiguous_ncbi_sp = self.classify_ncbi_species(
             ncbi_species_mngr,
             ncbi_synonyms,
             ncbi_misclassified_gids)
@@ -1118,14 +1089,14 @@ class PMC_SpeciesNames(object):
         # associated with each species clusters and the generation or loss of
         # a representative
         self.logger.info(
-            'Mapping current GTDB representatives to previous representatives.')
+            'Mapping current GTDB representatives to previous representatives:')
         updated_gtdb_rids = parse_updated_species_reps(updated_species_reps)
         new_to_prev_rid = infer_prev_gtdb_reps(
             prev_genomes,
             cur_clusters,
             updated_gtdb_rids)
         self.logger.info(
-            ' - mapped {:,} current representatives to previous representatives.'.format(len(new_to_prev_rid)))
+            ' - mapped {:,} current representatives to previous representatives'.format(len(new_to_prev_rid)))
 
         # establish appropriate species names for GTDB clusters with new representatives
         final_taxonomy = self.finalize_species_names(mc_taxonomy,

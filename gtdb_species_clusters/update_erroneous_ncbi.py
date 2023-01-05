@@ -59,6 +59,7 @@ class UpdateErroneousNCBI():
 
         # get NCBI species anchored by a type strain genome
         ncbi_type_anchored_species = {}
+        unresolved_type_strains = False
         for rid, cids in cur_clusters.items():
             for cid in cids:
                 if cur_genomes[cid].is_effective_type_strain():
@@ -69,9 +70,14 @@ class UpdateErroneousNCBI():
                                 and rid != ncbi_type_anchored_species[ncbi_type_species]):
                             self.logger.error('NCBI species {} has multiple effective type strain genomes in different clusters.'.format(
                                 ncbi_type_species))
-                            sys.exit(-1)
+                            unresolved_type_strains = True
 
                         ncbi_type_anchored_species[ncbi_type_species] = rid
+
+        if unresolved_type_strains:
+            self.logger.error(
+                'The unresolved type strains listed above must be resolved.')
+
         self.logger.info(' - identified {:,} NCBI species anchored by a type strain genome'.format(
             len(ncbi_type_anchored_species)))
 

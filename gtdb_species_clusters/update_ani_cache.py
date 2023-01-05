@@ -17,6 +17,7 @@
 
 import logging
 
+
 class Update_ANI_Cache():
     """Update ANI cache to remove entries for updates genomes."""
 
@@ -73,5 +74,5 @@ class Update_ANI_Cache():
 
         fout.close()
 
-        self.logger.info(f' - filtered {filtered_rows:,} rows and retained {retained_rows:,} rows')
-                
+        self.logger.info(
+            f' - filtered {filtered_rows:,} rows and retained {retained_rows:,} rows')

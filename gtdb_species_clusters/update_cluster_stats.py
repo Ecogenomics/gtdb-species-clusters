@@ -233,10 +233,9 @@ class UpdateClusterStats(object):
             rep_status = 'NEW'
             new_cluster_count += 1
 
-            fout.write('{}\t{}\t{}\t{}\t{}'.format(
-                'n/a',
-                'n/a',
+            fout.write('{}\t{}\t{}\t{}'.format(
                 new_rid,
+                'n/a',
                 new_gtdb_sp,
                 rep_status))
 

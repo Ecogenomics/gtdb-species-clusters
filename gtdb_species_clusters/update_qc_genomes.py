@@ -56,7 +56,7 @@ class QcGenomes():
 
         return marker_perc
 
-    def check_domain_assignments(self, gtdb_domain_report, passed_qc_gids):
+    def check_domain_assignments(self, gtdb_domain_report, passed_qc_gids, cur_genomes):
         """Check GTDB domain assignment."""
 
         with open(gtdb_domain_report, encoding='utf-8') as f:
@@ -83,14 +83,16 @@ class QcGenomes():
                 gtdb_domain = [t.strip()
                                for t in line_split[gtdb_taxonomy_index].split(';')][0]
 
-                if not gid.startswith('U'):
-                    if ncbi_domain != gtdb_domain and ncbi_domain != 'None':
-                        self.logger.warning(
-                            f'NCBI ({ncbi_domain}) and GTDB ({gtdb_domain}) domains disagree in domain report (Bac = {bac_perc:.1f}%; Ar = {ar_perc:.1f}%) [ENSURE GTDB DOMAIN IS CORRECT]: {gid}')
-
-                    if domain != gtdb_domain and domain != 'None':
+                if ncbi_domain != gtdb_domain and ncbi_domain != 'None':
+                    self.logger.info(
+                        f'NCBI ({ncbi_domain}) and GTDB ({gtdb_domain}) domains disagree in domain report (Bac = {bac_perc:.1f}%; Ar = {ar_perc:.1f}%): {gid}')
+                    if cur_genomes[gid].gtdb_taxa.domain != gtdb_domain:
                         self.logger.error(
-                            f'GTDB and predicted domain (Bac = {bac_perc:.1f}%; Ar = {ar_perc:.1f}%) disagree in domain report: {gid} [THIS MUST BE FIXED BEFORE PROCEEDING].')
+                            f'GTDB ({gtdb_domain}) domains in domain report differs from domain in GTDB taxonomy string ({cur_genomes[gid].gtdb_taxa.domain}): {gid} [THIS MUST BE FIXED BEFORE PROCEEDING]')
+
+                if domain != gtdb_domain and domain != 'None':
+                    self.logger.error(
+                        f'GTDB and predicted domain (Bac = {bac_perc:.1f}%; Ar = {ar_perc:.1f}%) disagree in domain report: {gid} [THIS MUST BE FIXED BEFORE PROCEEDING]')
 
     def parse_qc_exception_file(self, qc_exception_file):
         """Parse file indicating genomes flagged as exceptions from QC."""
@@ -474,7 +476,8 @@ class QcGenomes():
         # check domain assignment of genomes passing QC
         # and report potential issues
         self.check_domain_assignments(gtdb_domain_report,
-                                      passed_qc_gids)
+                                      passed_qc_gids,
+                                      cur_genomes)
 
         # report results of QC on genomes from each NCBI species
         self.check_qc_of_ncbi_species(
@@ -495,6 +498,10 @@ class QcGenomes():
         # sanity check QC results by identifying any genomes that passed QC last release, but
         # have now been flagged as failing QC. This should rarely, if ever, happen unless the
         # genomic data of the assembly has been updated.
+        fout = open(os.path.join(self.output_dir,
+                                 'previously_passed_qc.tsv'), 'w')
+        fout.write(
+            'Accession\tGTDB taxonomy\tGTDB species representative\tMarker gene (%)\n')
         unexpected_qc_fail = []
         for gid in prev_genomes:
             if gid in cur_genomes:
@@ -504,6 +511,10 @@ class QcGenomes():
 
                 if gid in failed_qc_gids:
                     unexpected_qc_fail.append(gid)
+                    fout.write(
+                        f"{gid}\t{cur_genomes[gid].gtdb_taxa}\t{cur_genomes[gid].is_gtdb_sp_rep()}\t{marker_perc[gid]:.1f}\n")
+
+        fout.close()
 
         if len(unexpected_qc_fail) > 0:
             self.logger.warning('Identified {:,} genomes that passed QC in previous GTDB release, that failed QC in this release.'.format(
