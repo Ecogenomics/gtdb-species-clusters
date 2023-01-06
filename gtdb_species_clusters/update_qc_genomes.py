@@ -18,26 +18,58 @@
 import os
 import logging
 from collections import defaultdict
+from dataclasses import dataclass
+from typing import Dict, Set, Tuple
 
 from gtdblib.util.bio.accession import canonical_gid
 
 from gtdb_species_clusters.genome_utils import exclude_from_refseq
-
 from gtdb_species_clusters.genomes import Genomes
 from gtdb_species_clusters.genome_utils import same_assembly_version
+
+
+@dataclass
+class QcCriteria:
+    """Criteria for passing QC.
+
+    :param min_comp: Minimum estimated genome completeness to pass QC.
+    :param max_cont: Maximum estimated genome contamination to pass QC.
+    :param min_quality: Minimum estimated genome quality to pass QC, defined as completeness - 5*contamination.
+    :param sh_exception: Minimum strain heterogenity to retain genomes with upto 20% contamination.
+    :param min_perc_markers: Minimum per4centage of marker genes to pass QC.
+    :param max_contigs: Maximum number of contigs to pass QC.
+    :param min_N50: Minimum N50 to pass QC.
+    :param max_ambiguous: Maximum number of ambiguous bases to pass QC.
+    """
+    min_comp: float
+    max_cont: float
+    min_quality: float
+    sh_exception: float
+    min_perc_markers: float
+    max_contigs: int
+    min_N50: int
+    max_ambiguous: int
 
 
 class QcGenomes():
     """Quality check all potential GTDB genomes."""
 
-    def __init__(self, output_dir):
-        """Initialization."""
+    def __init__(self, output_dir: str):
+        """Initialization.
+
+        :param output_dir: Output directory.
+        """
 
         self.output_dir = output_dir
-        self.log = logging.getLogger('timestamp')
+        self.log = logging.getLogger('rich')
 
-    def parse_marker_percentages(self, gtdb_domain_report):
-        """Parse percentage of marker genes for each genome."""
+    def parse_marker_percentages(self, gtdb_domain_report: str) -> Dict[str, float]:
+        """Parse percentage of marker genes for each genome.
+
+        :param gtdb_domain_report: File indicating percent of bac120 and ar53 gene sets identified in each genome.
+
+        :return: Percent of bac120 or ar53 markers, whichever is larger, identified in each genome.
+        """
 
         marker_perc = {}
         with open(gtdb_domain_report, encoding='utf-8') as f:
@@ -47,18 +79,31 @@ class QcGenomes():
             ar_marker_perc_index = header.index('Ar53 Markers (%)')
 
             for line in f:
-                line_split = line.strip().split('\t')
+                tokens = line.strip().split('\t')
 
-                gid = canonical_gid(line_split[0])
-                bac_perc = float(line_split[bac_marker_perc_index])
-                ar_perc = float(line_split[ar_marker_perc_index])
+                gid = canonical_gid(tokens[0])
+                bac_perc = float(tokens[bac_marker_perc_index])
+                ar_perc = float(tokens[ar_marker_perc_index])
 
                 marker_perc[gid] = max(bac_perc, ar_perc)
 
         return marker_perc
 
-    def check_domain_assignments(self, gtdb_domain_report, passed_qc_gids, cur_genomes):
-        """Check GTDB domain assignment."""
+    def check_domain_assignments(self, gtdb_domain_report: str, passed_qc_gids: Set[str], cur_genomes: Genomes) -> None:
+        """Check GTDB domain assignments and report incongruencies and errors.
+
+        This check is performed as we have previously observed genomes at NCBI that
+        are classified to the incorrect domain (e.g. a bacterium classified as Archaea).
+        Genomes should have a GTDB domain assignment that is congruent with the domain marker
+        set with the largest percentage of identified genes. This GTDB domain assignment is
+        handled by the GTDB database codebase, but was previously observed to be in error so we
+        now do an explicit check for this case and report instances where the NCBI and GTDB
+        domain assignments are in conflict so this can be manually inspected.
+
+        :param gtdb_domain_report: File indicating percent of bac120 and ar53 gene sets identified in each genome.
+        :param passed_qc_gids: Identifier of genomes passing QC criteria.
+        :param cur_genomes: Metadata for genomes in the current GTDB release.
+        """
 
         with open(gtdb_domain_report, encoding='utf-8') as f:
             header = f.readline().rstrip().split('\t')
@@ -70,19 +115,19 @@ class QcGenomes():
             gtdb_taxonomy_index = header.index('GTDB taxonomy')
 
             for line in f:
-                line_split = line.strip().split('\t')
+                tokens = line.strip().split('\t')
 
-                gid = canonical_gid(line_split[0])
+                gid = canonical_gid(tokens[0])
                 if gid not in passed_qc_gids:
                     continue
 
-                domain = line_split[domain_index]
-                bac_perc = float(line_split[bac_marker_perc_index])
-                ar_perc = float(line_split[ar_marker_perc_index])
+                domain = tokens[domain_index]
+                bac_perc = float(tokens[bac_marker_perc_index])
+                ar_perc = float(tokens[ar_marker_perc_index])
                 ncbi_domain = [t.strip()
-                               for t in line_split[ncbi_taxonomy_index].split(';')][0]
+                               for t in tokens[ncbi_taxonomy_index].split(';')][0]
                 gtdb_domain = [t.strip()
-                               for t in line_split[gtdb_taxonomy_index].split(';')][0]
+                               for t in tokens[gtdb_taxonomy_index].split(';')][0]
 
                 if ncbi_domain != gtdb_domain and ncbi_domain != 'None':
                     self.log.info(
@@ -95,8 +140,17 @@ class QcGenomes():
                     self.log.error(
                         f'GTDB and predicted domain (Bac = {bac_perc:.1f}%; Ar = {ar_perc:.1f}%) disagree in domain report: {gid} [THIS MUST BE FIXED BEFORE PROCEEDING]')
 
-    def parse_qc_exception_file(self, qc_exception_file):
-        """Parse file indicating genomes flagged as exceptions from QC."""
+    def parse_qc_exception_file(self, qc_exception_file: str) -> Tuple[Set[str], Set[str]]:
+        """Parse file indicating genomes flagged as exceptions from QC.
+
+        A small number of genomes with nomenclatural importance that would otherwise
+        fail QC criteria are maintained. We have also identified a small set of genomes
+        that pass our QC criteria, but have been identified as problematic using other
+        means so are explicitly flagged as needing to be filtered.
+
+        :param qc_exception_file: File indicating genomes that should pass or fail QC irrespective of QC criteria.
+        :return: Sets indicating genomes that must be retained or filtered.
+        """
 
         retain_exceptions = set()
         filter_exceptions = set()
@@ -118,20 +172,28 @@ class QcGenomes():
         return retain_exceptions, filter_exceptions
 
     def qc_genomes(self,
-                   cur_genomes,
-                   marker_perc,
-                   retain_exceptions,
-                   filter_exceptions,
-                   excluded_from_refseq_note,
-                   min_comp,
-                   max_cont,
-                   min_quality,
-                   sh_exception,
-                   min_perc_markers,
-                   max_contigs,
-                   min_N50,
-                   max_ambiguous):
-        """Apply quality-control to all genomes."""
+                   cur_genomes: Genomes,
+                   marker_perc: float,
+                   retain_exceptions: Set[str],
+                   filter_exceptions: Set[str],
+                   excluded_from_refseq_note: Dict[str, str],
+                   qc_criteria: QcCriteria) -> Tuple[Set[str], Set[str]]:
+        """Apply QC criteria to all genomes and report genomes passing or failing QC.
+
+        The QC criteria is straight forward except for the use of the CheckM
+        strain heterogeneity estimate which is used to relax the contamination
+        requirement to 20%. Use of this exception should be revisited and perhaps
+        the small number of genomes impacted by this criteria simply explicitly
+        marked as exceptions to QC.
+
+        :param cur_genomes: Metadata for genomes in the current GTDB release.
+        :param marker_perc: Percent of bac120 or ar53 markers, whichever is larger, identified in each genome.
+        :param retain_exceptions: Genomes to retain regardless of QC criteria.
+        :param filter_expections: Genomes to filter regardless of QC criteria.
+        :param excluded_from_refseq_note: Notes about genomes provided in NCBI RefSeq database.
+        :param qc_criteria: Criteria for passing QC.
+        :return: Sets indicating genomes that pass or fail QC.
+        """
 
         fout_passed = open(os.path.join(self.output_dir, 'qc_passed.tsv'), 'w')
         fout_failed = open(os.path.join(self.output_dir, 'qc_failed.tsv'), 'w')
@@ -155,14 +217,7 @@ class QcGenomes():
         for gid in cur_genomes:
             failed_tests = defaultdict(int)
             passed_qc = cur_genomes[gid].pass_qc(marker_perc[gid],
-                                                 min_comp,
-                                                 max_cont,
-                                                 min_quality,
-                                                 sh_exception,
-                                                 min_perc_markers,
-                                                 max_contigs,
-                                                 min_N50,
-                                                 max_ambiguous,
+                                                 qc_criteria,
                                                  failed_tests)
 
             if (passed_qc or gid in retain_exceptions) and gid not in filter_exceptions:
@@ -217,28 +272,27 @@ class QcGenomes():
         return passed_qc_gids, failed_qc_gids
 
     def check_qc_of_ncbi_species(self,
-                                 cur_genomes,
-                                 marker_perc,
-                                 retain_exceptions,
-                                 filter_exceptions,
-                                 excluded_from_refseq_note,
-                                 min_comp,
-                                 max_cont,
-                                 min_quality,
-                                 sh_exception,
-                                 min_perc_markers,
-                                 max_contigs,
-                                 min_N50,
-                                 max_ambiguous):
-        """Report impact of QC filtering on NCBI species."""
+                                 cur_genomes: Genomes,
+                                 marker_perc: float,
+                                 retain_exceptions: Set[str],
+                                 filter_exceptions: Set[str],
+                                 excluded_from_refseq_note: Dict[str, str],
+                                 qc_criteria: QcCriteria) -> None:
+        """Report impact of QC filtering on NCBI species.
 
-        # These files can be inspected to determine species where
-        # all avaliable genomes assemblies have been filtered, and
-        # why they were filtered. These are good candidated for
-        # having a genome selected that is an exception to QC, but
-        # this must be balanced with ensuring assemblies are of
-        # sufficient quality as to not negatively impact tree
-        # inference.
+        Produces files that can be inspected to determine species where
+        all avaliable genomes assemblies have been filtered and why they
+        were filtered. These are good candidated for having a genome selected
+        that is an exception to QC, but this must be balanced with ensuring assemblies
+        are of sufficient quality as to not negatively impact tree inference.
+
+        :param cur_genomes: Metadata for genomes in the current GTDB release.
+        :param marker_perc: Percent of bac120 or ar53 markers, whichever is larger, identified in each genome.
+        :param retain_exceptions: Genomes to retain regardless of QC criteria.
+        :param filter_expections: Genomes to filter regardless of QC criteria.
+        :param excluded_from_refseq_note: Notes about genomes provided in NCBI RefSeq database.
+        :param qc_criteria: Criteria for passing QC.
+        """
 
         named_ncbi_species = cur_genomes.named_ncbi_species()
         self.log.info(
@@ -289,14 +343,7 @@ class QcGenomes():
             for gid in gids:
                 failed_tests = defaultdict(int)
                 passed_qc = cur_genomes[gid].pass_qc(marker_perc[gid],
-                                                     min_comp,
-                                                     max_cont,
-                                                     min_quality,
-                                                     sh_exception,
-                                                     min_perc_markers,
-                                                     max_contigs,
-                                                     min_N50,
-                                                     max_ambiguous,
+                                                     qc_criteria,
                                                      failed_tests)
 
                 failed_tests_gids[gid] = failed_tests
@@ -402,22 +449,25 @@ class QcGenomes():
             self.log.info(f'{test}: {failed_tests_cumulative[test]:,}')
 
     def run(self,
-            prev_gtdb_metadata_file,
-            cur_gtdb_metadata_file,
-            ncbi_genbank_assembly_file,
-            gtdb_domain_report,
-            gtdb_type_strains_ledger,
-            qc_exception_file,
-            ncbi_env_bioproject_ledger,
-            min_comp,
-            max_cont,
-            min_quality,
-            sh_exception,
-            min_perc_markers,
-            max_contigs,
-            min_N50,
-            max_ambiguous):
-        """Quality check all potential GTDB genomes."""
+            prev_gtdb_metadata_file: str,
+            cur_gtdb_metadata_file: str,
+            ncbi_genbank_assembly_file: str,
+            gtdb_domain_report: str,
+            gtdb_type_strains_ledger: str,
+            qc_exception_file: str,
+            ncbi_env_bioproject_ledger: str,
+            qc_criteria: QcCriteria) -> None:
+        """Quality check genomes being considered for GTDB.
+
+        :param prev_gtdb_metadata_file: File with metadata for genomes in previous GTDB release.
+        :param cur_gtdb_metadata_file: File with metadata for genomes in current GTDB release.
+        :param ncbi_genbank_assembly_file: File from NCBI with metadata for GenBank assemblies.
+        :param gtdb_domain_report: File indicating percent of bac120 and ar53 gene sets identified in each genome.
+        :param gtdb_type_strains_ledger: File indicating genomes that should be considered the type strain of a species.
+        :param qc_exception_file: File indicating genomes that should fail or pass QC irrespective of the QC criteria.
+        :param ncbi_env_bioproject_ledger: File indicating genome that should be considered MAGs.
+        :param qc_criteria: Criteria for passing QC.
+        """
 
         # create previous and current GTDB genome sets
         self.log.info('Creating previous GTDB genome set:')
@@ -465,14 +515,7 @@ class QcGenomes():
             retain_exceptions,
             filter_exceptions,
             excluded_from_refseq_note,
-            min_comp,
-            max_cont,
-            min_quality,
-            sh_exception,
-            min_perc_markers,
-            max_contigs,
-            min_N50,
-            max_ambiguous)
+            qc_criteria)
 
         # check domain assignment of genomes passing QC
         # and report potential issues
@@ -487,14 +530,7 @@ class QcGenomes():
             retain_exceptions,
             filter_exceptions,
             excluded_from_refseq_note,
-            min_comp,
-            max_cont,
-            min_quality,
-            sh_exception,
-            min_perc_markers,
-            max_contigs,
-            min_N50,
-            max_ambiguous)
+            qc_criteria)
 
         # sanity check QC results by identifying any genomes that passed QC last release, but
         # have now been flagged as failing QC. This should rarely, if ever, happen unless the

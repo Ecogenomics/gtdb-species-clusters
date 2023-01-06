@@ -22,7 +22,7 @@ import logging
 from biolib.common import check_file_exists, make_sure_path_exists
 
 from gtdb_species_clusters.update_new_genomes import NewGenomes
-from gtdb_species_clusters.update_qc_genomes import QcGenomes
+from gtdb_species_clusters.update_qc_genomes import QcGenomes, QcCriteria
 from gtdb_species_clusters.update_lpsn_ssu_types import LPSN_SSU_Types
 from gtdb_species_clusters.update_ani_cache import Update_ANI_Cache
 from gtdb_species_clusters.update_resolve_types import ResolveTypes
@@ -91,6 +91,16 @@ class OptionsParser():
         check_file_exists(args.ncbi_env_bioproject_ledger)
         make_sure_path_exists(args.output_dir)
 
+        qc_criteria = QcCriteria(
+            args.min_comp,
+            args.max_cont,
+            args.min_quality,
+            args.sh_exception,
+            args.min_perc_markers,
+            args.max_contigs,
+            args.min_N50,
+            args.max_ambiguous)
+
         p = QcGenomes(args.output_dir)
         p.run(args.prev_gtdb_metadata_file,
               args.cur_gtdb_metadata_file,
@@ -99,14 +109,7 @@ class OptionsParser():
               args.gtdb_type_strains_ledger,
               args.qc_exception_file,
               args.ncbi_env_bioproject_ledger,
-              args.min_comp,
-              args.max_cont,
-              args.min_quality,
-              args.sh_exception,
-              args.min_perc_markers,
-              args.max_contigs,
-              args.min_N50,
-              args.max_ambiguous)
+              qc_criteria)
 
         self.log.info(
             f'Quality checking information written to: {args.output_dir}')

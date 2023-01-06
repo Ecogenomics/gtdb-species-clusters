@@ -33,14 +33,16 @@ class NewGenomes():
         """
 
         self.output_dir = output_dir
-        self.log = logging.getLogger("rich")
+        self.log = logging.getLogger('rich')
 
-    def same_genome_accn(self, accn1: str, accn2: str, identical_accns: Dict[str, str]):
+    def same_genome_accn(self, accn1: str, accn2: str, identical_accns: Dict[str, str]) -> bool:
         """Check if NCBI genome accessions are the same.
 
         :param accn1: First accession to compare.
         :param accn2: Second accession to compare.
         :param identical_accns: Map indicating GenBank and RefSeq accessions considered to be identical.
+
+        :return: True if accessions considered equivalent, otherwise False.
         """
 
         if accn1 == accn2:
@@ -66,7 +68,7 @@ class NewGenomes():
             prev_gtdb_metadata_file: str,
             cur_gtdb_metadata_file: str,
             cur_genome_paths: str,
-            ncbi_assembly_summary_genbank: str):
+            ncbi_assembly_summary_genbank: str) -> None:
         """Identify new or modified genomes.
 
         :param prev_gtdb_metadata_file: File with genome metadata for previous GTDB release.

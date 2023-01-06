@@ -18,6 +18,8 @@
 import os
 from collections import namedtuple
 
+from gtdblib.util.bio.accession import canonical_gid
+
 
 def same_assembly_version(ncbi_accn1, ncbi_accn2):
     """Check if NCBi accessions have same version number."""

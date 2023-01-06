@@ -414,51 +414,44 @@ class Genome(object):
 
     def pass_qc(self,
                 marker_perc,
-                min_comp,
-                max_cont,
-                min_quality,
-                sh_exception,
-                min_perc_markers,
-                max_contigs,
-                min_N50,
-                max_ambiguous,
+                qc_criteria,
                 failed_tests):
         """Check if genome passes QC."""
 
         failed = False
-        if self.comp < min_comp:
+        if self.comp < qc_criteria.min_comp:
             failed_tests['comp'] += 1
             failed = True
 
-        if self.strain_heterogeneity_100 >= sh_exception:
+        if self.strain_heterogeneity_100 >= qc_criteria.sh_exception:
             if self.cont > 20:
                 failed_tests['cont'] += 1
                 failed = True
             q = self.comp - 5*self.cont * \
                 (1.0 - self.strain_heterogeneity_100/100.0)
-            if q < min_quality:
+            if q < qc_criteria.min_quality:
                 failed_tests['qual'] += 1
                 failed = True
         else:
-            if self.cont > max_cont:
+            if self.cont > qc_criteria.max_cont:
                 failed_tests['cont'] += 1
                 failed = True
             q = self.comp - 5*self.cont
-            if q < min_quality:
+            if q < qc_criteria.min_quality:
                 failed_tests['qual'] += 1
                 failed = True
 
-        if marker_perc < min_perc_markers:
+        if marker_perc < qc_criteria.min_perc_markers:
             failed_tests['marker_perc'] += 1
             failed = True
 
-        if self.contig_count > max_contigs:
+        if self.contig_count > qc_criteria.max_contigs:
             failed_tests['contig_count'] += 1
             failed = True
-        if self.contig_n50 < min_N50:
+        if self.contig_n50 < qc_criteria.min_N50:
             failed_tests['N50'] += 1
             failed = True
-        if self.ambiguous_bases > max_ambiguous:
+        if self.ambiguous_bases > qc_criteria.max_ambiguous:
             failed_tests['ambig'] += 1
             failed = True
 
