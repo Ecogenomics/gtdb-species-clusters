@@ -20,7 +20,7 @@ import sys
 import logging
 import ntpath
 
-from biolib.external.execute import check_dependencies, run
+from gtdblib.util.shell.execute import check_dependencies, run
 
 from gtdb_species_clusters.genome_utils import read_qc_file
 
@@ -28,30 +28,42 @@ from gtdb_species_clusters.genome_utils import read_qc_file
 class GTDB_Tk():
     """Perform initial classification of new and updated genomes using GTDB-Tk."""
 
-    def __init__(self, cpus, output_dir):
-        """Initialization."""
+    def __init__(self, cpus: int, output_dir: str):
+        """Initialization.
+
+        :param cpus: Number of CPUs to be used by GTDB-Tk.
+        :param output_dir: Output directory.
+        """
 
         check_dependencies(['gtdbtk'])
 
         self.output_dir = output_dir
-        self.log = logging.getLogger('timestamp')
+        self.log = logging.getLogger('rich')
 
         self.cpus = cpus
         if self.cpus > 64:
             self.log.error(
                 'Testing indicates pplacer will stale if used with more than 64 CPUs.')
-            sys.exit(-1)
+            sys.exit(1)
 
     def run(self,
-            genomes_new_updated_file,
-            qc_passed_file,
-            batch_size):
-        """Perform initial classification of new and updated genomes using GTDB-Tk."""
+            genomes_new_updated_file: str,
+            qc_passed_file: str,
+            batch_size: int):
+        """Perform initial classification of new and updated genomes using GTDB-Tk.
+
+        Genomes are processed in batches. Multiple batches can be run at the same time
+        on different servers. Use of batches also minimizes the impact of server crashes.
+
+        :param genomes_new_updated_file: File indicating new and updated genomes in the current GTDB release.
+        :param qc_passed_file: File indicating genomes that have passed QC.
+        :param batch_size: Number of genomes to process in a single batch.
+        """
 
         # get list of genomes passing QC
         self.log.info('Reading genomes passing QC.')
         gids_pass_qc = read_qc_file(qc_passed_file)
-        self.log.info(f' - identified {len(gids_pass_qc):,} genomes.')
+        self.log.info(f' - identified {len(gids_pass_qc):,} genomes')
 
         # get path to genomes passing QC
         self.log.info(
@@ -74,7 +86,7 @@ class GTDB_Tk():
                     genomic_files.append((gid, gf))
                     new_updated_gids.add(gid)
         self.log.info(
-            f' - identified {len(genomic_files):,} of {total_count:,} genomes as passing QC.')
+            f' - identified {len(genomic_files):,} of {total_count:,} genomes as passing QC')
 
         # create batch files
         genome_batch_files = []
@@ -143,8 +155,8 @@ class GTDB_Tk():
                 self.cpus,
                 genome_batch_file,
                 out_dir)
-            print(cmd)
-            run(cmd)
+            self.log.info(f"Executing: {cmd}")
+            run(cmd.split())
 
         # combine summary files
         fout = open(os.path.join(self.output_dir, 'gtdbtk_classify.tsv'), 'w')

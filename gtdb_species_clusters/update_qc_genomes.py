@@ -21,11 +21,10 @@ from collections import defaultdict
 from dataclasses import dataclass
 from typing import Dict, Set, Tuple
 
-from gtdblib.util.bio.accession import canonical_gid
+from gtdblib.util.bio.accession import canonical_gid, is_same_accn_version
 
 from gtdb_species_clusters.genome_utils import exclude_from_refseq
 from gtdb_species_clusters.genomes import Genomes
-from gtdb_species_clusters.genome_utils import same_assembly_version
 
 
 @dataclass
@@ -542,8 +541,8 @@ class QcGenomes():
         unexpected_qc_fail = []
         for gid in prev_genomes:
             if gid in cur_genomes:
-                if not same_assembly_version(prev_genomes[gid].ncbi_accn, cur_genomes[gid].ncbi_accn):
-                    # genome assembly has changed so QC status is not expected to be the same
+                if not is_same_accn_version(prev_genomes[gid].ncbi_accn, cur_genomes[gid].ncbi_accn):
+                    # genome assembly has been updates so QC status is not expected to be the same
                     continue
 
                 if gid in failed_qc_gids:
