@@ -21,12 +21,6 @@ from collections import namedtuple
 from gtdblib.util.bio.accession import canonical_gid
 
 
-def same_assembly_version(ncbi_accn1, ncbi_accn2):
-    """Check if NCBi accessions have same version number."""
-
-    return int(ncbi_accn1.split('.')[1]) == int(ncbi_accn2.split('.')[1])
-
-
 def select_highest_quality(gids, cur_genomes):
     """Select highest quality genome."""
 

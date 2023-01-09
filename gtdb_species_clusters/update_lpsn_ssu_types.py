@@ -20,6 +20,7 @@ import sys
 import logging
 import multiprocessing as mp
 from collections import defaultdict
+from typing import Set, Dict
 
 from gtdb_species_clusters.genomes import Genomes
 
@@ -27,12 +28,13 @@ from gtdb_species_clusters.genomes import Genomes
 class LPSN_SSU_Types():
     """Identify type genomes based on type 16S rRNA sequences indicated at LPSN.
 
+    Example: LPSN indicates AB042061 as "type 16S rRNA sequence" for Bacillus subtilis. Presumably,
+    a genome containing AB042061 is assembled from the type strain of B. subtilis.
+
     It should be appreciated that a genome can be assembled from the type strain
     of the species and have a different 16S rRNA gene annotation. The 16S rRNA
     gene indicated at LPSN is simply the gene originally deposited as an examplar
     of the type strain and in many cases is not associated with a genome assembly.
-    In fact, for many important species the type is indicated by a partial 16S rRNA
-    sequence which, as expected, is not associated with any complete genome assembly.
 
     That said, if the 16S rRNA sequence indicated at LPSN can be associated with a
     genome assembly, then this assembly should be considered the best choice for the
@@ -42,15 +44,23 @@ class LPSN_SSU_Types():
     the type strain.
     """
 
-    def __init__(self, cpus, output_dir):
-        """Initialization."""
+    def __init__(self, cpus: int, output_dir: str):
+        """Initialization.
+
+        :param cpus: Number of CPUs to be used by GTDB-Tk.
+        :param output_dir: Output directory.
+        """
 
         self.cpus = cpus
         self.output_dir = output_dir
-        self.log = logging.getLogger('timestamp')
+        self.log = logging.getLogger('rich')
 
-    def parse_ncbi_assem_report(self, assem_report):
-        """Parse sequence information from NCBI Assembly Report."""
+    def parse_ncbi_assem_report(self, assem_report: str) -> Set[str]:
+        """Parse sequence information from NCBI Assembly Report.
+
+        :param assem_report: NCBI assembly report file with assembly information.
+        :return: Sequence accessions specified in the assembly report.
+        """
 
         seq_ids = set()
         with open(assem_report) as f:
@@ -75,8 +85,12 @@ class LPSN_SSU_Types():
 
         return seq_ids
 
-    def parse_lpsn_ssu_metadata(self, lpsn_metadata_file):
-        """Parse type 16S rRNA information from LPSN metadata."""
+    def parse_lpsn_ssu_metadata(self, lpsn_metadata_file: str) -> Dict[str, str]:
+        """Parse 16S rRNA accession for type strain of species as indicated at LPSN.
+
+        :param lpsn_metadata_file: LPSN metadata file indicating 16S accessions for type strains.
+        :return: Mapping indicating 16S rRNA accession for type strain of species.
+        """
 
         lpsn_sp_type_ssu = {}
         with open(lpsn_metadata_file) as f:
@@ -85,7 +99,6 @@ class LPSN_SSU_Types():
             rank_idx = header.index('Rank')
             name_idx = header.index('Name')
             rRNA_idx = header.index('16S rRNA gene')
-            type_strain_idx = header.index('Type strain')
 
             for line in f:
                 tokens = line.strip().split('\t')
@@ -94,7 +107,6 @@ class LPSN_SSU_Types():
                 if rank == 'species':
                     species = 's__' + tokens[name_idx]
                     rRNA = tokens[rRNA_idx]
-                    strain_ids = tokens[type_strain_idx]
 
                     if rRNA.lower() != 'n/a':
                         lpsn_sp_type_ssu[species] = rRNA
@@ -102,8 +114,22 @@ class LPSN_SSU_Types():
 
         return lpsn_sp_type_ssu
 
-    def _worker(self, cur_genomes, ncbi_sp_gids, ncbi_candidatus, ncbi_assem_report, queue_in, queue_out):
-        """Process each data item in parallel."""
+    def _worker(self,
+                cur_genomes: Genomes,
+                ncbi_sp_gids: Dict[str, Set[str]],
+                ncbi_candidatus: Set[str],
+                ncbi_assem_report: Dict[str, str],
+                queue_in: mp.Queue,
+                queue_out: mp.Queue) -> None:
+        """Match LPSN species with type rRNA sequences to genomes with the same NCBI species classification.
+
+        :param cur_genomes: Metadata for genomes in the current GTDB release.
+        :param ncbi_sp_gids: Mapping indicating genomes with a NCBI species classification.
+        :param ncbi_candidatus: Genomes annotated as `Candidatus` at NCBI.
+        :param ncbi_assem_report: Mapping indicating NCBI assembly report file for a genome.
+        :param queue_in: Input queue of LPSN species to process in parallel.
+        :param queue_out: Output queue for reporting results.
+        """
 
         while True:
             data = queue_in.get(block=True, timeout=None)
@@ -114,9 +140,9 @@ class LPSN_SSU_Types():
 
             # Sort genome ids by type material status as they are the most
             # likely to contain the 16S rRNA sequence. Only type strain
-            # genomes are considered for species with >250. Species
-            # with large number of genome assemblies are of sufficient interest
-            # that it is highly likely the type strain has been sequenced. This
+            # genomes are considered for species with >250 to reduce computational
+            # requirements. Species with large number of genome assemblies are of sufficient
+            # interest that it is highly likely the type strain has been sequenced. This
             # was manually verified to be the case on Feb. 16, 2021.
             sp_gids = ncbi_sp_gids.get(lpsn_sp, [])
             type_gids = [gid
@@ -129,23 +155,33 @@ class LPSN_SSU_Types():
                 sorted_gids = type_gids
 
             found_ssu = False
+            gid_with_ssu = None
             for gid in sorted_gids:
                 seq_ids = self.parse_ncbi_assem_report(ncbi_assem_report[gid])
 
                 if rRNA in seq_ids:
                     found_ssu = True
-                    queue_out.put(
-                        (found_ssu, gid, gid in ncbi_candidatus, lpsn_sp, rRNA))
+                    gid_with_ssu = gid
 
                     # safe to break since a given rRNA sequence
                     # can appear in at most one genome
                     break
 
-            if not found_ssu:
-                queue_out.put((found_ssu, None, None, lpsn_sp, rRNA))
+            queue_out.put(
+                (found_ssu, gid_with_ssu, gid_with_ssu in ncbi_candidatus, lpsn_sp, rRNA))
 
-    def _writer(self, cur_genomes, gtdb_type_strains, num_sp, queue_writer):
-        """Store or write results of worker threads in a single thread."""
+    def _writer(self,
+                cur_genomes: Genomes,
+                gtdb_type_strains: Dict[str, Set[str]],
+                num_sp: int,
+                queue_writer: mp.Queue) -> None:
+        """Write results of identifying types strain genomes using 16S rRNA information at LPSN.
+
+        :param cur_genomes: Metadata for genomes in the current GTDB release.
+        :param gtdb_type_strains: Mapping indicating genomes identified by GTDB as being type strain genomes of a species.
+        :param num_sp: Number of LPSN species being processed.
+        :param queue_writer: Queue on which results are placed.
+        """
 
         fout = open(os.path.join(self.output_dir,
                     'lpsn_ssu_type_genomes.tsv'), 'w')
@@ -191,14 +227,23 @@ class LPSN_SSU_Types():
                 f"[IMPORTANT]: add the {missing_type_designation:,} genomes where `Is GTDB type genome` is FALSE to the `gtdb_type_strains` ledger.")
 
     def run(self,
-            lpsn_metadata_file,
-            cur_gtdb_metadata_file,
-            cur_genomic_path_file,
-            qc_passed_file,
-            ncbi_genbank_assembly_file,
-            gtdb_type_strains_ledger,
-            untrustworthy_type_ledger):
-        """Identify type genomes based on type 16S rRNA sequences indicated at LPSN."""
+            lpsn_metadata_file: str,
+            cur_gtdb_metadata_file: str,
+            cur_genomic_path_file: str,
+            qc_passed_file: str,
+            ncbi_genbank_assembly_file: str,
+            gtdb_type_strains_ledger: str,
+            untrustworthy_type_ledger: str) -> None:
+        """Identify type genomes based on type 16S rRNA sequences indicated at LPSN.
+
+        :param lpsn_metadata_file: LPSN metadata file indicating 16S accessions for type strains.
+        :param cur_gtdb_metadata_file: File with metadata for genomes in current GTDB release.
+        :param cur_genomic_path_file: File with path to current genomic FASTA files for genomes.
+        :param qc_passed_file: File indicating genomes that have passed QC.
+        :param ncbi_genbank_assembly_file: File from NCBI with metadata for GenBank assemblies.
+        :param gtdb_type_strains_ledger: File indicating genomes that should be considered assembled from the type strain.
+        :param untrustworthy_type_ledger: File listing genomes that should be considered untrustworthy as type material.
+        """
 
         # create current GTDB genome sets
         self.log.info('Creating current GTDB genome set:')
@@ -233,8 +278,9 @@ class LPSN_SSU_Types():
             if cur_genomes[gid].is_gtdb_type_strain():
                 gtdb_type_strains[ncbi_sp].add(gid)
 
-            ncbi_assem_report[gid] = cur_genomes.genomic_files[gid].replace(
-                '_genomic.fna', '_assembly_report.txt')
+            gf = cur_genomes.genomic_files[gid]
+            accn = gf[0:gf.rfind('_')]
+            ncbi_assem_report[gid] = f'{accn}_assembly_report.txt'
 
         # match LPSN species with type rRNA sequences to genomes
         # with the same NCBI species classification

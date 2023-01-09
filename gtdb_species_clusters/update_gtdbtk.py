@@ -49,7 +49,7 @@ class GTDB_Tk():
     def run(self,
             genomes_new_updated_file: str,
             qc_passed_file: str,
-            batch_size: int):
+            batch_size: int) -> None:
         """Perform initial classification of new and updated genomes using GTDB-Tk.
 
         Genomes are processed in batches. Multiple batches can be run at the same time
