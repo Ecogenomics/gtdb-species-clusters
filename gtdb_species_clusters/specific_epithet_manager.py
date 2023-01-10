@@ -34,7 +34,7 @@ class SpecificEpithetManager():
     def __init__(self):
         """Initialize."""
 
-        self.log = logging.getLogger('timestamp')
+        self.log = logging.getLogger('rich')
 
         self.curated_epithet_changes = {}
         self.previously_curated = {}

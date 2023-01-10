@@ -40,7 +40,7 @@ class Sandbox(object):
         """Initialization."""
 
         self.output_dir = output_dir
-        self.log = logging.getLogger('timestamp')
+        self.log = logging.getLogger('rich')
 
     def parse_lpsn_scrape_sp_priorities(self):
         """Get priority of species from scraping LPSN website."""

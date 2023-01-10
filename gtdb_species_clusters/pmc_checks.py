@@ -34,7 +34,7 @@ class PMC_Checks():
 
         self.output_dir = output_dir
 
-        self.log = logging.getLogger('timestamp')
+        self.log = logging.getLogger('rich')
 
     def manual_species(self, init_taxonomy, manually_curated_tree):
         """Identify species names manually set by curators."""

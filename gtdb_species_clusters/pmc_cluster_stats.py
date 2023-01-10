@@ -51,7 +51,7 @@ class PMC_ClusterStats(object):
         self.cpus = cpus
         self.output_dir = output_dir
 
-        self.log = logging.getLogger('timestamp')
+        self.log = logging.getLogger('rich')
 
         self.af_sp = af_sp
 

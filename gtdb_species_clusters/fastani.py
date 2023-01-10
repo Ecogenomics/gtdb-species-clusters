@@ -69,7 +69,7 @@ class FastANI():
 
         self.cpus = cpus
 
-        self.log = logging.getLogger('timestamp')
+        self.log = logging.getLogger('rich')
 
         self.ani_cache_file = ani_cache_file
         self._read_cache()

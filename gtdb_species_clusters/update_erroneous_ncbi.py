@@ -33,7 +33,7 @@ class UpdateErroneousNCBI():
         """Initialization."""
 
         self.output_dir = output_dir
-        self.log = logging.getLogger('timestamp')
+        self.log = logging.getLogger('rich')
 
     def identify_misclassified_genomes_cluster(self, cur_genomes, cur_clusters, ncbi_untrustworthy_sp_ledger):
         """Identify genomes with erroneous NCBI species assignments, based on GTDB clustering of type strain genomes."""

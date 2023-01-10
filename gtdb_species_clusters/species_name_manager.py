@@ -36,7 +36,7 @@ class SpeciesNameManager():
     def __init__(self, prev_genomes, cur_genomes):
         """Initialization."""
 
-        self.log = logging.getLogger('timestamp')
+        self.log = logging.getLogger('rich')
 
         self.taxon_suffix_manager = TaxonSuffixManager()
 

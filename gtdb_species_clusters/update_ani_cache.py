@@ -24,7 +24,7 @@ class Update_ANI_Cache():
     def __init__(self):
         """Initialization."""
 
-        self.log = logging.getLogger('timestamp')
+        self.log = logging.getLogger('rich')
 
     def run(self, genomes_new_updated_file, prev_ani_cache, out_ani_cache):
         """Update ANI cache to remove entries for updates genomes."""

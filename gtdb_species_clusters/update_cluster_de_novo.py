@@ -44,7 +44,7 @@ class UpdateClusterDeNovo(object):
         self.cpus = cpus
         self.output_dir = output_dir
 
-        self.log = logging.getLogger('timestamp')
+        self.log = logging.getLogger('rich')
 
         self.true_str = ['t', 'T', 'true', 'True']
 

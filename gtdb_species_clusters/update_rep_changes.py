@@ -30,7 +30,7 @@ class RepChanges():
         """Initialization."""
 
         self.output_dir = output_dir
-        self.log = logging.getLogger('timestamp')
+        self.log = logging.getLogger('rich')
 
     def run(self,
             prev_gtdb_metadata_file,

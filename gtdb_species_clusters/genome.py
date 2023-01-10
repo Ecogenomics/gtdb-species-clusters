@@ -78,7 +78,7 @@ class Genome(object):
     def __post_init__(self):
         """Post data initialization."""
 
-        self.log = logging.getLogger('timestamp')
+        self.log = logging.getLogger('rich')
 
         if self.gid.startswith('UBA'):
             self.ncbi_genome_category = 'metagenome'

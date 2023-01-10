@@ -28,7 +28,7 @@ class Taxa(object):
 
         self._parse_taxa(taxa_str, filtered)
 
-        self.log = logging.getLogger('timestamp')
+        self.log = logging.getLogger('rich')
 
     def _parse_taxa(self, taxa_str, filtered):
         """Convert taxonomy string to taxa list."""

@@ -38,7 +38,7 @@ class IntraGenusANI(object):
         self.cpus = cpus
         self.output_dir = output_dir
 
-        self.log = logging.getLogger('timestamp')
+        self.log = logging.getLogger('rich')
 
         self.fastani = FastANI(ani_cache_file, cpus)
 

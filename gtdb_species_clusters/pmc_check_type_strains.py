@@ -36,7 +36,7 @@ class PMC_CheckTypeStrains(object):
         """Initialization."""
 
         self.output_dir = output_dir
-        self.log = logging.getLogger('timestamp')
+        self.log = logging.getLogger('rich')
 
     def run(self,
             manual_taxonomy,

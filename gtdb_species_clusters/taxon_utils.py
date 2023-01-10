@@ -60,7 +60,7 @@ def ncbi_to_gtdb_synonyms(ncbi_synonym_file, final_gtdb_taxonomy):
         gtdb_synonyms[ncbi_synonym] = gtdb_species
 
         if not test_same_epithet(gtdb_specific, ncbi_specific):
-            logging.getLogger('timestamp').warning('Specific name of species with synonyms differs between GTDB and NCBI for {}: {} {}'.format(
+            logging.getLogger('rich').warning('Specific name of species with synonyms differs between GTDB and NCBI for {}: {} {}'.format(
                 rid,
                 gtdb_species,
                 ncbi_species))
@@ -174,7 +174,7 @@ def specific_epithet(species_name):
     try:
         specific = species_name.split()[-1]
     except:
-        logging.getLogger('timestamp').error(
+        logging.getLogger('rich').error(
             f'Invalid species name: {species_name}')
         sys.exit(1)
 
@@ -190,7 +190,7 @@ def generic_name(species_name):
     try:
         generic, _specific = species_name.split()
     except:
-        logging.getLogger('timestamp').error(
+        logging.getLogger('rich').error(
             f'Invalid species name: {species_name}')
         sys.exit(1)
 

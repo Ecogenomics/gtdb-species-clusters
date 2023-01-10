@@ -66,7 +66,7 @@ class PMC_Validation(object):
         """Initialization."""
 
         self.output_dir = output_dir
-        self.log = logging.getLogger('timestamp')
+        self.log = logging.getLogger('rich')
 
     def ncbi_specific_name_support(self, rid, gtdb_specific, cur_genomes, cur_clusters):
         """Validate assignment of specific name based on NCBI assignment of genomes in species cluster."""

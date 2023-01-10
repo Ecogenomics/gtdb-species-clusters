@@ -63,7 +63,7 @@ class UpdateSelectRepresentatives():
         self.cpus = cpus
         self.output_dir = output_dir
 
-        self.log = logging.getLogger('timestamp')
+        self.log = logging.getLogger('rich')
 
         self.min_intra_strain_ani = 99.0
         self.min_mash_ani = Defaults.MASH_MIN_ANI

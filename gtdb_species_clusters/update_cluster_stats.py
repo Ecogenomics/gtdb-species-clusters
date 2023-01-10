@@ -30,7 +30,7 @@ class UpdateClusterStats(object):
         """Initialization."""
 
         self.output_dir = output_dir
-        self.log = logging.getLogger('timestamp')
+        self.log = logging.getLogger('rich')
 
     def _parse_updated_sp_reps(self, updated_sp_rep_file):
         """Determine GTDB species clusters with new representatives."""

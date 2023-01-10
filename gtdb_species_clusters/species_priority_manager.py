@@ -37,7 +37,7 @@ class SpeciesPriorityManager(object):
                  output_dir):
         """Initialization."""
 
-        self.log = logging.getLogger('timestamp')
+        self.log = logging.getLogger('rich')
 
         self.output_dir = output_dir
 

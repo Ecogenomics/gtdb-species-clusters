@@ -43,7 +43,7 @@ class Genomes(object):
 
         self.full_gid = {}  # translate from canonical GID to NCBI accession
 
-        self.log = logging.getLogger('timestamp')
+        self.log = logging.getLogger('rich')
 
     def __str__(self):
         """User-friendly string representation."""

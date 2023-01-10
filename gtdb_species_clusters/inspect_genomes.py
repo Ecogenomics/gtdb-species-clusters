@@ -29,7 +29,7 @@ class InspectGenomes(object):
     def __init__(self):
         """Initialization."""
 
-        self.log = logging.getLogger('timestamp')
+        self.log = logging.getLogger('rich')
 
     def type_status(self,
                     cur_gtdb_metadata_file,

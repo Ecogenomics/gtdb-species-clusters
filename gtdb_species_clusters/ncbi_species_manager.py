@@ -48,7 +48,7 @@ class NCBI_SpeciesManager():
     def __init__(self, cur_genomes, cur_clusters, mc_species, output_dir):
         """Initialization."""
 
-        self.log = logging.getLogger('timestamp')
+        self.log = logging.getLogger('rich')
 
         self.output_dir = output_dir
         self.cur_genomes = cur_genomes

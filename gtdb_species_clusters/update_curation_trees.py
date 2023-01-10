@@ -34,7 +34,7 @@ class UpdateCurationTrees():
         self.output_dir = output_dir
         self.output_prefix = output_prefix
 
-        self.log = logging.getLogger('timestamp')
+        self.log = logging.getLogger('rich')
 
     def new_ncbi_taxa(self, prev_genomes, cur_genomes, cur_clusters):
         """Determine new NCBI taxa as these should be considered by curators."""

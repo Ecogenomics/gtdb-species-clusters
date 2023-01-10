@@ -63,12 +63,12 @@ def parse_gtdb_type_strain_ledger(gtdb_type_strains_ledger, cur_genomes):
 
             # validate assignment
             if gid not in cur_genomes:
-                logging.getLogger('timestamp').warning('Genome in GTDB type strain ledger not found in current genome set (Accession; GTDB species): {}; {}'.format(
+                logging.getLogger('rich').warning('Genome in GTDB type strain ledger not found in current genome set (Accession; GTDB species): {}; {}'.format(
                     gid, gtdb_sp_name))
             else:
                 ncbi_sp = cur_genomes[gid].ncbi_taxa.species
                 if ncbi_sp != 's__' and ncbi_sp != gtdb_sp_name:
-                    logging.getLogger('timestamp').warning('GTDB type strain ledger disagrees with NCBI species assignment (Accession; GTDB species; NCBI species): {}; {}; {}'.format(
+                    logging.getLogger('rich').warning('GTDB type strain ledger disagrees with NCBI species assignment (Accession; GTDB species; NCBI species): {}; {}; {}'.format(
                         gid, gtdb_sp_name, ncbi_sp))
 
     return gtdb_type_strain_ledger
@@ -91,7 +91,7 @@ def parse_manual_sp_curation_files(manual_sp_names, pmc_custom_species):
     """Parse files indicating manually curated species names."""
 
     # read species names explicitly set via manual curation
-    logging.getLogger('timestamp').info('Parsing manually-curated species:')
+    logging.getLogger('rich').info('Parsing manually-curated species:')
     mc_species = {}
     if not (manual_sp_names is None or manual_sp_names.lower() == 'none'):
         with open(manual_sp_names) as f:
@@ -99,11 +99,11 @@ def parse_manual_sp_curation_files(manual_sp_names, pmc_custom_species):
             for line in f:
                 tokens = line.strip().split('\t')
                 mc_species[tokens[0]] = tokens[2]
-    logging.getLogger('timestamp').info(' - identified manually-curated species names for {:,} genomes'.format(
+    logging.getLogger('rich').info(' - identified manually-curated species names for {:,} genomes'.format(
         len(mc_species)))
 
     # read post-curation, manually defined species
-    logging.getLogger('timestamp').info(
+    logging.getLogger('rich').info(
         'Parsing post-curation, manually-curated species:')
     pmc_species = 0
     if not (pmc_custom_species is None or pmc_custom_species.lower() == 'none'):
@@ -114,11 +114,11 @@ def parse_manual_sp_curation_files(manual_sp_names, pmc_custom_species):
                 gid = tokens[0]
                 species = tokens[1]
                 if gid in mc_species:
-                    logging.getLogger('timestamp').warning('Manually-curated genome {} reassigned from {} to {}.'.format(
+                    logging.getLogger('rich').warning('Manually-curated genome {} reassigned from {} to {}.'.format(
                         gid, mc_species[gid], species))
                 pmc_species += 1
                 mc_species[gid] = species
-    logging.getLogger('timestamp').info(' - identified post-curation, manually-curated species names for {:,} genomes'.format(
+    logging.getLogger('rich').info(' - identified post-curation, manually-curated species names for {:,} genomes'.format(
         pmc_species))
 
     return mc_species
@@ -161,7 +161,7 @@ def resolve_merged_prev_representatives(cur_rid, prev_genomes, updated_gtdb_rids
             # updated to the new, current representative
             sel_prev_rid = prev_rid
         else:
-            logging.getLogger('timestamp').error('Updated representative of cluster {} no longer contains the previous representative of cluster: {}'.format(
+            logging.getLogger('rich').error('Updated representative of cluster {} no longer contains the previous representative of cluster: {}'.format(
                 cur_rid,
                 prev_rid))
             sys.exit(-1)
@@ -203,7 +203,7 @@ def infer_prev_gtdb_reps(prev_genomes, cur_clusters, updated_gtdb_rids):
                                                                prev_rids_in_cluster)
 
             if resolved_rid:
-                logging.getLogger('timestamp').info(
+                logging.getLogger('rich').info(
                     ' - cluster {} contains multiple previous representatives and has been associated with representative {}.'.format(
                         cur_rid, resolved_rid))
 

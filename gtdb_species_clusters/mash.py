@@ -37,7 +37,7 @@ class Mash():
 
         self.cpus = cpus
 
-        self.log = logging.getLogger('timestamp')
+        self.log = logging.getLogger('rich')
 
         self.log.info('Using Mash v{}.'.format(self._get_version()))
 

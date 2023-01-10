@@ -33,7 +33,7 @@ class TaxonSuffixManager():
     def __init__(self):
         """Initialize."""
 
-        self.log = logging.getLogger('timestamp')
+        self.log = logging.getLogger('rich')
         self.prev_taxonomy_dir = '/srv/projects/gtdb/data/taxonomy_gtdb'
 
         # get all previous taxonomy files

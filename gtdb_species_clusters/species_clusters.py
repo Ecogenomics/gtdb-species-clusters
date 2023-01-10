@@ -37,7 +37,7 @@ class SpeciesClusters():
     def __init__(self):
         """Initialization."""
 
-        self.log = logging.getLogger('timestamp')
+        self.log = logging.getLogger('rich')
 
         self.sp_clusters = defaultdict(set)
         self.species_names = {}

@@ -47,7 +47,7 @@ class UpdateClusterNamedReps(object):
         self.cpus = cpus
         self.output_dir = output_dir
 
-        self.log = logging.getLogger('timestamp')
+        self.log = logging.getLogger('rich')
 
         self.ani_sp = ani_sp
         self.af_sp = af_sp

@@ -68,7 +68,7 @@ class LPSN(object):
     def __init__(self, lpsn_data, lpsn_gss_metadata_file):
         """Initialization."""
 
-        self.log = logging.getLogger('timestamp')
+        self.log = logging.getLogger('rich')
 
         if lpsn_data:
             self.taxa = self.parse_lpsn_data_file(lpsn_data)

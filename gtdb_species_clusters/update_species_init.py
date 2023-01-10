@@ -42,7 +42,7 @@ class UpdateSpeciesInit(object):
         """Initialization."""
 
         self.output_dir = output_dir
-        self.log = logging.getLogger('timestamp')
+        self.log = logging.getLogger('rich')
 
         self.sp_name_log = open(os.path.join(
             self.output_dir, 'sp_name_log.tsv'), 'w')
