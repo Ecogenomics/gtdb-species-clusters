@@ -21,28 +21,52 @@ import logging
 import pickle
 from collections import defaultdict, namedtuple
 from itertools import combinations
+from typing import Dict, List, Tuple, Set
 
 from numpy import (mean as np_mean, std as np_std)
 
 from gtdblib.util.bio.accession import canonical_gid
 
+import gtdb_species_clusters.config as Config
 from gtdb_species_clusters.fastani import FastANI
 from gtdb_species_clusters.genomes import Genomes
 from gtdb_species_clusters.taxon_utils import generic_name, specific_epithet, canonical_taxon
 from gtdb_species_clusters import defaults as Defaults
 
 
-class ResolveTypes():
-    """Resolve cases where a species has multiple genomes assembled from the type strain."""
+LTP_METADATA = namedtuple(
+    'LTP_METADATA', 'taxonomy taxa species ssu_len evalue bitscore aln_len perc_iden perc_aln')
 
-    def __init__(self, ani_cache_file, cpus, output_dir):
-        """Initialization."""
+
+SsuLtpMetadata = Dict[str, List[LTP_METADATA]]
+AniPairs = Dict[str, Dict[str, float]]
+Resolution = Tuple[bool, Dict[str, str]]
+
+
+class ResolveTypes():
+    """Resolve cases where a species has multiple genomes assembled from the type strain.
+
+    The challenging case is where there are multiple genomes all indicated as being
+    assembled from the type strain of the species, but these genomes are divergent. In
+    such cases a set of heuristics are used to try and resolve which genome(s) are
+    actually from the type strain. In some cases, this can't be resolved using the
+    heuristics and it is left to the user to manually resolve. The heuristics used
+    here are not fully validated and represent a best effort given that this is an
+    issue, but not a problem that the GTDB team has had the resources to formally
+    address.
+    """
+
+    def __init__(self, ani_cache_file: str, cpus: int, output_dir: str):
+        """Initialization.
+
+        :param ani_cache_file: TSV file with pre-computed FastANI values.
+        :param cpus: Number of CPUs to be used by GTDB-Tk.
+        :param output_dir: Output directory.
+        """
 
         # ToDo: read path from global GTDB release config file
-        self.ltp_dir = 'rna_ltp_01_2022'
-        self.ltp_results_file = 'ssu.taxonomy.tsv'
-        self.LTP_METADATA = namedtuple(
-            'LTP_METADATA', 'taxonomy taxa species ssu_len evalue bitscore aln_len perc_iden perc_aln')
+        self.ltp_dir = Config.LTP_DIR
+        self.ltp_results_file = Config.LTP_RESULTS_FILE
 
         self.ltp_pi_threshold = 99.0
         self.ltp_pa_threshold = 90.0
@@ -59,9 +83,15 @@ class ResolveTypes():
         if not os.path.exists(self.ani_pickle_dir):
             os.makedirs(self.ani_pickle_dir)
 
-    def _parse_ltp_taxonomy_str(self, ltp_taxonomy_str):
-        """Parse taxa and species from LTP taxonomy string."""
+    def _parse_ltp_taxonomy_str(self, ltp_taxonomy_str: str) -> Tuple[List[str], str]:
+        """Parse taxa and species from LTP taxonomy string.
 
+        :param ltp_taxonomy_str: LTP-style taxonomy string.
+        :return: Taxa specified in LTP taxonomy string and the LTP species assignment.
+        """
+
+        # LTP taxonomy strings come in a variety of forms making
+        # it challenging to extract just the taxonomic information
         if ';type sp.|' in ltp_taxonomy_str:
             taxa = ltp_taxonomy_str.split(';type sp.|')[0].split(';')
         elif ';type sp. |' in ltp_taxonomy_str:
@@ -91,8 +121,13 @@ class ResolveTypes():
 
         return taxa, 's__' + sp
 
-    def parse_ltp_metadata(self, type_gids, cur_genomes):
-        """Parse Living Tree Project 16S rRNA metadata."""
+    def parse_ltp_metadata(self, type_gids: Set[str], cur_genomes: Genomes) -> SsuLtpMetadata:
+        """Parse Living Tree Project 16S rRNA metadata.
+
+        :param type_gids: Accession for genomes assembled from the type strain of a species.
+        :param cur_genomes: Metadata for genomes in the current GTDB release.
+        :return: LTP metadata for 16S sequences in type strain genomes.
+        """
 
         metadata = defaultdict(list)
         for gid in type_gids:
@@ -123,7 +158,7 @@ class ResolveTypes():
 
                         taxa, sp = self._parse_ltp_taxonomy_str(taxonomy)
 
-                        metadata[gid].append(self.LTP_METADATA(
+                        metadata[gid].append(LTP_METADATA(
                             taxonomy=taxonomy,
                             taxa=taxa,
                             species=sp,
@@ -136,8 +171,12 @@ class ResolveTypes():
 
         return metadata
 
-    def ltp_defined_species(self, ltp_taxonomy_file):
-        """Get all species present in the LTP database."""
+    def ltp_defined_species(self, ltp_taxonomy_file: str) -> Set[str]:
+        """Get all species present in the LTP database.
+
+        :param ltp_taxonomy_file: File with LTP taxonomy strings for LTP sequences.
+        :return: Species defined in the LTP database.
+        """
 
         ltp_species = set()
         with open(ltp_taxonomy_file, encoding='utf-8') as f:
@@ -150,8 +189,13 @@ class ResolveTypes():
 
         return ltp_species
 
-    def ltp_species(self, gid, ltp_metadata):
-        """Get high confident species assignments."""
+    def ltp_species(self, gid: str, ltp_metadata: SsuLtpMetadata):
+        """Get high confident species assignments.
+
+        :param gid: Accession of genome.
+        :param ltp_metadata: LTP metadata for 16S sequences in type strain genomes.
+        :return: High-confident LTP species assignment for genome based on 16S BLAST hits to LTP.
+        """
 
         sp = set()
         for hit in ltp_metadata[gid]:
@@ -164,20 +208,29 @@ class ResolveTypes():
 
         return sp
 
-    def check_strain_ani(self, gid_anis, untrustworthy_gids):
-        """Check if genomes meet strain ANI criteria."""
+    def check_strain_ani(self, gid_anis: AniPairs, untrustworthy_gids: Dict[str, str]) -> bool:
+        """Check if genomes meet strain ANI criteria.
+
+        :param gid_anis: ANI between genome pairs.
+        :param untrustworthy_gids: Genomes considered untrustworthy as type material.
+        :return: True if all trustworthy genome pairs meet strain ANI criterion.
+        """
 
         for gid1, gid2 in combinations(gid_anis, 2):
             if gid1 in untrustworthy_gids or gid2 in untrustworthy_gids:
                 continue
 
-            if gid_anis[gid1][gid2] < 99:
+            if gid_anis[gid1][gid2] < Config.ANI_SAME_STRAIN:
                 return False
 
         return True
 
-    def resolve_by_intra_specific_ani(self, gid_anis):
-        """Resolve by removing intra-specific genomes with divergent ANI values."""
+    def resolve_by_intra_specific_ani(self, gid_anis: AniPairs) -> Resolution:
+        """Resolve conflicting type genomes by removing intra-specific genomes with divergent ANI values.
+
+        :param gid_anis: ANI between genome pairs.
+        :return: True along with reason for considering genomes untrustworthy as type material, else False.
+        """
 
         if len(gid_anis) <= 2:
             return False, {}
@@ -209,8 +262,14 @@ class ResolveTypes():
             if remaining_genomes <= 2 or len(untrustworthy_gids) >= len(gid_anis):
                 return False, {}
 
-    def resolve_by_ncbi_types(self, gid_anis, type_gids, cur_genomes):
-        """Resolve by consulting NCBI type material metadata."""
+    def resolve_by_ncbi_types(self, gid_anis: AniPairs, type_gids: Set[str], cur_genomes: Genomes) -> Resolution:
+        """Resolve conflicting type genomes by consulting NCBI type material metadata.
+
+        :param gid_anis: ANI between genome pairs.
+        :param type_gids: Accession for genomes assembled from the type strain of a species.
+        :param cur_genomes: Metadata for genomes in the current GTDB release.
+        :return: True along with reason for considering genomes untrustworthy as type material, else False.
+        """
 
         untrustworthy_gids = {}
         ncbi_type_count = 0
@@ -227,8 +286,14 @@ class ResolveTypes():
 
         return False, {}
 
-    def resolve_by_ncbi_reps(self, gid_anis, type_gids, cur_genomes):
-        """Resovle by considering genomes annotated as representative genomes at NCBI."""
+    def resolve_by_ncbi_reps(self, gid_anis: AniPairs, type_gids: Set[str], cur_genomes: Genomes) -> Resolution:
+        """Resovle conflicting type genomes by considering genomes annotated as representative genomes at NCBI.
+
+        :param gid_anis: ANI between genome pairs.
+        :param type_gids: Accession for genomes assembled from the type strain of a species.
+        :param cur_genomes: Metadata for genomes in the current GTDB release.
+        :return: True along with reason for considering genomes untrustworthy as type material, else False.
+        """
 
         untrustworthy_gids = {}
         ncbi_rep_count = 0
@@ -245,8 +310,15 @@ class ResolveTypes():
 
         return False, {}
 
-    def resolve_gtdb_family(self, gid_anis, ncbi_sp, type_gids, cur_genomes):
-        """Resolve by identifying genomes with a conflicting GTDB family assignment."""
+    def resolve_gtdb_family(self, gid_anis: AniPairs, ncbi_sp: str, type_gids: Set[str], cur_genomes: Genomes) -> Resolution:
+        """Resolve conflicting type genomes by identifying genomes with a conflicting GTDB family assignment.
+
+        :param gid_anis: ANI between genome pairs.
+        :param ncbi_sp: NCBI species assignment for genomes.
+        :param type_gids: Accession for genomes assembled from the type strain of a species.
+        :param cur_genomes: Metadata for genomes in the current GTDB release.
+        :return: True along with reason for considering genomes untrustworthy as type material, else False.
+        """
 
         genus = 'g__' + generic_name(ncbi_sp)
         gtdb_genus_rep = cur_genomes.gtdb_type_species_of_genus(genus)
@@ -274,8 +346,15 @@ class ResolveTypes():
 
         return False, {}
 
-    def resolve_gtdb_genus(self, gid_anis, ncbi_sp, type_gids, cur_genomes):
-        """Resolve by identifying genomes with a conflicting GTDB genus assignments."""
+    def resolve_gtdb_genus(self, gid_anis: AniPairs, ncbi_sp: str, type_gids: Set[str], cur_genomes: Genomes) -> Resolution:
+        """Resolve conflicting type genomes by identifying genomes with a conflicting GTDB genus assignments.
+
+        :param gid_anis: ANI between genome pairs.
+        :param ncbi_sp: NCBI species assignment for genomes.
+        :param type_gids: Accession for genomes assembled from the type strain of a species.
+        :param cur_genomes: Metadata for genomes in the current GTDB release.
+        :return: True along with reason for considering genomes untrustworthy as type material, else False.
+        """
 
         ncbi_genus = 'g__' + generic_name(ncbi_sp)
 
@@ -298,8 +377,15 @@ class ResolveTypes():
 
         return False, {}
 
-    def resolve_gtdb_species(self, gid_anis, ncbi_sp, type_gids, cur_genomes):
-        """Resolve by identifying genomes with a conflicting GTDB species assignments to different type material."""
+    def resolve_gtdb_species(self, gid_anis: AniPairs, ncbi_sp: str, type_gids: Set[str], cur_genomes: Genomes) -> Resolution:
+        """Resolve conflicting type genomes by identifying genomes with a conflicting GTDB species assignments to different type material.
+
+        :param gid_anis: ANI between genome pairs.
+        :param ncbi_sp: NCBI species assignment for genomes.
+        :param type_gids: Accession for genomes assembled from the type strain of a species.
+        :param cur_genomes: Metadata for genomes in the current GTDB release.
+        :return: True along with reason for considering genomes untrustworthy as type material, else False.
+        """
 
         ncbi_sp_epithet = specific_epithet(ncbi_sp)
 
@@ -333,8 +419,23 @@ class ResolveTypes():
 
         return False, {}
 
-    def resolve_validated_untrustworthy_ncbi_genomes(self, gid_anis, ncbi_sp, type_gids, ltp_metadata, ltp_defined_species, cur_genomes):
-        """Resolve by identifying genomes marked as `untrustworthy as type` at NCBI and with conflicting LTP assignments."""
+    def resolve_validated_untrustworthy_ncbi_genomes(self,
+                                                     gid_anis: AniPairs,
+                                                     ncbi_sp: str,
+                                                     type_gids: Set[str],
+                                                     ltp_metadata: SsuLtpMetadata,
+                                                     ltp_defined_species: Set[str],
+                                                     cur_genomes: Genomes) -> Resolution:
+        """Resolve conflicting type genomes by identifying genomes marked as `untrustworthy as type` at NCBI and with conflicting LTP assignments.
+
+        :param gid_anis: ANI between genome pairs.
+        :param ncbi_sp: NCBI species assignment for genomes.
+        :param type_gids: Accession for genomes assembled from the type strain of a species.
+        :param cur_genomes: Metadata for genomes in the current GTDB release.
+        :param ltp_metadata: LTP metadata for 16S sequences in type strain genomes.
+        :param ltp_defined_species: Species defined in the LTP database.
+        :return: True along with reason for considering genomes untrustworthy as type material, else False.
+        """
 
         if ncbi_sp not in ltp_defined_species:
             return False, {}
@@ -356,8 +457,17 @@ class ResolveTypes():
 
         return False, {}
 
-    def resolve_ltp_conflict(self, gid_anis, ncbi_sp, type_gids, ltp_metadata, require_conflict_sp):
-        """Resolve by considering BLAST hits of 16S rRNA genes to LTP database."""
+    def resolve_ltp_conflict(self, gid_anis: AniPairs, ncbi_sp: str, type_gids: Set[str], ltp_metadata: SsuLtpMetadata) -> Resolution:
+        """Resolve conflicting type genomes by considering BLAST hits of 16S rRNA genes to LTP database.
+
+        :param gid_anis: ANI between genome pairs.
+        :param ncbi_sp: NCBI species assignment for genomes.
+        :param type_gids: Accession for genomes assembled from the type strain of a species.
+        :param cur_genomes: Metadata for genomes in the current GTDB release.
+        :param ltp_metadata: LTP metadata for 16S sequences in type strain genomes.
+        :param require_conflict_sp: Species defined in the LTP database.
+        :return: True along with reason for considering genomes untrustworthy as type material, else False.
+        """
 
         untrustworthy_gids = {}
         genomes_matching_expected_sp = 0
@@ -376,7 +486,7 @@ class ResolveTypes():
                     else:
                         match_unexpected_sp.append(ltp_sp)
 
-            if expected_sp_count == 0 and len(match_unexpected_sp) >= require_conflict_sp:
+            if expected_sp_count == 0 and len(match_unexpected_sp) >= 0:
                 if len(match_unexpected_sp) > 0:
                     untrustworthy_gids[
                         gid] = f"Conflicting 16S rRNA hits to LTP database of {' / '.join(set(match_unexpected_sp))}"
@@ -392,8 +502,12 @@ class ResolveTypes():
 
         return False, {}
 
-    def parse_untrustworthy_type_ledger(self, untrustworthy_type_ledger):
-        """Parse file indicating genomes considered to be untrustworthy as type material."""
+    def parse_untrustworthy_type_ledger(self, untrustworthy_type_ledger: str) -> Dict[str, Tuple[str, str]]:
+        """Parse file indicating genomes considered to be untrustworthy as type material.
+
+        :param untrustworthy_type_ledger: File listing genomes that should be considered untrustworthy as type material.
+        :return: Mapping from genomes to their NCBI species assignment and reason for being declared untrustworthy.
+        """
 
         manual_untrustworthy_types = {}
         with open(untrustworthy_type_ledger) as f:
@@ -411,8 +525,12 @@ class ResolveTypes():
 
         return manual_untrustworthy_types
 
-    def sp_with_mult_type_strains(self, cur_genomes):
-        """Identify NCBI species with multiple type strain of species genomes."""
+    def sp_with_mult_type_strains(self, cur_genomes: Genomes) -> Dict[str, List[str]]:
+        """Identify NCBI species with multiple type strain of species genomes.
+
+        :param cur_genomes: Metadata for genomes in the current GTDB release.
+        :return: Mapping from NCBI species to type strain genome accessions.
+        """
 
         sp_type_strain_genomes = defaultdict(set)
         for gid in cur_genomes:
@@ -428,8 +546,15 @@ class ResolveTypes():
 
         return multi_type_strains_sp
 
-    def calculate_type_strain_ani(self, ncbi_sp, type_gids, cur_genomes, use_pickled_results):
-        """Calculate pairwise ANI between type strain genomes."""
+    def calculate_type_strain_ani(self, ncbi_sp: str, type_gids: Set[str], cur_genomes: Genomes, use_pickled_results):
+        """Calculate pairwise ANI between type strain genomes.
+
+        :param ncbi_sp: NCBI species assignment for genomes.
+        :param type_gids: Accession for genomes assembled from the type strain of a species.
+        :param cur_genomes: Metadata for genomes in the current GTDB release.
+        :param use_pickled_results: Flag indicating if previously calculated and picked ANI results should be used.
+        :return: A tuple with data indicating the ANI and AF between type strain genomes in the specified NCBI species.
+        """
 
         ncbi_sp_str = ncbi_sp[3:].lower().replace(' ', '_')
         if not use_pickled_results:  # ***
@@ -448,7 +573,7 @@ class ResolveTypes():
         all_similar = True
         for gid1, gid2 in combinations(type_gids, 2):
             ani, af = FastANI.symmetric_ani(ani_af, gid1, gid2)
-            if ani < 99 or af < Defaults.AF_SP:
+            if ani < Config.ANI_SAME_STRAIN or af < Defaults.AF_SP:
                 all_similar = False
 
             anis.append(ani)
@@ -463,15 +588,25 @@ class ResolveTypes():
         return all_similar, anis, afs, gid_anis, gid_afs
 
     def run(self,
-            cur_gtdb_metadata_file,
-            cur_genomic_path_file,
-            qc_passed_file,
-            ncbi_genbank_assembly_file,
-            ltp_taxonomy_file,
-            gtdb_type_strains_ledger,
-            untrustworthy_type_ledger,
-            ncbi_env_bioproject_ledger):
-        """Resolve cases where a species has multiple genomes assembled from the type strain."""
+            cur_gtdb_metadata_file: str,
+            cur_genomic_path_file: str,
+            qc_passed_file: str,
+            ncbi_genbank_assembly_file: str,
+            ltp_taxonomy_file: str,
+            gtdb_type_strains_ledger: str,
+            untrustworthy_type_ledger: str,
+            ncbi_env_bioproject_ledger: str) -> None:
+        """Resolve cases where a species has multiple genomes assembled from the type strain.
+
+        :param cur_gtdb_metadata_file: File with metadata for genomes in current GTDB release.
+        :param cur_genomic_path_file: File with path to current genomic FASTA files for genomes.
+        :param qc_passed_file: File indicating genomes that have passed QC.
+        :param ncbi_genbank_assembly_file: File from NCBI with metadata for GenBank assemblies.
+        :param ltp_taxonomy_file: File with LTP taxonomy strings for LTP sequences.
+        :param gtdb_type_strains_ledger: File indicating genomes that should be considered assembled from the type strain.
+        :param untrustworthy_type_ledger: File indicating genomes that should be considered untrustworthy as type material.
+        :param ncbi_env_bioproject_ledger: File indicating NCBI BioProjects composed on MAGs or SAGs incorrectly annotated at NCBI.
+        """
 
         # get species in LTP reference database
         self.log.info(
@@ -644,7 +779,7 @@ class ResolveTypes():
                 # try to resolve by LTP 16S BLAST results
                 if not resolved:
                     resolved, untrustworthy_gids = self.resolve_ltp_conflict(
-                        gid_anis, ncbi_sp, type_gids, ltp_metadata, 0)
+                        gid_anis, ncbi_sp, type_gids, ltp_metadata)
                     if resolved:
                         note = 'Species resolved by identifying conflicting or lack of LTP BLAST results'
                         ltp_resolved += 1
