@@ -23,9 +23,9 @@ from collections import defaultdict
 
 import dendropy
 
-from biolib.taxonomy import Taxonomy
-from biolib.newick import parse_label, create_label
-
+from gtdblib.taxon.rank import TaxonRank
+from gtdblib.taxonomy.taxonomy import read_taxonomy
+from gtdblib.util.bio.newick import parse_label, create_label
 from gtdblib.util.bio.accession import canonical_gid
 
 from gtdb_species_clusters.genomes import Genomes
@@ -60,8 +60,8 @@ class PMC_SpeciesNames(object):
     def key_taxon(self, gid, taxonomy):
         """Get key taxon for determine species assignments."""
 
-        genus = taxonomy[gid][Taxonomy.GENUS_INDEX]
-        species = taxonomy[gid][Taxonomy.SPECIES_INDEX]
+        genus = taxonomy[gid][TaxonRank.GENUS_INDEX]
+        species = taxonomy[gid][TaxonRank.SPECIES_INDEX]
         generic = generic_name(species)
         specific = specific_epithet(species)
 
@@ -298,9 +298,9 @@ class PMC_SpeciesNames(object):
                 # same GTDB family
                 misclassified_diff_family = False
                 if rid in ncbi_misclassified_gids and ncbi_species in ncbi_species_type_strain_rid:
-                    gtdb_family = final_taxonomy[rid][Taxonomy.FAMILY_INDEX]
+                    gtdb_family = final_taxonomy[rid][TaxonRank.FAMILY_INDEX]
                     type_rid = ncbi_species_type_strain_rid[ncbi_species]
-                    type_strain_gtdb_family = final_taxonomy[type_rid][Taxonomy.FAMILY_INDEX]
+                    type_strain_gtdb_family = final_taxonomy[type_rid][TaxonRank.FAMILY_INDEX]
                     if gtdb_family != type_strain_gtdb_family:
                         misclassified_diff_family = True
 
@@ -338,16 +338,16 @@ class PMC_SpeciesNames(object):
             if canonical_taxon(gtdb_specific) != canonical_taxon(gtdb_specific_corr):
                 suffix = taxon_suffix(gtdb_specific)
                 if suffix is None:
-                    final_taxonomy[rid][Taxonomy.SPECIES_INDEX] = gtdb_species_corr
+                    final_taxonomy[rid][TaxonRank.SPECIES_INDEX] = gtdb_species_corr
                 else:
-                    final_taxonomy[rid][Taxonomy.SPECIES_INDEX] = '{}_{}'.format(
+                    final_taxonomy[rid][TaxonRank.SPECIES_INDEX] = '{}_{}'.format(
                         gtdb_species_corr, suffix)
 
     def resolve_species_classification_ledger(self, final_taxonomy, cur_genomes, cur_clusters, species_classification_ledger, manual_curation_rids):
         """Validate genomes in GTDB type strain ledger."""
 
         for gid in final_taxonomy:
-            target_domain = final_taxonomy[gid][Taxonomy.DOMAIN_INDEX]
+            target_domain = final_taxonomy[gid][TaxonRank.DOMAIN_INDEX]
             break
 
         # read genomes in species classification ledger
@@ -386,7 +386,7 @@ class PMC_SpeciesNames(object):
         # get all species defined in final taxonomy
         final_species = {}
         for rid, taxa in final_taxonomy.items():
-            final_species[rid] = taxa[Taxonomy.SPECIES_INDEX]
+            final_species[rid] = taxa[TaxonRank.SPECIES_INDEX]
 
         # defer to assignments in species classification ledger unless they
         # actively conflict with other assignments, in which case manual
@@ -406,7 +406,7 @@ class PMC_SpeciesNames(object):
 
             rid = gtdb_gid_to_rid[gid]
 
-            gtdb_species = final_taxonomy[rid][Taxonomy.SPECIES_INDEX]
+            gtdb_species = final_taxonomy[rid][TaxonRank.SPECIES_INDEX]
             gtdb_generic = generic_name(gtdb_species)
             gtdb_specific = specific_epithet(gtdb_species)
 
@@ -418,11 +418,11 @@ class PMC_SpeciesNames(object):
                     final_sp, gid, final_species[final_sp]))
 
             if (rid in manual_curation_rids
-                    and final_taxonomy[rid][Taxonomy.SPECIES_INDEX] != final_sp):
+                    and final_taxonomy[rid][TaxonRank.SPECIES_INDEX] != final_sp):
                 self.log.warning('Deferring to manual curation over update suggested by species classification ledger {}: {} {}'.format(
-                    rid, final_taxonomy[rid][Taxonomy.SPECIES_INDEX], final_sp))
+                    rid, final_taxonomy[rid][TaxonRank.SPECIES_INDEX], final_sp))
             else:
-                final_taxonomy[rid][Taxonomy.SPECIES_INDEX] = final_sp
+                final_taxonomy[rid][TaxonRank.SPECIES_INDEX] = final_sp
 
             if is_latin_sp_epithet(gtdb_specific) and not test_same_epithet(gtdb_specific, mc_specific):
                 if gid in final_taxonomy:
@@ -436,8 +436,8 @@ class PMC_SpeciesNames(object):
                 gid,
                 rid,
                 mc_species,
-                final_taxonomy[rid][Taxonomy.SPECIES_INDEX],
-                mc_species == final_taxonomy[rid][Taxonomy.SPECIES_INDEX],
+                final_taxonomy[rid][TaxonRank.SPECIES_INDEX],
+                mc_species == final_taxonomy[rid][TaxonRank.SPECIES_INDEX],
                 gtdb_species,
                 cur_genomes[gid].ncbi_taxa.species,
                 cur_genomes[rid].ncbi_taxa.species))
@@ -450,7 +450,7 @@ class PMC_SpeciesNames(object):
         sp_gids = defaultdict(list)
         for rid, taxa in mc_taxonomy.items():
             if cur_genomes[rid].is_gtdb_type_strain():
-                sp = taxa[Taxonomy.SPECIES_INDEX]
+                sp = taxa[TaxonRank.SPECIES_INDEX]
                 sp_gids[sp].append(rid)
 
         resolved_gids = set()
@@ -460,7 +460,7 @@ class PMC_SpeciesNames(object):
                 # genus assignment, the situation can be automatically resolved
                 common_genera = []
                 for rid in rids:
-                    genus = mc_taxonomy[rid][Taxonomy.GENUS_INDEX]
+                    genus = mc_taxonomy[rid][TaxonRank.GENUS_INDEX]
                     if cur_genomes[rid].ncbi_taxa.genus == canonical_taxon(genus):
                         common_genera.append(rid)
 
@@ -478,12 +478,12 @@ class PMC_SpeciesNames(object):
                                 # (e.g., previously assigned s__Saccharomonospora marina_A, so should not be reassign as s__Saccharomonospora marina_B)
                                 # (e.g., previously assigned as s__Dorea phocaeensis, so should be reassigned as s__Dorea phocaeensis_A)
                                 new_sp = cur_genomes[rid].gtdb_taxa.species
-                            mc_taxonomy[rid][Taxonomy.SPECIES_INDEX] = new_sp
+                            mc_taxonomy[rid][TaxonRank.SPECIES_INDEX] = new_sp
 
                             print('Modified {} from {} to {} as multiple type strain species had the proposed name and this genome was transferred from a different NCBI genera, {}.'.format(
                                 rid,
                                 sp,
-                                mc_taxonomy[rid][Taxonomy.SPECIES_INDEX],
+                                mc_taxonomy[rid][TaxonRank.SPECIES_INDEX],
                                 cur_genomes[rid].ncbi_taxa.species))
 
         return resolved_gids
@@ -504,7 +504,7 @@ class PMC_SpeciesNames(object):
 
         cur_gtdb_sp[final_sp] = (rid, case)
 
-        final_taxonomy[rid][Taxonomy.SPECIES_INDEX] = final_sp
+        final_taxonomy[rid][TaxonRank.SPECIES_INDEX] = final_sp
 
         self.final_name_log.write('{}\t{}\t{}\t{}\n'.format(
             rid,
@@ -774,13 +774,13 @@ class PMC_SpeciesNames(object):
 
                     if len(tokens) > warning_idx and tokens[warning_idx]:
                         self.log.warning('Assuming synonym priority for {} ({}) has been fixed manually.'.format(
-                            final_taxonomy[rid][Taxonomy.SPECIES_INDEX],
+                            final_taxonomy[rid][TaxonRank.SPECIES_INDEX],
                             rid))
                         tokens[warning_idx] = 'Incorrect priority establish manually and fixed accordingly'
 
                     fout.write('{}\t{}\t{}\n'.format(
                         synonym_type,
-                        final_taxonomy[rid][Taxonomy.SPECIES_INDEX],
+                        final_taxonomy[rid][TaxonRank.SPECIES_INDEX],
                         '\t'.join(tokens[1:])))
 
         fout.close()
@@ -819,7 +819,7 @@ class PMC_SpeciesNames(object):
                     taxa = [t.strip() for t in taxon_label.split(';')]
 
                 node_taxa = taxa + [final_taxonomy[rid]
-                                    [Taxonomy.SPECIES_INDEX]]
+                                    [TaxonRank.SPECIES_INDEX]]
                 sp_curation_node.label = create_label(
                     support, '; '.join(node_taxa), aux_info)
                 processed_rids.add(rid)
@@ -875,7 +875,7 @@ class PMC_SpeciesNames(object):
             fout.write('{}\t{}\t{}\t{}\t{}\n'.format(
                 rid,
                 ';'.join(taxa),
-                taxa[Taxonomy.SPECIES_INDEX],
+                taxa[TaxonRank.SPECIES_INDEX],
                 len(ncbi_sp),
                 ','.join(ncbi_sp)
             ))
@@ -944,7 +944,7 @@ class PMC_SpeciesNames(object):
 
         # read manually-curated taxonomy
         self.log.info('Parsing manually-curated taxonomy:')
-        mc_taxonomy = Taxonomy().read(manual_taxonomy, use_canonical_gid=True)
+        mc_taxonomy = read_taxonomy(manual_taxonomy, use_canonical_gid=True)
         self.log.info(' - identified taxonomy strings for {:,} genomes'.format(
             len(mc_taxonomy)))
 
@@ -1003,7 +1003,7 @@ class PMC_SpeciesNames(object):
             if gid not in mc_taxonomy:
                 continue
 
-            cur_gtdb_sp = mc_taxonomy[gid][Taxonomy.SPECIES_INDEX]
+            cur_gtdb_sp = mc_taxonomy[gid][TaxonRank.SPECIES_INDEX]
             ledger_sp = gtdb_type_strain_ledger[gid]
             if cur_gtdb_sp != ledger_sp:
                 self.log.warning('Assigned species name for {} conflicts with GTDB type strain ledger: {} {}'.format(
@@ -1114,7 +1114,7 @@ class PMC_SpeciesNames(object):
         # sanity check that all species clusters have a unique name
         sp_names = {}
         for rid, taxa in final_taxonomy.items():
-            sp = taxa[Taxonomy.SPECIES_INDEX]
+            sp = taxa[TaxonRank.SPECIES_INDEX]
             if sp in sp_names:
                 self.log.error('Species name {} assigned to at least 2 GTDB representatives: {} {}'.format(
                     sp, sp_names[sp], rid))

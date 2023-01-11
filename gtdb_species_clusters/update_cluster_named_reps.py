@@ -23,7 +23,7 @@ from collections import namedtuple
 
 from numpy import (mean as np_mean)
 
-from biolib.external.execute import check_dependencies
+from gtdblib.util.shell.execute import check_dependencies
 
 from gtdb_species_clusters.mash import Mash
 from gtdb_species_clusters.fastani import FastANI

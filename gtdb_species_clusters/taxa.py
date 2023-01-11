@@ -17,7 +17,7 @@
 
 import logging
 
-from biolib.taxonomy import Taxonomy
+from gtdblib.taxon.rank import TaxonRank
 
 
 class Taxa(object):
@@ -40,14 +40,14 @@ class Taxa(object):
                 taxa_str = taxa_str.replace(']', '')
             self.taxa = [t.strip() for t in taxa_str.split(';')]
         else:
-            self.taxa = Taxonomy.rank_prefixes
+            self.taxa = TaxonRank.RANK_PREFIXES
 
         self.standard_taxa = {}
         for taxon in self.taxa:
             rank_prefix = taxon[0:3]
-            if rank_prefix in Taxonomy.rank_prefixes:
-                self.standard_taxa[Taxonomy.rank_prefixes.index(
-                    rank_prefix)] = taxon
+            if rank_prefix in TaxonRank.RANK_PREFIXES:
+                rank_idx = TaxonRank.RANK_PREFIXES.index(rank_prefix)
+                self.standard_taxa[rank_idx] = taxon
 
     def __str__(self):
         """User-friendly string representation."""
@@ -94,7 +94,7 @@ class Taxa(object):
         self.standard_taxa[rank_idx] = new_taxon
 
         for idx, taxon in enumerate(self.taxa):
-            if taxon[0:3] == Taxonomy.rank_prefixes[rank_idx]:
+            if taxon[0:3] == TaxonRank.RANK_PREFIXES[rank_idx]:
                 self.taxa[idx] = new_taxon
                 break
 

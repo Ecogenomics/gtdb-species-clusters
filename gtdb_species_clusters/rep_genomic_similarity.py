@@ -18,12 +18,9 @@
 import os
 import logging
 from itertools import permutations
-from collections import defaultdict, namedtuple
+from collections import defaultdict
 
-from biolib.external.execute import check_dependencies
-
-from numpy import (mean as np_mean,
-                   std as np_std)
+from gtdblib.util.shell.execute import check_dependencies
 
 from gtdb_species_clusters.fastani import FastANI
 from gtdb_species_clusters.genomes import Genomes

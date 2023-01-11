@@ -27,8 +27,7 @@ import multiprocessing as mp
 from itertools import permutations
 from collections import defaultdict
 
-from biolib.external.execute import check_dependencies, run
-
+from gtdblib.util.shell.execute import check_dependencies, run
 from gtdblib.util.bio.accession import canonical_gid
 
 

@@ -18,7 +18,8 @@
 import os
 import logging
 
-from biolib.taxonomy import Taxonomy
+from gtdblib.taxon.rank import TaxonRank
+from gtdblib.taxonomy.taxonomy import read_taxonomy
 
 from gtdb_species_clusters.genomes import Genomes
 
@@ -50,7 +51,7 @@ class PMC_CheckTypeStrains(object):
 
         # identify species and genus names updated during manual curation
         self.log.info('Parsing manually curated taxonomy.')
-        mc_taxonomy = Taxonomy().read(manual_taxonomy, use_canonical_gid=True)
+        mc_taxonomy = read_taxonomy(manual_taxonomy, use_canonical_gid=True)
         self.log.info(
             ' - read taxonomy for {:,} genomes.'.format(len(mc_taxonomy)))
 
@@ -71,7 +72,8 @@ class PMC_CheckTypeStrains(object):
         gtdb_type_species = set()
         for rid in mc_taxonomy:
             if cur_genomes[rid].is_effective_type_strain():
-                gtdb_type_species.add(mc_taxonomy[rid][Taxonomy.SPECIES_INDEX])
+                gtdb_type_species.add(
+                    mc_taxonomy[rid][TaxonRank.SPECIES_INDEX])
 
         # establish appropriate species names for GTDB clusters with new representatives
         self.log.info(
@@ -83,7 +85,7 @@ class PMC_CheckTypeStrains(object):
         num_incongruent = 0
         for rid, taxa in mc_taxonomy.items():
             if cur_genomes[rid].is_effective_type_strain():
-                gtdb_sp = taxa[Taxonomy.SPECIES_INDEX]
+                gtdb_sp = taxa[TaxonRank.SPECIES_INDEX]
                 gtdb_generic = generic_name(gtdb_sp)
 
                 ncbi_sp = cur_genomes[rid].ncbi_taxa.species

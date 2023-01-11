@@ -22,8 +22,7 @@ import ntpath
 import logging
 from collections import defaultdict
 
-from biolib.external.execute import check_dependencies, run
-
+from gtdblib.util.shell.execute import check_dependencies, run
 from gtdblib.util.bio.accession import canonical_gid
 
 

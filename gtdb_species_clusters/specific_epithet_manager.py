@@ -18,7 +18,7 @@
 import logging
 from collections import defaultdict, Counter
 
-from biolib.taxonomy import Taxonomy
+from gtdblib.taxon.rank import TaxonRank
 
 from gtdb_species_clusters.taxon_utils import (canonical_taxon,
                                                test_same_epithet,
@@ -106,7 +106,7 @@ class SpecificEpithetManager():
         # get species in GTDB genus
         generic_rids = defaultdict(list)
         for rid in cur_taxonomy:
-            gtdb_generic = cur_taxonomy[rid][Taxonomy.GENUS_INDEX].replace(
+            gtdb_generic = cur_taxonomy[rid][TaxonRank.GENUS_INDEX].replace(
                 'g__', '')
             if rid in mc_species:
                 gtdb_generic = generic_name(mc_species[rid])

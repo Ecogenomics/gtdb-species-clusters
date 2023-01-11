@@ -19,7 +19,7 @@ import sys
 import csv
 import logging
 
-from biolib.common import check_file_exists, make_sure_path_exists
+from gtdblib.utilshell.gtdbshutil import check_file_exists, make_sure_path_exists
 
 from gtdb_species_clusters.update_new_genomes import NewGenomes
 from gtdb_species_clusters.update_qc_genomes import QcGenomes, QcCriteria

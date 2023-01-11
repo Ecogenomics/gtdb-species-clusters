@@ -20,7 +20,7 @@ import sys
 import logging
 from itertools import permutations
 
-from biolib.external.execute import check_dependencies
+from gtdblib.util.shell.execute import check_dependencies
 
 from gtdb_species_clusters.fastani import FastANI
 from gtdb_species_clusters.genomes import Genomes

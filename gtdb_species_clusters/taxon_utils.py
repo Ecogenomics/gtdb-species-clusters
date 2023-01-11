@@ -19,8 +19,7 @@ import sys
 import logging
 from itertools import takewhile
 
-from biolib.taxonomy import Taxonomy
-
+from gtdblib.taxon.rank import TaxonRank
 from gtdblib.util.bio.accession import canonical_gid
 
 
@@ -53,7 +52,7 @@ def ncbi_to_gtdb_synonyms(ncbi_synonym_file, final_gtdb_taxonomy):
         if rid not in final_gtdb_taxonomy:
             continue  # must be from other domain
 
-        gtdb_species = final_gtdb_taxonomy[rid][Taxonomy.SPECIES_INDEX]
+        gtdb_species = final_gtdb_taxonomy[rid][TaxonRank.SPECIES_INDEX]
         gtdb_specific = specific_epithet(gtdb_species)
         ncbi_specific = specific_epithet(ncbi_species)
 
@@ -396,6 +395,6 @@ def read_gtdb_taxonomy(metadata_file):
             if taxa_str and taxa_str != 'none':
                 taxonomy[genome_id] = [t.strip() for t in taxa_str.split(';')]
             else:
-                taxonomy[genome_id] = list(Taxonomy.rank_prefixes)
+                taxonomy[genome_id] = list(TaxonRank.RANK_PREFIXES)
 
     return taxonomy

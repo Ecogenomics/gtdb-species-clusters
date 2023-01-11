@@ -18,7 +18,8 @@
 import os
 import logging
 
-from biolib.taxonomy import Taxonomy
+from gtdblib.taxon.rank import TaxonRank
+from gtdblib.taxonomy.taxonomy import read_taxonomy
 
 from gtdb_species_clusters.genomes import Genomes
 from gtdb_species_clusters.species_priority_manager import SpeciesPriorityManager
@@ -54,7 +55,7 @@ class PMC_CheckTypeSpecies(object):
 
         # identify species and genus names updated during manual curation
         self.log.info('Parsing manually curated taxonomy.')
-        mc_taxonomy = Taxonomy().read(manual_taxonomy, use_canonical_gid=True)
+        mc_taxonomy = read_taxonomy(manual_taxonomy, use_canonical_gid=True)
         self.log.info(
             ' - read taxonomy for {:,} genomes.'.format(len(mc_taxonomy)))
 
@@ -81,7 +82,7 @@ class PMC_CheckTypeSpecies(object):
         num_incongruent = 0
         for rid, taxa in mc_taxonomy.items():
             if cur_genomes[rid].is_gtdb_type_species():
-                gtdb_genus = taxa[Taxonomy.GENUS_INDEX]
+                gtdb_genus = taxa[TaxonRank.GENUS_INDEX]
                 ncbi_genus = cur_genomes[rid].ncbi_taxa.genus
 
                 if gtdb_genus != ncbi_genus:

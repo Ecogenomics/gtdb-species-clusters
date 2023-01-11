@@ -21,7 +21,8 @@ import logging
 
 import dendropy
 
-from biolib.taxonomy import Taxonomy
+from gtdblib.taxon.rank import TaxonRank
+from gtdblib.taxonomy.taxonomy import read_taxonomy, read_taxonomy_from_tree
 
 from taxon_utils import specific_epithet
 
@@ -41,7 +42,7 @@ class PMC_Checks():
 
         # read initial and manually curated taxonomy
         self.log.info('Reading initial species names.')
-        init_taxonomy = Taxonomy().read(init_taxonomy, use_canonical_gid=True)
+        init_taxonomy = read_taxonomy(init_taxonomy, use_canonical_gid=True)
         init_num_gids = sum(
             [1 for gid in init_taxonomy if not gid.startswith('D-')])
         self.log.info(
@@ -52,7 +53,7 @@ class PMC_Checks():
                                               schema='newick',
                                               rooting='force-rooted',
                                               preserve_underscores=True)
-        mc_taxonomy = Taxonomy().read_from_tree(mc_tree)
+        mc_taxonomy = read_taxonomy_from_tree(mc_tree)
 
         mc_specific = {}
         for gid, taxa in mc_taxonomy.items():
@@ -78,11 +79,11 @@ class PMC_Checks():
         fout.write('Genome ID\tInitial species\tManually-curated species\n')
         num_mc = 0
         for gid, mc_sp in mc_specific.items():
-            init_species = init_taxonomy[gid][Taxonomy.SPECIES_INDEX]
+            init_species = init_taxonomy[gid][TaxonRank.SPECIES_INDEX]
             init_specific = specific_epithet(init_species)
 
             if init_specific != mc_sp:
-                mc_generic = mc_taxonomy[gid][Taxonomy.GENUS_INDEX].replace(
+                mc_generic = mc_taxonomy[gid][TaxonRank.GENUS_INDEX].replace(
                     'g__', '')
                 mc_species = 's__{} {}'.format(mc_generic, mc_sp)
                 num_mc += 1
@@ -113,7 +114,7 @@ class PMC_Checks():
 
         # read manual taxonomy file
         self.log.info('Reading manually-curated taxonomy.')
-        mc_taxonomy = Taxonomy().read(manual_taxonomy, use_canonical_gid=True)
+        mc_taxonomy = read_taxonomy(manual_taxonomy, use_canonical_gid=True)
         mc_num_gids = sum(
             [1 for gid in mc_taxonomy if not gid.startswith('D-')])
         self.log.info(
@@ -128,14 +129,14 @@ class PMC_Checks():
             if gid.startswith('D-'):
                 continue
 
-            genus = taxa[Taxonomy.GENUS_INDEX]
+            genus = taxa[TaxonRank.GENUS_INDEX]
             generic = genus.replace('g__', '')
             if not generic:
                 self.log.error(
                     'Genome is missing genus assignment: {}'.format(gid))
                 sys.exit(-1)
 
-            species = taxa[Taxonomy.SPECIES_INDEX]
+            species = taxa[TaxonRank.SPECIES_INDEX]
 
             if gid in mc_species:
                 if generic not in species and species != 's__':
@@ -153,7 +154,7 @@ class PMC_Checks():
                 specific = species.split()[-1]
 
             final_sp = 's__{} {}'.format(generic, specific)
-            taxa[Taxonomy.SPECIES_INDEX] = final_sp
+            taxa[TaxonRank.SPECIES_INDEX] = final_sp
             fout.write('{}\t{}\n'.format(
                 gid,
                 ';'.join(taxa)))

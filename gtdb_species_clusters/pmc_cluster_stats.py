@@ -29,8 +29,7 @@ from numpy import (mean as np_mean,
                    zeros as np_zeros,
                    argmin as np_argmin)
 
-from biolib.external.execute import check_dependencies
-
+from gtdblib.util.shell.execute import check_dependencies
 from gtdblib.util.bio.accession import canonical_gid
 
 from gtdb_species_clusters.genome_utils import read_genome_path

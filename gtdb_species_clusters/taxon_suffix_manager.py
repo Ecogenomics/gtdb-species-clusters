@@ -20,7 +20,7 @@ import sys
 import logging
 from collections import defaultdict
 
-from biolib.taxonomy import Taxonomy
+from gtdblib.taxonomy.taxonomy import read_taxonomy
 
 from gtdb_species_clusters.taxon_utils import (canonical_taxon,
                                                specific_epithet,
@@ -46,7 +46,7 @@ class TaxonSuffixManager():
                 taxonomy_file = os.path.join(self.prev_taxonomy_dir, f)
 
                 taxonomy_id = '_'.join(f.split('_')[0:2])
-                taxonomies[taxonomy_id].update(Taxonomy().read(taxonomy_file))
+                taxonomies[taxonomy_id].update(read_taxonomy(taxonomy_file))
 
         self.log.info(
             'Considering taxonomy from {:,} previous releases.'.format(len(taxonomies)))
