@@ -32,8 +32,6 @@ import os
 import sys
 import time
 
-from biolib.common import make_sure_path_exists
-
 from gtdb_species_clusters import __version__
 from gtdb_species_clusters.main import OptionsParser
 from gtdb_species_clusters import defaults as Defaults

@@ -19,11 +19,11 @@ import sys
 import logging
 from itertools import takewhile
 
-from gtdblib.taxon.rank import TaxonRank
+from gtdblib.Taxonomy.Taxonomy import Taxonomy
 from gtdblib.util.bio.accession import canonical_gid
 
 
-def ncbi_to_gtdb_synonyms(ncbi_synonym_file, final_gtdb_taxonomy):
+def ncbi_to_gtdb_synonyms(ncbi_synonym_file, final_gtdb_Taxonomy):
     """Convert synonyms defined in terms of NCBI species to GTDB species."""
 
     # parse NCBI synonyms
@@ -49,10 +49,10 @@ def ncbi_to_gtdb_synonyms(ncbi_synonym_file, final_gtdb_taxonomy):
     # convert to GTDB synonyms
     gtdb_synonyms = {}
     for synonym_gid, (rid, ncbi_species, ncbi_synonym) in ncbi_synonyms.items():
-        if rid not in final_gtdb_taxonomy:
+        if rid not in final_gtdb_Taxonomy:
             continue  # must be from other domain
 
-        gtdb_species = final_gtdb_taxonomy[rid][TaxonRank.SPECIES_INDEX]
+        gtdb_species = final_gtdb_Taxonomy[rid][Taxonomy.SPECIES_INDEX]
         gtdb_specific = specific_epithet(gtdb_species)
         ncbi_specific = specific_epithet(ncbi_species)
 
@@ -368,8 +368,8 @@ def generic_specific_names(species_name):
     return generic, specific
 
 
-def read_gtdb_taxonomy(metadata_file):
-    """Parse GTDB taxonomy from GTDB metadata.
+def read_gtdb_Taxonomy(metadata_file):
+    """Parse GTDB Taxonomy from GTDB metadata.
 
     Parameters
     ----------
@@ -378,23 +378,23 @@ def read_gtdb_taxonomy(metadata_file):
 
     Return
     ------
-    dict : d[genome_id] -> taxonomy list
+    dict : d[genome_id] -> Taxonomy list
     """
 
-    taxonomy = {}
+    Taxonomy = {}
 
     with open(metadata_file, encoding='utf-8') as f:
         headers = f.readline().strip().split('\t')
         genome_index = headers.index('accession')
-        taxonomy_index = headers.index('gtdb_taxonomy')
+        Taxonomy_index = headers.index('gtdb_Taxonomy')
         for line in f:
             line_split = line.strip().split('\t')
             genome_id = canonical_gid(line_split[genome_index])
-            taxa_str = line_split[taxonomy_index].strip()
+            taxa_str = line_split[Taxonomy_index].strip()
 
             if taxa_str and taxa_str != 'none':
-                taxonomy[genome_id] = [t.strip() for t in taxa_str.split(';')]
+                Taxonomy[genome_id] = [t.strip() for t in taxa_str.split(';')]
             else:
-                taxonomy[genome_id] = list(TaxonRank.RANK_PREFIXES)
+                Taxonomy[genome_id] = list(Taxonomy.RANK_PREFIXES)
 
-    return taxonomy
+    return Taxonomy

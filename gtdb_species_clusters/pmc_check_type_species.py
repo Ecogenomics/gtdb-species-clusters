@@ -18,7 +18,7 @@
 import os
 import logging
 
-from gtdblib.taxon.rank import TaxonRank
+from gtdblib.taxonomy.taxonomy import Taxonomy
 from gtdblib.taxonomy.taxonomy import read_taxonomy
 
 from gtdb_species_clusters.genomes import Genomes
@@ -82,7 +82,7 @@ class PMC_CheckTypeSpecies(object):
         num_incongruent = 0
         for rid, taxa in mc_taxonomy.items():
             if cur_genomes[rid].is_gtdb_type_species():
-                gtdb_genus = taxa[TaxonRank.GENUS_INDEX]
+                gtdb_genus = taxa[Taxonomy.GENUS_INDEX]
                 ncbi_genus = cur_genomes[rid].ncbi_taxa.genus
 
                 if gtdb_genus != ncbi_genus:

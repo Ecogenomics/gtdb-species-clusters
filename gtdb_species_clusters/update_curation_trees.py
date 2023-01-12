@@ -19,7 +19,7 @@ import os
 import logging
 from collections import defaultdict
 
-from gtdblib.taxon.rank import TaxonRank
+from gtdblib.Taxonomy.Taxonomy import Taxonomy
 
 from gtdb_species_clusters.genomes import Genomes
 from gtdb_species_clusters.type_genome_utils import read_clusters
@@ -40,7 +40,7 @@ class UpdateCurationTrees():
         """Determine new NCBI taxa as these should be considered by curators."""
 
         for rank_index in range(1, 7):
-            rank_label = TaxonRank.RANK_LABELS[rank_index]
+            rank_label = Taxonomy.RANK_LABELS[rank_index]
             self.log.info(
                 f'Determining new NCBI taxa at rank of {rank_label}.')
 

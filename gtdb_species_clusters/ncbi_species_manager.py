@@ -20,7 +20,7 @@ import sys
 import logging
 from collections import defaultdict, Counter
 
-from gtdblib.taxon.rank import TaxonRank
+from gtdblib.taxonomy.taxonomy import Taxonomy
 
 from gtdb_species_clusters.genome import Genome
 from gtdb_species_clusters.species_priority_manager import SpeciesPriorityManager
@@ -353,7 +353,7 @@ class NCBI_SpeciesManager():
             gtdb_rep_str = []
             for idx, (rid, count) in enumerate(gtdb_rep_count.most_common()):
                 gtdb_rep_str.append('{} ({}): {}'.format(
-                    final_taxonomy[rid][TaxonRank.SPECIES_INDEX],
+                    final_taxonomy[rid][Taxonomy.SPECIES_INDEX],
                     rid,
                     count))
 

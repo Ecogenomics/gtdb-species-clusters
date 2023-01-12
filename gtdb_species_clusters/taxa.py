@@ -17,7 +17,7 @@
 
 import logging
 
-from gtdblib.taxon.rank import TaxonRank
+from gtdblib.taxonomy.taxonomy import Taxonomy
 
 
 class Taxa(object):
@@ -40,13 +40,13 @@ class Taxa(object):
                 taxa_str = taxa_str.replace(']', '')
             self.taxa = [t.strip() for t in taxa_str.split(';')]
         else:
-            self.taxa = TaxonRank.RANK_PREFIXES
+            self.taxa = Taxonomy.RANK_PREFIXES
 
         self.standard_taxa = {}
         for taxon in self.taxa:
             rank_prefix = taxon[0:3]
-            if rank_prefix in TaxonRank.RANK_PREFIXES:
-                rank_idx = TaxonRank.RANK_PREFIXES.index(rank_prefix)
+            if rank_prefix in Taxonomy.RANK_PREFIXES:
+                rank_idx = Taxonomy.RANK_PREFIXES.index(rank_prefix)
                 self.standard_taxa[rank_idx] = taxon
 
     def __str__(self):
@@ -94,7 +94,7 @@ class Taxa(object):
         self.standard_taxa[rank_idx] = new_taxon
 
         for idx, taxon in enumerate(self.taxa):
-            if taxon[0:3] == TaxonRank.RANK_PREFIXES[rank_idx]:
+            if taxon[0:3] == Taxonomy.RANK_PREFIXES[rank_idx]:
                 self.taxa[idx] = new_taxon
                 break
 

@@ -21,7 +21,7 @@ import logging
 
 import dendropy
 
-from gtdblib.taxon.rank import TaxonRank
+from gtdblib.taxonomy.taxonomy import Taxonomy
 from gtdblib.taxonomy.taxonomy import read_taxonomy, read_taxonomy_from_tree
 
 from taxon_utils import specific_epithet
@@ -79,11 +79,11 @@ class PMC_Checks():
         fout.write('Genome ID\tInitial species\tManually-curated species\n')
         num_mc = 0
         for gid, mc_sp in mc_specific.items():
-            init_species = init_taxonomy[gid][TaxonRank.SPECIES_INDEX]
+            init_species = init_taxonomy[gid][Taxonomy.SPECIES_INDEX]
             init_specific = specific_epithet(init_species)
 
             if init_specific != mc_sp:
-                mc_generic = mc_taxonomy[gid][TaxonRank.GENUS_INDEX].replace(
+                mc_generic = mc_taxonomy[gid][Taxonomy.GENUS_INDEX].replace(
                     'g__', '')
                 mc_species = 's__{} {}'.format(mc_generic, mc_sp)
                 num_mc += 1
@@ -129,14 +129,14 @@ class PMC_Checks():
             if gid.startswith('D-'):
                 continue
 
-            genus = taxa[TaxonRank.GENUS_INDEX]
+            genus = taxa[Taxonomy.GENUS_INDEX]
             generic = genus.replace('g__', '')
             if not generic:
                 self.log.error(
                     'Genome is missing genus assignment: {}'.format(gid))
                 sys.exit(-1)
 
-            species = taxa[TaxonRank.SPECIES_INDEX]
+            species = taxa[Taxonomy.SPECIES_INDEX]
 
             if gid in mc_species:
                 if generic not in species and species != 's__':
@@ -154,7 +154,7 @@ class PMC_Checks():
                 specific = species.split()[-1]
 
             final_sp = 's__{} {}'.format(generic, specific)
-            taxa[TaxonRank.SPECIES_INDEX] = final_sp
+            taxa[Taxonomy.SPECIES_INDEX] = final_sp
             fout.write('{}\t{}\n'.format(
                 gid,
                 ';'.join(taxa)))

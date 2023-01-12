@@ -26,7 +26,7 @@ import dendropy
 
 from Levenshtein import (distance as lvn_distance)
 
-from gtdblib.taxon.rank import TaxonRank
+from gtdblib.taxonomy.taxonomy import Taxonomy
 from gtdblib.taxonomy.taxonomy import read_taxonomy
 from gtdblib.taxonomy.validation import validate_taxonomy
 from gtdblib.util.bio.newick import parse_label
@@ -107,13 +107,13 @@ class PMC_Validation(object):
         invalid_names = {}
         validated_count = 0
         for gid in final_taxonomy:
-            gtdb_genus = final_taxonomy[gid][TaxonRank.GENUS_INDEX]
+            gtdb_genus = final_taxonomy[gid][Taxonomy.GENUS_INDEX]
             if gtdb_genus == 'g__':
                 # GTDB genus assignment has not yet been performed,
                 # which happens when evaluating preliminary taxonomies
                 continue
 
-            gtdb_species = final_taxonomy[gid][TaxonRank.SPECIES_INDEX]
+            gtdb_species = final_taxonomy[gid][Taxonomy.SPECIES_INDEX]
             gtdb_generic = generic_name(gtdb_species)
 
             if gtdb_genus != 'g__' + gtdb_generic:
@@ -141,13 +141,13 @@ class PMC_Validation(object):
                 continue
 
             if cur_genomes[gid].is_gtdb_type_species():
-                gtdb_genus = final_taxonomy[gid][TaxonRank.GENUS_INDEX]
+                gtdb_genus = final_taxonomy[gid][Taxonomy.GENUS_INDEX]
                 if gtdb_genus == 'g__':
                     # GTDB genus assignment has not yet been performed,
                     # which happens when evaluating preliminary taxonomies
                     continue
 
-                gtdb_species = final_taxonomy[gid][TaxonRank.SPECIES_INDEX]
+                gtdb_species = final_taxonomy[gid][Taxonomy.SPECIES_INDEX]
                 ncbi_genus = cur_genomes[gid].ncbi_taxa.genus
 
                 if (gtdb_genus != ncbi_genus
@@ -169,7 +169,7 @@ class PMC_Validation(object):
         for rid in final_taxonomy:
             if cur_genomes[rid].is_effective_type_strain():
                 gtdb_type_species.add(
-                    final_taxonomy[rid][TaxonRank.SPECIES_INDEX])
+                    final_taxonomy[rid][Taxonomy.SPECIES_INDEX])
 
         # check that species clusters represented by type strain genomes
         # have the specific name of the type strain
@@ -180,7 +180,7 @@ class PMC_Validation(object):
                 continue
 
             if cur_genomes[rid].is_effective_type_strain():
-                gtdb_species = final_taxonomy[rid][TaxonRank.SPECIES_INDEX]
+                gtdb_species = final_taxonomy[rid][Taxonomy.SPECIES_INDEX]
                 gtdb_generic = generic_name(gtdb_species)
                 gtdb_specific = specific_epithet(gtdb_species)
 
@@ -222,7 +222,7 @@ class PMC_Validation(object):
         validated_count = 0
         incorrect_synonym_count = 0
         for rid in final_taxonomy:
-            gtdb_sp = final_taxonomy[rid][TaxonRank.SPECIES_INDEX]
+            gtdb_sp = final_taxonomy[rid][Taxonomy.SPECIES_INDEX]
             if is_placeholder_taxon(gtdb_sp):
                 continue
 
@@ -280,13 +280,13 @@ class PMC_Validation(object):
             if rid in self.mc_species:
                 continue
 
-            gtdb_sp = final_taxonomy[rid][TaxonRank.SPECIES_INDEX]
+            gtdb_sp = final_taxonomy[rid][Taxonomy.SPECIES_INDEX]
             if is_placeholder_taxon(gtdb_sp):
                 # this is always acceptable as the GTDB species is either
                 # from a placeholder genus or has a placeholder specific epithet
                 continue
 
-            gtdb_genus = final_taxonomy[rid][TaxonRank.GENUS_INDEX]
+            gtdb_genus = final_taxonomy[rid][Taxonomy.GENUS_INDEX]
             gtdb_generic = generic_name(gtdb_sp)
             gtdb_specific = specific_epithet(gtdb_sp)
 
@@ -367,7 +367,7 @@ class PMC_Validation(object):
 
         identified_gtdb_species = {}
         for rid in final_taxonomy:
-            gtdb_species = final_taxonomy[rid][TaxonRank.SPECIES_INDEX]
+            gtdb_species = final_taxonomy[rid][Taxonomy.SPECIES_INDEX]
             if gtdb_species in identified_gtdb_species:
                 prev_rid = identified_gtdb_species[gtdb_species]
                 invalid_dup_name[rid] = (
@@ -393,10 +393,10 @@ class PMC_Validation(object):
             if gid not in final_taxonomy:
                 continue  # taxon from other domain
 
-            if final_taxonomy[gid][TaxonRank.SPECIES_INDEX] != mc_sp:
+            if final_taxonomy[gid][Taxonomy.SPECIES_INDEX] != mc_sp:
                 invalid_mc[gid] = (gid,
                                    final_taxonomy[gid]
-                                   [TaxonRank.SPECIES_INDEX], mc_sp)
+                                   [Taxonomy.SPECIES_INDEX], mc_sp)
             else:
                 validated_count += 1
 
@@ -426,7 +426,7 @@ class PMC_Validation(object):
         validated_count = 0
         for gid in gtdb_type_strains:
             if gid in final_taxonomy:
-                gtdb_species = final_taxonomy[gid][TaxonRank.SPECIES_INDEX]
+                gtdb_species = final_taxonomy[gid][Taxonomy.SPECIES_INDEX]
                 gtdb_specific = specific_epithet(gtdb_species)
 
                 ledger_specific = specific_epithet(gtdb_type_strains[gid])
@@ -479,7 +479,7 @@ class PMC_Validation(object):
                 continue
 
             if gid in final_taxonomy:
-                gtdb_species = final_taxonomy[gid][TaxonRank.SPECIES_INDEX]
+                gtdb_species = final_taxonomy[gid][Taxonomy.SPECIES_INDEX]
                 gtdb_specific = specific_epithet(gtdb_species)
 
                 ledger_specific = specific_epithet(gtdb_sp_ledger[gid])
@@ -527,7 +527,7 @@ class PMC_Validation(object):
         invalid_suffix = {}
         validated_count = 0
         for rid in final_taxonomy:
-            gtdb_species = final_taxonomy[rid][TaxonRank.SPECIES_INDEX]
+            gtdb_species = final_taxonomy[rid][Taxonomy.SPECIES_INDEX]
             gtdb_generic = generic_name(gtdb_species)
             gtdb_specific = specific_epithet(gtdb_species)
             gtdb_canonical_specific = canonical_taxon(gtdb_specific)
@@ -569,7 +569,7 @@ class PMC_Validation(object):
 
                 if final_taxonomy[gid] != gt_taxa:
                     invalid_gt[gid] = (
-                        gid, final_taxonomy[gid][TaxonRank.SPECIES_INDEX], gt_taxa[TaxonRank.SPECIES_INDEX])
+                        gid, final_taxonomy[gid][Taxonomy.SPECIES_INDEX], gt_taxa[Taxonomy.SPECIES_INDEX])
                 else:
                     validated_count += 1
 
@@ -589,7 +589,7 @@ class PMC_Validation(object):
             if ncbi_species in ncbi_synonyms:
                 ncbi_specific = specific_epithet(ncbi_species)
 
-                gtdb_species = final_taxonomy[rid][TaxonRank.SPECIES_INDEX]
+                gtdb_species = final_taxonomy[rid][Taxonomy.SPECIES_INDEX]
                 gtdb_specific = specific_epithet(gtdb_species)
 
                 if (not is_placeholder_sp_epithet(gtdb_specific)
@@ -614,8 +614,8 @@ class PMC_Validation(object):
         genus_gtdb_type_species = defaultdict(set)
         for rid in final_taxonomy:
             if cur_genomes[rid].is_gtdb_type_species():
-                gtdb_genus = final_taxonomy[rid][TaxonRank.GENUS_INDEX]
-                gtdb_species = final_taxonomy[rid][TaxonRank.SPECIES_INDEX]
+                gtdb_genus = final_taxonomy[rid][Taxonomy.GENUS_INDEX]
+                gtdb_species = final_taxonomy[rid][Taxonomy.SPECIES_INDEX]
                 ncbi_genus = cur_genomes[rid].ncbi_taxa.genus
                 ncbi_species = cur_genomes[rid].ncbi_taxa.species
 
@@ -654,7 +654,7 @@ class PMC_Validation(object):
             if rid in self.mc_species:
                 continue
 
-            gtdb_species = final_taxonomy[rid][TaxonRank.SPECIES_INDEX]
+            gtdb_species = final_taxonomy[rid][Taxonomy.SPECIES_INDEX]
             gtdb_specific = specific_epithet(gtdb_species)
 
             suffix = taxon_suffix(gtdb_specific)
@@ -731,7 +731,7 @@ class PMC_Validation(object):
             if rid in self.mc_species:
                 continue
 
-            gtdb_species = final_taxonomy[rid][TaxonRank.SPECIES_INDEX]
+            gtdb_species = final_taxonomy[rid][Taxonomy.SPECIES_INDEX]
             gtdb_specific = specific_epithet(gtdb_species)
             ncbi_species = cur_genomes[rid].ncbi_taxa.species
 
@@ -766,8 +766,8 @@ class PMC_Validation(object):
         validated_count = 0
         suffix_count = 0
         for rid in final_taxonomy:
-            gtdb_genus = final_taxonomy[rid][TaxonRank.GENUS_INDEX]
-            gtdb_species = final_taxonomy[rid][TaxonRank.SPECIES_INDEX]
+            gtdb_genus = final_taxonomy[rid][Taxonomy.GENUS_INDEX]
+            gtdb_species = final_taxonomy[rid][Taxonomy.SPECIES_INDEX]
             gtdb_generic = generic_name(gtdb_species)
 
             suffix = taxon_suffix(gtdb_generic)
@@ -790,7 +790,7 @@ class PMC_Validation(object):
                     # this should only occur if a genus name was previously unique,
                     # and is now associated with multiple species clusters
                     num_canonical_sp = sum([1 for gid in final_taxonomy
-                                            if canonical_taxon(final_taxonomy[gid][TaxonRank.GENUS_INDEX]) == canonical_taxon(gtdb_genus)])
+                                            if canonical_taxon(final_taxonomy[gid][Taxonomy.GENUS_INDEX]) == canonical_taxon(gtdb_genus)])
 
                     if num_canonical_sp > 1:
                         validated_count += 1
@@ -816,7 +816,7 @@ class PMC_Validation(object):
         invalid_spelling = {}
         validated_count = 0
         for rid in final_taxonomy:
-            gtdb_genus = final_taxonomy[rid][TaxonRank.GENUS_INDEX]
+            gtdb_genus = final_taxonomy[rid][Taxonomy.GENUS_INDEX]
             canonical_genus = canonical_taxon(gtdb_genus)
 
             prev_gtdb_genus = cur_genomes[rid].gtdb_taxa.genus
@@ -851,7 +851,7 @@ class PMC_Validation(object):
         # determine number of GTDB species with same canonical name
         canonical_sp_count = defaultdict(set)
         for rid in final_taxonomy:
-            gtdb_species = final_taxonomy[rid][TaxonRank.SPECIES_INDEX]
+            gtdb_species = final_taxonomy[rid][Taxonomy.SPECIES_INDEX]
             canonical_sp = canonical_taxon(gtdb_species)
 
             canonical_sp_count[canonical_sp].add(gtdb_species)
@@ -863,7 +863,7 @@ class PMC_Validation(object):
             if rid in self.mc_species:
                 continue
 
-            gtdb_species = final_taxonomy[rid][TaxonRank.SPECIES_INDEX]
+            gtdb_species = final_taxonomy[rid][Taxonomy.SPECIES_INDEX]
             canonical_sp = canonical_taxon(gtdb_species)
             gtdb_specific = specific_epithet(gtdb_species)
 
@@ -897,7 +897,7 @@ class PMC_Validation(object):
         invalid_specific = {}
         validated_count = 0
         for gid, taxa in final_taxonomy.items():
-            gtdb_species = taxa[TaxonRank.SPECIES_INDEX]
+            gtdb_species = taxa[Taxonomy.SPECIES_INDEX]
             specific = specific_epithet(gtdb_species)
 
             if specific in self.forbidden_specific_names:
@@ -916,7 +916,7 @@ class PMC_Validation(object):
         invalid_sp_name = {}
         validated_count = 0
         for gid, taxa in final_taxonomy.items():
-            gtdb_species = taxa[TaxonRank.SPECIES_INDEX]
+            gtdb_species = taxa[Taxonomy.SPECIES_INDEX]
             canonical_generic = canonical_taxon(generic_name(gtdb_species))
             specific = specific_epithet(gtdb_species)
 
@@ -954,7 +954,7 @@ class PMC_Validation(object):
             if rid not in final_taxonomy:
                 continue
 
-            gtdb_genus = final_taxonomy[rid][TaxonRank.GENUS_INDEX]
+            gtdb_genus = final_taxonomy[rid][Taxonomy.GENUS_INDEX]
             for cid in cids:
                 gtdb_genera_gids[gtdb_genus].add(cid)
 
@@ -1056,7 +1056,7 @@ class PMC_Validation(object):
             ' - median RED of genera: {:.3f}'.format(median_red_genera))
 
         # get all genera present in the GTDB
-        gtdb_genera = set([final_taxonomy[rid][TaxonRank.GENUS_INDEX]
+        gtdb_genera = set([final_taxonomy[rid][Taxonomy.GENUS_INDEX]
                            for rid in final_taxonomy])
 
         # get NCBI genera not present in the GTDB
@@ -1073,7 +1073,7 @@ class PMC_Validation(object):
         for ncbi_genus, rids in missing_ncbi_genera.items():
             found = False
             for rid in rids:
-                gtdb_genus = final_taxonomy[rid][TaxonRank.GENUS_INDEX]
+                gtdb_genus = final_taxonomy[rid][Taxonomy.GENUS_INDEX]
                 if canonical_taxon(gtdb_genus) == ncbi_genus:
                     found = True
                     break
@@ -1083,7 +1083,7 @@ class PMC_Validation(object):
             else:
                 within_gtdb_genus = False
                 for rid in rids:
-                    gtdb_genus = final_taxonomy[rid][TaxonRank.GENUS_INDEX]
+                    gtdb_genus = final_taxonomy[rid][Taxonomy.GENUS_INDEX]
                     root_genus = genus_map[gtdb_genus]
                     if root_genus.root_distance < median_red_genera:
                         # RED is to the left (smaller) of the median
@@ -1106,7 +1106,7 @@ class PMC_Validation(object):
 
                 if not within_gtdb_genus:
                     gtdb_genera = ['{}: {} (RED={:.2f})'.format(
-                        rid, final_taxonomy[rid][TaxonRank.GENUS_INDEX], red_genus[final_taxonomy[rid][TaxonRank.GENUS_INDEX]]) for rid in rids]
+                        rid, final_taxonomy[rid][Taxonomy.GENUS_INDEX], red_genus[final_taxonomy[rid][Taxonomy.GENUS_INDEX]]) for rid in rids]
                     invalid_missing_ncbi_genera[ncbi_genus] = (
                         ncbi_genus, ', '.join(gtdb_genera))
                 else:
@@ -1125,7 +1125,7 @@ class PMC_Validation(object):
         ncbi_genus_gids = defaultdict(set)
         gtdb_genera = set()
         for rid in final_taxonomy:
-            gtdb_genus = final_taxonomy[rid][TaxonRank.GENUS_INDEX]
+            gtdb_genus = final_taxonomy[rid][Taxonomy.GENUS_INDEX]
             gtdb_genera.add(gtdb_genus)
 
             if is_placeholder_taxon(gtdb_genus):
@@ -1215,7 +1215,7 @@ class PMC_Validation(object):
                 continue
 
             prev_genus = prev_genomes[rid].gtdb_taxa.genus
-            cur_genus = final_taxonomy[rid][TaxonRank.GENUS_INDEX]
+            cur_genus = final_taxonomy[rid][Taxonomy.GENUS_INDEX]
 
             if (is_placeholder_taxon(prev_genus)
                     and is_placeholder_taxon(cur_genus)
@@ -1224,7 +1224,7 @@ class PMC_Validation(object):
 
         # get all genera in current and previous GTDB release
         cur_gtdb_genera = set(
-            [final_taxonomy[rid][TaxonRank.GENUS_INDEX] for rid in final_taxonomy])
+            [final_taxonomy[rid][Taxonomy.GENUS_INDEX] for rid in final_taxonomy])
         prev_gtdb_genera = set(
             [prev_genomes[rid].gtdb_taxa.genus for rid in prev_genomes.sp_clusters])
         self.log.info(' - identified {:,} current and {:,} previous GTDB genera.'.format(
@@ -1286,7 +1286,7 @@ class PMC_Validation(object):
                 # must be from other domain
                 continue
 
-            gtdb_species = final_taxonomy[rid][TaxonRank.SPECIES_INDEX]
+            gtdb_species = final_taxonomy[rid][Taxonomy.SPECIES_INDEX]
             gtdb_specific = specific_epithet(gtdb_species)
 
             ncbi_specific = specific_epithet(ncbi_sp)
@@ -1327,7 +1327,7 @@ class PMC_Validation(object):
                     or gid in unambiguous_subsp_rids):
                 continue
 
-            gtdb_species = final_taxonomy[gid][TaxonRank.SPECIES_INDEX]
+            gtdb_species = final_taxonomy[gid][Taxonomy.SPECIES_INDEX]
             gtdb_specific = specific_epithet(gtdb_species)
 
             if not is_placeholder_sp_epithet(gtdb_specific):
@@ -1368,7 +1368,7 @@ class PMC_Validation(object):
                 continue
 
             if gid in final_taxonomy:
-                gtdb_species = final_taxonomy[gid][TaxonRank.SPECIES_INDEX]
+                gtdb_species = final_taxonomy[gid][Taxonomy.SPECIES_INDEX]
                 gtdb_specific = specific_epithet(gtdb_species)
 
                 if gid in unambiguous_sp_rids or gid in unambiguous_subsp_rids:
@@ -1520,7 +1520,7 @@ class PMC_Validation(object):
         invalid_name = {}
         validated_count = 0
         for gid, taxa in final_taxonomy.items():
-            for rank_idx, parent in enumerate(taxa[0:TaxonRank.GENUS_INDEX]):
+            for rank_idx, parent in enumerate(taxa[0:Taxonomy.GENUS_INDEX]):
                 child = taxa[rank_idx+1]
 
                 if parent[3:] != child[3:] and parent[3:].lower() == child[3:].lower():
@@ -1575,8 +1575,8 @@ class PMC_Validation(object):
         invalid_name = {}
         validated_count = 0
         for gid, taxa in final_taxonomy.items():
-            genus = taxa[TaxonRank.GENUS_INDEX]
-            species = taxa[TaxonRank.SPECIES_INDEX]
+            genus = taxa[Taxonomy.GENUS_INDEX]
+            species = taxa[Taxonomy.SPECIES_INDEX]
             specific = specific_epithet(species)
 
             assert species.startswith(genus.replace('g__', 's__'))
@@ -1609,8 +1609,8 @@ class PMC_Validation(object):
         invalid_suffix = {}
         validated_count = 0
         for gid, taxa in final_taxonomy.items():
-            gtdb_genus = taxa[TaxonRank.GENUS_INDEX]
-            gtdb_sp = taxa[TaxonRank.SPECIES_INDEX]
+            gtdb_genus = taxa[Taxonomy.GENUS_INDEX]
+            gtdb_sp = taxa[Taxonomy.SPECIES_INDEX]
             gtdb_specific = gtdb_sp.split()[1]
 
             # check if name is recognized at LPSN
@@ -1700,7 +1700,7 @@ class PMC_Validation(object):
         genus_lineages = {}
         all_higher_taxa = defaultdict(set)
         for taxa in final_taxonomy.values():
-            genus = taxa[TaxonRank.GENUS_INDEX]
+            genus = taxa[Taxonomy.GENUS_INDEX]
             if genus == 'g__' or genus in genus_stems:
                 continue
 
@@ -1709,7 +1709,7 @@ class PMC_Validation(object):
                 # are never the stems for higher taxon names
                 continue
 
-            for taxon in taxa[TaxonRank.PHYLUM_INDEX:TaxonRank.GENUS_INDEX]:
+            for taxon in taxa[Taxonomy.PHYLUM_INDEX:Taxonomy.GENUS_INDEX]:
                 if is_suffixed_taxon(taxon):
                     # suffixed taxon such as o__Thiohalomonadales_A or f__UBA11359_B
                     # do not speak to the correct placement of the stem genus so are
@@ -1722,7 +1722,7 @@ class PMC_Validation(object):
                 continue
 
             genus_stems[genus] = stem
-            genus_lineages[genus] = taxa[0:TaxonRank.SPECIES_INDEX]
+            genus_lineages[genus] = taxa[0:Taxonomy.SPECIES_INDEX]
 
         # test the placement of higher order taxa based on genus name
         taxon_suffixes = {'o__': 'ales', 'f__': 'aceae'}
@@ -1817,7 +1817,7 @@ class PMC_Validation(object):
             cid for cid in cur_clusters[new_rid] if cid in prev_genomes.sp_clusters]
 
         new_ncbi_species = cur_genomes[new_rid].ncbi_taxa.species
-        new_gtdb_species = final_taxonomy[new_rid][TaxonRank.SPECIES_INDEX]
+        new_gtdb_species = final_taxonomy[new_rid][Taxonomy.SPECIES_INDEX]
 
         if new_rid in self.mc_species:
             specific_change_types.append('MANUAL_CURATION')
@@ -1937,7 +1937,7 @@ class PMC_Validation(object):
         for ncbi_subsp, (rid, _assignment_type) in unambiguous_ncbi_subsp.items():
             unambiguous_subsp_rids[rid] = ncbi_subsp.split()[-1]
 
-        domains_of_interest = set([taxa[TaxonRank.DOMAIN_INDEX]
+        domains_of_interest = set([taxa[Taxonomy.DOMAIN_INDEX]
                                    for taxa in final_taxonomy.values()])
 
         fout_sp = open(os.path.join(self.output_dir,
@@ -1984,7 +1984,7 @@ class PMC_Validation(object):
             if new_rid is None:
                 lost_sp_cluster += 1
             elif new_rid in final_taxonomy:
-                new_sp = final_taxonomy[new_rid][TaxonRank.SPECIES_INDEX]
+                new_sp = final_taxonomy[new_rid][Taxonomy.SPECIES_INDEX]
                 new_generic = generic_name(new_sp)
                 new_specific = specific_epithet(new_sp)
 
@@ -2150,8 +2150,8 @@ class PMC_Validation(object):
             prev_gtdb_genus = prev_genomes[prev_rid].gtdb_taxa.genus
             prev_gtdb_specific = specific_epithet(prev_gtdb_sp)
 
-            new_gtdb_sp = final_taxonomy[new_rid][TaxonRank.SPECIES_INDEX]
-            new_gtdb_genus = final_taxonomy[new_rid][TaxonRank.GENUS_INDEX]
+            new_gtdb_sp = final_taxonomy[new_rid][Taxonomy.SPECIES_INDEX]
+            new_gtdb_genus = final_taxonomy[new_rid][Taxonomy.GENUS_INDEX]
             new_gtdb_specific = specific_epithet(new_gtdb_sp)
 
             total_names += 1
