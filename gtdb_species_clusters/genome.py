@@ -185,9 +185,16 @@ class Genome(object):
         return self.gtdb_type_designation in Genome.GTDB_TYPE_SUBSPECIES
 
     def is_ncbi_untrustworthy_as_type(self):
-        """Check if genome considered untrustworthy as type material by NCBI."""
+        """Check if genome considered untrustworthy as type material by NCBI.
 
-        return 'untrustworthy as type' in self.excluded_from_refseq_note.lower()
+        NCBI moved from using "untrustworthy as type" to "not used as type"
+        sometime between RefSeq R202 and R207. Regardless of the phrasing,
+        the assertion by NCBI is that that have doubts that the genome is
+        assembled from the specified type material.
+        """
+
+        return ('untrustworthy as type' in self.excluded_from_refseq_note.lower()
+                or 'not used as type' in self.excluded_from_refseq_note.lower())
 
     def is_ncbi_many_frameshifted_proteins(self):
         """Check if genomes considered to have many frameshifted proteins by NCBI."""

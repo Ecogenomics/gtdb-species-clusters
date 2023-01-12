@@ -428,6 +428,11 @@ class ResolveTypes():
                                                      cur_genomes: Genomes) -> Resolution:
         """Resolve conflicting type genomes by identifying genomes marked as `untrustworthy as type` at NCBI and with conflicting LTP assignments.
 
+        NCBI moved from using "untrustworthy as type" to "not used as type"
+        sometime between RefSeq R202 and R207. Regardless of the phrasing,
+        the assertion by NCBI is that that have doubts that the genome is
+        assembled from the specified type material.
+
         :param gid_anis: ANI between genome pairs.
         :param ncbi_sp: NCBI species assignment for genomes.
         :param type_gids: Accession for genomes assembled from the type strain of a species.
@@ -442,7 +447,7 @@ class ResolveTypes():
 
         untrustworthy_gids = {}
         for gid in type_gids:
-            if 'untrustworthy as type' in cur_genomes[gid].excluded_from_refseq_note.lower():
+            if cur_genomes[gid].is_ncbi_untrustworthy_as_type():
                 ltp_species = self.ltp_species(gid, ltp_metadata)
 
                 if ncbi_sp not in ltp_species and len(ltp_species) > 0:
@@ -763,8 +768,8 @@ class ResolveTypes():
                             cur_genomes[gid].ncbi_taxa,
                             cur_genomes[gid].gtdb_taxa))
 
-                # filter genomes marked as `untrustworthy as type` at NCBI and where the LTP
-                # assignment also suggest the asserted type material is incorrect
+                # filter genomes marked as `untrustworthy as type` or `not used as type` at NCBI and
+                # where the LTP assignment also suggest the asserted type material is incorrect
                 resolved, untrustworthy_gids = self.resolve_validated_untrustworthy_ncbi_genomes(gid_anis,
                                                                                                  ncbi_sp,
                                                                                                  type_gids,
@@ -773,7 +778,8 @@ class ResolveTypes():
                                                                                                  cur_genomes)
 
                 if resolved:
-                    note = "Species resolved by removing genomes considered `untrustworthy as type` and with a LTP BLAST hit confirming the assembly is likely untrustworthy"
+                    note = "Species resolved by removing genomes considered `untrustworthy as type` or `not used as type`"
+                    note += " and with a LTP BLAST hit confirming the assembly is likely untrustworthy"
                     ncbi_ltp_resolved += 1
 
                 # try to resolve by LTP 16S BLAST results
@@ -873,17 +879,19 @@ class ResolveTypes():
 
             # remove genomes marked as untrustworthy as type at NCBI if one or more potential type strain genomes remaining
             ncbi_untrustworthy_gids = set(
-                [gid for gid in type_gids if 'untrustworthy as type' in cur_genomes[gid].excluded_from_refseq_note])
+                [gid for gid in type_gids if cur_genomes[gid].is_ncbi_untrustworthy_as_type()]
+            )
+
             if len(type_gids - set(untrustworthy_gids) - ncbi_untrustworthy_gids) >= 1:
                 for gid in ncbi_untrustworthy_gids:
-                    untrustworthy_gids[gid] = "Genome annotated as `untrustworthy as type` at NCBI and there are other potential type strain genomes available"
+                    untrustworthy_gids[gid] = "Genome annotated as `untrustworthy as type` or `not used as type` at NCBI"
+                    untrustworthy_gids[gid] += " and there are other potential type strain genomes available"
 
             # report cases where genomes marked as untrustworthy as type at NCBI are being retained as potential type strain genomes
             num_ncbi_untrustworthy = len(ncbi_untrustworthy_gids)
             for gid in type_gids:
-                if (gid not in untrustworthy_gids
-                        and 'untrustworthy as type' in cur_genomes[gid].excluded_from_refseq_note):
-                    self.log.warning("Retaining genome {} from {} despite being marked as `untrustworthy as type` at NCBI [{:,} of {:,} considered untrustworthy].".format(
+                if (gid not in untrustworthy_gids and cur_genomes[gid].is_ncbi_untrustworthy_as_type()):
+                    self.log.warning("Retaining genome {} from {} despite being marked as `untrustworthy as type` or `not used as type` at NCBI [{:,} of {:,} considered untrustworthy].".format(
                         gid,
                         ncbi_sp,
                         num_ncbi_untrustworthy,
@@ -893,8 +901,8 @@ class ResolveTypes():
             for gid, reason in untrustworthy_gids.items():
                 ltp_species = self.ltp_species(gid, ltp_metadata)
 
-                if 'untrustworthy as type' in cur_genomes[gid].excluded_from_refseq_note:
-                    reason += "; considered `untrustworthy as type` at NCBI"
+                if cur_genomes[gid].is_ncbi_untrustworthy_as_type():
+                    reason += "; considered `untrustworthy as type` or `not used as type` at NCBI"
                 fout_untrustworthy.write('{}\t{}\t{}\t{}\t{}\n'.format(gid,
                                                                        ncbi_sp,
                                                                        cur_genomes[gid].gtdb_taxa.species,
@@ -959,7 +967,7 @@ class ResolveTypes():
         self.log.info(
             f'Identified {num_divergent:,} species with 1 or more divergent type strain genomes.')
         self.log.info(
-            f' - resolved {ncbi_ltp_resolved:,} species by removing NCBI `untrustworthy as type` genomes with a conflicting LTP 16S rRNA classifications.')
+            f' - resolved {ncbi_ltp_resolved:,} species by removing NCBI `untrustworthy as type` or `not used as type` genomes with a conflicting LTP 16S rRNA classifications.')
         self.log.info(
             f' - resolved {ltp_resolved:,} species by considering conflicting LTP 16S rRNA classifications.')
         self.log.info(
