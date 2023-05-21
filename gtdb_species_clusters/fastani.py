@@ -27,7 +27,7 @@ import multiprocessing as mp
 from itertools import permutations
 from collections import defaultdict
 
-from gtdblib.util.shell.execute import check_dependencies, run
+from gtdblib.util.shell.execute import check_dependencies, run_bash
 from gtdblib.util.bio.accession import canonical_gid
 
 
@@ -161,12 +161,12 @@ class FastANI():
         # create file pointing to representative genome files
         tmp_fastani_file = os.path.join(
             tempfile.gettempdir(), str(uuid.uuid4()))
-        cmd = 'fastANI -q %s -r %s -o %s 2> /dev/null' % (
+        cmd = 'fastANI -q {} -r {} -o {} 2> /dev/null'.format(
             q_gf,
             r_gf,
             tmp_fastani_file)
 
-        run(cmd)
+        run_bash(cmd)
 
         if os.path.exists(tmp_fastani_file) and os.stat(tmp_fastani_file).st_size > 0:
             for line in open(tmp_fastani_file):

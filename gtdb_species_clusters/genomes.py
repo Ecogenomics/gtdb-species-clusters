@@ -423,9 +423,24 @@ class Genomes(object):
             ncbi_taxonomy_unfiltered_index = headers.index(
                 'ncbi_taxonomy_unfiltered')
 
-            gtdb_type_index = headers.index('gtdb_type_designation')
-            gtdb_type_sources_index = headers.index(
-                'gtdb_type_designation_sources')
+            if 'gtdb_type_designation' in headers:
+                gtdb_type_index = headers.index('gtdb_type_designation')
+            elif 'gtdb_type_designation_ncbi_taxa' in headers:
+                # Note: name of field changed in R214
+                gtdb_type_index = headers.index('gtdb_type_designation_ncbi_taxa')
+            else:
+                self.log.error("Unable to find GTDB type designation field.")
+                sys.exit(1)
+
+            if 'gtdb_type_designation_sources' in headers:
+                gtdb_type_sources_index = headers.index('gtdb_type_designation_sources')
+            elif 'gtdb_type_designation_ncbi_taxa_sources' in headers:
+                # Note: name of field changed in R214
+                gtdb_type_sources_index = headers.index('gtdb_type_designation_ncbi_taxa_sources')
+            else:
+                self.log.error("Unable to find GTDB type designation sources field.")
+                sys.exit(1)
+
             gtdb_type_species_of_genus_index = headers.index(
                 'gtdb_type_species_of_genus')
             ncbi_strain_identifiers_index = headers.index(

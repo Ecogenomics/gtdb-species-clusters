@@ -29,14 +29,12 @@ from gtdblib.util.shell.execute import check_dependencies
 
 from gtdb_species_clusters.mash import Mash
 from gtdb_species_clusters.fastani import FastANI
-
 from gtdb_species_clusters.genomes import Genomes
 from gtdb_species_clusters.species_clusters import SpeciesClusters
-
 from gtdb_species_clusters.genome_utils import select_highest_quality
-
 from gtdb_species_clusters.species_priority_manager import SpeciesPriorityManager
 from gtdb_species_clusters import defaults as Defaults
+from gtdb_species_clusters.taxon_utils import (specific_epithet, is_placeholder_sp_epithet)
 
 
 class UpdateSelectRepresentatives():
@@ -233,9 +231,6 @@ class UpdateSelectRepresentatives():
         """Select representative genome for each species."""
 
         # identify species without a type strain
-        self.log.info('Selecting representative for each of the {:,} unrepresentative named NCBI species.'.format(
-            len(unrepresented_ncbi_sp)))
-
         init_rep_out_file = os.path.join(
             self.output_dir, 'gtdb_rep_genomes_initial.tsv')
         fout = open(init_rep_out_file, 'w')
@@ -402,23 +397,23 @@ class UpdateSelectRepresentatives():
         fout.close()
         fout_manual.close()
 
-        self.log.info('GTDB representative is type strain of species: {:,} ({:.1f}%)'.format(num_type_strain_of_species,
+        self.log.info(' - GTDB representative is type strain of species: {:,} ({:.1f}%)'.format(num_type_strain_of_species,
                                                                                              num_type_strain_of_species*100.0/len(unrepresented_ncbi_sp)))
-        self.log.info('GTDB representative is assembled from type material according to NCBI: {:,} ({:.1f}%)'.format(num_ncbi_assembled_from_type,
+        self.log.info(' - GTDB representative is assembled from type material according to NCBI: {:,} ({:.1f}%)'.format(num_ncbi_assembled_from_type,
                                                                                                                      num_ncbi_assembled_from_type*100.0/len(unrepresented_ncbi_sp)))
-        self.log.info('GTDB representative is assembled from proxytype material according to NCBI: {:,} ({:.1f}%)'.format(num_ncbi_assembled_from_proxytype,
+        self.log.info(' - GTDB representative is assembled from proxytype material according to NCBI: {:,} ({:.1f}%)'.format(num_ncbi_assembled_from_proxytype,
                                                                                                                           num_ncbi_assembled_from_proxytype*100.0/len(unrepresented_ncbi_sp)))
-        self.log.info('GTDB representative is a representative genome at NCBI: {:,} ({:.1f}%)'.format(num_ncbi_rep,
+        self.log.info(' - GTDB representative is a representative genome at NCBI: {:,} ({:.1f}%)'.format(num_ncbi_rep,
                                                                                                       num_ncbi_rep*100.0/len(unrepresented_ncbi_sp)))
-        self.log.info('GTDB representative is type strain of subspecies: {:,} ({:.1f}%)'.format(num_type_strain_of_subspecies,
+        self.log.info(' - GTDB representative is type strain of subspecies: {:,} ({:.1f}%)'.format(num_type_strain_of_subspecies,
                                                                                                 num_type_strain_of_subspecies*100.0/len(unrepresented_ncbi_sp)))
-        self.log.info('Species with de novo selected representative: {:,} ({:.1f}%)'.format(
+        self.log.info(' - species with de novo selected representative: {:,} ({:.1f}%)'.format(
             num_de_novo, num_de_novo*100.0/len(unrepresented_ncbi_sp)))
 
         self.log.info(
-            'Identified {:,} species where multiple potential representatives exist.'.format(multi_gids))
+            ' - identified {:,} species where multiple potential representatives exist.'.format(multi_gids))
         self.log.info(
-            'Identified species requiring manual inspection of selected representative:')
+            ' - identified species requiring manual inspection of selected representative:')
         self.log.info('  TS = {:,}; NTS = {:,}; NP = {:,}; NR = {:,}; TSS = {:,}; DN = {:,}'.format(
             num_type_strain_of_species_manual,
             num_ncbi_assembled_from_type_manual,
@@ -666,6 +661,10 @@ class UpdateSelectRepresentatives():
                                  'gtdb_rep_pairwise_ani.tsv'), 'w')
         fout.write(
             'NCBI species 1\tRepresentative 1\tNCBI species 2\tRepresentative 2\tANI\tAF\tANI12\tAF12\tANI21\tAF21\n')
+        
+        fout_n = open(os.path.join(self.output_dir, 'ani_neighbour_table.init.tsv'), 'w')
+        fout_n.write('Genome ID 1\tGTDB species\tNCBI species\tGenome ID 2\tGTDB species\tNCBI species\tANI\tAF\n')
+
         for gid1, ncbi_sp1 in all_rep_genomes.items():
             for gid2 in ani_af.get(gid1, []):
                 if gid1 == gid2:
@@ -693,7 +692,7 @@ class UpdateSelectRepresentatives():
 
                 prev_reps_factor = 0
                 if gid1 in updated_sp_clusters and gid2 in updated_sp_clusters:
-                    # representatives were distinct GTDB species clusters in
+                    # HACK: representatives were distinct GTDB species clusters in
                     # the previous release so only consider them ANI neibhours
                     # if they exceed an additional 'fudge factor' for ANI
                     # similarity. This accounts for small differences in ANI
@@ -702,11 +701,38 @@ class UpdateSelectRepresentatives():
                     # cutoff in one release and then exceeed it in the next
                     prev_reps_factor = 0.1
 
-                if (ani >= self.max_ani_neighbour + prev_reps_factor
+                # TODO: in order to preserve Latin species names, these are allowed to 
+                # have an ANI upto 97%. In contrast, placeholder species should be
+                # clustered at 95%.
+                if False:
+                    specific1 = specific_epithet(cur_genomes[gid1].gtdb_taxa.species)
+                    specific2 = specific_epithet(cur_genomes[gid2].gtdb_taxa.species)
+
+                    if ((specific1 and is_placeholder_sp_epithet(specific1)) or 
+                        (specific2 and is_placeholder_sp_epithet(specific2))):
+                        ani_neighbour_cutoff = Defaults.ANI_SP
+                    else:
+                        ani_neighbour_cutoff = self.max_ani_neighbour
+                else:
+                    ani_neighbour_cutoff = self.max_ani_neighbour
+
+                if (ani >= ani_neighbour_cutoff + prev_reps_factor
                         and af >= self.max_af_neighbour):
                     ani_neighbours[gid1].add(gid2)
 
+                    fout_n.write('{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\n'.format(
+                        gid1,
+                        cur_genomes[gid1].gtdb_taxa.species,
+                        cur_genomes[gid1].ncbi_taxa.species,
+                        gid2,
+                        cur_genomes[gid2].gtdb_taxa.species,
+                        cur_genomes[gid2].ncbi_taxa.species,
+                        ani,
+                        af
+                    ))
+
         fout.close()
+        fout_n.close()
 
         # sanity check ANI neighbours
         for cur_gid in ani_neighbours:
@@ -926,7 +952,7 @@ class UpdateSelectRepresentatives():
                                   excluded_gids):
         """Create table indicating GTDB clusters that were merged as they had relatively high ANI."""
 
-        out_file = os.path.join(self.output_dir, 'ani_neighbour_table.tsv')
+        out_file = os.path.join(self.output_dir, 'ani_neighbour_table.merged.tsv')
         self.log.info(f'Writing ANI neighbour table to: {out_file}')
         fout = open(out_file, 'w')
         fout.write('NCBI species\tGTDB species\tRepresentative\tStrain IDs\tRepresentative type sources\tPriority year\tGTDB type species\tGTDB type strain\tNCBI assembly type')
@@ -990,9 +1016,9 @@ class UpdateSelectRepresentatives():
         ncbi_sp_with_type_strains = len(
             set(ncbi_species).intersection(type_strain_genomes))
         self.log.info(
-            f' - identified {len(ncbi_species):,} named NCBI species.')
+            f' - identified {len(ncbi_species):,} named NCBI species')
         self.log.info(
-            f' - identified {ncbi_sp_with_type_strains:,} named NCBI species with type strain genomes.')
+            f' - identified {ncbi_sp_with_type_strains:,} named NCBI species with type strain genomes')
 
         # count number of genomes assigned to each named NCBI species
         # and number of these genomes already in GTDB species clusters
@@ -1054,15 +1080,16 @@ class UpdateSelectRepresentatives():
                             ncbi_sp))
 
         self.log.info(
-            f' - identified {type_count:,} unrepresented NCBI species with type strain genomes.')
+            f' - identified {type_count:,} unrepresented NCBI species with type strain genomes')
         self.log.info(
-            f' - identified {nontype_count:,} unrepresented NCBI species without type strain genomes.')
+            f' - identified {nontype_count:,} unrepresented NCBI species without type strain genomes')
         self.log.info(
-            f' - identified {len(unrepresented_ncbi_sp):,} total unrepresented NCBI species.')
+            f' - identified {len(unrepresented_ncbi_sp):,} total unrepresented NCBI species')
 
         return unrepresented_ncbi_sp
 
-    def run(self, updated_sp_cluster_file,
+    def run(self,
+            updated_sp_cluster_file,
             cur_gtdb_metadata_file,
             cur_genomic_path_file,
             qc_passed_file,
@@ -1077,7 +1104,7 @@ class UpdateSelectRepresentatives():
         """Select GTDB type genomes for named species."""
 
         # read updated GTDB species clusters
-        self.log.info('Reading updated GTDB species clusters.')
+        self.log.info('Reading updated GTDB species clusters:')
         updated_sp_clusters = SpeciesClusters()
         updated_sp_clusters.load_from_sp_cluster_file(updated_sp_cluster_file)
         self.log.info(' - identified {:,} updated species clusters spanning {:,} genomes.'.format(
@@ -1085,7 +1112,7 @@ class UpdateSelectRepresentatives():
             updated_sp_clusters.total_num_genomes()))
 
         # create current GTDB genome sets
-        self.log.info('Creating current GTDB genome set.')
+        self.log.info('Creating current GTDB genome set:')
         cur_genomes = Genomes()
         cur_genomes.load_from_metadata_file(cur_gtdb_metadata_file,
                                             gtdb_type_strains_ledger=gtdb_type_strains_ledger,
@@ -1102,12 +1129,12 @@ class UpdateSelectRepresentatives():
 
         # determine new NCBI species requiring a GTDB representative to be selected
         self.log.info(
-            'Determining NCBI species unrepresented by GTDB species clusters.')
+            'Determining NCBI species unrepresented by GTDB species clusters:')
         unrepresented_ncbi_sp = self.unrepresented_ncbi_sp(
             updated_sp_clusters, cur_genomes)
 
         # report type material
-        self.log.info('Tabulating genomes assigned as type material.')
+        self.log.info('Tabulating genomes assigned as type material:')
         gtdb_type_genus = defaultdict(set)
         gtdb_type_sp = defaultdict(set)
         gtdb_type_subsp = defaultdict(set)
@@ -1146,25 +1173,25 @@ class UpdateSelectRepresentatives():
             if len(sp_gids) > 0:
                 ncbi_reps[sp] = sp_gids
 
-        self.log.info('Identified {:,} species spanning {:,} genomes designated as type species of genus by GTDB.'.format(
+        self.log.info(' - identified {:,} species spanning {:,} genomes designated as type species of genus by GTDB'.format(
             len(gtdb_type_genus),
             sum([len(gids) for gids in gtdb_type_genus.values()])))
-        self.log.info('Identified {:,} species spanning {:,} genomes designated as type strain of species by GTDB.'.format(
+        self.log.info(' - identified {:,} species spanning {:,} genomes designated as type strain of species by GTDB'.format(
             len(gtdb_type_sp),
             sum([len(gids) for gids in gtdb_type_sp.values()])))
-        self.log.info('Identified {:,} species spanning {:,} genomes designated as type strain of subspecies or synonym by GTDB.'.format(
+        self.log.info(' - identified {:,} species spanning {:,} genomes designated as type strain of subspecies or synonym by GTDB'.format(
             len(gtdb_type_subsp),
             sum([len(gids) for gids in gtdb_type_subsp.values()])))
-        self.log.info('Identified {:,} species spanning {:,} genomes designated as assembled from type material by NCBI.'.format(
+        self.log.info(' - identified {:,} species spanning {:,} genomes designated as assembled from type material by NCBI'.format(
             len(ncbi_type_sp),
             sum([len(gids) for gids in ncbi_type_sp.values()])))
-        self.log.info('Identified {:,} species spanning {:,} genomes designated as assembled from proxytype material by NCBI.'.format(
+        self.log.info(' - identified {:,} species spanning {:,} genomes designated as assembled from proxytype material by NCBI'.format(
             len(ncbi_proxy),
             sum([len(gids) for gids in ncbi_proxy.values()])))
-        self.log.info('Identified {:,} species spanning {:,} genomes designated as assembly from synonym type material by NCBI.'.format(
+        self.log.info(' - identified {:,} species spanning {:,} genomes designated as assembly from synonym type material by NCBI'.format(
             len(ncbi_type_subsp),
             sum([len(gids) for gids in ncbi_type_subsp.values()])))
-        self.log.info('Identified {:,} species spanning {:,} genomes designated as a reference or representative by NCBI.'.format(
+        self.log.info(' - identified {:,} species spanning {:,} genomes designated as a reference or representative by NCBI'.format(
             len(ncbi_reps),
             sum([len(gids) for gids in ncbi_reps.values()])))
 
@@ -1196,8 +1223,9 @@ class UpdateSelectRepresentatives():
                                         ncbi_reps)
 
         # select representative for new named NCBI species
-        self.log.info(
-            'Selecting representative for new named NCBI species.')
+        self.log.info('Selecting representative for each of the {:,} unrepresentative named NCBI species:'.format(
+            len(unrepresented_ncbi_sp)))
+
         if True:  # ***
             new_rep_genomes = self.select_rep_genomes(unrepresented_ncbi_sp,
                                                       cur_genomes,
@@ -1215,7 +1243,7 @@ class UpdateSelectRepresentatives():
                 open(os.path.join(self.output_dir, 'new_rep_genomes.pkl'), 'rb'))
 
         self.log.info(
-            f'Identified representatives for {len(new_rep_genomes):,} new NCBI named species.')
+            f' - identified representatives for {len(new_rep_genomes):,} new NCBI named species.')
 
         # report species names present twice
         dup_sp = set(updated_sp_clusters.species_names.values()

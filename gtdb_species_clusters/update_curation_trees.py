@@ -19,7 +19,7 @@ import os
 import logging
 from collections import defaultdict
 
-from gtdblib.Taxonomy.Taxonomy import Taxonomy
+from gtdblib.taxonomy.taxonomy import Taxonomy
 
 from gtdb_species_clusters.genomes import Genomes
 from gtdb_species_clusters.type_genome_utils import read_clusters

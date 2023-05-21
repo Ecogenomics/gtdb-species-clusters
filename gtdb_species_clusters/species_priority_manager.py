@@ -121,7 +121,9 @@ class SpeciesPriorityManager(object):
                 assert genusA.startswith('g__')
                 assert genusB.startswith('g__')
                 assert priority_genus.startswith('g__')
-                assert priority_genus in [genusA, genusB]
+                if priority_genus not in [genusA, genusB]:
+                    self.log.error(f"Priority genus {priority_genus} no in set of genera: {genusA} {genusB}")
+                    sys.exit(1)
 
                 self.manual_genus_priority[genusA][genusB] = priority_genus
                 self.manual_genus_priority[genusB][genusA] = priority_genus

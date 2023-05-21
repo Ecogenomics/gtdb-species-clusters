@@ -127,7 +127,7 @@ class PMC_ClusterStats(object):
             genus[rid] = sp.split()[0].replace('s__', '')
             assert genus[rid] == gtdb_taxonomy[rid][5].replace('g__', '')
 
-        # get pairs above Mash threshold
+        # determine all intra-genus pairs between representative genomes
         self.log.info('Determining intra-genus genome pairs.')
         ani_pairs = []
         for qid in clusters:
@@ -163,41 +163,32 @@ class PMC_ClusterStats(object):
         fout.write(
             'Genus\tSpecies 1\tGenome ID 1\tSpecies 2\tGenome ID2\tANI\tAF\n')
         closest_intragenus_rep = {}
-        for qid in clusters:
+        for qid, rid in ani_pairs:
             genusA = genus[qid]
+            genusB = genus[rid]
+            assert genusA == genusB
 
-            closest_ani = 0
-            closest_af = 0
-            closest_gid = None
-            for rid in clusters:
-                if qid == rid:
-                    continue
+            cur_ani = 0
+            ani, af = ('n/a', 'n/a')
+            if qid in ani_af and rid in ani_af[qid]:
+                ani, af = FastANI.symmetric_ani(ani_af, qid, rid)
+                cur_ani = ani
+                cur_af = af
 
-                genusB = genus[rid]
-                if genusA != genusB:
-                    continue
+            fout.write('{}\t{}\t{}\t{}\t{}\t{:.2f}\t{:.3f}\n'.format(
+                genusA,
+                species[qid],
+                qid,
+                species[rid],
+                rid,
+                ani,
+                af))
 
-                ani, af = ('n/a', 'n/a')
-                if qid in ani_af and rid in ani_af[qid]:
-                    ani, af = FastANI.symmetric_ani(ani_af, qid, rid)
-
-                    if ani > closest_ani:
-                        closest_ani = ani
-                        closest_af = af
-                        closest_gid = rid
-
-                fout.write('{}\t{}\t{}\t{}\t{}\t{}\t{}\n'.format(
-                    genusA,
-                    species[qid],
-                    qid,
-                    species[rid],
-                    rid,
-                    ani,
-                    af))
-
-            if closest_gid:
+            if cur_ani > closest_intragenus_rep.get(qid, ['dummy', 0, 0])[1]:
                 closest_intragenus_rep[qid] = (
-                    closest_gid, closest_ani, closest_af)
+                    rid, 
+                    cur_ani, 
+                    cur_af)
 
         fout.close()
 
@@ -209,7 +200,7 @@ class PMC_ClusterStats(object):
         for qid in closest_intragenus_rep:
             rid, ani, af = closest_intragenus_rep[qid]
 
-            fout.write('%s\t%s\t%s\t%s\t%.2f\t%.3f\n' % (
+            fout.write('{}\t{}\t{}\t{}\t{:.2f}\t{:.3f}\n'.format(
                 qid,
                 species[qid],
                 rid,
@@ -227,11 +218,11 @@ class PMC_ClusterStats(object):
         with open(cluster_file) as f:
             headers = f.readline().strip().split('\t')
 
-            rid_index = headers.index('Representative')
+            rid_index = headers.index('Representative genome')
             sp_index = headers.index('GTDB species')
             num_clustered_index = headers.index('No. clustered genomes')
             clustered_genomes_index = headers.index('Clustered genomes')
-            ani_radius_index = headers.index('ANI radius')
+            ani_radius_index = headers.index('ANI circumscription radius')
 
             for line in f:
                 line_split = line.strip().split('\t')
@@ -471,6 +462,15 @@ class PMC_ClusterStats(object):
             for cid in cids:
                 clustered_species[cid] = species[rid]
 
+        # find closest representative genome to each representative genome
+        self.intragenus_pairwise_ani(
+            clusters,
+            species,
+            genome_files,
+            gtdb_taxonomy)
+
+        sys.exit() #***
+
         # determine number of non-rep genomes within ANI radius of multiple rep genomes
         nonrep_rep_count = self.find_multiple_reps(clusters, cluster_radius)
 
@@ -504,13 +504,6 @@ class PMC_ClusterStats(object):
 
             fout.write('\t%s\n' % ','.join(rids))
         fout.close()
-
-        # find closest representative genome to each representative genome
-        self.intragenus_pairwise_ani(
-            clusters,
-            species,
-            genome_files,
-            gtdb_taxonomy)
 
         # identify statistics relative to representative genome
         rep_stats = self.rep_genome_stats(clusters, genome_files)

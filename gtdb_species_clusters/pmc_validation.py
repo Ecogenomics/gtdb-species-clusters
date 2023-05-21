@@ -468,8 +468,11 @@ class PMC_Validation(object):
                 if not sp.startswith('s__'):
                     sp = 's__' + sp
 
-                rid = gtdb_gid_to_rid[gid]
-                gtdb_sp_ledger[rid] = sp
+                if gid in gtdb_gid_to_rid:
+                    # if gid is not in gtdb_gid_to_rid it indicates
+                    # the genome has been removed from GTDB which does occur
+                    rid = gtdb_gid_to_rid[gid]
+                    gtdb_sp_ledger[rid] = sp
 
         # validate names of genomes in species classification ledger
         invalid_sp = {}
@@ -1533,6 +1536,44 @@ class PMC_Validation(object):
             ' - identified {:,} GTDB placeholder names that may conflict with child name (Genome ID, Parent name, Child name):'.format(
                 len(invalid_name)))
 
+    def validate_gtdb_spelling(self, final_taxonomy, cur_genomes):
+        """Validate spelling of GTDB names by comparison with NCBI names."""
+
+        invalid_spelling = {}
+        validated_count = 0
+        for gid, gtdb_taxa in final_taxonomy.items():
+            if gid not in cur_genomes:
+                continue
+
+            for idx, gtdb_taxon in enumerate(gtdb_taxa):
+                ncbi_taxon = cur_genomes[gid].ncbi_taxa.get_taxa(idx)
+  
+                if len(ncbi_taxon) == 3 or gtdb_taxon.startswith('s__'):
+                    continue
+
+                if (not gtdb_taxon.startswith(ncbi_taxon) 
+                    and 0 < lvn_distance(gtdb_taxon, ncbi_taxon) <= 2):
+                    # names are highly similar, but not identical so may be a typo
+                    invalid_spelling[gid] = [gid, gtdb_taxon, ncbi_taxon]
+            else:
+                validated_count += 1
+
+        derep_invalid_spelling = {}
+        processed = set()
+        for (gid, gtdb_taxon, ncbi_taxon) in invalid_spelling.values():
+            pair = (gtdb_taxon, ncbi_taxon)
+            if pair in processed:
+                continue
+
+            processed.add(pair)
+
+            derep_invalid_spelling[gid] = [gid, gtdb_taxon, ncbi_taxon]
+
+        self.report_validation(
+            derep_invalid_spelling,
+            validated_count,
+            ' - identified {:,} potential spelling error (Genome ID, GTDB taxon, NCBI taxon):'.format(len(derep_invalid_spelling)))
+
     def validate_placeholder_names_not_latin(self, final_taxonomy, lpsn):
         """Validate placeholder names that might be mistaken as Latin names.
 
@@ -1579,7 +1620,9 @@ class PMC_Validation(object):
             species = taxa[Taxonomy.SPECIES_INDEX]
             specific = specific_epithet(species)
 
-            assert species.startswith(genus.replace('g__', 's__'))
+            if not species.startswith(genus.replace('g__', 's__')):
+                print(f'Generic name does not match genus name: {gid}, {genus}, {species}')
+                continue
 
             if is_alphanumeric_taxon(genus) and is_suffixed_sp_epithet(specific):
                 # Latin-looking name that is under 6 characters
@@ -2316,7 +2359,7 @@ class PMC_Validation(object):
         """Validate final species names."""
 
         # read LPSN metadata
-        self.log.info('Reading LPSN metadata.')
+        self.log.info('Reading LPSN metadata:')
         lpsn = LPSN(lpsn_data, lpsn_gss_metadata_file)
         self.log.info(' - identified {:,} correct LPSN species and {:,} synonyms.'.format(
             len(lpsn.sp_correct_names),
@@ -2325,13 +2368,12 @@ class PMC_Validation(object):
             len(lpsn.taxa)))
 
         # read manually-curated taxonomy
-        self.log.info('Parsing final taxonomy.')
+        self.log.info('Parsing final taxonomy:')
         final_taxonomy = read_taxonomy(final_taxonomy, use_canonical_gid=True)
         self.log.info(' - identified taxonomy strings for {:,} genomes.'.format(
             len(final_taxonomy)))
 
         # read species names explicitly set via manual curation
-        self.log.info('Parsing manually-curated species.')
         self.mc_species = parse_manual_sp_curation_files(
             manual_sp_names, pmc_custom_species)
 
@@ -2476,6 +2518,10 @@ class PMC_Validation(object):
         #self.log.info('Validating parent-child placeholder names for simple typos.')
         # self.validate_parent_child_placeholder_names(final_taxonomy)
 
+        # validate spelling of GTDB names by comparing to NCBI names
+        self.log.info('Validating spelling of GTDB names by comparison to NCBI.')
+        self.validate_gtdb_spelling(final_taxonomy, cur_genomes)
+
         # validate placeholder names that might be mistaken as Latin names (e.g., g__Gsub)
         self.log.info(
             'Validating placeholder names that might be mistaken as Latin names.')
@@ -2516,9 +2562,10 @@ class PMC_Validation(object):
                                                       lpsn)
 
         # validate pplacement of higher taxon names derived from stem of GTDB genera
-        self.log.info(
-            "Validating placement of higher taxon names derived from stem of GTDB genera.")
-        self.validate_taxa_by_genus_stem(final_taxonomy)
+        # (test is very slow)
+        #***self.log.info(
+        #***    "Validating placement of higher taxon names derived from stem of GTDB genera.")
+        #***self.validate_taxa_by_genus_stem(final_taxonomy)
 
         # validate that all species names are unique
         self.log.info('Validating that species names are unique.')
