@@ -23,7 +23,7 @@ from itertools import permutations
 from gtdblib.util.shell.execute import check_dependencies
 
 from gtdb_species_clusters.mash import Mash
-from gtdb_species_clusters.fastani import FastANI
+from gtdb_species_clusters.skani import Skani
 from gtdb_species_clusters.genomes import Genomes
 
 
@@ -39,7 +39,7 @@ class IntraSpeciesDereplication(object):
                  output_dir):
         """Initialization."""
 
-        check_dependencies(['fastANI', 'mash'])
+        check_dependencies(['skani', 'mash'])
 
         self.cpus = cpus
         self.output_dir = output_dir
@@ -54,7 +54,7 @@ class IntraSpeciesDereplication(object):
         self.min_mash_intra_sp_ani = derep_ani - 1.0
 
         self.mash = Mash(self.cpus)
-        self.fastani = FastANI(ani_cache_file, cpus)
+        self.skani = Skani(ani_cache_file, cpus)
 
     def mash_sp_ani(self, gids, genomes, output_prefix):
         """Calculate pairwise Mash ANI estimates between genomes."""
@@ -223,22 +223,26 @@ class IntraSpeciesDereplication(object):
                 prev_mash_rep_gids = mash_rep_gids
                 prev_ani_threshold = ani_threshold
 
-        # calculate FastANI ANI/AF between genomes passing Mash filtering
+        # calculate skani ANI/AF between genomes passing Mash filtering
         ani_pairs = set()
         for gid1, gid2 in permutations(sorted_gids, 2):
             if gid1 in mash_ani and gid2 in mash_ani[gid1]:
                 if mash_ani[gid1][gid2] >= self.min_mash_intra_sp_ani:
-                    ani_pairs.add((gid1, gid2))
-                    ani_pairs.add((gid2, gid1))
+                    # skani ANI is symmetric and the AF is calculated in both
+                    # directions so only need to run a given pair once
+                    if gid1 < gid2:
+                        ani_pairs.append((gid1, gid2))
+                    else:
+                        ani_pairs.append((gid2, gid1))
 
-        self.log.info(' - calculating FastANI between {:,} pairs with Mash ANI >= {:.1f}%.'.format(
+        self.log.info(' - calculating skani between {:,} pairs with Mash ANI >= {:.1f}%.'.format(
             len(ani_pairs),
             self.min_mash_intra_sp_ani))
-        ani_af = self.fastani.pairs(ani_pairs,
+        ani_af = self.skani.pairs(ani_pairs,
                                     genomes.genomic_files,
                                     report_progress=False,
                                     check_cache=True)
-        self.fastani.write_cache(silence=True)
+        self.skani.write_cache(silence=True)
 
         # perform greedy dereplication
         sp_reps = []
@@ -246,7 +250,7 @@ class IntraSpeciesDereplication(object):
             # determine if genome clusters with existing representative
             clustered = False
             for rid in sp_reps:
-                ani, af = FastANI.symmetric_ani(ani_af, gid, rid)
+                ani, af = Skani.symmetric_ani(ani_af, gid, rid)
 
                 if ani >= self.derep_ani and af >= self.derep_af:
                     clustered = True
@@ -271,7 +275,7 @@ class IntraSpeciesDereplication(object):
             max_ani = 0
             max_af = 0
             for rid in sp_reps:
-                ani, af = FastANI.symmetric_ani(ani_af, gid, rid)
+                ani, af = Skani.symmetric_ani(ani_af, gid, rid)
                 if ((ani > max_ani and af >= self.derep_af)
                         or (ani == max_ani and af >= max_af and af >= self.derep_af)):
                     max_ani = ani

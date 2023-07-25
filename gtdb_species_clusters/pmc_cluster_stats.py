@@ -35,7 +35,7 @@ from gtdblib.util.bio.accession import canonical_gid
 from gtdb_species_clusters.genome_utils import read_genome_path
 from gtdb_species_clusters.taxon_utils import read_gtdb_taxonomy
 from gtdb_species_clusters.type_genome_utils import GenomeRadius
-from gtdb_species_clusters.fastani import FastANI
+from gtdb_species_clusters.skani import Skani
 from gtdb_species_clusters import defaults as Defaults
 
 
@@ -45,7 +45,7 @@ class PMC_ClusterStats(object):
     def __init__(self, af_sp, max_genomes, ani_cache_file, cpus, output_dir):
         """Initialization."""
 
-        check_dependencies(['fastANI', 'mash'])
+        check_dependencies(['skani', 'mash'])
 
         self.cpus = cpus
         self.output_dir = output_dir
@@ -54,7 +54,7 @@ class PMC_ClusterStats(object):
 
         self.af_sp = af_sp
 
-        self.fastani = FastANI(ani_cache_file, cpus)
+        self.skani = Skani(ani_cache_file, cpus)
 
         # maximum number of randomly selected genomes to
         self.max_genomes_for_stats = max_genomes
@@ -93,13 +93,13 @@ class PMC_ClusterStats(object):
 
         nonrep_rep_count = defaultdict(set)
         for idx, gid in enumerate(clustered_gids):
-            cur_ani_cache = self.fastani.ani_cache[gid]
+            cur_ani_cache = self.skani.ani_cache[gid]
             for rid in clusters:
                 if rid not in cur_ani_cache:
                     continue
 
-                ani, af = FastANI.symmetric_ani(
-                    self.fastani.ani_cache, gid, rid)
+                ani, af = Skani.symmetric_ani(
+                    self.skani.ani_cache, gid, rid)
                 if af >= self.af_sp and ani >= cluster_radius[rid].ani:
                     nonrep_rep_count[gid].add((rid, ani))
 
@@ -130,6 +130,7 @@ class PMC_ClusterStats(object):
         # determine all intra-genus pairs between representative genomes
         self.log.info('Determining intra-genus genome pairs.')
         ani_pairs = []
+        all_ani_pairs = []
         for qid in clusters:
             for rid in clusters:
                 if qid == rid:
@@ -140,8 +141,15 @@ class PMC_ClusterStats(object):
                 if genusA != genusB:
                     continue
 
-                ani_pairs.append((qid, rid))
-                ani_pairs.append((rid, qid))
+                # skani ANI is symmetric and the AF is calculated in both
+                # directions so only need to run a given pair once
+                if qid < rid:
+                    ani_pairs.append((qid, rid))
+                else:
+                    ani_pairs.append((rid, qid))
+
+                all_ani_pairs.append((qid, rid))
+                all_ani_pairs.append((rid, qid))
 
         self.log.info(
             'Identified {:,} intra-genus genome pairs.'.format(len(ani_pairs)))
@@ -150,7 +158,7 @@ class PMC_ClusterStats(object):
         self.log.info(
             'Calculating ANI between {:,} genome pairs:'.format(len(ani_pairs)))
         if True:  # ***DEBUGGING
-            ani_af = self.fastani.pairs(ani_pairs, genome_files)
+            ani_af = self.skani.pairs(ani_pairs, genome_files)
             pickle.dump(ani_af, open(os.path.join(
                 self.output_dir, 'type_genomes_ani_af.pkl'), 'wb'))
         else:
@@ -163,7 +171,7 @@ class PMC_ClusterStats(object):
         fout.write(
             'Genus\tSpecies 1\tGenome ID 1\tSpecies 2\tGenome ID2\tANI\tAF\n')
         closest_intragenus_rep = {}
-        for qid, rid in ani_pairs:
+        for qid, rid in all_ani_pairs:
             genusA = genus[qid]
             genusB = genus[rid]
             assert genusA == genusB
@@ -171,7 +179,7 @@ class PMC_ClusterStats(object):
             cur_ani = 0
             ani, af = ('n/a', 'n/a')
             if qid in ani_af and rid in ani_af[qid]:
-                ani, af = FastANI.symmetric_ani(ani_af, qid, rid)
+                ani, af = Skani.symmetric_ani(ani_af, qid, rid)
                 cur_ani = ani
                 cur_af = af
 
@@ -264,14 +272,14 @@ class PMC_ClusterStats(object):
                     gid_pairs.append((rid, cid))
 
                 if True:  # *** DEBUGGING
-                    ani_af = self.fastani.pairs(gid_pairs,
+                    ani_af = self.skani.pairs(gid_pairs,
                                                 genome_files,
                                                 report_progress=False)
                 else:
-                    ani_af = self.fastani.ani_cache
+                    ani_af = self.skani.ani_cache
 
                 # calculate statistics
-                anis = [FastANI.symmetric_ani(ani_af, cid, rid)[
+                anis = [Skani.symmetric_ani(ani_af, cid, rid)[
                     0] for cid in cids]
 
                 stats[rid] = self.RepStats(min_ani=min(anis),
@@ -329,11 +337,11 @@ class PMC_ClusterStats(object):
                     gid_pairs.append((gid2, gid1))
 
                 if True:  # ***DEBUGGING
-                    ani_af = self.fastani.pairs(gid_pairs,
+                    ani_af = self.skani.pairs(gid_pairs,
                                                 genome_files,
                                                 report_progress=False)
                 else:
-                    ani_af = self.fastani.ani_cache
+                    ani_af = self.skani.ani_cache
 
                 # calculate medoid point
                 if len(gids) > 2:
@@ -341,7 +349,7 @@ class PMC_ClusterStats(object):
                     for i, gid1 in enumerate(gids):
                         for j, gid2 in enumerate(gids):
                             if i < j:
-                                ani, _af = FastANI.symmetric_ani(
+                                ani, _af = Skani.symmetric_ani(
                                     ani_af, gid1, gid2)
                                 dist_mat[i, j] = 100 - ani
                                 dist_mat[j, i] = 100 - ani
@@ -354,10 +362,10 @@ class PMC_ClusterStats(object):
                     # individual species cluster
                     medoid_gid = rid
 
-                mean_ani_to_medoid = np_mean([FastANI.symmetric_ani(ani_af, gid, medoid_gid)[0]
+                mean_ani_to_medoid = np_mean([Skani.symmetric_ani(ani_af, gid, medoid_gid)[0]
                                               for gid in gids if gid != medoid_gid])
 
-                mean_ani_to_rep = np_mean([FastANI.symmetric_ani(ani_af, gid, rid)[0]
+                mean_ani_to_rep = np_mean([Skani.symmetric_ani(ani_af, gid, rid)[0]
                                            for gid in gids if gid != rid])
 
                 if mean_ani_to_medoid < mean_ani_to_rep:
@@ -367,7 +375,7 @@ class PMC_ClusterStats(object):
                 # calculate statistics
                 anis = []
                 for gid1, gid2 in combinations(gids, 2):
-                    ani, _af = FastANI.symmetric_ani(ani_af, gid1, gid2)
+                    ani, _af = Skani.symmetric_ani(ani_af, gid1, gid2)
                     anis.append(ani)
 
                 stats[rid] = self.PairwiseStats(
@@ -375,7 +383,7 @@ class PMC_ClusterStats(object):
                     mean_ani=np_mean(anis),
                     std_ani=np_std(anis),
                     median_ani=np_median(anis),
-                    ani_to_medoid=FastANI.symmetric_ani(
+                    ani_to_medoid=Skani.symmetric_ani(
                         ani_af, rid, medoid_gid)[0],
                     mean_ani_to_medoid=mean_ani_to_medoid,
                     mean_ani_to_rep=mean_ani_to_rep,

@@ -28,7 +28,7 @@ from numpy import (mean as np_mean,
 from gtdblib.util.shell.execute import check_dependencies
 
 from gtdb_species_clusters.mash import Mash
-from gtdb_species_clusters.fastani import FastANI
+from gtdb_species_clusters.skani import Skani
 from gtdb_species_clusters.genomes import Genomes
 from gtdb_species_clusters.species_clusters import SpeciesClusters
 from gtdb_species_clusters.genome_utils import select_highest_quality
@@ -56,7 +56,7 @@ class UpdateSelectRepresentatives():
                                     's__Shigella boydii',
                                     's__Shigella dysenteriae'])
 
-        check_dependencies(['fastANI', 'mash'])
+        check_dependencies(['skani', 'mash'])
 
         self.cpus = cpus
         self.output_dir = output_dir
@@ -69,7 +69,7 @@ class UpdateSelectRepresentatives():
         self.max_ani_neighbour = Defaults.ANI_SYNONYMS
         self.max_af_neighbour = Defaults.AF_SP
 
-        self.fastani = FastANI(ani_cache_file, cpus)
+        self.skani = Skani(ani_cache_file, cpus)
 
     def select_ani_neighbours(self, species, gids, cur_genomes, ani_af):
         """Select highest-quality genome with sufficient number of ANI neighbours."""
@@ -77,7 +77,7 @@ class UpdateSelectRepresentatives():
         # calculate mean ANI of all genome pairs
         anis = []
         for gid1, gid2 in combinations(gids, 2):
-            ani, _af = FastANI.symmetric_ani(ani_af, gid1, gid2)
+            ani, _af = Skani.symmetric_ani(ani_af, gid1, gid2)
             if ani > 0:
                 anis.append(ani)
 
@@ -95,7 +95,7 @@ class UpdateSelectRepresentatives():
             if gid1 == gid2:
                 ani_neighbours[gid1] += 1
             else:
-                ani, _af = FastANI.symmetric_ani(ani_af, gid1, gid2)
+                ani, _af = Skani.symmetric_ani(ani_af, gid1, gid2)
                 if ani >= mean_ani - std_ani:
                     ani_neighbours[gid1] += 1
 
@@ -463,7 +463,7 @@ class UpdateSelectRepresentatives():
                 note = 'select single genome annotated as assembled from type material at NCBI'
             else:
                 # calculate ANI between genomes
-                ani_af = self.fastani.pairwise(gids, cur_genomes.genomic_files)
+                ani_af = self.skani.pairwise(gids, cur_genomes.genomic_files)
                 anis = []
                 afs = []
                 for q in ani_af:
@@ -643,7 +643,7 @@ class UpdateSelectRepresentatives():
             gid_pairs = genus_ani_pairs.union(mash_ani_pairs)
             self.log.info(
                 'Calculating ANI between {:,} genome pairs:'.format(len(gid_pairs)))
-            ani_af = self.fastani.pairs(gid_pairs, cur_genomes.genomic_files)
+            ani_af = self.skani.pairs(gid_pairs, cur_genomes.genomic_files)
             pickle.dump(ani_af, open(os.path.join(
                 self.output_dir, 'reps_ani_af.pkl'), 'wb'))
         else:
@@ -696,7 +696,7 @@ class UpdateSelectRepresentatives():
                     # the previous release so only consider them ANI neibhours
                     # if they exceed an additional 'fudge factor' for ANI
                     # similarity. This accounts for small differences in ANI
-                    # calculated by different versions of FastANI that can
+                    # calculated by different versions of FastANI / skani that can
                     # cause two GTDB clusters to just miss the neighbour
                     # cutoff in one release and then exceeed it in the next
                     prev_reps_factor = 0.1
@@ -968,12 +968,12 @@ class UpdateSelectRepresentatives():
                 if n_gid in excluded_gids:
                     continue
 
-                ani, af = FastANI.symmetric_ani(ani_af, ex_gid, n_gid)
+                ani, af = Skani.symmetric_ani(ani_af, ex_gid, n_gid)
                 if ani > closest_ani:
                     closest_ani = ani
                     closest_gid = n_gid
 
-            ani, af = FastANI.symmetric_ani(ani_af, ex_gid, closest_gid)
+            ani, af = Skani.symmetric_ani(ani_af, ex_gid, closest_gid)
 
             fout.write('{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}'.format(
                 cur_genomes[closest_gid].ncbi_taxa.species,

@@ -38,8 +38,9 @@ class Genomes(object):
         self.genomes = {}
         self.sp_clusters = SpeciesClusters()
 
-        self.genomic_files = {}  # this should be removed, but the FastANI interface
+        # this could be removed, but the skani interface
         # currently requires data to be passed in as a dictionary
+        self.genomic_files = {}
 
         self.full_gid = {}  # translate from canonical GID to NCBI accession
 

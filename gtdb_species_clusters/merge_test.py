@@ -20,7 +20,7 @@ import logging
 
 from gtdblib.util.shell.execute import check_dependencies
 
-from gtdb_species_clusters.fastani import FastANI
+from gtdb_species_clusters.skani import Skani
 from gtdb_species_clusters.genomes import Genomes
 
 
@@ -30,21 +30,21 @@ class MergeTest():
     def __init__(self, ani_cache_file, cpus, output_dir):
         """Initialization."""
 
-        check_dependencies(['fastANI'])
+        check_dependencies(['skani'])
 
         self.cpus = cpus
         self.output_dir = output_dir
 
         self.log = logging.getLogger('rich')
 
-        self.fastani = FastANI(ani_cache_file, cpus)
+        self.skani = Skani(ani_cache_file, cpus)
 
     def top_hits(self, species, rid, ani_af, genomes):
         """Report top 5 hits to species."""
 
         results = {}
         for qid in ani_af[rid]:
-            ani, af = FastANI.symmetric_ani(ani_af, rid, qid)
+            ani, af = Skani.symmetric_ani(ani_af, rid, qid)
             results[qid] = (ani, af)
 
         self.log.info(f'Closest 5 species to {species} ({rid}):')
@@ -68,11 +68,11 @@ class MergeTest():
         for gid in merged_sp_cluster:
             gid_pairs.append((rid, gid))
             gid_pairs.append((gid, rid))
-        merged_ani_af1 = self.fastani.pairs(gid_pairs, genomic_files)
+        merged_ani_af1 = self.skani.pairs(gid_pairs, genomic_files)
 
         ani_radius = 100
         for gid in merged_sp_cluster:
-            ani, af = FastANI.symmetric_ani(merged_ani_af1, rid, gid)
+            ani, af = Skani.symmetric_ani(merged_ani_af1, rid, gid)
             if ani < ani_radius:
                 ani_radius = ani
                 af_radius = af
@@ -144,7 +144,7 @@ class MergeTest():
             if gid != gid1:
                 gid_pairs.append((gid1, gid))
                 gid_pairs.append((gid, gid1))
-        ani_af1 = self.fastani.pairs(gid_pairs, genomes.genomic_files)
+        ani_af1 = self.skani.pairs(gid_pairs, genomes.genomic_files)
 
         self.log.info(f'Calculating ANI to {species2}.')
         gid_pairs = []
@@ -152,12 +152,12 @@ class MergeTest():
             if gid != gid2:
                 gid_pairs.append((gid2, gid))
                 gid_pairs.append((gid, gid2))
-        ani_af2 = self.fastani.pairs(gid_pairs, genomes.genomic_files)
+        ani_af2 = self.skani.pairs(gid_pairs, genomes.genomic_files)
 
         # report results
         ani12, af12 = ani_af1[gid1][gid2]
         ani21, af21 = ani_af2[gid2][gid1]
-        ani, af = FastANI.symmetric_ani(ani_af1, gid1, gid2)
+        ani, af = Skani.symmetric_ani(ani_af1, gid1, gid2)
 
         self.log.info(
             f'{species1} ({gid1}) -> {species2} ({gid2}): ANI={ani12:.1f}%, AF={af12:.2f}')

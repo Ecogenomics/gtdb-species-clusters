@@ -25,7 +25,7 @@ from numpy import mean as np_mean
 from gtdblib.util.shell.execute import check_dependencies
 
 from gtdb_species_clusters.mash import Mash
-from gtdb_species_clusters.fastani import FastANI
+from gtdb_species_clusters.skani import Skani
 from gtdb_species_clusters.genomes import Genomes
 from gtdb_species_clusters.type_genome_utils import (ClusteredGenome,
                                                      GenomeRadius,
@@ -39,7 +39,7 @@ class UpdateClusterDeNovo(object):
     def __init__(self, ani_sp, af_sp, ani_cache_file, cpus, output_dir):
         """Initialization."""
 
-        check_dependencies(['fastANI', 'mash'])
+        check_dependencies(['skani', 'mash'])
 
         self.cpus = cpus
         self.output_dir = output_dir
@@ -53,7 +53,7 @@ class UpdateClusterDeNovo(object):
 
         self.min_mash_ani = 90.0
 
-        self.fastani = FastANI(ani_cache_file, cpus)
+        self.skani = Skani(ani_cache_file, cpus)
 
     def parse_named_clusters(self, named_cluster_file):
         """Parse named GTDB species clusters."""
@@ -109,7 +109,9 @@ class UpdateClusterDeNovo(object):
                 if rep_gid not in ani_af[nonrep_gid]:
                     continue
 
-                ani, af = FastANI.symmetric_ani(ani_af, nonrep_gid, rep_gid)
+                # ToDo: replace with Skani, but requires updating rest of pipeline
+                # to have Skani results
+                ani, af = Skani.symmetric_ani(ani_af, nonrep_gid, rep_gid)
 
                 if ani > nonrep_radius[nonrep_gid].ani and af >= self.af_sp:
                     nonrep_radius[nonrep_gid] = GenomeRadius(ani=ani,
@@ -159,7 +161,7 @@ class UpdateClusterDeNovo(object):
 
         return mash_ani
 
-    def selected_rep_genomes(self,
+    def select_rep_genomes(self,
                              cur_genomes,
                              nonrep_radius,
                              unclustered_qc_gids,
@@ -187,8 +189,12 @@ class UpdateClusterDeNovo(object):
                 if cur_gid in mash_ani:
                     for rep_gid in clusters:
                         if mash_ani[cur_gid].get(rep_gid, 0) >= self.min_mash_ani:
-                            ani_pairs.append((cur_gid, rep_gid))
-                            ani_pairs.append((rep_gid, cur_gid))
+                            # skani ANI is symmetric and the AF is calculated in both
+                            # directions so only need to run a given pair once
+                            if cur_gid < rep_gid:
+                                ani_pairs.append((cur_gid, rep_gid))
+                            else:
+                                ani_pairs.append((rep_gid, cur_gid))
 
                 # determine if genome clusters with representative
                 clustered = False
@@ -196,15 +202,13 @@ class UpdateClusterDeNovo(object):
                     if len(ani_pairs) > max_ani_pairs:
                         max_ani_pairs = len(ani_pairs)
 
-                    ani_af = self.fastani.pairs(
-                        ani_pairs, cur_genomes.genomic_files, report_progress=False)
+                    ani_af = self.skani.pairs(ani_pairs, cur_genomes.genomic_files, report_progress=False)
 
                     closest_rep_gid = None
                     closest_rep_ani = 0
                     closest_rep_af = 0
                     for rep_gid in clusters:
-                        ani, af = FastANI.symmetric_ani(
-                            ani_af, cur_gid, rep_gid)
+                        ani, af = Skani.symmetric_ani(ani_af, cur_gid, rep_gid)
 
                         if af >= self.af_sp:
                             if ani > closest_rep_ani or (ani == closest_rep_ani and af > closest_rep_af):
@@ -212,7 +216,7 @@ class UpdateClusterDeNovo(object):
                                 closest_rep_ani = ani
                                 closest_rep_af = af
 
-                        if ani > nonrep_radius[cur_gid].ani and af >= self.af_sp:
+                        if ani > nonrep_radius[cur_gid].ani and af >= 100*self.af_sp:
                             nonrep_radius[cur_gid] = GenomeRadius(ani=ani,
                                                                   af=af,
                                                                   neighbour_gid=rep_gid)
@@ -310,17 +314,20 @@ class UpdateClusterDeNovo(object):
                 for rid in mash_ani[qid]:
                     assert rid in all_reps
 
-                    if (mash_ani[qid][rid] >= self.min_mash_ani
-                            and qid != rid):
-                        mash_ani_pairs.append((qid, rid))
-                        mash_ani_pairs.append((rid, qid))
+                    if mash_ani[qid][rid] >= self.min_mash_ani and qid != rid:
+                        # skani ANI is symmetric and the AF is calculated in both
+                        # directions so only need to run a given pair once
+                        if qid < rid:
+                            mash_ani_pairs.append((qid, rid))
+                        else:
+                            mash_ani_pairs.append((rid, qid))
 
             self.log.info('Calculating ANI between {:,} species clusters and {:,} unclustered genomes ({:,} pairs):'.format(
                 len(clusters),
                 len(nonrep_gids),
                 len(mash_ani_pairs)))
-            ani_af = self.fastani.pairs(
-                mash_ani_pairs, cur_genomes.genomic_files)
+
+            ani_af = self.skani.pairs(mash_ani_pairs, cur_genomes.genomic_files)
 
             # assign genomes to closest representatives
             # that is within the representatives ANI radius
@@ -330,11 +337,11 @@ class UpdateClusterDeNovo(object):
                 closest_rep_ani = 0
                 closest_rep_af = 0
                 for rep_gid in clusters:
-                    ani, af = FastANI.symmetric_ani(ani_af, cur_gid, rep_gid)
+                    ani, af = Skani.symmetric_ani(ani_af, cur_gid, rep_gid)
 
                     isclose_abs_tol = 1e-4
                     if (ani >= final_cluster_radius[rep_gid].ani - isclose_abs_tol
-                            and af >= self.af_sp - isclose_abs_tol):
+                            and af >= 100*self.af_sp - isclose_abs_tol):
                         # the isclose_abs_tol factor is used in order to avoid missing genomes due to
                         # small rounding errors when comparing floating point values. In particular,
                         # the ANI radius for named GTDB representatives is read from file so small
@@ -352,6 +359,7 @@ class UpdateClusterDeNovo(object):
                 else:
                     self.log.warning(
                         'Failed to assign genome {} to representative.'.format(cur_gid))
+
                     if closest_rep_gid:
                         self.log.warning(
                             ' - closest_rep_gid = {}'.format(closest_rep_gid))
@@ -363,7 +371,7 @@ class UpdateClusterDeNovo(object):
                             ' - closest rep radius = {:.2f}'.format(final_cluster_radius[closest_rep_gid].ani))
                     else:
                         self.log.warning(
-                            ' - no representative with an AF >{:.2f} identified.'.format(self.af_sp))
+                            ' - no representative with an AF >{:.2f} identified.'.format(100*self.af_sp))
 
                 statusStr = '-> Assigned {:,} of {:,} ({:.2f}%) genomes.'.format(idx+1,
                                                                                  len(nonrep_gids),
@@ -442,7 +450,7 @@ class UpdateClusterDeNovo(object):
         mash_anis = self.mash_ani_unclustered(cur_genomes, unclustered_gids)
 
         # select de novo species representatives in a greedy fashion based on genome quality
-        de_novo_rep_gids = self.selected_rep_genomes(cur_genomes,
+        de_novo_rep_gids = self.select_rep_genomes(cur_genomes,
                                                      nonrep_radius,
                                                      unclustered_gids,
                                                      mash_anis)

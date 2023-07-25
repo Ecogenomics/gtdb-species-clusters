@@ -20,7 +20,7 @@ import logging
 
 from gtdblib.util.shell.execute import check_dependencies
 
-from gtdb_species_clusters.fastani import FastANI
+from gtdb_species_clusters.skani import Skani
 from gtdb_species_clusters.genomes import Genomes
 
 
@@ -33,14 +33,14 @@ class IntraGenusANI(object):
                  output_dir):
         """Initialization."""
 
-        check_dependencies(['fastANI'])
+        check_dependencies(['skani'])
 
         self.cpus = cpus
         self.output_dir = output_dir
 
         self.log = logging.getLogger('rich')
 
-        self.fastani = FastANI(ani_cache_file, cpus)
+        self.skani = Skani(ani_cache_file, cpus)
 
     def run(self, target_genus,
             gtdb_metadata_file,
@@ -65,12 +65,12 @@ class IntraGenusANI(object):
         self.log.info(
             ' - identified {:,} genomes.'.format(len(target_gids)))
 
-        # calculate FastANI ANI/AF between target genomes
+        # calculate ANI/AF between target genomes
         self.log.info('Calculating pairwise ANI between target genomes.')
-        ani_af = self.fastani.pairwise(target_gids,
+        ani_af = self.skani.pairwise(target_gids,
                                        genomes.genomic_files,
                                        check_cache=True)
-        self.fastani.write_cache(silence=True)
+        self.skani.write_cache(silence=True)
 
         # write out results
         genus_label = target_genus.replace('g__', '').lower()
@@ -80,7 +80,7 @@ class IntraGenusANI(object):
             'Query ID\tQuery species\tTarget ID\tTarget species\tANI\tAF\n')
         for qid in target_gids:
             for rid in target_gids:
-                ani, af = FastANI.symmetric_ani(ani_af, qid, rid)
+                ani, af = Skani.symmetric_ani(ani_af, qid, rid)
 
                 fout.write('{}\t{}\t{}\t{}\t{:.3f}\t{:.3f}\n'.format(
                     qid,

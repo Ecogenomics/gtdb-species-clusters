@@ -23,7 +23,7 @@ from collections import defaultdict
 
 from numpy import (mean as np_mean, std as np_std)
 
-from gtdb_species_clusters.fastani import FastANI
+from gtdb_species_clusters.skani import Skani
 from gtdb_species_clusters.genomes import Genomes
 from gtdb_species_clusters.species_clusters import SpeciesClusters
 from gtdb_species_clusters.species_priority_manager import SpeciesPriorityManager
@@ -47,7 +47,7 @@ class RepActions():
         self.output_dir = output_dir
         self.log = logging.getLogger('rich')
 
-        self.fastani = FastANI(ani_cache_file, cpus)
+        self.skani = Skani(ani_cache_file, cpus)
 
         # create log indicate actions taken to GTDB
         # representative genomes
@@ -91,12 +91,14 @@ class RepActions():
         genome_paths = {}
         for cid in sp_cids:
             gid_pairs.append((f'{prev_rid}-P', f'{cid}-C'))
-            gid_pairs.append((f'{cid}-C', f'{prev_rid}-P'))
             genome_paths[f'{prev_rid}-P'] = prev_genomes[prev_rid].genomic_file
             genome_paths[f'{cid}-C'] = cur_genomes[cid].genomic_file
 
-        ani_af = self.fastani.pairs(
-            gid_pairs, genome_paths, report_progress=False, check_cache=True)
+        ani_af = self.skani.pairs(
+            gid_pairs, 
+            genome_paths, 
+            report_progress=False, 
+            check_cache=True)
 
         # determine highest ANI score
         max_score = -1e6
@@ -104,7 +106,7 @@ class RepActions():
         max_ani = None
         max_af = None
         for cid in sp_cids:
-            ani, af = FastANI.symmetric_ani(
+            ani, af = Skani.symmetric_ani(
                 ani_af, f'{prev_rid}-P', f'{cid}-C')
 
             cur_score = cur_genomes[cid].score_ani(ani)
@@ -127,9 +129,8 @@ class RepActions():
         gid_pairs = []
         for cid in sp_cids:
             gid_pairs.append((cid, prev_rid))
-            gid_pairs.append((prev_rid, cid))
 
-        ani_af = self.fastani.pairs(gid_pairs,
+        ani_af = self.skani.pairs(gid_pairs,
                                     cur_genomes.genomic_files,
                                     report_progress=False,
                                     check_cache=True)
@@ -140,7 +141,7 @@ class RepActions():
         max_ani = None
         max_af = None
         for cid in sp_cids:
-            ani, af = FastANI.symmetric_ani(ani_af, prev_rid, cid)
+            ani, af = Skani.symmetric_ani(ani_af, prev_rid, cid)
 
             cur_score = cur_genomes[cid].score_ani(ani)
 
@@ -325,7 +326,7 @@ class RepActions():
             # be handled differently
             assert prev_rid in cur_genomes
 
-            ani, af = self.fastani.symmetric_ani_cached(f'{prev_rid}-P', f'{prev_rid}-C',
+            ani, af = self.skani.symmetric_ani_cached(f'{prev_rid}-P', f'{prev_rid}-C',
                                                         prev_genomes[prev_rid].genomic_file,
                                                         cur_genomes[prev_rid].genomic_file)
 
@@ -828,7 +829,7 @@ class RepActions():
             if highest_priority_gid != updated_rid:
                 num_higher_priority += 1
 
-                ani, af = self.fastani.symmetric_ani_cached(updated_rid,
+                ani, af = self.skani.symmetric_ani_cached(updated_rid,
                                                             highest_priority_gid,
                                                             cur_genomes[updated_rid].genomic_file,
                                                             cur_genomes[highest_priority_gid].genomic_file)

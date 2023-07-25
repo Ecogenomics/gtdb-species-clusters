@@ -26,7 +26,7 @@ from numpy import (mean as np_mean)
 from gtdblib.util.shell.execute import check_dependencies
 
 from gtdb_species_clusters.mash import Mash
-from gtdb_species_clusters.fastani import FastANI
+from gtdb_species_clusters.skani import Skani
 
 from gtdb_species_clusters.genomes import Genomes
 
@@ -42,7 +42,7 @@ class UpdateClusterNamedReps(object):
     def __init__(self, ani_sp, af_sp, ani_cache_file, cpus, output_dir):
         """Initialization."""
 
-        check_dependencies(['fastANI', 'mash'])
+        check_dependencies(['skani', 'mash'])
 
         self.cpus = cpus
         self.output_dir = output_dir
@@ -58,7 +58,7 @@ class UpdateClusterNamedReps(object):
 
         self.ClusteredGenome = namedtuple('ClusteredGenome', 'ani af gid')
 
-        self.fastani = FastANI(ani_cache_file, cpus)
+        self.skani = Skani(ani_cache_file, cpus)
 
     def _rep_radius(self, rep_gids, rep_ani_file):
         """Calculate circumscription radius for representative genomes."""
@@ -99,7 +99,7 @@ class UpdateClusterNamedReps(object):
                     # However, a 'fudge factor' is used to allow previous GTDB clusters
                     # to remain as seperate clusters if they exceed these thresholds by
                     # a small margin as this can simply be due to differences in the
-                    # version of FastANI used to calculate ANI and AF.
+                    # version of FastANI / skani used to calculate ANI and AF.
                     self.log.warning('ANI neighbours {} and {} have ANI={:.2f} and AF={:.2f}.'.format(
                         rep_gid1, rep_gid2,
                         ani, af))
@@ -181,7 +181,7 @@ class UpdateClusterNamedReps(object):
             # calculate ANI between pairs
             self.log.info(
                 'Calculating ANI between {:,} genome pairs:'.format(len(mash_ani_pairs)))
-            ani_af = self.fastani.pairs(
+            ani_af = self.skani.pairs(
                 mash_ani_pairs, cur_genomes.genomic_files)
             pickle.dump(ani_af, open(os.path.join(
                 self.output_dir, 'ani_af_rep_vs_nonrep.pkl'), 'wb'))
@@ -219,7 +219,7 @@ class UpdateClusterNamedReps(object):
                 if rid not in ani_af[non_rid]:
                     continue
 
-                ani, af = FastANI.symmetric_ani(ani_af, rid, non_rid)
+                ani, af = Skani.symmetric_ani(ani_af, rid, non_rid)
 
                 if af >= self.af_sp:
                     if ani > closest_ani or (ani == closest_ani and af > closest_af):

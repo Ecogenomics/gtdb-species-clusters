@@ -1,3 +1,6 @@
+0.4.0
+- switch from FastANI to skani for ANI and AF calculations
+
 0.3.8
 - update to u_new_genomes to handle genomic FASTA files now being compressed
 - better error checking of correct domain assignment in GTDB when in disagreement with NCBI

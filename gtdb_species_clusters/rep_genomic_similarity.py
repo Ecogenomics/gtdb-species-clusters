@@ -17,12 +17,12 @@
 
 import os
 import logging
-from itertools import permutations
+from itertools import combinations
 from collections import defaultdict
 
 from gtdblib.util.shell.execute import check_dependencies
 
-from gtdb_species_clusters.fastani import FastANI
+from gtdb_species_clusters.skani import Skani
 from gtdb_species_clusters.genomes import Genomes
 
 
@@ -35,14 +35,14 @@ class RepGenomicSimilarity(object):
                  output_dir):
         """Initialization."""
 
-        check_dependencies(['fastANI'])
+        check_dependencies(['skani'])
 
         self.cpus = cpus
         self.output_dir = output_dir
 
         self.log = logging.getLogger('rich')
 
-        self.fastani = FastANI(ani_cache_file, cpus)
+        self.skani = Skani(ani_cache_file, cpus)
 
     def run(self, gtdb_metadata_file,
             genomic_path_file):
@@ -78,16 +78,19 @@ class RepGenomicSimilarity(object):
             if len(gids) < 2:
                 continue
 
-            for g1, g2 in permutations(gids, 2):
+            for g1, g2 in combinations(gids, 2):
                 gid_pairs.append((g1, g2))
         self.log.info(
             f' - identified {len(gid_pairs):,} intragenus comparisons')
 
-        # calculate FastANI ANI/AF between target genomes
+        # calculate skani ANI/AF between target genomes
         self.log.info('Calculating ANI between intragenus pairs.')
-        ani_af = self.fastani.pairs(
-            gid_pairs, genomes.genomic_files, report_progress=True, check_cache=True)
-        self.fastani.write_cache(silence=True)
+        ani_af = self.skani.pairs(
+            gid_pairs, 
+            genomes.genomic_files, 
+            report_progress=True, 
+            check_cache=True)
+        self.skani.write_cache(silence=True)
 
         # write out results
         fout = open(os.path.join(self.output_dir,
@@ -96,7 +99,7 @@ class RepGenomicSimilarity(object):
             'Query ID\tQuery species\tTarget ID\tTarget species\tANI\tAF\n')
         for qid in ani_af:
             for rid in ani_af:
-                ani, af = FastANI.symmetric_ani(ani_af, qid, rid)
+                ani, af = Skani.symmetric_ani(ani_af, qid, rid)
 
                 fout.write('{}\t{}\t{}\t{}\t{:.3f}\t{:.3f}\n'.format(
                     qid,
@@ -105,4 +108,13 @@ class RepGenomicSimilarity(object):
                     genomes[rid].gtdb_taxa.species,
                     ani,
                     af))
+
+                fout.write('{}\t{}\t{}\t{}\t{:.3f}\t{:.3f}\n'.format(
+                    rid,
+                    genomes[rid].gtdb_taxa.species,
+                    qid,
+                    genomes[qid].gtdb_taxa.species,
+                    ani,
+                    af))
+                
         fout.close()

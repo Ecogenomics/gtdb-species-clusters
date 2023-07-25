@@ -18,11 +18,11 @@
 import os
 import sys
 import logging
-from itertools import permutations
+from itertools import combinations
 
 from gtdblib.util.shell.execute import check_dependencies
 
-from gtdb_species_clusters.fastani import FastANI
+from gtdb_species_clusters.skani import Skani
 from gtdb_species_clusters.genomes import Genomes
 
 
@@ -32,14 +32,14 @@ class ANI_SpeciesPair():
     def __init__(self, ani_cache_file, cpus, output_dir):
         """Initialization."""
 
-        check_dependencies(['fastANI'])
+        check_dependencies(['skani'])
 
         self.cpus = cpus
         self.output_dir = output_dir
 
         self.log = logging.getLogger('rich')
 
-        self.fastani = FastANI(ani_cache_file, cpus)
+        self.skani = Skani(ani_cache_file, cpus)
 
     def run(self, gtdb_metadata_file,
             genome_path_file,
@@ -86,8 +86,8 @@ class ANI_SpeciesPair():
         # calculate pairwise ANI between all genomes
         self.log.info(f'Calculating pairwise ANI between all genomes.')
         all_gids = genomes.sp_clusters[rid1].union(genomes.sp_clusters[rid2])
-        gid_pairs = [(gid1, gid2) for gid1, gid2 in permutations(all_gids, 2)]
-        ani_af = self.fastani.pairs(gid_pairs, genomes.genomic_files)
+        gid_pairs = [(gid1, gid2) for gid1, gid2 in combinations(all_gids, 2)]
+        ani_af = self.skani.pairs(gid_pairs, genomes.genomic_files)
 
         fout = open(os.path.join(self.output_dir, "ani_sp_pairwise.tsv"), 'w')
         fout.write('Genome ID 1\tSpecies 1\tGenome ID 2\tSpecies 2\tANI\tAF\n')

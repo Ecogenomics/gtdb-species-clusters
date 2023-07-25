@@ -28,7 +28,7 @@ from numpy import (mean as np_mean, std as np_std)
 from gtdblib.util.bio.accession import canonical_gid
 
 import gtdb_species_clusters.config as Config
-from gtdb_species_clusters.fastani import FastANI
+from gtdb_species_clusters.skani import Skani
 from gtdb_species_clusters.genomes import Genomes
 from gtdb_species_clusters.taxon_utils import generic_name, specific_epithet, canonical_taxon
 from gtdb_species_clusters import defaults as Defaults
@@ -59,7 +59,7 @@ class ResolveTypes():
     def __init__(self, ani_cache_file: str, cpus: int, output_dir: str):
         """Initialization.
 
-        :param ani_cache_file: TSV file with pre-computed FastANI values.
+        :param ani_cache_file: TSV file with pre-computed skani values.
         :param cpus: Number of CPUs to be used by GTDB-Tk.
         :param output_dir: Output directory.
         """
@@ -77,7 +77,7 @@ class ResolveTypes():
         self.log = logging.getLogger('rich')
         self.cpus = cpus
 
-        self.fastani = FastANI(ani_cache_file, cpus)
+        self.skani = Skani(ani_cache_file, cpus)
 
         self.ani_pickle_dir = os.path.join(self.output_dir, 'ani_pickles')
         if not os.path.exists(self.ani_pickle_dir):
@@ -404,7 +404,7 @@ class ResolveTypes():
                     if cur_genomes[gtdb_sp_rid].is_effective_type_strain():
                         # genome has been assigned to another species
                         # defined by a type strain genome
-                        ani, af = self.fastani.symmetric_ani_cached(gid,
+                        ani, af = self.skani.symmetric_ani_cached(gid,
                                                                     gtdb_sp_rid,
                                                                     cur_genomes[gid].genomic_file,
                                                                     cur_genomes[gtdb_sp_rid].genomic_file)
@@ -563,7 +563,7 @@ class ResolveTypes():
 
         ncbi_sp_str = ncbi_sp[3:].lower().replace(' ', '_')
         if not use_pickled_results:  # ***
-            ani_af = self.fastani.pairwise(
+            ani_af = self.skani.pairwise(
                 type_gids, cur_genomes.genomic_files)
             pickle.dump(ani_af, open(os.path.join(
                 self.ani_pickle_dir, f'{ncbi_sp_str}.pkl'), 'wb'))
@@ -577,7 +577,7 @@ class ResolveTypes():
         gid_afs = defaultdict(lambda: {})
         all_similar = True
         for gid1, gid2 in combinations(type_gids, 2):
-            ani, af = FastANI.symmetric_ani(ani_af, gid1, gid2)
+            ani, af = Skani.symmetric_ani(ani_af, gid1, gid2)
             if ani < Config.ANI_SAME_STRAIN or af < Defaults.AF_SP:
                 all_similar = False
 
