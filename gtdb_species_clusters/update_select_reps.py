@@ -77,15 +77,18 @@ class UpdateSelectRepresentatives():
         # calculate mean ANI of all genome pairs
         anis = []
         for gid1, gid2 in combinations(gids, 2):
-            ani, _af = Skani.symmetric_ani(ani_af, gid1, gid2)
+            ani, _af = Skani.symmetric_ani_af(ani_af, gid1, gid2)
             if ani > 0:
                 anis.append(ani)
 
         if not anis:
             self.log.warning(
                 'Could not calculate ANI between {:,} genomes in {}.'.format(len(gids), species))
-            self.log.warning('Selecting highest-quality genome.')
-            return select_highest_quality(gids, cur_genomes)
+
+            hq_gid = select_highest_quality(gids, cur_genomes)
+            self.log.warning(f'Selecting highest-quality genome: {hq_gid}')
+
+            return hq_gid
 
         # calculate number of ANI neighbours for each genome
         mean_ani = np_mean(anis)
@@ -95,22 +98,26 @@ class UpdateSelectRepresentatives():
             if gid1 == gid2:
                 ani_neighbours[gid1] += 1
             else:
-                ani, _af = Skani.symmetric_ani(ani_af, gid1, gid2)
+                ani, _af = Skani.symmetric_ani_af(ani_af, gid1, gid2)
                 if ani >= mean_ani - std_ani:
                     ani_neighbours[gid1] += 1
 
-        # get all genomes that are neighbours with at least half the other genomes
-        neighbour_gids = []
+        # get all genomes that are neighbours with at least half the other genomes,
+        # or if no genomes are neighbours with at least half the genomes has the most
+        # number of neighbours
+        majority_neighbour_gids = []
+        most_neighbours_gids = []
+        most_neighbours = max(ani_neighbours.values())
         for gid in ani_neighbours:
             if ani_neighbours[gid] >= 0.5*len(gids):
-                neighbour_gids.append(gid)
+                majority_neighbour_gids.append(gid)
+            if ani_neighbours[gid] >= most_neighbours:
+                most_neighbours_gids.append(gid)
 
-        if len(neighbour_gids) == 0:
-            self.log.error(
-                'No ANI neighbours identified in select_ani_neighbours')
-            sys.exit(-1)
+        if len(majority_neighbour_gids) == 0:
+            return select_highest_quality(most_neighbours_gids, cur_genomes)
 
-        return select_highest_quality(neighbour_gids, cur_genomes)
+        return select_highest_quality(majority_neighbour_gids, cur_genomes)
 
     def type_sources(self, cur_genomes, gids):
         """Count number of genomes indicated as type material from each source."""
@@ -411,7 +418,7 @@ class UpdateSelectRepresentatives():
             num_de_novo, num_de_novo*100.0/len(unrepresented_ncbi_sp)))
 
         self.log.info(
-            ' - identified {:,} species where multiple potential representatives exist.'.format(multi_gids))
+            ' - identified {:,} species where multiple potential representatives exist'.format(multi_gids))
         self.log.info(
             ' - identified species requiring manual inspection of selected representative:')
         self.log.info('  TS = {:,}; NTS = {:,}; NP = {:,}; NR = {:,}; TSS = {:,}; DN = {:,}'.format(
@@ -463,18 +470,19 @@ class UpdateSelectRepresentatives():
                 note = 'select single genome annotated as assembled from type material at NCBI'
             else:
                 # calculate ANI between genomes
-                ani_af = self.skani.pairwise(gids, cur_genomes.genomic_files)
+                ani_af = self.skani.pairwise(gids, cur_genomes.genomic_files, report_progress=False)
                 anis = []
                 afs = []
                 for q in ani_af:
                     anis += [d[0] for d in ani_af[q].values()]
                     afs += [d[1] for d in ani_af[q].values()]
+                    afs += [d[2] for d in ani_af[q].values()]
 
                 if anis:
-                    mean_ani = '%.1f' % np_mean(anis)
-                    mean_af = '%.2f' % np_mean(afs)
-                    min_ani = '%.1f' % min(anis)
-                    min_af = '%.2f' % min(afs)
+                    mean_ani = f'{np_mean(anis):.1f}'
+                    mean_af = f'{np_mean(afs):.2f}'
+                    min_ani = f'{min(anis):.1f}'
+                    min_af = f'{min(afs):.2f}'
                 else:
                     mean_ani = mean_af = min_ani = min_af = 'n/a'
 
@@ -503,10 +511,7 @@ class UpdateSelectRepresentatives():
                                 cur_gid == rep_gid,
                                 type_status))
                             if cur_gid != rep_gid:
-                                if cur_gid in ani_af and rep_gid in ani_af[cur_gid]:
-                                    cur_ani, cur_af = ani_af[cur_gid][rep_gid]
-                                else:
-                                    cur_ani, cur_af = 0.0, 0.0
+                                cur_ani, cur_af = Skani.symmetric_ani_af(ani_af, cur_gid, rep_gid)
                                 fout_manual.write(
                                     '\t%.1f\t%.2f' % (cur_ani, cur_af))
                             else:
@@ -589,8 +594,10 @@ class UpdateSelectRepresentatives():
             # create Mash sketch for potential representative genomes
             genome_list_file = os.path.join(self.output_dir, 'gtdb_reps.lst')
             sketch = os.path.join(self.output_dir, 'gtdb_reps.msh')
-            mash.sketch(all_rep_genomes, cur_genomes.genomic_files,
-                        genome_list_file, sketch)
+            mash.sketch(all_rep_genomes, 
+                        cur_genomes.genomic_files,
+                        genome_list_file, 
+                        sketch)
 
             # get Mash distances
             mash_dist_file = os.path.join(self.output_dir, 'gtdb_reps.dst')
@@ -600,14 +607,16 @@ class UpdateSelectRepresentatives():
             # read Mash distances
             mash_ani = mash.read_ani(mash_dist_file)
 
-            # get pairs above Mash threshold
+            # get all combinations of pairs above Mash threshold; only
+            # combinations (as opposed to permutations) are required since
+            # both Mash and skani are symmetric measures of ANI and skani
+            # calculates the AF in both directions for a given query and
+            # reference genome
             mash_ani_pairs = []
-            for qid in mash_ani:
-                for rid in mash_ani[qid]:
-                    if mash_ani[qid][rid] >= self.min_mash_ani:
-                        if qid != rid:
-                            mash_ani_pairs.append((qid, rid))
-                            mash_ani_pairs.append((rid, qid))
+            for gid1, gid2 in combinations(all_rep_genomes, 2):
+                ani = mash_ani.get(gid1, {}).get(gid2, 0)
+                if ani >= self.min_mash_ani:
+                    mash_ani_pairs.append((gid1, gid2))
 
             self.log.info(' - identified {:,} genome pairs with a Mash ANI >= {:.1f}%.'.format(
                 len(mash_ani_pairs), self.min_mash_ani))
@@ -633,8 +642,9 @@ class UpdateSelectRepresentatives():
                         continue
 
                     for rep_idA, rep_idB in combinations(genera_gids[genus], 2):
+                        # skani ANI is symmetric and the AF is calculated in both
+                        # directions so only need to run a given pair once
                         genus_ani_pairs.add((rep_idA, rep_idB))
-                        genus_ani_pairs.add((rep_idB, rep_idA))
 
             self.log.info(
                 ' - identified {:,} genome pairs within the same genus.'.format(len(genus_ani_pairs)))
@@ -652,7 +662,7 @@ class UpdateSelectRepresentatives():
 
         return ani_af
 
-    def ani_neighbours(self, updated_sp_clusters, cur_genomes, ani_af, all_rep_genomes):
+    def ani_neighbours(self, updated_sp_clusters, cur_genomes, ani_af):
         """Find all ANI neighbours."""
 
         # find nearest ANI neighbours
@@ -660,35 +670,27 @@ class UpdateSelectRepresentatives():
         fout = open(os.path.join(self.output_dir,
                                  'gtdb_rep_pairwise_ani.tsv'), 'w')
         fout.write(
-            'NCBI species 1\tRepresentative 1\tNCBI species 2\tRepresentative 2\tANI\tAF\tANI12\tAF12\tANI21\tAF21\n')
+            'NCBI species 1\tRepresentative 1\tNCBI species 2\tRepresentative 2\tANI\tAF12\tAF21\n')
         
         fout_n = open(os.path.join(self.output_dir, 'ani_neighbour_table.init.tsv'), 'w')
         fout_n.write('Genome ID 1\tGTDB species\tNCBI species\tGenome ID 2\tGTDB species\tNCBI species\tANI\tAF\n')
 
-        for gid1, ncbi_sp1 in all_rep_genomes.items():
+        for gid1 in ani_af:
             for gid2 in ani_af.get(gid1, []):
-                if gid1 == gid2:
+                ani, af_r, af_q = Skani.result(ani_af, gid1, gid2)
+                if ani == 0.0:
                     continue
 
-                cur_ani, cur_af = ani_af[gid1][gid2]
-                rev_ani, rev_af = ani_af[gid2][gid1]
+                af = max(af_r, af_q)
 
-                # ANI should be the larger of the two values as this
-                # is the most conservative circumscription and reduces the
-                # change of creating polyphyletic species clusters
-                ani = max(rev_ani, cur_ani)
-
-                # AF should be the larger of the two values in order to
-                # accommodate incomplete and contaminated genomes
-                af = max(rev_af, cur_af)
-
+                ncbi_sp1 = cur_genomes[gid1].ncbi_taxa.species
                 ncbi_sp2 = cur_genomes[gid2].ncbi_taxa.species
                 fout.write('{}\t{}\t{}\t{}'.format(
                     ncbi_sp1, gid1, ncbi_sp2, gid2))
-                fout.write('\t{}\t{}\t{}\t{}\t{}\t{}\n'.format(
-                    ani, af,
-                    cur_ani, cur_af,
-                    rev_ani, rev_af))
+                fout.write('\t{}\t{}\t{}\n'.format(
+                    ani, 
+                    af_r, 
+                    af_q))
 
                 prev_reps_factor = 0
                 if gid1 in updated_sp_clusters and gid2 in updated_sp_clusters:
@@ -719,6 +721,7 @@ class UpdateSelectRepresentatives():
                 if (ani >= ani_neighbour_cutoff + prev_reps_factor
                         and af >= self.max_af_neighbour):
                     ani_neighbours[gid1].add(gid2)
+                    ani_neighbours[gid2].add(gid1)
 
                     fout_n.write('{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\n'.format(
                         gid1,
@@ -733,20 +736,6 @@ class UpdateSelectRepresentatives():
 
         fout.close()
         fout_n.close()
-
-        # sanity check ANI neighbours
-        for cur_gid in ani_neighbours:
-            for neighbour_gid in ani_neighbours[cur_gid]:
-                if cur_gid not in ani_neighbours[neighbour_gid]:
-                    self.log.info('ANI neighbours is not symmetrical: {} {}'.format(
-                        ani_af[cur_gid][neighbour_gid],
-                        ani_af[neighbour_gid][cur_gid]))
-                    print(cur_gid, neighbour_gid)
-                    print('cur_gid in all_rep_genomes',
-                          cur_gid in all_rep_genomes)
-                    print('neighbour_gid in all_rep_genomes',
-                          neighbour_gid in all_rep_genomes)
-                    # sys.exit(-1) #***
 
         return ani_neighbours
 
@@ -765,7 +754,7 @@ class UpdateSelectRepresentatives():
                                      lpsn_gss_file):
         """Resolve representatives that have ANI neighbours deemed to be too close."""
 
-        self.log.info('Resolving {:,} representatives with neighbours within a {:.1f}% ANI radius and >= {:.2f} AF.'.format(
+        self.log.info('Resolving {:,} representatives with neighbours within a {:.1f}% ANI radius and >= {:.1f}% AF.'.format(
             len(ani_neighbours),
             self.max_ani_neighbour,
             self.max_af_neighbour))
@@ -858,13 +847,13 @@ class UpdateSelectRepresentatives():
         fout = open(os.path.join(self.output_dir,
                                  'gtdb_excluded_ani_neighbours.tsv'), 'w')
         fout.write(
-            'Species\tRepresentative\tRepresentative status\tGenome quality')
+            'Species\tRepresentative\tStatus\tGenome quality')
         fout.write(
-            '\tPriority year\tNo. ANI neighbours\tNeighbour species\tNeighbour priority years\tNeighbour accessions\n')
+            '\tPriority year\tNo. ANI neighbours\tNeighbour species\tNeighbour status\tNeighbour priority years\tNeighbour accessions\n')
 
         for gid in final_excluded_gids:
             sp = cur_genomes[gid].ncbi_taxa.species
-            fout.write('%s\t%s\t%s\t%.1f\t%s\t%d\t%s\t%s\t%s\n' % (
+            fout.write('{}\t{}\t{}\t{:.1f}\t{}\t{}\t{}\t{}\t{}\t{}\n'.format(
                 sp,
                 gid,
                 gid_type_status[gid],
@@ -873,6 +862,7 @@ class UpdateSelectRepresentatives():
                 len(ani_neighbours[gid]),
                 ', '.join(
                     [cur_genomes[gid].ncbi_taxa.species for gid in ani_neighbours[gid]]),
+                ', '.join([gid_type_status[gid] for gid in ani_neighbours[gid]]),
                 ', '.join([str(cur_genomes[gid].year_of_priority())
                            for gid in ani_neighbours[gid]]),
                 ', '.join([gid for gid in ani_neighbours[gid]])))
@@ -968,12 +958,12 @@ class UpdateSelectRepresentatives():
                 if n_gid in excluded_gids:
                     continue
 
-                ani, af = Skani.symmetric_ani(ani_af, ex_gid, n_gid)
+                ani, af = Skani.symmetric_ani_af(ani_af, ex_gid, n_gid)
                 if ani > closest_ani:
                     closest_ani = ani
                     closest_gid = n_gid
 
-            ani, af = Skani.symmetric_ani(ani_af, ex_gid, closest_gid)
+            ani, af = Skani.symmetric_ani_af(ani_af, ex_gid, closest_gid)
 
             fout.write('{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}'.format(
                 cur_genomes[closest_gid].ncbi_taxa.species,
@@ -1243,7 +1233,7 @@ class UpdateSelectRepresentatives():
                 open(os.path.join(self.output_dir, 'new_rep_genomes.pkl'), 'rb'))
 
         self.log.info(
-            f' - identified representatives for {len(new_rep_genomes):,} new NCBI named species.')
+            f' - identified representatives for {len(new_rep_genomes):,} new NCBI named species')
 
         # report species names present twice
         dup_sp = set(updated_sp_clusters.species_names.values()
@@ -1276,8 +1266,7 @@ class UpdateSelectRepresentatives():
         self.log.info('Establishing ANI neighbours.')
         ani_neighbours = self.ani_neighbours(updated_sp_clusters,
                                              cur_genomes,
-                                             ani_af,
-                                             all_rep_genomes)
+                                             ani_af)
 
         self.log.info('Resolving ANI neighbours.')
         excluded_gids = self.resolve_close_ani_neighbours(cur_genomes,

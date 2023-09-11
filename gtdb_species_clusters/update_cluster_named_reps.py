@@ -78,7 +78,8 @@ class UpdateClusterNamedReps(object):
             rep_gid1_index = header.index('Representative 1')
             rep_gid2_index = header.index('Representative 2')
             ani_index = header.index('ANI')
-            af_index = header.index('AF')
+            af12_index = header.index('AF12')
+            af21_index = header.index('AF21')
 
             for line in f:
                 line_split = line.strip().split('\t')
@@ -90,7 +91,9 @@ class UpdateClusterNamedReps(object):
                     continue
 
                 ani = float(line_split[ani_index])
-                af = float(line_split[af_index])
+                af12 = float(line_split[af12_index])
+                af21 = float(line_split[af21_index])
+                af = max(af12, af21)
 
                 if ani >= self.max_ani_neighbour and af >= self.max_af_neighbour:
                     # typically, representative genomes should not exceed this ANI and AF
@@ -100,7 +103,7 @@ class UpdateClusterNamedReps(object):
                     # to remain as seperate clusters if they exceed these thresholds by
                     # a small margin as this can simply be due to differences in the
                     # version of FastANI / skani used to calculate ANI and AF.
-                    self.log.warning('ANI neighbours {} and {} have ANI={:.2f} and AF={:.2f}.'.format(
+                    self.log.warning('ANI neighbours {} and {} have ANI={:.2f} and AF={:.1f}.'.format(
                         rep_gid1, rep_gid2,
                         ani, af))
 
@@ -117,46 +120,46 @@ class UpdateClusterNamedReps(object):
                                                         af=af,
                                                         neighbour_gid=rep_gid2)
 
-        self.log.info('ANI circumscription radius: min={:.2f}, mean={:.2f}, max={:.2f}'.format(
+        self.log.info(' - ANI circumscription radius: min={:.2f}, mean={:.2f}, max={:.2f}'.format(
             min([d.ani for d in rep_radius.values()]),
             np_mean([d.ani for d in rep_radius.values()]),
             max([d.ani for d in rep_radius.values()])))
 
-        self.log.warning('Identified {:,} genome pairs meeting ANI radius criteria, but with an AF <{:.2f}'.format(
+        self.log.warning(' - identified {:,} genome pairs meeting ANI radius criteria, but with an AF <{:.1f}'.format(
             af_warning_count,
             self.af_sp))
 
         return rep_radius
 
-    def _calculate_ani(self, cur_genomes, rep_gids, rep_mash_sketch_file):
-        """Calculate ANI between representative and non-representative genomes."""
+    def calculate_ani(self, cur_genomes, non_rep_gids, rep_gids):
+        """Calculate ANI between non-representative and representative genomes.
+        
+        Returns a dictionary of dictionaries indicating ANI/AF values between
+        non-representative and representative genomes. Since skani is symmetric a pair
+        is only recorded once with the non-representative used as the first key, e.g.
+        d[non-rep genome ID][rep genome ID] = (ani, af)
+        """
 
         if True:  # ***DEBUGGING
             mash = Mash(self.cpus)
 
             # create Mash sketch for representative genomes
-            if not rep_mash_sketch_file or not os.path.exists(rep_mash_sketch_file):
-                rep_genome_list_file = os.path.join(
-                    self.output_dir, 'gtdb_reps.lst')
-                rep_mash_sketch_file = os.path.join(
-                    self.output_dir, 'gtdb_reps.msh')
-                mash.sketch(rep_gids, cur_genomes.genomic_files,
-                            rep_genome_list_file, rep_mash_sketch_file)
+            rep_genome_list_file = os.path.join(
+                self.output_dir, 'gtdb_reps.lst')
+            rep_mash_sketch_file = os.path.join(
+                self.output_dir, 'gtdb_reps.msh')
+            mash.sketch(rep_gids, cur_genomes.genomic_files,
+                        rep_genome_list_file, rep_mash_sketch_file)
 
             # create Mash sketch for non-representative genomes
-            nonrep_gids = set()
-            for gid in cur_genomes:
-                if gid not in rep_gids:
-                    nonrep_gids.add(gid)
-
             nonrep_genome_list_file = os.path.join(
                 self.output_dir, 'gtdb_nonreps.lst')
             nonrep_genome_sketch_file = os.path.join(
                 self.output_dir, 'gtdb_nonreps.msh')
-            mash.sketch(nonrep_gids, cur_genomes.genomic_files,
+            mash.sketch(non_rep_gids, cur_genomes.genomic_files,
                         nonrep_genome_list_file, nonrep_genome_sketch_file)
 
-            # get Mash distances
+            # get Mash distance between representative and non-representative genomes
             mash_dist_file = os.path.join(
                 self.output_dir, 'gtdb_reps_vs_nonreps.dst')
             mash.dist(float(100 - self.min_mash_ani)/100,
@@ -167,13 +170,15 @@ class UpdateClusterNamedReps(object):
             # read Mash distances
             mash_ani = mash.read_ani(mash_dist_file)
 
-            # get pairs above Mash threshold
+            # get genome pairs above Mash threshold
             mash_ani_pairs = []
-            for qid in mash_ani:
-                for rid in mash_ani[qid]:
-                    if qid != rid and mash_ani[qid][rid] >= self.min_mash_ani:
-                        mash_ani_pairs.append((qid, rid))
-                        mash_ani_pairs.append((rid, qid))
+            for non_rid in mash_ani:
+                for rid in mash_ani[non_rid]:
+                    if non_rid != rid and mash_ani[non_rid][rid] >= self.min_mash_ani:
+                        # skani is symmetric so only need to store pair once; here
+                        # the non-representative genome is put first to make for 
+                        # easier downstream processing
+                        mash_ani_pairs.append((non_rid, rid))
 
             self.log.info('Identified {:,} genome pairs with a Mash ANI >= {:.1f}%.'.format(
                 len(mash_ani_pairs), self.min_mash_ani))
@@ -183,29 +188,30 @@ class UpdateClusterNamedReps(object):
                 'Calculating ANI between {:,} genome pairs:'.format(len(mash_ani_pairs)))
             ani_af = self.skani.pairs(
                 mash_ani_pairs, cur_genomes.genomic_files)
-            pickle.dump(ani_af, open(os.path.join(
-                self.output_dir, 'ani_af_rep_vs_nonrep.pkl'), 'wb'))
+
+            pkl_file = os.path.join(self.output_dir, 'ani_af_nonrep_vs_rep.pkl')
+            pickle.dump(ani_af, open(pkl_file), 'wb')
         else:
             self.log.warning('Using previously calculated results in: {}'.format(
-                'ani_af_rep_vs_nonrep.pkl'))
+                'ani_af_nonrep_vs_rep.pkl'))
             ani_af = pickle.load(
-                open(os.path.join(self.output_dir, 'ani_af_rep_vs_nonrep.pkl'), 'rb'))
+                open(os.path.join(self.output_dir, 'ani_af_nonrep_vs_rep.pkl'), 'rb'))
 
         return ani_af
 
-    def _cluster(self, ani_af, non_reps, rep_radius):
-        """Cluster non-representative to representative genomes using species specific ANI thresholds."""
+    def cluster(self, ani_af, non_rep_gids, rep_radius):
+        """Cluster non-representative to representative genomes using species-specific ANI thresholds."""
 
         clusters = {}
         for rep_id in rep_radius:
             clusters[rep_id] = []
 
         num_clustered = 0
-        for idx, non_rid in enumerate(non_reps):
+        for idx, non_rid in enumerate(non_rep_gids):
             if idx % 100 == 0:
                 sys.stdout.write('==> Processed {:,} of {:,} genomes [no. clustered = {:,}].\r'.format(
                     idx+1,
-                    len(non_reps),
+                    len(non_rep_gids),
                     num_clustered))
                 sys.stdout.flush()
 
@@ -215,11 +221,8 @@ class UpdateClusterNamedReps(object):
             closest_rid = None
             closest_ani = 0
             closest_af = 0
-            for rid in rep_radius:
-                if rid not in ani_af[non_rid]:
-                    continue
-
-                ani, af = Skani.symmetric_ani(ani_af, rid, non_rid)
+            for rid in ani_af.get(non_rid, []):
+                ani, af = Skani.symmetric_ani_af(ani_af, non_rid, rid)
 
                 if af >= self.af_sp:
                     if ani > closest_ani or (ani == closest_ani and af > closest_af):
@@ -235,13 +238,13 @@ class UpdateClusterNamedReps(object):
                                                                       af=closest_af))
 
         sys.stdout.write('==> Processed {:,} of {:,} genomes [no. clustered = {:,}].\r'.format(
-            len(non_reps),
-            len(non_reps),
+            len(non_rep_gids),
+            len(non_rep_gids),
             num_clustered))
         sys.stdout.flush()
         sys.stdout.write('\n')
 
-        num_unclustered = len(non_reps) - num_clustered
+        num_unclustered = len(non_rep_gids) - num_clustered
         self.log.info('Assigned {:,} genomes to {:,} representatives; {:,} genomes remain unclustered.'.format(
             sum([len(clusters[rid]) for rid in clusters]),
             len(clusters),
@@ -256,7 +259,6 @@ class UpdateClusterNamedReps(object):
             qc_passed_file,
             ncbi_genbank_assembly_file,
             untrustworthy_type_file,
-            rep_mash_sketch_file,
             rep_ani_file,
             gtdb_type_strains_ledger,
             ncbi_env_bioproject_ledger):
@@ -294,26 +296,23 @@ class UpdateClusterNamedReps(object):
 
         # calculate circumscription radius for representative genomes
         self.log.info(
-            'Determining ANI species circumscription for {:,} representative genomes.'.format(len(rep_gids)))
+            'Determining ANI species circumscription for {:,} representative genomes:'.format(len(rep_gids)))
         rep_radius = self._rep_radius(rep_gids, rep_ani_file)
         write_rep_radius(rep_radius, cur_genomes, os.path.join(
             self.output_dir, 'gtdb_rep_ani_radius.tsv'))
 
+        assert set(rep_radius) == rep_gids
+
         # calculate ANI between representative and non-representative genomes
+        non_rep_gids = set(cur_genomes.genomes) - rep_gids
         self.log.info(
             'Calculating ANI between representative and non-representative genomes.')
-        ani_af = self._calculate_ani(
-            cur_genomes, rep_gids, rep_mash_sketch_file)
-        self.log.info(
-            ' - ANI values determined for {:,} query genomes.'.format(len(ani_af)))
-        self.log.info(' - ANI values determined for {:,} genome pairs.'.format(
-            sum([len(ani_af[qid]) for qid in ani_af])))
+        ani_af = self.calculate_ani(cur_genomes, non_rep_gids, rep_gids)
 
         # cluster remaining genomes to representatives
-        non_reps = set(cur_genomes.genomes) - set(rep_radius)
         self.log.info(
-            'Clustering {:,} non-representatives to {:,} representatives using species-specific ANI radii.'.format(len(non_reps), len(rep_radius)))
-        clusters = self._cluster(ani_af, non_reps, rep_radius)
+            'Clustering {:,} non-representatives to {:,} representatives using species-specific ANI radii.'.format(len(non_rep_gids), len(rep_radius)))
+        clusters = self.cluster(ani_af, non_rep_gids, rep_radius)
 
         # write out clusters
         write_clusters(clusters,

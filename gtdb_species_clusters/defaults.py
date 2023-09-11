@@ -9,11 +9,11 @@ QC_MIN_N50 = 5000
 QC_MAX_AMBIGUOUS = 100000
 
 # criteria for defining ANI-based species clusters
-ANI_SP = 95
-AF_SP = 0.5
+ANI_SP = 95.0
+AF_SP = 50.0
 
 # criteria used for defining synonyms
-ANI_SYNONYMS = 97
+ANI_SYNONYMS = 97.0
 
 # criteria used for pre-filtering ANI results with Mash
-MASH_MIN_ANI = 90
+MASH_MIN_ANI = 90.0

@@ -366,8 +366,6 @@ if __name__ == '__main__':
     u_cluster_named_reps_parser.add_argument(
         'untrustworthy_type_file', help="file listing genomes that should be considered untrustworthy as type material (u_resolve_types: untrustworthy_type_material.tsv)")
     u_cluster_named_reps_parser.add_argument(
-        'rep_mash_sketch_file', help="file with Mash sketch for representative genomes (u_sel_reps: gtdb_reps.msh)")
-    u_cluster_named_reps_parser.add_argument(
         'rep_ani_file', help="file with pairwise ANI values between representative genomes of named species (u_sel_reps: gtdb_rep_pairwise_ani.tsv)")
     u_cluster_named_reps_parser.add_argument(
         'gtdb_type_strains_ledger', help="file listing genomes to consider as being the type strain for valid or effectively published species name")
@@ -403,7 +401,7 @@ if __name__ == '__main__':
     u_cluster_de_novo_parser.add_argument(
         'untrustworthy_type_file', help="file listing genomes that should be considered untrustworthy as type material (u_resolve_types: untrustworthy_type_material.tsv)")
     u_cluster_de_novo_parser.add_argument(
-        'ani_af_rep_vs_nonrep', help="file with pairwise ANI values between representative and non-representative genomes (u_cluster_named_reps: ani_af_rep_vs_nonrep.pkl)")
+        'ani_af_nonrep_vs_rep', help="file with pairwise ANI values between representative and non-representative genomes (u_cluster_named_reps: ani_af_nonrep_vs_rep.pkl)")
     u_cluster_de_novo_parser.add_argument(
         'gtdb_type_strains_ledger', help="file listing genomes to consider as being the type strain for valid or effectively published species name")
     u_cluster_de_novo_parser.add_argument(
@@ -488,7 +486,7 @@ if __name__ == '__main__':
     u_synonyms_parser.add_argument(
         'untrustworthy_type_file', help="file listing genomes that should be considered untrustworthy as type material (u_resolve_types: untrustworthy_type_material.tsv)")
     u_synonyms_parser.add_argument(
-        'ani_af_rep_vs_nonrep', help="file with pairwise ANI values between representative and non-representative genomes (u_cluster_named_reps: ani_af_rep_vs_nonrep.pkl)")
+        'ani_af_nonrep_vs_rep', help="file with pairwise ANI values between representative and non-representative genomes (u_cluster_named_reps: ani_af_nonrep_vs_rep.pkl)")
     u_synonyms_parser.add_argument(
         'gtdb_type_strains_ledger', help="file listing genomes to consider as being the type strain for valid or effectively published species name")
     u_synonyms_parser.add_argument(

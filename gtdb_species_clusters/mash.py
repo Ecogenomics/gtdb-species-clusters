@@ -22,7 +22,7 @@ import ntpath
 import logging
 from collections import defaultdict
 
-from gtdblib.util.shell.execute import check_dependencies, run
+from gtdblib.util.shell.execute import check_dependencies, run_bash
 from gtdblib.util.bio.accession import canonical_gid
 
 
@@ -85,10 +85,12 @@ class Mash():
             if not silence:
                 self.log.info(
                     f'Creating Mash sketch for {len(gids):,} genomes.')
-            cmd = 'mash sketch -l -p %d -k 16 -s 5000 -o %s %s 2> /dev/null' % (self.cpus,
-                                                                                sketch_file,
-                                                                                genome_list_file)
-            run(cmd)
+            cmd = 'mash sketch -l -p {} -k 16 -s 5000 -o {} {} 2> /dev/null'.format(
+                self.cpus,
+                sketch_file,
+                genome_list_file)
+            
+            run_bash(cmd)
         else:
             if not silence:
                 self.log.warning('Using previously generated sketch file.')
@@ -107,7 +109,7 @@ class Mash():
                 sketch_file,
                 sketch_file,
                 dist_file)
-            run(cmd)
+            run_bash(cmd)
         else:
             if not silence:
                 self.log.warning(
@@ -127,14 +129,18 @@ class Mash():
                 ref_sketch_file,
                 query_sketch_file,
                 dist_file)
-            run(cmd)
+            run_bash(cmd)
         else:
             if not silence:
                 self.log.warning(
                     'Using previously generated pairwise distance file.')
 
     def read_ani(self, dist_file):
-        """Read ANI estimates."""
+        """Read ANI estimates.
+        
+        Returns a dictionary of dictionaries with the query ID as the first key, e.g.
+         d[query_id][reference_id] = Mash ANI
+        """
 
         mash_ani = defaultdict(lambda: {})
         for line in open(dist_file):

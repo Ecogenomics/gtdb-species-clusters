@@ -285,7 +285,6 @@ class OptionsParser():
         check_file_exists(args.qc_passed_file)
         check_file_exists(args.ncbi_genbank_assembly_file)
         check_file_exists(args.untrustworthy_type_file)
-        check_file_exists(args.rep_mash_sketch_file)
         check_file_exists(args.rep_ani_file)
         check_file_exists(args.gtdb_type_strains_ledger)
         check_file_exists(args.ncbi_env_bioproject_ledger)
@@ -302,7 +301,6 @@ class OptionsParser():
               args.qc_passed_file,
               args.ncbi_genbank_assembly_file,
               args.untrustworthy_type_file,
-              args.rep_mash_sketch_file,
               args.rep_ani_file,
               args.gtdb_type_strains_ledger,
               args.ncbi_env_bioproject_ledger)
@@ -341,7 +339,7 @@ class OptionsParser():
         check_file_exists(args.ncbi_misclassified_file)
         check_file_exists(args.ncbi_genbank_assembly_file)
         check_file_exists(args.untrustworthy_type_file)
-        check_file_exists(args.ani_af_rep_vs_nonrep)
+        check_file_exists(args.ani_af_nonrep_vs_rep)
         check_file_exists(args.gtdb_type_strains_ledger)
         check_file_exists(args.sp_priority_ledger)
         check_file_exists(args.genus_priority_ledger)
@@ -357,7 +355,7 @@ class OptionsParser():
               args.ncbi_misclassified_file,
               args.ncbi_genbank_assembly_file,
               args.untrustworthy_type_file,
-              args.ani_af_rep_vs_nonrep,
+              args.ani_af_nonrep_vs_rep,
               args.gtdb_type_strains_ledger,
               args.sp_priority_ledger,
               args.genus_priority_ledger,
@@ -374,7 +372,7 @@ class OptionsParser():
         check_file_exists(args.qc_passed_file)
         check_file_exists(args.ncbi_genbank_assembly_file)
         check_file_exists(args.untrustworthy_type_file)
-        check_file_exists(args.ani_af_rep_vs_nonrep)
+        check_file_exists(args.ani_af_nonrep_vs_rep)
         check_file_exists(args.gtdb_type_strains_ledger)
         check_file_exists(args.ncbi_env_bioproject_ledger)
         make_sure_path_exists(args.output_dir)
@@ -390,7 +388,7 @@ class OptionsParser():
               args.qc_passed_file,
               args.ncbi_genbank_assembly_file,
               args.untrustworthy_type_file,
-              args.ani_af_rep_vs_nonrep,
+              args.ani_af_nonrep_vs_rep,
               args.gtdb_type_strains_ledger,
               args.ncbi_env_bioproject_ledger)
 

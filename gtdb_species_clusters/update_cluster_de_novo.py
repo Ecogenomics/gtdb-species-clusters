@@ -89,30 +89,26 @@ class UpdateClusterDeNovo(object):
 
         return rep_gids, rep_clustered_gids, rep_radius
 
-    def nonrep_radius(self, unclustered_gids, rep_gids, ani_af_rep_vs_nonrep):
-        """Calculate circumscription radius for unclustered, nontype genomes."""
+    def nonrep_radius(self, unclustered_gids, rep_gids, ani_af_nonrep_vs_rep):
+        """Calculate circumscription radius for unclustered, non-rep genomes."""
 
         # set radius for genomes to default values
         nonrep_radius = {}
         for gid in unclustered_gids:
             nonrep_radius[gid] = GenomeRadius(ani=self.ani_sp,
-                                              af=None,
+                                              af=self.af_sp,
                                               neighbour_gid=None)
 
-        # determine closest type ANI neighbour and restrict ANI radius as necessary
-        ani_af = pickle.load(open(ani_af_rep_vs_nonrep, 'rb'))
+        # determine closest ANI neighbour and restrict ANI radius as necessary
+        ani_af = pickle.load(open(ani_af_nonrep_vs_rep, 'rb'))
         for nonrep_gid in unclustered_gids:
             if nonrep_gid not in ani_af:
                 continue
 
-            for rep_gid in rep_gids:
-                if rep_gid not in ani_af[nonrep_gid]:
-                    continue
+            for rep_gid in ani_af[nonrep_gid]:
+                assert rep_gid in rep_gids
 
-                # ToDo: replace with Skani, but requires updating rest of pipeline
-                # to have Skani results
-                ani, af = Skani.symmetric_ani(ani_af, nonrep_gid, rep_gid)
-
+                ani, af = Skani.symmetric_ani_af(ani_af, nonrep_gid, rep_gid)
                 if ani > nonrep_radius[nonrep_gid].ani and af >= self.af_sp:
                     nonrep_radius[nonrep_gid] = GenomeRadius(ani=ani,
                                                              af=af,
@@ -148,15 +144,14 @@ class UpdateClusterDeNovo(object):
         mash_ani = mash.read_ani(mash_dist_file)
 
         # report pairs above Mash threshold
-        mash_ani_pairs = []
+        num_mash_pairs = 0
         for qid in mash_ani:
             for rid in mash_ani[qid]:
                 if qid != rid and mash_ani[qid][rid] >= self.min_mash_ani:
-                    mash_ani_pairs.append((qid, rid))
-                    mash_ani_pairs.append((rid, qid))
+                    num_mash_pairs += 1
 
         self.log.info('Identified {:,} genome pairs with a Mash ANI >= {:.1f}%.'.format(
-            len(mash_ani_pairs),
+            num_mash_pairs,
             self.min_mash_ani))
 
         return mash_ani
@@ -181,34 +176,31 @@ class UpdateClusterDeNovo(object):
         clusters = set()
         if not os.path.exists(cluster_rep_file):
             clustered_genomes = 0
-            max_ani_pairs = 0
             for idx, (cur_gid, _score) in enumerate(q_sorted):
-
-                # determine reference genomes to calculate ANI between
+                # determine representatives genomes to calculate ANI between
                 ani_pairs = []
                 if cur_gid in mash_ani:
                     for rep_gid in clusters:
                         if mash_ani[cur_gid].get(rep_gid, 0) >= self.min_mash_ani:
                             # skani ANI is symmetric and the AF is calculated in both
                             # directions so only need to run a given pair once
-                            if cur_gid < rep_gid:
-                                ani_pairs.append((cur_gid, rep_gid))
-                            else:
-                                ani_pairs.append((rep_gid, cur_gid))
+                            ani_pairs.append((rep_gid, cur_gid))
 
                 # determine if genome clusters with representative
                 clustered = False
                 if ani_pairs:
-                    if len(ani_pairs) > max_ani_pairs:
-                        max_ani_pairs = len(ani_pairs)
-
                     ani_af = self.skani.pairs(ani_pairs, cur_genomes.genomic_files, report_progress=False)
 
+                    # Set closest representative to the ANI radius of the current genome,
+                    # which indicates the closest representative across the named species
+                    # clusters. We know this genome can't be assigned to this named species
+                    # cluster, but assignment to a de novo cluster must have a higher ANI
+                    # value while meeting the AF criterion.
                     closest_rep_gid = None
-                    closest_rep_ani = 0
-                    closest_rep_af = 0
-                    for rep_gid in clusters:
-                        ani, af = Skani.symmetric_ani(ani_af, cur_gid, rep_gid)
+                    closest_rep_ani = nonrep_radius[cur_gid].ani
+                    closest_rep_af = nonrep_radius[cur_gid].af
+                    for rep_gid, _cur_gid in ani_pairs:
+                        ani, af = Skani.symmetric_ani_af(ani_af, cur_gid, rep_gid)
 
                         if af >= self.af_sp:
                             if ani > closest_rep_ani or (ani == closest_rep_ani and af > closest_rep_af):
@@ -216,10 +208,9 @@ class UpdateClusterDeNovo(object):
                                 closest_rep_ani = ani
                                 closest_rep_af = af
 
-                        if ani > nonrep_radius[cur_gid].ani and af >= 100*self.af_sp:
-                            nonrep_radius[cur_gid] = GenomeRadius(ani=ani,
-                                                                  af=af,
-                                                                  neighbour_gid=rep_gid)
+                                nonrep_radius[cur_gid] = GenomeRadius(ani=ani,
+                                                                    af=af,
+                                                                    neighbour_gid=rep_gid)
 
                     if closest_rep_gid and closest_rep_ani > nonrep_radius[closest_rep_gid].ani:
                         clustered = True
@@ -230,17 +221,16 @@ class UpdateClusterDeNovo(object):
                 else:
                     clustered_genomes += 1
 
-                if (idx+1) % 10 == 0 or idx+1 == len(q_sorted):
-                    statusStr = '-> Clustered {:,} of {:,} ({:.2f}%) genomes [ANI pairs: {:,}; clustered genomes: {:,}; clusters: {:,}].'.format(
-                        idx+1,
-                        len(q_sorted),
-                        float(idx+1)*100/len(q_sorted),
-                        max_ani_pairs,
-                        clustered_genomes,
-                        len(clusters)).ljust(96)
-                    sys.stdout.write('{}\r'.format(statusStr))
-                    sys.stdout.flush()
-                    max_ani_pairs = 0
+                statusStr = '-> clustered {:,} of {:,} ({:.2f}%) genomes [ANI pairs: {:,}; clustered genomes: {:,}; clusters: {:,}].'.format(
+                    idx+1,
+                    len(q_sorted),
+                    float(idx+1)*100/len(q_sorted),
+                    len(ani_pairs),
+                    clustered_genomes,
+                    len(clusters)).ljust(96)
+                sys.stdout.write('{}\r'.format(statusStr))
+                sys.stdout.flush()
+
             sys.stdout.write('\n')
 
             # write out selected cluster representative
@@ -317,10 +307,7 @@ class UpdateClusterDeNovo(object):
                     if mash_ani[qid][rid] >= self.min_mash_ani and qid != rid:
                         # skani ANI is symmetric and the AF is calculated in both
                         # directions so only need to run a given pair once
-                        if qid < rid:
-                            mash_ani_pairs.append((qid, rid))
-                        else:
-                            mash_ani_pairs.append((rid, qid))
+                        mash_ani_pairs.append((qid, rid))
 
             self.log.info('Calculating ANI between {:,} species clusters and {:,} unclustered genomes ({:,} pairs):'.format(
                 len(clusters),
@@ -337,11 +324,11 @@ class UpdateClusterDeNovo(object):
                 closest_rep_ani = 0
                 closest_rep_af = 0
                 for rep_gid in clusters:
-                    ani, af = Skani.symmetric_ani(ani_af, cur_gid, rep_gid)
+                    ani, af = Skani.symmetric_ani_af(ani_af, cur_gid, rep_gid)
 
                     isclose_abs_tol = 1e-4
                     if (ani >= final_cluster_radius[rep_gid].ani - isclose_abs_tol
-                            and af >= 100*self.af_sp - isclose_abs_tol):
+                            and af >= self.af_sp - isclose_abs_tol):
                         # the isclose_abs_tol factor is used in order to avoid missing genomes due to
                         # small rounding errors when comparing floating point values. In particular,
                         # the ANI radius for named GTDB representatives is read from file so small
@@ -360,18 +347,20 @@ class UpdateClusterDeNovo(object):
                     self.log.warning(
                         'Failed to assign genome {} to representative.'.format(cur_gid))
 
-                    if closest_rep_gid:
-                        self.log.warning(
-                            ' - closest_rep_gid = {}'.format(closest_rep_gid))
-                        self.log.warning(
-                            ' - closest_rep_ani = {:.2f}'.format(closest_rep_ani))
-                        self.log.warning(
-                            ' - closest_rep_af = {:.2f}'.format(closest_rep_af))
-                        self.log.warning(
-                            ' - closest rep radius = {:.2f}'.format(final_cluster_radius[closest_rep_gid].ani))
-                    else:
-                        self.log.warning(
-                            ' - no representative with an AF >{:.2f} identified.'.format(100*self.af_sp))
+                    # this is an extremely rare case, but can occur if the species cluster
+                    # that a genome was initially assigned to (and thus not made a new representative)
+                    # is no longer the closest species cluters. Unfortunately, there is no strict
+                    # guarantee that the genome will be in the ANI radius of the closest species cluster.
+                    # In principle, this genome should become a representative of a new species cluters,
+                    # but this would require considering if this impacts the ANI radius of any existing
+                    # species cluters and re-establishing which cluster genomes should be assigned to.
+                    # Since this case only occurs when dealing with "fuzzy species", is extremely rare,
+                    # and has no clear algorithmic resolution here we just assign the genome to the
+                    # closest representative even though it will be outside its ANI radius.
+                    closest_rid = final_cluster_radius[cur_gid]
+                    ani_closest_rid = final_cluster_radius[closest_rid].ani
+                    self.log.warning(f'Assigning genome to {closest_rid.gid} with an ANI radius of {ani_closest_rid}.')
+                    self.log.warning(f'ANI and AF between {cur_gid} and {closest_rid.gid} is {closest_rid.ani} and {closest_rid.af}, respectively.')
 
                 statusStr = '-> Assigned {:,} of {:,} ({:.2f}%) genomes.'.format(idx+1,
                                                                                  len(nonrep_gids),
@@ -403,7 +392,7 @@ class UpdateClusterDeNovo(object):
             qc_passed_file,
             ncbi_genbank_assembly_file,
             untrustworthy_type_file,
-            ani_af_rep_vs_nonrep,
+            ani_af_nonrep_vs_rep,
             gtdb_type_strains_ledger,
             ncbi_env_bioproject_ledger):
         """Infer de novo species clusters and representatives for remaining genomes."""
@@ -424,13 +413,13 @@ class UpdateClusterDeNovo(object):
         cur_genomes.load_genomic_file_paths(cur_genomic_path_file)
 
         # determine representatives and genomes clustered to each representative
-        self.log.info('Reading named GTDB species clusters.')
+        self.log.info('Reading named GTDB species clusters:')
         named_rep_gids, rep_clustered_gids, rep_radius = self.parse_named_clusters(
             named_cluster_file)
         self.log.info(
-            ' - identified {:,} representative genomes.'.format(len(named_rep_gids)))
+            ' - identified {:,} representative genomes'.format(len(named_rep_gids)))
         self.log.info(
-            ' - identified {:,} clustered genomes.'.format(len(rep_clustered_gids)))
+            ' - identified {:,} clustered genomes'.format(len(rep_clustered_gids)))
 
         # determine genomes left to be clustered
         unclustered_gids = set(cur_genomes.genomes.keys()) - \
@@ -442,7 +431,7 @@ class UpdateClusterDeNovo(object):
         self.log.info('Determining ANI circumscription for {:,} unclustered genomes.'.format(
             len(unclustered_gids)))
         nonrep_radius = self.nonrep_radius(
-            unclustered_gids, named_rep_gids, ani_af_rep_vs_nonrep)
+            unclustered_gids, named_rep_gids, ani_af_nonrep_vs_rep)
 
         # calculate Mash ANI estimates between unclustered genomes
         self.log.info(
