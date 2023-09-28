@@ -320,47 +320,48 @@ class UpdateClusterDeNovo(object):
             # that is within the representatives ANI radius
             self.log.info('Assigning genomes to closest representative.')
             for idx, cur_gid in enumerate(nonrep_gids):
+                # find closest species representative in terms of ANI that also
+                # satisfied the AF criterion
                 closest_rep_gid = None
                 closest_rep_ani = 0
                 closest_rep_af = 0
                 for rep_gid in clusters:
                     ani, af = Skani.symmetric_ani_af(ani_af, cur_gid, rep_gid)
 
-                    isclose_abs_tol = 1e-4
-                    if (ani >= final_cluster_radius[rep_gid].ani - isclose_abs_tol
-                            and af >= self.af_sp - isclose_abs_tol):
-                        # the isclose_abs_tol factor is used in order to avoid missing genomes due to
-                        # small rounding errors when comparing floating point values. In particular,
-                        # the ANI radius for named GTDB representatives is read from file so small
-                        # rounding errors could occur. This has only been observed once, but seems
-                        # like good practice to use isclose here.
+                    if af >= self.af_sp:
                         if ani > closest_rep_ani or (ani == closest_rep_ani and af > closest_rep_af):
                             closest_rep_gid = rep_gid
                             closest_rep_ani = ani
                             closest_rep_af = af
 
-                if closest_rep_gid:
+                if closest_rep_gid is None:
+                    self.log.error(f'Genome {cur_gid} did not meet the AF species criterion for any representative.')
+                    self.log.error('This should never occur and indicates a logical bug that must be addressed.')
+                    sys.exit(1)
+                else:
+                    # A genome *should* only be assigned to the closest representative if it is within its
+                    # ANI radius. This will *almost* always be the case. 
                     clusters[closest_rep_gid].append(ClusteredGenome(gid=cur_gid,
                                                                      ani=closest_rep_ani,
                                                                      af=closest_rep_af))
-                else:
-                    self.log.warning(
-                        'Failed to assign genome {} to representative.'.format(cur_gid))
+               
+                    if closest_rep_ani < final_cluster_radius[closest_rep_gid].ani:
+                        # The genome is NOT within the ANI radius of the closest representative!
 
-                    # this is an extremely rare case, but can occur if the species cluster
-                    # that a genome was initially assigned to (and thus not made a new representative)
-                    # is no longer the closest species cluters. Unfortunately, there is no strict
-                    # guarantee that the genome will be in the ANI radius of the closest species cluster.
-                    # In principle, this genome should become a representative of a new species cluters,
-                    # but this would require considering if this impacts the ANI radius of any existing
-                    # species cluters and re-establishing which cluster genomes should be assigned to.
-                    # Since this case only occurs when dealing with "fuzzy species", is extremely rare,
-                    # and has no clear algorithmic resolution here we just assign the genome to the
-                    # closest representative even though it will be outside its ANI radius.
-                    closest_rid = final_cluster_radius[cur_gid]
-                    ani_closest_rid = final_cluster_radius[closest_rid].ani
-                    self.log.warning(f'Assigning genome to {closest_rid.gid} with an ANI radius of {ani_closest_rid}.')
-                    self.log.warning(f'ANI and AF between {cur_gid} and {closest_rid.gid} is {closest_rid.ani} and {closest_rid.af}, respectively.')
+                        # This is an extremely rare case, but can occur if the species cluster
+                        # that a genome was initially assigned to (and thus not made a new representative)
+                        # is no longer the closest species cluters. Unfortunately, there is no strict
+                        # guarantee that the genome will be in the ANI radius of the closest species cluster.
+                        # In principle, this genome should become a representative of a new species cluters,
+                        # but this would require considering if this impacts the ANI radius of any existing
+                        # species cluters and re-establishing which cluster genomes should be assigned to.
+                        # Since this case only occurs when dealing with "fuzzy species", is extremely rare,
+                        # and has no clear algorithmic resolution we still assign the genome to the
+                        # closest representative even though it is outside its ANI radius.
+                        ani_radius = final_cluster_radius[closest_rep_gid].ani
+                        self.log.warning('Failed to assign genome {} to representative.'.format(cur_gid))
+                        self.log.warning(f'Assigning genome to {closest_rep_gid} with an ANI radius of {ani_radius}.')
+                        self.log.warning(f'ANI and AF between {cur_gid} and {closest_rep_gid} is {closest_rep_ani} and {closest_rep_af}, respectively.')
 
                 statusStr = '-> Assigned {:,} of {:,} ({:.2f}%) genomes.'.format(idx+1,
                                                                                  len(nonrep_gids),

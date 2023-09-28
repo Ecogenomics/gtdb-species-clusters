@@ -292,7 +292,7 @@ class Skani():
                 items.append((qid, rid, genome_files[qid], genome_files[rid], preset))
 
         if report_progress:
-            self.log.info(f' - identified {len(processed_pairs):,} pairs in cache')
+            self.log.info(f' - identified {processed_pairs:,} pairs in cache')
 
         # process pairs in parallel using a processing pool, making sure to
         # add results to the ANI cache and SQL database
