@@ -359,9 +359,9 @@ class UpdateClusterDeNovo(object):
                         # and has no clear algorithmic resolution we still assign the genome to the
                         # closest representative even though it is outside its ANI radius.
                         ani_radius = final_cluster_radius[closest_rep_gid].ani
-                        self.log.warning('Failed to assign genome {} to representative.'.format(cur_gid))
-                        self.log.warning(f'Assigning genome to {closest_rep_gid} with an ANI radius of {ani_radius}.')
-                        self.log.warning(f'ANI and AF between {cur_gid} and {closest_rep_gid} is {closest_rep_ani} and {closest_rep_af}, respectively.')
+                        self.log.warning('Failed to assign genome {} to closest representative.'.format(cur_gid))
+                        self.log.warning(f'Assigning genome to {closest_rep_gid} with an ANI radius of {ani_radius:.2f}%.')
+                        self.log.warning(f'ANI and AF between {cur_gid} and {closest_rep_gid} is {closest_rep_ani:.2f}% and {closest_rep_af:.2f}%, respectively.')
 
                 statusStr = '-> Assigned {:,} of {:,} ({:.2f}%) genomes.'.format(idx+1,
                                                                                  len(nonrep_gids),
