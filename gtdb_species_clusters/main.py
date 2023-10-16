@@ -179,6 +179,7 @@ class OptionsParser():
         p = GTDB_Tk(args.cpus, args.output_dir)
         p.run(args.genomes_new_updated_file,
               args.qc_passed_file,
+              args.mash_db_file,
               args.batch_size)
 
     def u_rep_changes(self, args):

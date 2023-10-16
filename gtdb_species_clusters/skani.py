@@ -305,12 +305,12 @@ class Skani():
             # since skani is symmetric add ANI / AF results to cache in both
             # directions to avoid unnecessary calculation in the future
             self.ani_af_cache[qid][rid] = (ani, af_r, af_q)
-            self.ani_af_cache[rid][qid] = (ani, af_r, af_q)
+            self.ani_af_cache[rid][qid] = (ani, af_q, af_r)
 
             if self.db_conn:
                 # place results into database in batches to keep the number of transactions sensible
                 db_ani_af.append((qid, rid, ani, af_r, af_q))
-                db_ani_af.append((rid, qid, ani, af_r, af_q))
+                db_ani_af.append((rid, qid, ani, af_q, af_r))
                 if len(db_ani_af) == self.DB_BATCH_SIZE:
                     self.db_cur.executemany('INSERT INTO ani_table (query_id, ref_id, ani, af_r, af_q) VALUES (?, ?, ?, ?, ?)',
                                             db_ani_af)
@@ -344,4 +344,21 @@ class Skani():
             self.db_conn.commit()
 
         return ani_af
-    
+
+    def calculate(self, gid1, gid2, genome_file1, genome_file2):
+        """Calculate symmetric ANI and AF between two genomes."""
+
+        ani_af = skani(gid1, gid2, genome_file1, genome_file2)
+
+        _qid, _rid, ani, af_r, af_q = ani_af
+        self.ani_af_cache[gid1][gid2] = (ani, af_r, af_q)
+        self.ani_af_cache[gid2][gid1] = (ani, af_q, af_r)
+
+        db_ani_af = []
+        db_ani_af.append((gid1, gid2, ani, af_r, af_q))
+        db_ani_af.append((gid2, gid1, ani, af_q, af_r))
+        self.db_cur.executemany('INSERT INTO ani_table (query_id, ref_id, ani, af_r, af_q) VALUES (?, ?, ?, ?, ?)',
+                                db_ani_af)
+        self.db_conn.commit()
+
+        return ani, max(af_r, af_q)

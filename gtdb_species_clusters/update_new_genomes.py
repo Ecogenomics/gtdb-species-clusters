@@ -122,9 +122,9 @@ class NewGenomes():
         identical_accns = {}
         with open(ncbi_assembly_summary_genbank, encoding='utf-8') as f:
             for line in f:
-                if line.startswith('# assembly_accession'):
+                if line.startswith('#assembly_accession') or line.startswith('# assembly_accession'):
                     header = line.strip().split('\t')
-                    gb_accn_index = header.index('# assembly_accession')
+                    gb_accn_index = 0
                     rs_accn_index = header.index('gbrs_paired_asm')
                     paired_asm_index = header.index('paired_asm_comp')
                 elif line.startswith('#'):
@@ -191,7 +191,7 @@ class NewGenomes():
 
                 assembly_id = os.path.basename(os.path.normpath(genome_path))
                 genomic_file = os.path.join(
-                    genome_path, assembly_id + '_genomic.fna')
+                    genome_path, assembly_id + '_genomic.fna.gz')
                 cur_genome_files[gid] = genomic_file
 
         fout.close()

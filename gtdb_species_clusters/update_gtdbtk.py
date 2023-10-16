@@ -49,6 +49,7 @@ class GTDB_Tk():
     def run(self,
             genomes_new_updated_file: str,
             qc_passed_file: str,
+            mash_db_file: str,
             batch_size: int) -> None:
         """Perform initial classification of new and updated genomes using GTDB-Tk.
 
@@ -150,9 +151,10 @@ class GTDB_Tk():
                 continue
 
             os.makedirs(out_dir)
-            cmd = 'gtdbtk classify_wf --cpus {} --pplacer_cpus {} --force --batchfile {} --out_dir {}'.format(
+            cmd = 'gtdbtk classify_wf --cpus {} --pplacer_cpus {} --force --mash_db {} --mash_max_distance 0.1 --batchfile {} --out_dir {}'.format(
                 self.cpus,
                 self.cpus,
+                mash_db_file,
                 genome_batch_file,
                 out_dir)
             self.log.info(f"Executing: {cmd}")

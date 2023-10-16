@@ -39,7 +39,7 @@ LTP_METADATA = namedtuple(
 
 
 SsuLtpMetadata = Dict[str, List[LTP_METADATA]]
-AniPairs = Dict[str, Dict[str, float]]
+AniPairs = Dict[str, Dict[str, Tuple[float, float, float]]]
 Resolution = Tuple[bool, Dict[str, str]]
 
 
@@ -100,6 +100,8 @@ class ResolveTypes():
             taxa = ltp_taxonomy_str.split(';type sp|')[0].split(';')
         elif ';|' in ltp_taxonomy_str:
             taxa = ltp_taxonomy_str.split(';|')[0].split(';')
+        elif 'ltp[T]|' in ltp_taxonomy_str:
+            taxa = ltp_taxonomy_str.split('|')[0].split(';')[0:-1]
         elif '|' in ltp_taxonomy_str:
             taxa = ltp_taxonomy_str.split('|')[0].split(';')
         elif ltp_taxonomy_str[-1] == ';':
@@ -404,10 +406,10 @@ class ResolveTypes():
                     if cur_genomes[gtdb_sp_rid].is_effective_type_strain():
                         # genome has been assigned to another species
                         # defined by a type strain genome
-                        ani, af = self.skani.symmetric_ani_cached(gid,
-                                                                    gtdb_sp_rid,
-                                                                    cur_genomes[gid].genomic_file,
-                                                                    cur_genomes[gtdb_sp_rid].genomic_file)
+                        ani, af = self.skani.calculate(gid,
+                                                        gtdb_sp_rid,
+                                                        cur_genomes[gid].genomic_file,
+                                                        cur_genomes[gtdb_sp_rid].genomic_file)
                         untrustworthy_gids[
                             gid] = f'Conflicting GTDB species assignment of {cur_genomes[gid].gtdb_taxa.species} [ANI={ani:.2f}%; AF={af:.2f}%]'
 
@@ -564,7 +566,9 @@ class ResolveTypes():
         ncbi_sp_str = ncbi_sp[3:].lower().replace(' ', '_')
         if not use_pickled_results:  # ***
             ani_af = self.skani.pairwise(
-                type_gids, cur_genomes.genomic_files)
+                type_gids, 
+                cur_genomes.genomic_files,
+                report_progress=False)
             pickle.dump(ani_af, open(os.path.join(
                 self.ani_pickle_dir, f'{ncbi_sp_str}.pkl'), 'wb'))
         else:
@@ -577,7 +581,7 @@ class ResolveTypes():
         gid_afs = defaultdict(lambda: {})
         all_similar = True
         for gid1, gid2 in combinations(type_gids, 2):
-            ani, af = Skani.symmetric_ani(ani_af, gid1, gid2)
+            ani, af = Skani.symmetric_ani_af(ani_af, gid1, gid2)
             if ani < Config.ANI_SAME_STRAIN or af < Defaults.AF_SP:
                 all_similar = False
 

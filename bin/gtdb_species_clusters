@@ -170,6 +170,8 @@ if __name__ == '__main__':
         'genomes_new_updated_file', help="file indicating path to genomic file for new and updated genomes (u_new_genomes: genomes_new_updated.tsv)")
     u_gtdbtk_parser.add_argument(
         'qc_passed_file', help="file indicating genomes that have passed QC (u_qc_genomes: qc_passed.tsv)")
+    u_gtdbtk_parser.add_argument(
+        'mash_db_file', help="file with Mash sketches for GTDB reference genomes")
     u_gtdbtk_parser.add_argument('output_dir', help="output directory")
     u_gtdbtk_parser.add_argument(
         '--batch_size', help="number of genome to process with GTDB-Tk in each batch", type=int, default=5000)

@@ -111,7 +111,7 @@ def exclude_from_refseq(genbank_assembly_file):
     with open(genbank_assembly_file, encoding='utf-8') as f:
         for line in f:
             if line[0] == '#':
-                if line.startswith('# assembly_accession'):
+                if line.startswith('# assembly_accession') or line.startswith('#assembly_accession'):
                     header = line.strip().split('\t')
                     exclude_index = header.index('excluded_from_refseq')
             else:
@@ -129,7 +129,7 @@ def parse_ncbi_bioproject(genbank_assembly_file):
     with open(genbank_assembly_file, encoding='utf-8') as f:
         for line in f:
             if line[0] == '#':
-                if line.startswith('# assembly_accession'):
+                if line.startswith('# assembly_accession') or line.startswith('#assembly_accession'):
                     header = line.strip().split('\t')
                     bioproject_index = header.index('bioproject')
             else:

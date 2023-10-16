@@ -279,8 +279,8 @@ class LPSN_SSU_Types():
                 gtdb_type_strains[ncbi_sp].add(gid)
 
             gf = cur_genomes.genomic_files[gid]
-            accn = gf[0:gf.rfind('_')]
-            ncbi_assem_report[gid] = f'{accn}_assembly_report.txt'
+            assem_report = gf.replace('_genomic.fna.gz', '_assembly_report.txt')
+            ncbi_assem_report[gid] = assem_report
 
         # match LPSN species with type rRNA sequences to genomes
         # with the same NCBI species classification
