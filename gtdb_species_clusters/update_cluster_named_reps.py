@@ -190,7 +190,7 @@ class UpdateClusterNamedReps(object):
                 mash_ani_pairs, cur_genomes.genomic_files)
 
             pkl_file = os.path.join(self.output_dir, 'ani_af_nonrep_vs_rep.pkl')
-            pickle.dump(ani_af, open(pkl_file), 'wb')
+            pickle.dump(ani_af, open(pkl_file, 'wb'))
         else:
             self.log.warning('Using previously calculated results in: {}'.format(
                 'ani_af_nonrep_vs_rep.pkl'))

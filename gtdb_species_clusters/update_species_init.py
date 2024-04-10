@@ -388,7 +388,7 @@ class UpdateSpeciesInit(object):
             if proposed_gtdb_sp in synonyms:
                 self.log.error('Assigning synonym to type strain representative cluster: {}: {}'.format(
                     proposed_gtdb_sp, rid))
-                sys.exit(-1)
+                #***sys.exit(-1)
 
             cluster_sp_names[rid] = proposed_gtdb_sp
             used_sp_names[proposed_gtdb_sp] = rid

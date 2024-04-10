@@ -140,7 +140,7 @@ class PMC_Checks():
 
             if gid in mc_species:
                 if generic not in species and species != 's__':
-                    self.log.error('Genus assignment does not agree with manually-curated species assignment: {} {} {}'.format(
+                    self.log.warning('Genus assignment does not agree with manually-curated species assignment: {} {} {}'.format(
                         gid,
                         mc_species[gid],
                         '; '.join(mc_taxonomy[gid])))

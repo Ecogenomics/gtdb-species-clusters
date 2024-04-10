@@ -234,16 +234,7 @@ class Genomes(object):
             if gid in self.genomes:
                 genome_path = line_split[1]
                 accession = os.path.basename(os.path.normpath(genome_path))
-
-                if genome_path_file == 'gtdb_r207_genome_paths.tsv':
-                    # *** HACK: temporary hack to handle the transition between
-                    # R207 and R214 where we first started compressing the
-                    # genomic FASTA files
-                    genomic_file = os.path.join(
-                        genome_path, accession + '_genomic.fna')
-                else:
-                    genomic_file = os.path.join(
-                        genome_path, accession + '_genomic.fna.gz')
+                genomic_file = os.path.join(genome_path, accession + '_genomic.fna.gz')
                 self.genomes[gid].genomic_file = genomic_file
                 self.genomic_files[gid] = genomic_file
 
@@ -385,6 +376,17 @@ class Genomes(object):
             self.log.info(
                 f' - identified {len(gtdb_type_strains):,} manually annotated as type strain genomes')
 
+        untrustworthy_as_type = set()
+        if untrustworthy_type_ledger:
+            untrustworthy_as_type = self.parse_untrustworthy_type_ledger(
+                untrustworthy_type_ledger)
+            self.log.info(
+                f' - identified {len(untrustworthy_as_type):,} genomes annotated as untrustworthy as type by GTDB')
+
+            for gid in gtdb_type_strains:
+                if gid in untrustworthy_as_type:
+                    self.log.warning(f"Genome in both the GTDB type strain and untrustworthy genome ledgers: {gid}")
+
         excluded_from_refseq_note = {}
         ncbi_bioproject = {}
         if ncbi_genbank_assembly_file:
@@ -399,13 +401,6 @@ class Genomes(object):
                 for line in f:
                     tokens = line.strip().split('\t')
                     ncbi_env_bioproject.add(tokens[0].strip())
-
-        untrustworthy_as_type = set()
-        if untrustworthy_type_ledger:
-            untrustworthy_as_type = self.parse_untrustworthy_type_ledger(
-                untrustworthy_type_ledger)
-            self.log.info(
-                f' - identified {len(untrustworthy_as_type):,} genomes annotated as untrustworthy as type by GTDB')
 
         untrustworthy_ncbi_sp = set()
         if ncbi_untrustworthy_sp_ledger:
@@ -486,14 +481,10 @@ class Genomes(object):
                 gid = canonical_gid(ncbi_accn)
                 self.full_gid[gid] = ncbi_accn
 
-                if gid.startswith('U_'):
-                    continue
-
                 if pass_qc_gids and gid not in pass_qc_gids:
                     continue
 
                 gtdb_taxonomy = Taxa(line_split[gtdb_taxonomy_index])
-
                 ncbi_taxonomy = Taxa(line_split[ncbi_taxonomy_index])
                 ncbi_taxonomy_unfiltered = Taxa(
                     line_split[ncbi_taxonomy_unfiltered_index], filtered=False)

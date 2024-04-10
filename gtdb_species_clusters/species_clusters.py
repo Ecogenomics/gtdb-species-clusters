@@ -109,12 +109,22 @@ class SpeciesClusters():
         """Update species cluster."""
 
         if rid in self.species_names and self.species_names[rid] != sp_name:
-            self.log.warning('GTDB representative {} appears to have two names: {} {} {}'.format(
-                rid, self.species_names[rid], sp_name, gid))
-            # sys.exit(-1)
+            # DHP: commenting out this warning as this situation does occur,
+            # and does not warrant any action. Example: G024720975 was classified
+            # as Panguiarchaeum symbiosum starting in R220 as it has been VP
+            # in SeqCode. This causes a conflict with all previous genomes in this
+            # cluster as they had the name JANJXX01 sp024720975.
+            #self.log.warning('GTDB representative {} appears to have two names: {} {} {}'.format(
+            #    rid, self.species_names[rid], sp_name, gid))
+            
+            if rid == gid:
+                # this is the representative of the species cluster so should be 
+                # the preferred name
+                self.species_names[rid] = sp_name
+        else:
+            self.species_names[rid] = sp_name
 
         self.sp_clusters[rid].add(gid)
-        self.species_names[rid] = sp_name
         self.genome_rid[gid] = rid
         self.genome_rid[rid] = rid
 
@@ -199,7 +209,7 @@ class SpeciesClusters():
             if sp not in orig_sp_rid_map:
                 self.log.error(
                     f'GTDB-Tk results indicated a new species for {gid}: {sp}')
-                # sys.exit(-1)
+                sys.exit(-1)
 
             orig_rid = orig_sp_rid_map[sp]
             if gid in self.new_gids:

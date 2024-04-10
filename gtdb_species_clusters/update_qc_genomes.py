@@ -202,7 +202,7 @@ class QcGenomes():
         header += '\tMarkers (%)\tNo. contigs\tN50 contigs\tAmbiguous bases'
 
         fout_passed.write(
-            header + '\tScore\tNote\tNCBI exclude from RefSeq\tMarked in GDB ledger\n')
+            header + '\tScore\tNote\tNCBI exclude from RefSeq\tMarked in GTDB ledger\n')
         fout_failed.write(header)
         fout_failed.write(
             '\tFailed completeness\tFailed contamination\tFailed quality')

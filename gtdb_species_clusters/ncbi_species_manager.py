@@ -235,7 +235,7 @@ class NCBI_SpeciesManager():
                                        (consensus_synonyms, 'MAJORITY_VOTE_SYNONYM')]:
             for rid, synonym_ids in synonyms.items():
                 for gid in synonym_ids:
-                    ani, af = Skani.symmetric_ani(ani_af, rid, gid)
+                    ani, af = Skani.symmetric_ani_af(ani_af, rid, gid)
 
                     fout.write(synonym_type)
                     fout.write('\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}'.format(

@@ -45,11 +45,13 @@ class RepChanges():
             ncbi_env_bioproject_ledger):
         """Identify species representatives that have changed from previous release."""
 
-        # create previous and current GTDB genome sets
+        # create previous and current GTDB genome sets; the gtdb_type_strains_ledger is not
+        # set for the previous genome since we want to compare names without the influence
+        # of this file; moreover, the species names for the previous set must match the GTDB-Tk
+        # classifications which may not happen if species names are changed by the gtdb_type_strains_ledger 
         self.log.info('Creating previous GTDB genome set:')
         prev_genomes = Genomes()
         prev_genomes.load_from_metadata_file(prev_gtdb_metadata_file,
-                                             gtdb_type_strains_ledger=gtdb_type_strains_ledger,
                                              ncbi_genbank_assembly_file=ncbi_genbank_assembly_file,
                                              untrustworthy_type_ledger=untrustworthy_type_file,
                                              ncbi_env_bioproject_ledger=ncbi_env_bioproject_ledger)

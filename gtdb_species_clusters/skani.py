@@ -27,7 +27,7 @@ import multiprocessing as mp
 from itertools import combinations
 from collections import defaultdict
 
-from gtdblib.util.shell.execute import check_dependencies, run_bash
+from gtdblib.util.shell.execute import check_dependencies
 from gtdblib.util.bio.accession import canonical_gid
 
 

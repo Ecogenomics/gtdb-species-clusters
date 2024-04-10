@@ -44,7 +44,8 @@ from gtdb_species_clusters.taxon_utils import (generic_name,
                                                sort_by_naming_priority,
                                                is_latin_sp_epithet,
                                                is_placeholder_sp_epithet,
-                                               test_same_epithet)
+                                               test_same_epithet,
+                                               is_alphanumeric_taxon)
 from gtdb_species_clusters.type_genome_utils import parse_gtdb_type_strain_ledger
 
 
@@ -141,7 +142,7 @@ class PMC_SpeciesNames(object):
         ncbi_sp = cur_genomes[rid].ncbi_taxa.species
         ncbi_specific = specific_epithet(ncbi_sp)
 
-        if ncbi_sp not in unambiguous_ncbi_sp or rid != unambiguous_ncbi_sp[ncbi_sp][0]:
+        if ncbi_sp != 's__' and (ncbi_sp not in unambiguous_ncbi_sp or rid != unambiguous_ncbi_sp[ncbi_sp][0]):
             self.log.warning('NCBI species {} represented by type strain genome {} not designated as an unambiguous NCBI species.'.format(
                 ncbi_sp,
                 rid))
@@ -223,7 +224,7 @@ class PMC_SpeciesNames(object):
         """
 
         # get taxon names
-        (_gtdb_genus,
+        (gtdb_genus,
          gtdb_species,
          gtdb_generic,
          _gtdb_specific) = self.key_taxon(rid, final_taxonomy)
@@ -314,8 +315,9 @@ class PMC_SpeciesNames(object):
                     final_species = 's__{} {}'.format(
                         gtdb_generic, suffixed_specific_name)
                 else:
-                    # representative lacks a NCBI species assignment so create a numeric name
-                    note = 'Generated alphanumeric name as representative lacks an NCBI species assignment or NCBI family considered misclassified'
+                    # representative lacks a NCBI species assignment or has been assigned
+                    # to a genus with an alphanumeric name so create a numeric specific name
+                    note = 'Generated alphanumeric name as representative assigned to alphanumeric GTDB genus, lacks an NCBI species assignment, or NCBI family considered misclassified'
                     final_species = self.create_numeric_sp_placeholder(
                         rid, gtdb_generic)
 

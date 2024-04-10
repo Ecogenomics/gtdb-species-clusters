@@ -97,8 +97,7 @@ class RepActions():
         ani_af = self.skani.pairs(
             gid_pairs, 
             genome_paths, 
-            report_progress=False, 
-            check_cache=True)
+            report_progress=False)
 
         # determine highest ANI score
         max_score = -1e6
@@ -106,7 +105,7 @@ class RepActions():
         max_ani = None
         max_af = None
         for cid in sp_cids:
-            ani, af = Skani.symmetric_ani(
+            ani, af = Skani.symmetric_ani_af(
                 ani_af, f'{prev_rid}-P', f'{cid}-C')
 
             cur_score = cur_genomes[cid].score_ani(ani)
@@ -132,8 +131,7 @@ class RepActions():
 
         ani_af = self.skani.pairs(gid_pairs,
                                     cur_genomes.genomic_files,
-                                    report_progress=False,
-                                    check_cache=True)
+                                    report_progress=False)
 
         # find genome with top ANI score
         max_score = -1e6
@@ -141,7 +139,7 @@ class RepActions():
         max_ani = None
         max_af = None
         for cid in sp_cids:
-            ani, af = Skani.symmetric_ani(ani_af, prev_rid, cid)
+            ani, af = Skani.symmetric_ani_af(ani_af, prev_rid, cid)
 
             cur_score = cur_genomes[cid].score_ani(ani)
 
@@ -326,7 +324,7 @@ class RepActions():
             # be handled differently
             assert prev_rid in cur_genomes
 
-            ani, af = self.skani.symmetric_ani_cached(f'{prev_rid}-P', f'{prev_rid}-C',
+            ani, af = self.skani.calculate(f'{prev_rid}-P', f'{prev_rid}-C',
                                                         prev_genomes[prev_rid].genomic_file,
                                                         cur_genomes[prev_rid].genomic_file)
 
@@ -584,7 +582,7 @@ class RepActions():
         self.log.info(
             f'   - {num_anomalous:,} marked as being an anomalous assembly')
         self.log.info(
-            f' - ANI = {np_mean(anis):.2f} +/- {np_std(anis):.2f}%; AF = {np_mean(afs)*100:.2f} +/- {np_std(afs)*100:.2f}%')
+            f' - ANI = {np_mean(anis):.2f} +/- {np_std(anis):.2f}%; AF = {np_mean(afs):.2f} +/- {np_std(afs):.2f}%')
 
     def action_improved_rep(self,
                             cur_genomes,
@@ -736,7 +734,7 @@ class RepActions():
         self.log.info(
             f'   - {num_complete:,} replaced with complete genome assembly')
         self.log.info(
-            f' - ANI = {np_mean(anis):.2f} +/- {np_std(anis):.2f}%; AF = {np_mean(afs)*100:.2f} +/- {np_std(afs)*100:.2f}%')
+            f' - ANI = {np_mean(anis):.2f} +/- {np_std(anis):.2f}%; AF = {np_mean(afs):.2f} +/- {np_std(afs):.2f}%')
 
         # report NCBI BioProject resulting in large numbers of GTDB reps being replaced with presumed isolates
         for bioproject, count in ncbi_bioproject_count.items():
@@ -829,10 +827,10 @@ class RepActions():
             if highest_priority_gid != updated_rid:
                 num_higher_priority += 1
 
-                ani, af = self.skani.symmetric_ani_cached(updated_rid,
-                                                            highest_priority_gid,
-                                                            cur_genomes[updated_rid].genomic_file,
-                                                            cur_genomes[highest_priority_gid].genomic_file)
+                ani, af = self.skani.calculate(updated_rid,
+                                                highest_priority_gid,
+                                                cur_genomes[updated_rid].genomic_file,
+                                                cur_genomes[highest_priority_gid].genomic_file)
 
                 anis.append(ani)
                 afs.append(af)
@@ -956,11 +954,13 @@ class RepActions():
             lpsn_gss_file):
         """Perform initial actions required for changed representatives."""
 
-        # create previous and current GTDB genome sets
+        # create previous and current GTDB genome sets; the gtdb_type_strains_ledger is not
+        # set for the previous genome since we want to compare names without the influence
+        # of this file; moreover, the species names for the previous set must match the GTDB-Tk
+        # classifications which may not happen if species names are changed by the gtdb_type_strains_ledger 
         self.log.info('Creating previous GTDB genome set:')
         prev_genomes = Genomes()
         prev_genomes.load_from_metadata_file(prev_gtdb_metadata_file,
-                                             gtdb_type_strains_ledger=gtdb_type_strains_ledger,
                                              ncbi_genbank_assembly_file=ncbi_genbank_assembly_file,
                                              untrustworthy_type_ledger=untrustworthy_type_file,
                                              ncbi_env_bioproject_ledger=ncbi_env_bioproject_ledger)
