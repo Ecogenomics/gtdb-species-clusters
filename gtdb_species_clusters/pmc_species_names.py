@@ -307,7 +307,8 @@ class PMC_SpeciesNames(object):
 
                 if (ncbi_specific
                         and ncbi_specific not in self.forbidden_specific_names
-                        and not misclassified_diff_family):
+                        and not misclassified_diff_family
+                        and not is_alphanumeric_taxon(gtdb_genus)):
                     # base placeholder off NCBI species assignment of representative
                     note = 'Generated Latin-suffix name from NCBI species assignment'
                     suffixed_specific_name = self.sp_name_mngr.suffixed_placeholder_sp_epithet(
@@ -320,7 +321,7 @@ class PMC_SpeciesNames(object):
                     note = 'Generated alphanumeric name as representative assigned to alphanumeric GTDB genus, lacks an NCBI species assignment, or NCBI family considered misclassified'
                     final_species = self.create_numeric_sp_placeholder(
                         rid, gtdb_generic)
-
+                    
         return final_species, note
 
     def resolve_specific_epithet_suffixes(self, final_taxonomy):
