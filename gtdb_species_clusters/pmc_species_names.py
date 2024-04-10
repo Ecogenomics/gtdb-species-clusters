@@ -324,10 +324,13 @@ class PMC_SpeciesNames(object):
                     
         return final_species, note
 
-    def resolve_specific_epithet_suffixes(self, final_taxonomy):
+    def resolve_specific_epithet_suffixes(self, final_taxonomy, manual_curation_rids, cur_gtdb_sp):
         """Resolve cases where specific epithet needs to be modified to account for genus transfer."""
 
         for rid in final_taxonomy:
+            if rid in manual_curation_rids:
+                continue
+
             (_gtdb_genus,
              gtdb_species,
              _gtdb_generic,
@@ -335,41 +338,101 @@ class PMC_SpeciesNames(object):
 
             canonical_gtdb_species = canonical_taxon(gtdb_species)
             gtdb_species_corr = self.sp_epithet_mngr.translate_species(
-                canonical_gtdb_species)
+                    canonical_gtdb_species)
             gtdb_specific_corr = specific_epithet(gtdb_species_corr)
 
             if canonical_taxon(gtdb_specific) != canonical_taxon(gtdb_specific_corr):
                 suffix = taxon_suffix(gtdb_specific)
                 if suffix is None:
-                    final_taxonomy[rid][Taxonomy.SPECIES_INDEX] = gtdb_species_corr
+                    final_sp = gtdb_species_corr
                 else:
-                    final_taxonomy[rid][Taxonomy.SPECIES_INDEX] = '{}_{}'.format(
+                    final_sp = '{}_{}'.format(
                         gtdb_species_corr, suffix)
 
-    def resolve_species_classification_ledger(self, final_taxonomy, cur_genomes, cur_clusters, species_classification_ledger, manual_curation_rids):
+                if final_sp != final_taxonomy[rid][Taxonomy.SPECIES_INDEX]:
+                    # update and record name change
+                    self.finalize_species_name(rid,
+                                        final_sp,
+                                        'SPECIFIC_EPITHET_GENUS_TRANSFER',
+                                        'modified specific epithet to account for genus transfter',
+                                        final_taxonomy,
+                                        cur_gtdb_sp)
+
+    def resolve_placeholder_specific_epthets(self, 
+                                             final_taxonomy, 
+                                             prev_genomes, 
+                                             new_to_prev_rid,
+                                             manual_curation_rids,
+                                             cur_gtdb_sp):
+        """Ensure placeholder specific epthets are consistent between releases."""
+      
+        for rid in final_taxonomy:
+            if rid in manual_curation_rids:
+                continue
+             
+            (_gtdb_genus,
+             _gtdb_species,
+             gtdb_generic,
+             gtdb_specific) = self.key_taxon(rid, final_taxonomy)
+            
+            prev_gtdb_generic = None
+            prev_gtdb_specific = None
+            if rid in new_to_prev_rid:
+                prev_rid = new_to_prev_rid[rid]
+                prev_gtdb_species = prev_genomes[prev_rid].gtdb_taxa.species
+                prev_gtdb_generic = generic_name(prev_gtdb_species)
+                prev_gtdb_specific = specific_epithet(prev_gtdb_species)
+
+            if (prev_gtdb_generic
+                and prev_gtdb_generic == gtdb_generic
+                and is_placeholder_sp_epithet(gtdb_specific)
+                and is_placeholder_sp_epithet(prev_gtdb_specific)
+                and gtdb_specific != prev_gtdb_specific):
+                # genome assigned to the same genus, but has a different placeholder
+                # specific name which should not be allowed
+
+                final_sp = 's__{}_{}'.format(gtdb_generic, prev_gtdb_specific)
+                self.finalize_species_name(rid,
+                                       final_sp,
+                                       'RETAIN_PREVIOUS_PLACEHOLDER_NAME',
+                                       'placeholder specific name should not be replaced with a different placeholder name',
+                                       final_taxonomy,
+                                       cur_gtdb_sp)
+
+    def resolve_species_classification_ledger(self, 
+                                              final_taxonomy, 
+                                              cur_genomes, 
+                                              cur_clusters, 
+                                              species_classification_ledger, 
+                                              manual_curation_rids,
+                                              cur_gtdb_sp):
         """Validate genomes in GTDB type strain ledger."""
 
-        for gid in final_taxonomy:
-            target_domain = final_taxonomy[gid][Taxonomy.DOMAIN_INDEX]
-            break
+        # get current domain being processed
+        tmp_gid = next(iter(final_taxonomy))
+        target_domain = final_taxonomy[tmp_gid][Taxonomy.DOMAIN_INDEX]
 
         # read genomes in species classification ledger
         gtdb_sp_ledger = {}
         with open(species_classification_ledger, encoding='utf-8') as f:
-            f.readline()
+            header = f.readline().strip().split('\t')
+
+            gid_idx = header.index('Genome ID')
+            sp_idx = header.index('Proposed species name')
+            domain_idx = header.index('Domain')
 
             for line in f:
                 tokens = line.strip().split('\t')
-                gid = canonical_gid(tokens[0])
+                gid = canonical_gid(tokens[gid_idx])
 
-                domain = tokens[2].strip()
+                domain = tokens[domain_idx].strip()
                 if not domain.startswith('d__'):
                     domain = 'd__' + domain
 
                 if domain != target_domain:
                     continue
 
-                sp = tokens[1].strip()
+                sp = tokens[sp_idx].strip()
                 if not sp.startswith('s__'):
                     sp = 's__' + sp
 
@@ -424,8 +487,14 @@ class PMC_SpeciesNames(object):
                     and final_taxonomy[rid][Taxonomy.SPECIES_INDEX] != final_sp):
                 self.log.warning('Deferring to manual curation over update suggested by species classification ledger {}: {} {}'.format(
                     rid, final_taxonomy[rid][Taxonomy.SPECIES_INDEX], final_sp))
-            else:
-                final_taxonomy[rid][Taxonomy.SPECIES_INDEX] = final_sp
+            elif final_sp != final_taxonomy[rid][Taxonomy.SPECIES_INDEX]:
+                # update name to reflect species classificatoin ledger
+                self.finalize_species_name(rid,
+                                       final_sp,
+                                       'SPECIES_CLASSIFICATION_LEDGER',
+                                       'species name updated to reflect species classification ledger',
+                                       final_taxonomy,
+                                       cur_gtdb_sp)
 
             if is_latin_sp_epithet(gtdb_specific) and not test_same_epithet(gtdb_specific, mc_specific):
                 if gid in final_taxonomy:
@@ -498,7 +567,7 @@ class PMC_SpeciesNames(object):
                               note,
                               final_taxonomy,
                               cur_gtdb_sp):
-        "Set final species name for GTDB representative and report potential issues."
+        """Set final species name for GTDB representative and report potential issues."""
 
         if final_sp in cur_gtdb_sp:
             prev_rid, prev_case = cur_gtdb_sp[final_sp]
@@ -629,15 +698,20 @@ class PMC_SpeciesNames(object):
                                        final_taxonomy,
                                        cur_gtdb_sp)
 
-        self.final_name_log.close()
-
         for case, count in case_count.items():
             print('{}\t{}'.format(case, count))
 
         # resolve specific epithets requiring changes due to genus transfers
         self.log.info(
             'Resolving changes to suffix of specific epithets due to genus transfers.')
-        self.resolve_specific_epithet_suffixes(final_taxonomy)
+        self.resolve_specific_epithet_suffixes(final_taxonomy, manual_curation_rids, cur_gtdb_sp)
+
+        # ensure placeholder specific epithets are consistent between releases
+        self.resolve_placeholder_specific_epthets(final_taxonomy, 
+                                                  prev_genomes, 
+                                                  new_to_prev_rid,
+                                                  manual_curation_rids,
+                                                  cur_gtdb_sp)
 
         # Incorporate species assignments in species classification ledger. This
         # is done last since conflicts with the ledger need to be identified and
@@ -648,7 +722,10 @@ class PMC_SpeciesNames(object):
                                                    cur_genomes,
                                                    cur_clusters,
                                                    species_classification_ledger,
-                                                   manual_curation_rids)
+                                                   manual_curation_rids,
+                                                   cur_gtdb_sp)
+
+        self.final_name_log.close()
 
         return final_taxonomy
 
