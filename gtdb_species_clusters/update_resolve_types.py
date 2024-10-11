@@ -568,6 +568,7 @@ class ResolveTypes():
             ani_af = self.skani.pairwise(
                 type_gids, 
                 cur_genomes.genomic_files,
+                preset = Defaults.SKANI_PRESET,
                 report_progress=False)
             pickle.dump(ani_af, open(os.path.join(
                 self.ani_pickle_dir, f'{ncbi_sp_str}.pkl'), 'wb'))

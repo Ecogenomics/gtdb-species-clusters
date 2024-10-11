@@ -23,6 +23,7 @@ from collections import defaultdict
 
 from numpy import (mean as np_mean, std as np_std)
 
+from gtdb_species_clusters import defaults as Defaults
 from gtdb_species_clusters.skani import Skani
 from gtdb_species_clusters.genomes import Genomes
 from gtdb_species_clusters.species_clusters import SpeciesClusters
@@ -97,6 +98,7 @@ class RepActions():
         ani_af = self.skani.pairs(
             gid_pairs, 
             genome_paths, 
+            preset = Defaults.SKANI_PRESET,
             report_progress=False)
 
         # determine highest ANI score
@@ -131,6 +133,7 @@ class RepActions():
 
         ani_af = self.skani.pairs(gid_pairs,
                                     cur_genomes.genomic_files,
+                                    preset = Defaults.SKANI_PRESET,
                                     report_progress=False)
 
         # find genome with top ANI score

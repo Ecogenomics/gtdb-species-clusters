@@ -345,8 +345,6 @@ if __name__ == '__main__':
         'lpsn_gss_file', help="table from lpsn.dsmz.de with nomenclature information (lpsn_gss_<date>.csv)")
     u_sel_reps_parser.add_argument('output_dir', help="output directory")
     u_sel_reps_parser.add_argument(
-        '--ani_cache_file', help='file with precomputed ANI and AF values')
-    u_sel_reps_parser.add_argument(
         '-c', '--cpus', help='number of cpus', type=int, default=1)
     u_sel_reps_parser.add_argument(
         '--silent', help="suppress output", action='store_true')
@@ -375,8 +373,6 @@ if __name__ == '__main__':
         'ncbi_env_bioproject_ledger', help="file indicating NCBI BioProjects composed on MAGs or SAGs incorrectly annotated at NCBI")
     u_cluster_named_reps_parser.add_argument(
         'output_dir', help="output directory")
-    u_cluster_named_reps_parser.add_argument(
-        '--ani_cache_file', help='file with precomputed ANI and AF values')
     u_cluster_named_reps_parser.add_argument(
         '--ani_sp', help='minimum ANI for defining species clusters', type=float, default=Defaults.ANI_SP)
     u_cluster_named_reps_parser.add_argument(
@@ -410,8 +406,6 @@ if __name__ == '__main__':
         'ncbi_env_bioproject_ledger', help="file indicating NCBI BioProjects composed on MAGs or SAGs incorrectly annotated at NCBI")
     u_cluster_de_novo_parser.add_argument(
         'output_dir', help="output directory")
-    u_cluster_de_novo_parser.add_argument(
-        '--ani_cache_file', help='file with precomputed ANI and AF values')
     u_cluster_de_novo_parser.add_argument(
         '--ani_sp', help='minimum ANI for defining species clusters', type=float, default=Defaults.ANI_SP)
     u_cluster_de_novo_parser.add_argument(

@@ -20,6 +20,7 @@ import logging
 
 from gtdblib.util.shell.execute import check_dependencies
 
+from gtdb_species_clusters import defaults as Defaults
 from gtdb_species_clusters.skani import Skani
 from gtdb_species_clusters.genomes import Genomes
 
@@ -69,6 +70,7 @@ class IntraGenusANI(object):
         self.log.info('Calculating pairwise ANI between target genomes.')
         ani_af = self.skani.pairwise(target_gids,
                                        genomes.genomic_files,
+                                       preset = Defaults.SKANI_PRESET,
                                        check_cache=True)
         self.skani.write_cache(silence=True)
 

@@ -25,7 +25,6 @@ from numpy import (mean as np_mean)
 
 from gtdblib.util.shell.execute import check_dependencies
 
-from gtdb_species_clusters.mash import Mash
 from gtdb_species_clusters.skani import Skani
 
 from gtdb_species_clusters.genomes import Genomes
@@ -39,10 +38,10 @@ from gtdb_species_clusters import defaults as Defaults
 class UpdateClusterNamedReps(object):
     """Cluster genomes to selected GTDB representatives."""
 
-    def __init__(self, ani_sp, af_sp, ani_cache_file, cpus, output_dir):
+    def __init__(self, ani_sp, af_sp, cpus, output_dir):
         """Initialization."""
 
-        check_dependencies(['skani', 'mash'])
+        check_dependencies(['skani'])
 
         self.cpus = cpus
         self.output_dir = output_dir
@@ -54,11 +53,10 @@ class UpdateClusterNamedReps(object):
 
         self.max_ani_neighbour = Defaults.ANI_SYNONYMS
         self.max_af_neighbour = Defaults.AF_SP
-        self.min_mash_ani = Defaults.MASH_MIN_ANI
 
         self.ClusteredGenome = namedtuple('ClusteredGenome', 'ani af gid')
 
-        self.skani = Skani(ani_cache_file, cpus)
+        self.skani = Skani(None, cpus)
 
     def _rep_radius(self, rep_gids, rep_ani_file):
         """Calculate circumscription radius for representative genomes."""
@@ -141,53 +139,25 @@ class UpdateClusterNamedReps(object):
         """
 
         if True:  # ***DEBUGGING
-            mash = Mash(self.cpus)
+            # get path to query and reference genomes
+            query_paths = {}
+            for qid in non_rep_gids:
+                query_paths[qid] = cur_genomes.genomic_files[qid]
 
-            # create Mash sketch for representative genomes
-            rep_genome_list_file = os.path.join(
-                self.output_dir, 'gtdb_reps.lst')
-            rep_mash_sketch_file = os.path.join(
-                self.output_dir, 'gtdb_reps.msh')
-            mash.sketch(rep_gids, cur_genomes.genomic_files,
-                        rep_genome_list_file, rep_mash_sketch_file)
+            ref_paths = {}
+            for rid in rep_gids:
+                ref_paths[rid] = cur_genomes.genomic_files[rid]
 
-            # create Mash sketch for non-representative genomes
-            nonrep_genome_list_file = os.path.join(
-                self.output_dir, 'gtdb_nonreps.lst')
-            nonrep_genome_sketch_file = os.path.join(
-                self.output_dir, 'gtdb_nonreps.msh')
-            mash.sketch(non_rep_gids, cur_genomes.genomic_files,
-                        nonrep_genome_list_file, nonrep_genome_sketch_file)
-
-            # get Mash distance between representative and non-representative genomes
-            mash_dist_file = os.path.join(
-                self.output_dir, 'gtdb_reps_vs_nonreps.dst')
-            mash.dist(float(100 - self.min_mash_ani)/100,
-                      rep_mash_sketch_file,
-                      nonrep_genome_sketch_file,
-                      mash_dist_file)
-
-            # read Mash distances
-            mash_ani = mash.read_ani(mash_dist_file)
-
-            # get genome pairs above Mash threshold
-            mash_ani_pairs = []
-            for non_rid in mash_ani:
-                for rid in mash_ani[non_rid]:
-                    if non_rid != rid and mash_ani[non_rid][rid] >= self.min_mash_ani:
-                        # skani is symmetric so only need to store pair once; here
-                        # the non-representative genome is put first to make for 
-                        # easier downstream processing
-                        mash_ani_pairs.append((non_rid, rid))
-
-            self.log.info('Identified {:,} genome pairs with a Mash ANI >= {:.1f}%.'.format(
-                len(mash_ani_pairs), self.min_mash_ani))
-
-            # calculate ANI between pairs
-            self.log.info(
-                'Calculating ANI between {:,} genome pairs:'.format(len(mash_ani_pairs)))
-            ani_af = self.skani.pairs(
-                mash_ani_pairs, cur_genomes.genomic_files)
+            # calculate ANI between query and representative genomes;
+            # skani "dist" would be faster, but requires excessive memory
+            # so skani "search" is used 
+            ani_af = self.skani.search(
+                query_paths,
+                ref_paths,
+                self.output_dir, 
+                preset = Defaults.SKANI_PRESET,
+                min_af = self.af_sp,
+                min_sketch_ani = Defaults.SKANI_PREFILTER_THRESHOLD)
 
             pkl_file = os.path.join(self.output_dir, 'ani_af_nonrep_vs_rep.pkl')
             pickle.dump(ani_af, open(pkl_file, 'wb'))

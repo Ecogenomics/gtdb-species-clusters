@@ -15,5 +15,10 @@ AF_SP = 50.0
 # criteria used for defining synonyms
 ANI_SYNONYMS = 97.0
 
-# criteria used for pre-filtering ANI results with Mash
-MASH_MIN_ANI = 90.0
+# minimum ANI estimate from skani sketch estimate for genome
+# pair to be fully processsed
+SKANI_PREFILTER_THRESHOLD =85.0
+
+# skani presets selecting for different compression factors (k-mer sampling rates)
+# None = default which sets c to 125
+SKANI_PRESET = None

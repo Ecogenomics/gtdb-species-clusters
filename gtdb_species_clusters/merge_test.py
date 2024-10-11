@@ -20,6 +20,7 @@ import logging
 
 from gtdblib.util.shell.execute import check_dependencies
 
+from gtdb_species_clusters import defaults as Defaults
 from gtdb_species_clusters.skani import Skani
 from gtdb_species_clusters.genomes import Genomes
 
@@ -68,7 +69,7 @@ class MergeTest():
         for gid in merged_sp_cluster:
             gid_pairs.append((rid, gid))
             gid_pairs.append((gid, rid))
-        merged_ani_af1 = self.skani.pairs(gid_pairs, genomic_files)
+        merged_ani_af1 = self.skani.pairs(gid_pairs, genomic_files, preset = Defaults.SKANI_PRESET)
 
         ani_radius = 100
         for gid in merged_sp_cluster:
@@ -144,7 +145,7 @@ class MergeTest():
             if gid != gid1:
                 gid_pairs.append((gid1, gid))
                 gid_pairs.append((gid, gid1))
-        ani_af1 = self.skani.pairs(gid_pairs, genomes.genomic_files)
+        ani_af1 = self.skani.pairs(gid_pairs, genomes.genomic_files, preset = Defaults.SKANI_PRESET)
 
         self.log.info(f'Calculating ANI to {species2}.')
         gid_pairs = []

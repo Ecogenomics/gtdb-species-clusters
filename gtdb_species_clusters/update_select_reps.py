@@ -27,7 +27,6 @@ from numpy import (mean as np_mean,
 
 from gtdblib.util.shell.execute import check_dependencies
 
-from gtdb_species_clusters.mash import Mash
 from gtdb_species_clusters.skani import Skani
 from gtdb_species_clusters.genomes import Genomes
 from gtdb_species_clusters.species_clusters import SpeciesClusters
@@ -40,7 +39,7 @@ from gtdb_species_clusters.taxon_utils import (specific_epithet, is_placeholder_
 class UpdateSelectRepresentatives():
     """Select GTDB representatives for named species."""
 
-    def __init__(self, ani_cache_file, cpus, output_dir):
+    def __init__(self, cpus, output_dir):
         """Initialization."""
 
         # List of validly published NCBI species that are
@@ -56,7 +55,7 @@ class UpdateSelectRepresentatives():
                                     's__Shigella boydii',
                                     's__Shigella dysenteriae'])
 
-        check_dependencies(['skani', 'mash'])
+        check_dependencies(['skani'])
 
         self.cpus = cpus
         self.output_dir = output_dir
@@ -64,12 +63,10 @@ class UpdateSelectRepresentatives():
         self.log = logging.getLogger('rich')
 
         self.min_intra_strain_ani = 99.0
-        self.min_mash_ani = Defaults.MASH_MIN_ANI
-
         self.max_ani_neighbour = Defaults.ANI_SYNONYMS
         self.max_af_neighbour = Defaults.AF_SP
 
-        self.skani = Skani(ani_cache_file, cpus)
+        self.skani = Skani(None, cpus)
 
     def select_ani_neighbours(self, species, gids, cur_genomes, ani_af):
         """Select highest-quality genome with sufficient number of ANI neighbours."""
@@ -470,7 +467,10 @@ class UpdateSelectRepresentatives():
                 note = 'select single genome annotated as assembled from type material at NCBI'
             else:
                 # calculate ANI between genomes
-                ani_af = self.skani.pairwise(gids, cur_genomes.genomic_files, report_progress=False)
+                ani_af = self.skani.pairwise(gids, 
+                                             cur_genomes.genomic_files, 
+                                             preset = Defaults.SKANI_PRESET,
+                                             report_progress=False)
                 anis = []
                 afs = []
                 for q in ani_af:
@@ -581,79 +581,22 @@ class UpdateSelectRepresentatives():
         """Calculate ANI between representative genomes."""
 
         if True:  # ***DEBUGGING
-            self.log.info('Using Mash to identify similar genome pairs.')
-            mash = Mash(self.cpus)
-
-            # sanity check
+            # create dictionary indicating path to species representative genomes FASTA files
+            rep_genomic_files = {}
             for gid, sp in all_rep_genomes.items():
                 if gid not in cur_genomes.genomic_files:
                     self.log.error(
                         f'Missing genomic file for {gid} from {sp}.')
                     sys.exit(-1)
 
-            # create Mash sketch for potential representative genomes
-            genome_list_file = os.path.join(self.output_dir, 'gtdb_reps.lst')
-            sketch = os.path.join(self.output_dir, 'gtdb_reps.msh')
-            mash.sketch(all_rep_genomes, 
-                        cur_genomes.genomic_files,
-                        genome_list_file, 
-                        sketch)
-
-            # get Mash distances
-            mash_dist_file = os.path.join(self.output_dir, 'gtdb_reps.dst')
-            mash.dist_pairwise(float(100 - self.min_mash_ani) /
-                               100, sketch, mash_dist_file)
-
-            # read Mash distances
-            mash_ani = mash.read_ani(mash_dist_file)
-
-            # get all combinations of pairs above Mash threshold; only
-            # combinations (as opposed to permutations) are required since
-            # both Mash and skani are symmetric measures of ANI and skani
-            # calculates the AF in both directions for a given query and
-            # reference genome
-            mash_ani_pairs = []
-            for gid1, gid2 in combinations(all_rep_genomes, 2):
-                ani = mash_ani.get(gid1, {}).get(gid2, 0)
-                if ani >= self.min_mash_ani:
-                    mash_ani_pairs.append((gid1, gid2))
-
-            self.log.info(' - identified {:,} genome pairs with a Mash ANI >= {:.1f}%.'.format(
-                len(mash_ani_pairs), self.min_mash_ani))
-
-            # compare genomes in the same GTDB or NCBI genus
-            self.log.info(
-                'Using GTDB and NCBI taxonomy to identify intra-genus pairs.')
-
-            gtdb_genera_gids = defaultdict(list)
-            for gid in all_rep_genomes:
-                genus = cur_genomes[gid].gtdb_taxa.genus
-                gtdb_genera_gids[genus].append(gid)
-
-            ncbi_genera_gids = defaultdict(list)
-            for gid in all_rep_genomes:
-                genus = cur_genomes[gid].ncbi_taxa.genus
-                ncbi_genera_gids[genus].append(gid)
-
-            genus_ani_pairs = set()
-            for genera_gids in [gtdb_genera_gids, ncbi_genera_gids]:
-                for genus in genera_gids:
-                    if genus == 'g__':
-                        continue
-
-                    for rep_idA, rep_idB in combinations(genera_gids[genus], 2):
-                        # skani ANI is symmetric and the AF is calculated in both
-                        # directions so only need to run a given pair once
-                        genus_ani_pairs.add((rep_idA, rep_idB))
-
-            self.log.info(
-                ' - identified {:,} genome pairs within the same genus.'.format(len(genus_ani_pairs)))
+                rep_genomic_files[gid] = cur_genomes.genomic_files[gid]
 
             # calculate ANI between pairs
-            gid_pairs = genus_ani_pairs.union(mash_ani_pairs)
-            self.log.info(
-                'Calculating ANI between {:,} genome pairs:'.format(len(gid_pairs)))
-            ani_af = self.skani.pairs(gid_pairs, cur_genomes.genomic_files)
+            ani_af = self.skani.triangle(rep_genomic_files, 
+                                         self.output_dir, 
+                                         preset = Defaults.SKANI_PRESET,
+                                         min_af = Defaults.AF_SP,
+                                         min_sketch_ani = Defaults.SKANI_PREFILTER_THRESHOLD)
             pickle.dump(ani_af, open(os.path.join(
                 self.output_dir, 'reps_ani_af.pkl'), 'wb'))
         else:

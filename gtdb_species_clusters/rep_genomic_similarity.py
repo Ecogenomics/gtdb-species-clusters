@@ -22,6 +22,7 @@ from collections import defaultdict
 
 from gtdblib.util.shell.execute import check_dependencies
 
+from gtdb_species_clusters import defaults as Defaults
 from gtdb_species_clusters.skani import Skani
 from gtdb_species_clusters.genomes import Genomes
 
@@ -88,6 +89,7 @@ class RepGenomicSimilarity(object):
         ani_af = self.skani.pairs(
             gid_pairs, 
             genomes.genomic_files, 
+            preset = Defaults.SKANI_PRESET,
             report_progress=True, 
             check_cache=True)
         self.skani.write_cache(silence=True)
