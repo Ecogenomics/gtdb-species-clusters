@@ -45,7 +45,7 @@ class PMC_ClusterStats(object):
     def __init__(self, af_sp, max_genomes, ani_cache_file, cpus, output_dir):
         """Initialization."""
 
-        check_dependencies(['skani', 'mash'])
+        check_dependencies(['skani'])
 
         self.cpus = cpus
         self.output_dir = output_dir
@@ -158,7 +158,7 @@ class PMC_ClusterStats(object):
         self.log.info(
             'Calculating ANI between {:,} genome pairs:'.format(len(ani_pairs)))
         if True:  # ***DEBUGGING
-            ani_af = self.skani.pairs(ani_pairs, genome_files)
+            ani_af = self.skani.pairs(ani_pairs, genome_files, preset = Defaults.SKANI_PRESET,)
             pickle.dump(ani_af, open(os.path.join(
                 self.output_dir, 'type_genomes_ani_af.pkl'), 'wb'))
         else:
@@ -274,6 +274,7 @@ class PMC_ClusterStats(object):
                 if True:  # *** DEBUGGING
                     ani_af = self.skani.pairs(gid_pairs,
                                                 genome_files,
+                                                preset = Defaults.SKANI_PRESET,
                                                 report_progress=False)
                 else:
                     ani_af = self.skani.ani_cache
@@ -339,6 +340,7 @@ class PMC_ClusterStats(object):
                 if True:  # ***DEBUGGING
                     ani_af = self.skani.pairs(gid_pairs,
                                                 genome_files,
+                                                preset = Defaults.SKANI_PRESET,
                                                 report_progress=False)
                 else:
                     ani_af = self.skani.ani_cache

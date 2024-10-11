@@ -22,6 +22,7 @@ from itertools import combinations
 
 from gtdblib.util.shell.execute import check_dependencies
 
+from gtdb_species_clusters import defaults as Defaults
 from gtdb_species_clusters.skani import Skani
 from gtdb_species_clusters.genomes import Genomes
 
@@ -87,7 +88,7 @@ class ANI_SpeciesPair():
         self.log.info(f'Calculating pairwise ANI between all genomes.')
         all_gids = genomes.sp_clusters[rid1].union(genomes.sp_clusters[rid2])
         gid_pairs = [(gid1, gid2) for gid1, gid2 in combinations(all_gids, 2)]
-        ani_af = self.skani.pairs(gid_pairs, genomes.genomic_files)
+        ani_af = self.skani.pairs(gid_pairs, genomes.genomic_files, preset = Defaults.SKANI_PRESET)
 
         fout = open(os.path.join(self.output_dir, "ani_sp_pairwise.tsv"), 'w')
         fout.write('Genome ID 1\tSpecies 1\tGenome ID 2\tSpecies 2\tANI\tAF\n')

@@ -261,8 +261,7 @@ class OptionsParser():
         check_file_exists(args.lpsn_gss_file)
         make_sure_path_exists(args.output_dir)
 
-        p = UpdateSelectRepresentatives(args.ani_cache_file,
-                                        args.cpus,
+        p = UpdateSelectRepresentatives(args.cpus,
                                         args.output_dir)
         p.run(args.updated_sp_cluster_file,
               args.cur_gtdb_metadata_file,
@@ -293,7 +292,6 @@ class OptionsParser():
 
         p = UpdateClusterNamedReps(args.ani_sp,
                                    args.af_sp,
-                                   args.ani_cache_file,
                                    args.cpus,
                                    args.output_dir)
         p.run(args.named_rep_file,
@@ -380,7 +378,6 @@ class OptionsParser():
 
         p = UpdateClusterDeNovo(args.ani_sp,
                                 args.af_sp,
-                                args.ani_cache_file,
                                 args.cpus,
                                 args.output_dir)
         p.run(args.named_cluster_file,
@@ -782,7 +779,7 @@ class OptionsParser():
               args.genomic_path_file)
 
     def ani_af_reps(self, args):
-        """Calculate ANI/AF betwenn GTDB representative genomes with the same genus."""
+        """Calculate ANI/AF between GTDB representative genomes with the same genus."""
 
         check_file_exists(args.gtdb_metadata_file)
         check_file_exists(args.genomic_path_file)

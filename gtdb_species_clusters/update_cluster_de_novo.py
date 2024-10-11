@@ -24,7 +24,7 @@ from numpy import mean as np_mean
 
 from gtdblib.util.shell.execute import check_dependencies
 
-from gtdb_species_clusters.mash import Mash
+from gtdb_species_clusters import defaults as Defaults
 from gtdb_species_clusters.skani import Skani
 from gtdb_species_clusters.genomes import Genomes
 from gtdb_species_clusters.type_genome_utils import (ClusteredGenome,
@@ -36,10 +36,10 @@ from gtdb_species_clusters.type_genome_utils import (ClusteredGenome,
 class UpdateClusterDeNovo(object):
     """Infer de novo species clusters and representatives for remaining genomes."""
 
-    def __init__(self, ani_sp, af_sp, ani_cache_file, cpus, output_dir):
+    def __init__(self, ani_sp, af_sp, cpus, output_dir):
         """Initialization."""
 
-        check_dependencies(['skani', 'mash'])
+        check_dependencies(['skani'])
 
         self.cpus = cpus
         self.output_dir = output_dir
@@ -51,9 +51,7 @@ class UpdateClusterDeNovo(object):
         self.ani_sp = ani_sp
         self.af_sp = af_sp
 
-        self.min_mash_ani = 90.0
-
-        self.skani = Skani(ani_cache_file, cpus)
+        self.skani = Skani(None, cpus)
 
     def parse_named_clusters(self, named_cluster_file):
         """Parse named GTDB species clusters."""
@@ -121,46 +119,37 @@ class UpdateClusterDeNovo(object):
 
         return nonrep_radius
 
-    def mash_ani_unclustered(self, cur_genomes, gids):
-        """Calculate pairwise Mash ANI estimates between genomes."""
+    def ani_unclustered(self, cur_genomes, unclustered_gids):
+        """Calculate pairwise ANI/AF between unclustered genomes."""
+   
+        if True:  # ***DEBUGGING
+            genomic_files = {}
+            for gid in unclustered_gids:
+                if gid not in cur_genomes.genomic_files:
+                    self.log.error(f'Missing genomic file for {gid}.')
+                    sys.exit(-1)
 
-        mash = Mash(self.cpus)
+                genomic_files[gid] = cur_genomes.genomic_files[gid]
 
-        # create Mash sketch for potential representative genomes
-        mash_nontype_sketch_file = os.path.join(
-            self.output_dir, 'gtdb_unclustered_genomes.msh')
-        genome_list_file = os.path.join(
-            self.output_dir, 'gtdb_unclustered_genomes.lst')
-        mash.sketch(gids, cur_genomes.genomic_files,
-                    genome_list_file, mash_nontype_sketch_file)
+            # calculate ANI between pairs
+            ani_af = self.skani.triangle(genomic_files, 
+                                         self.output_dir, 
+                                         preset = Defaults.SKANI_PRESET,
+                                         min_af = self.af_sp,
+                                         min_sketch_ani = Defaults.SKANI_PREFILTER_THRESHOLD)
+            pickle.dump(ani_af, open(os.path.join(
+                self.output_dir, 'unclustered_ani_af.pkl'), 'wb'))
+        else:
+            ani_af = pickle.load(
+                open(os.path.join(self.output_dir, 'unclustered_ani_af.pkl'), 'rb'))
 
-        # get Mash distances
-        mash_dist_file = os.path.join(
-            self.output_dir, 'gtdb_unclustered_genomes.dst')
-        mash.dist_pairwise(float(100 - self.min_mash_ani) /
-                           100, mash_nontype_sketch_file, mash_dist_file)
-
-        # read Mash distances
-        mash_ani = mash.read_ani(mash_dist_file)
-
-        # report pairs above Mash threshold
-        num_mash_pairs = 0
-        for qid in mash_ani:
-            for rid in mash_ani[qid]:
-                if qid != rid and mash_ani[qid][rid] >= self.min_mash_ani:
-                    num_mash_pairs += 1
-
-        self.log.info('Identified {:,} genome pairs with a Mash ANI >= {:.1f}%.'.format(
-            num_mash_pairs,
-            self.min_mash_ani))
-
-        return mash_ani
+        return ani_af
 
     def select_rep_genomes(self,
                              cur_genomes,
                              nonrep_radius,
                              unclustered_qc_gids,
-                             mash_ani):
+                             unclustered_ani_af):
         """Select de novo representatives for species clusters in a greedy fashion using species-specific ANI thresholds."""
 
         # sort genomes by quality score
@@ -177,59 +166,42 @@ class UpdateClusterDeNovo(object):
         if not os.path.exists(cluster_rep_file):
             clustered_genomes = 0
             for idx, (cur_gid, _score) in enumerate(q_sorted):
-                # determine representatives genomes to calculate ANI between
-                ani_pairs = []
-                if cur_gid in mash_ani:
-                    for rep_gid in clusters:
-                        if mash_ani[cur_gid].get(rep_gid, 0) >= self.min_mash_ani:
-                            # skani ANI is symmetric and the AF is calculated in both
-                            # directions so only need to run a given pair once
-                            ani_pairs.append((rep_gid, cur_gid))
+                # Set closest representative to the ANI radius of the current genome,
+                # which indicates the closest representative across the named species
+                # clusters. We know this genome can't be assigned to this named species
+                # cluster, but assignment to a de novo cluster must have a higher ANI
+                # value while meeting the AF criterion.
+                closest_rep_gid = None
+                closest_rep_ani = nonrep_radius[cur_gid].ani
+                closest_rep_af = nonrep_radius[cur_gid].af
+                for rep_gid in clusters:
+                    ani, af = Skani.symmetric_ani_af(unclustered_ani_af, cur_gid, rep_gid)
 
-                # determine if genome clusters with representative
-                clustered = False
-                if ani_pairs:
-                    ani_af = self.skani.pairs(ani_pairs, cur_genomes.genomic_files, report_progress=False)
+                    if af >= self.af_sp:
+                        if ani > closest_rep_ani or (ani == closest_rep_ani and af > closest_rep_af):
+                            closest_rep_gid = rep_gid
+                            closest_rep_ani = ani
+                            closest_rep_af = af
 
-                    # Set closest representative to the ANI radius of the current genome,
-                    # which indicates the closest representative across the named species
-                    # clusters. We know this genome can't be assigned to this named species
-                    # cluster, but assignment to a de novo cluster must have a higher ANI
-                    # value while meeting the AF criterion.
-                    closest_rep_gid = None
-                    closest_rep_ani = nonrep_radius[cur_gid].ani
-                    closest_rep_af = nonrep_radius[cur_gid].af
-                    for rep_gid, _cur_gid in ani_pairs:
-                        ani, af = Skani.symmetric_ani_af(ani_af, cur_gid, rep_gid)
+                            nonrep_radius[cur_gid] = GenomeRadius(ani=ani,
+                                                                af=af,
+                                                                neighbour_gid=rep_gid)
 
-                        if af >= self.af_sp:
-                            if ani > closest_rep_ani or (ani == closest_rep_ani and af > closest_rep_af):
-                                closest_rep_gid = rep_gid
-                                closest_rep_ani = ani
-                                closest_rep_af = af
-
-                                nonrep_radius[cur_gid] = GenomeRadius(ani=ani,
-                                                                    af=af,
-                                                                    neighbour_gid=rep_gid)
-
-                    if closest_rep_gid and closest_rep_ani > nonrep_radius[closest_rep_gid].ani:
-                        clustered = True
-
+                clustered = closest_rep_gid and closest_rep_ani > nonrep_radius[closest_rep_gid].ani
                 if not clustered:
                     # genome is a new species cluster representative
                     clusters.add(cur_gid)
                 else:
                     clustered_genomes += 1
 
-                statusStr = '-> clustered {:,} of {:,} ({:.2f}%) genomes [ANI pairs: {:,}; clustered genomes: {:,}; clusters: {:,}].'.format(
-                    idx+1,
-                    len(q_sorted),
-                    float(idx+1)*100/len(q_sorted),
-                    len(ani_pairs),
-                    clustered_genomes,
-                    len(clusters)).ljust(96)
-                sys.stdout.write('{}\r'.format(statusStr))
-                sys.stdout.flush()
+            statusStr = '-> clustered {:,} of {:,} ({:.2f}%) genomes [clustered genomes: {:,}; clusters: {:,}].'.format(
+                idx+1,
+                len(q_sorted),
+                float(idx+1)*100/len(q_sorted),
+                clustered_genomes,
+                len(clusters)).ljust(96)
+            sys.stdout.write('{}\r'.format(statusStr))
+            sys.stdout.flush()
 
             sys.stdout.write('\n')
 
@@ -264,61 +236,34 @@ class UpdateClusterDeNovo(object):
             len(nonrep_gids), len(all_reps)))
 
         if True:  # ***
-            # calculate MASH distance between non-representatives and representatives genomes
-            mash = Mash(self.cpus)
+            # get path to query and reference genomes
+            query_paths = {}
+            for qid in nonrep_gids:
+                query_paths[qid] = cur_genomes.genomic_files[qid]
 
-            mash_rep_sketch_file = os.path.join(
-                self.output_dir, 'gtdb_rep_genomes.msh')
-            rep_genome_list_file = os.path.join(
-                self.output_dir, 'gtdb_rep_genomes.lst')
-            mash.sketch(all_reps, cur_genomes.genomic_files,
-                        rep_genome_list_file, mash_rep_sketch_file)
+            ref_paths = {}
+            for rid in all_reps:
+                ref_paths[rid] = cur_genomes.genomic_files[rid]
 
-            mash_none_rep_sketch_file = os.path.join(
-                self.output_dir, 'gtdb_nonrep_genomes.msh')
-            non_rep_file = os.path.join(
-                self.output_dir, 'gtdb_nonrep_genomes.lst')
-            mash.sketch(nonrep_gids, cur_genomes.genomic_files,
-                        non_rep_file, mash_none_rep_sketch_file)
-
-            # get Mash distances
-            mash_dist_file = os.path.join(
-                self.output_dir, 'gtdb_rep_vs_nonrep_genomes.dst')
-            mash.dist(float(100 - self.min_mash_ani)/100,
-                      mash_rep_sketch_file,
-                      mash_none_rep_sketch_file,
-                      mash_dist_file)
-
-            # read Mash distances
-            mash_ani = mash.read_ani(mash_dist_file)
-
-            # calculate ANI between non-representatives and representatives genomes
-            clusters = {}
-            for gid in all_reps:
-                clusters[gid] = []
-
-            mash_ani_pairs = []
-            for qid in mash_ani:
-                assert qid in nonrep_gids
-
-                for rid in mash_ani[qid]:
-                    assert rid in all_reps
-
-                    if mash_ani[qid][rid] >= self.min_mash_ani and qid != rid:
-                        # skani ANI is symmetric and the AF is calculated in both
-                        # directions so only need to run a given pair once
-                        mash_ani_pairs.append((qid, rid))
-
-            self.log.info('Calculating ANI between {:,} species clusters and {:,} unclustered genomes ({:,} pairs):'.format(
-                len(clusters),
-                len(nonrep_gids),
-                len(mash_ani_pairs)))
-
-            ani_af = self.skani.pairs(mash_ani_pairs, cur_genomes.genomic_files)
+            # calculate ANI between query and representative genomes;
+            # skani "dist" would be faster, but requires excessive memory
+            # so skani "search" is used 
+            ani_af = self.skani.search(
+                query_paths,
+                ref_paths,
+                self.output_dir, 
+                preset = Defaults.SKANI_PRESET,
+                min_af = self.af_sp,
+                min_sketch_ani = Defaults.SKANI_PREFILTER_THRESHOLD)
 
             # assign genomes to closest representatives
             # that is within the representatives ANI radius
             self.log.info('Assigning genomes to closest representative.')
+
+            clusters = {}
+            for gid in all_reps:
+                clusters[gid] = []
+
             for idx, cur_gid in enumerate(nonrep_gids):
                 # find closest species representative in terms of ANI that also
                 # satisfied the AF criterion
@@ -363,7 +308,7 @@ class UpdateClusterDeNovo(object):
                         self.log.warning(f'Assigning genome to {closest_rep_gid} with an ANI radius of {ani_radius:.2f}%.')
                         self.log.warning(f'ANI and AF between {cur_gid} and {closest_rep_gid} is {closest_rep_ani:.2f}% and {closest_rep_af:.2f}%, respectively.')
 
-                statusStr = '-> Assigned {:,} of {:,} ({:.2f}%) genomes.'.format(idx+1,
+                statusStr = '-> assigned {:,} of {:,} ({:.2f}%) genomes'.format(idx+1,
                                                                                  len(nonrep_gids),
                                                                                  float(idx+1)*100/len(nonrep_gids)).ljust(86)
                 sys.stdout.write('{}\r'.format(statusStr))
@@ -434,16 +379,15 @@ class UpdateClusterDeNovo(object):
         nonrep_radius = self.nonrep_radius(
             unclustered_gids, named_rep_gids, ani_af_nonrep_vs_rep)
 
-        # calculate Mash ANI estimates between unclustered genomes
-        self.log.info(
-            'Calculating Mash ANI estimates between unclustered genomes.')
-        mash_anis = self.mash_ani_unclustered(cur_genomes, unclustered_gids)
+        # calculate ANI/AF between unclustered genomes
+        self.log.info('Calculating ANI/AF between unclustered genomes.')
+        unclustered_ani_af = self.ani_unclustered(cur_genomes, unclustered_gids)
 
         # select de novo species representatives in a greedy fashion based on genome quality
         de_novo_rep_gids = self.select_rep_genomes(cur_genomes,
                                                      nonrep_radius,
                                                      unclustered_gids,
-                                                     mash_anis)
+                                                     unclustered_ani_af)
 
         # cluster all non-representative genomes to representative genomes
         final_cluster_radius = rep_radius.copy()
