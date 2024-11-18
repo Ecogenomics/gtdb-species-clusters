@@ -301,8 +301,15 @@ class PMC_SpeciesNames(object):
                 if rid in ncbi_misclassified_gids and ncbi_species in ncbi_species_type_strain_rid:
                     gtdb_family = final_taxonomy[rid][Taxonomy.FAMILY_INDEX]
                     type_rid = ncbi_species_type_strain_rid[ncbi_species]
-                    type_strain_gtdb_family = final_taxonomy[type_rid][Taxonomy.FAMILY_INDEX]
-                    if gtdb_family != type_strain_gtdb_family:
+
+                    if type_rid in final_taxonomy:
+                        type_strain_gtdb_family = final_taxonomy[type_rid][Taxonomy.FAMILY_INDEX]
+                        if gtdb_family != type_strain_gtdb_family:
+                            misclassified_diff_family = True
+                    else:
+                        # indicates the type genome for the misclassified species is actually
+                        # in the other domain (i.e. NCBI indicates a bacterial species, but the
+                        # genome is actually archaeal)
                         misclassified_diff_family = True
 
                 if (ncbi_specific
@@ -611,6 +618,8 @@ class PMC_SpeciesNames(object):
                                       cur_genomes,
                                       mc_species)
         manual_curation_rids, type_species_rids, type_strains_rids, binomial_rids, placeholder_rids = rtn
+
+        print()
 
         # establish final name for each GTDB species cluster
         case_count = defaultdict(int)

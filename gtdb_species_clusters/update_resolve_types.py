@@ -56,7 +56,7 @@ class ResolveTypes():
     address.
     """
 
-    def __init__(self, ani_cache_file: str, cpus: int, output_dir: str):
+    def __init__(self, cpus: int, output_dir: str):
         """Initialization.
 
         :param ani_cache_file: TSV file with pre-computed skani values.
@@ -77,7 +77,7 @@ class ResolveTypes():
         self.log = logging.getLogger('rich')
         self.cpus = cpus
 
-        self.skani = Skani(ani_cache_file, cpus)
+        self.skani = Skani(None, cpus)
 
         self.ani_pickle_dir = os.path.join(self.output_dir, 'ani_pickles')
         if not os.path.exists(self.ani_pickle_dir):

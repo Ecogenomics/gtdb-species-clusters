@@ -39,7 +39,9 @@ class QcCriteria:
     :param max_contigs: Maximum number of contigs to pass QC.
     :param min_N50: Minimum N50 to pass QC.
     :param max_ambiguous: Maximum number of ambiguous bases to pass QC.
+    :param max_cm_xor_contigs: Maximum number of contigs in genome that passes only CheckM v1 or v2 quality criteria.
     """
+
     min_comp: float
     max_cont: float
     min_quality: float
@@ -48,6 +50,7 @@ class QcCriteria:
     max_contigs: int
     min_N50: int
     max_ambiguous: int
+    max_cm_xor_contigs: int
 
 
 class QcGenomes():
@@ -198,14 +201,17 @@ class QcGenomes():
         fout_failed = open(os.path.join(self.output_dir, 'qc_failed.tsv'), 'w')
 
         header = 'Accession\tNCBI species\tGTDB taxonomy'
-        header += '\tCompleteness (%)\tContamination (%)\tQuality\tStrain heterogeneity at 100%'
+        header += '\tCM1 completeness (%)\tCM1 contamination (%)\tCM1 quality\tCM1 strain heterogeneity at 100%'
+        header += '\tCM2 completeness (%)\tCM2 contamination (%)\tCM2 quality'
         header += '\tMarkers (%)\tNo. contigs\tN50 contigs\tAmbiguous bases'
 
         fout_passed.write(
             header + '\tScore\tNote\tNCBI exclude from RefSeq\tMarked in GTDB ledger\n')
         fout_failed.write(header)
         fout_failed.write(
-            '\tFailed completeness\tFailed contamination\tFailed quality')
+            '\tFailed CM1 completeness\tFailed CM1 contamination\tFailed CM1 quality')
+        fout_failed.write(
+            '\tFailed CM2 completeness\tFailed CM2 contamination\tFailed CM2 quality')
         fout_failed.write(
             '\tFailed marker percentage\tFailed no. contigs\tFailed N50 contigs')
         fout_failed.write(
@@ -223,11 +229,14 @@ class QcGenomes():
                 passed_qc_gids.add(gid)
                 fout_passed.write('{}\t{}\t{}'.format(
                     gid, cur_genomes[gid].ncbi_taxa.species, cur_genomes[gid].gtdb_taxa))
-                fout_passed.write('\t{:.2f}\t{:.2f}\t{:.2f}\t{}\t{:.2f}\t{}\t{}\t{}\t{:.2f}\t{}\t{}\t{}\n'.format(
-                    cur_genomes[gid].comp,
-                    cur_genomes[gid].cont,
-                    cur_genomes[gid].comp - 5*cur_genomes[gid].cont,
-                    f'{cur_genomes[gid].strain_heterogeneity_100:.2f}' if cur_genomes[gid].strain_heterogeneity_100 else '-',
+                fout_passed.write('\t{:.2f}\t{:.2f}\t{:.2f}\t{}\t{:.2f}\t{:.2f}\t{:.2f}\t{:.2f}\t{}\t{}\t{}\t{:.2f}\t{}\t{}\t{}\n'.format(
+                    cur_genomes[gid].cm1_comp,
+                    cur_genomes[gid].cm1_cont,
+                    cur_genomes[gid].cm1_assembly_quality(),
+                    f'{cur_genomes[gid].cm1_strain_heterogeneity_100:.2f}' if cur_genomes[gid].cm1_strain_heterogeneity_100 else '-',
+                    cur_genomes[gid].cm2_comp,
+                    cur_genomes[gid].cm2_cont,
+                    cur_genomes[gid].cm2_assembly_quality(),
                     marker_perc[gid],
                     cur_genomes[gid].contig_count,
                     cur_genomes[gid].contig_n50,
@@ -240,19 +249,25 @@ class QcGenomes():
                 failed_qc_gids.add(gid)
                 fout_failed.write('{}\t{}\t{}'.format(
                     gid, cur_genomes[gid].ncbi_taxa.species, cur_genomes[gid].gtdb_taxa))
-                fout_failed.write('\t{:.2f}\t{:.2f}\t{:.2f}\t{}\t{:.2f}\t{}\t{}\t{}'.format(
-                    cur_genomes[gid].comp,
-                    cur_genomes[gid].cont,
-                    cur_genomes[gid].comp-5*cur_genomes[gid].cont,
-                    f'{cur_genomes[gid].strain_heterogeneity_100:.2f}' if cur_genomes[gid].strain_heterogeneity_100 else '-',
+                fout_failed.write('\t{:.2f}\t{:.2f}\t{:.2f}\t{}\t{:.2f}\t{:.2f}\t{:.2f}\t{:.2f}\t{}\t{}\t{}'.format(
+                    cur_genomes[gid].cm1_comp,
+                    cur_genomes[gid].cm1_cont,
+                    cur_genomes[gid].cm1_assembly_quality(),
+                    f'{cur_genomes[gid].cm1_strain_heterogeneity_100:.2f}' if cur_genomes[gid].cm1_strain_heterogeneity_100 else '-',
+                    cur_genomes[gid].cm2_comp,
+                    cur_genomes[gid].cm2_cont,
+                    cur_genomes[gid].cm2_assembly_quality(),
                     marker_perc[gid],
                     cur_genomes[gid].contig_count,
                     cur_genomes[gid].contig_n50,
                     cur_genomes[gid].ambiguous_bases))
-                fout_failed.write('\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\n'.format(
-                    failed_tests['comp'],
-                    failed_tests['cont'],
-                    failed_tests['qual'],
+                fout_failed.write('\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\n'.format(
+                    failed_tests['cm1_comp'],
+                    failed_tests['cm1_cont'],
+                    failed_tests['cm1_qual'],
+                    failed_tests['cm2_comp'],
+                    failed_tests['cm2_cont'],
+                    failed_tests['cm2_qual'],
                     failed_tests['marker_perc'],
                     failed_tests['contig_count'],
                     failed_tests['N50'],
@@ -302,7 +317,9 @@ class QcGenomes():
         fout_type_fail.write(
             'NCBI species\tAccession\tGTDB taxonomy\tNCBI taxonomy\tType sources\tNCBI assembly type\tGenome size (bp)')
         fout_type_fail.write(
-            '\tCompleteness (%)\tContamination (%)\tQuality\tStrain heterogeneity at 100%')
+            '\tCM1 completeness (%)\tCM1 contamination (%)\tCM1 quality\tCM1 strain heterogeneity at 100%')
+        fout_type_fail.write(
+            '\tCM2 completeness (%)\tCM2 contamination (%)\tCM2 quality')
         fout_type_fail.write(
             '\tMarkers (%)\tNo. contigs\tN50 contigs\tAmbiguous bases\tNCBI exclude from RefSeq\tLost species\n')
 
@@ -311,7 +328,9 @@ class QcGenomes():
         fout_fail_sp.write(
             'NCBI species\tAccession\tGTDB taxonomy\tNCBI taxonomy\tAssembled from type material\tGenome size (bp)')
         fout_fail_sp.write(
-            '\tCompleteness (%)\tContamination (%)\tQuality\tStrain heterogeneity at 100%')
+            '\tCM1 completeness (%)\tCM1 contamination (%)\tCM1 quality\tCM1 strain heterogeneity at 100%')
+        fout_fail_sp.write(
+            '\tCM2 completeness (%)\tCM2 contamination (%)\tCM2 quality')
         fout_fail_sp.write(
             '\tMarkers (%)\tNo. contigs\tN50 contigs\tAmbiguous bases')
         fout_fail_sp.write(
@@ -324,9 +343,11 @@ class QcGenomes():
             self.output_dir, 'species_lost.tsv'), 'w')
         fout_sp_lost.write('NCBI species\tNo. genomes\tNo. type genomes')
         fout_sp_lost.write(
-            '\tFail completeness\tFail contamination\tFail quality\tFailed percent markers')
+            '\tFail CM1 completeness\tFail CM1 contamination\tFail CM1 quality')
         fout_sp_lost.write(
-            '\tFail no. contigs\tFail N50 contigs\tFail ambiguous bases\n')
+            '\tFail CM2 completeness\tFail CM2 contamination\tFail CM2 quality')
+        fout_sp_lost.write(
+            '\tFailed percent markers\tFail no. contigs\tFail N50 contigs\tFail ambiguous bases\n')
 
         lost_type = 0
         lost_sp = 0
@@ -372,7 +393,7 @@ class QcGenomes():
                 # all potential type genomes for species failed QC so report these for manual inspection
                 lost_type += 1
                 for gid in type_fail:
-                    fout_type_fail.write('{}\t{}\t{}\t{}\t{}\t{}\t{:.2f}\t{:.2f}\t{:.2f}\t{:.2f}\t{:.2f}\t{:.2f}\t{}\t{}\t{}\t{}\t{}\n'.format(
+                    fout_type_fail.write('{}\t{}\t{}\t{}\t{}\t{}\t{:.2f}\t{:.2f}\t{:.2f}\t{:.2f}\t{:.2f}\t{:.2f}\t{:.2f}\t{:.2f}\t{:.2f}\t{}\t{}\t{}\t{}\t{}\n'.format(
                         sp,
                         gid,
                         cur_genomes[gid].gtdb_taxa,
@@ -380,10 +401,13 @@ class QcGenomes():
                         cur_genomes[gid].gtdb_type_designation_sources,
                         cur_genomes[gid].ncbi_type_material,
                         float(cur_genomes[gid].length)/1e6,
-                        cur_genomes[gid].comp,
-                        cur_genomes[gid].cont,
-                        cur_genomes[gid].comp-5*cur_genomes[gid].cont,
-                        cur_genomes[gid].strain_heterogeneity_100,
+                        cur_genomes[gid].cm1_comp,
+                        cur_genomes[gid].cm1_cont,
+                        cur_genomes[gid].cm1_assembly_quality(),
+                        cur_genomes[gid].cm1_strain_heterogeneity_100,
+                        cur_genomes[gid].cm2_comp,
+                        cur_genomes[gid].cm2_cont,
+                        cur_genomes[gid].cm2_assembly_quality(),
                         marker_perc[gid],
                         cur_genomes[gid].contig_count,
                         cur_genomes[gid].contig_n50,
@@ -396,10 +420,13 @@ class QcGenomes():
                 lost_sp += 1
                 fout_sp_lost.write('{}\t{}\t{}'.format(
                     sp, len(gids), len(type_fail)))
-                fout_sp_lost.write('\t{}\t{}\t{}\t{}\t{}\t{}\t{}\n'.format(
-                    sum([failed_tests_gids[gid]['comp'] for gid in gids]),
-                    sum([failed_tests_gids[gid]['cont'] for gid in gids]),
-                    sum([failed_tests_gids[gid]['qual'] for gid in gids]),
+                fout_sp_lost.write('\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\n'.format(
+                    sum([failed_tests_gids[gid]['cm1_comp'] for gid in gids]),
+                    sum([failed_tests_gids[gid]['cm1_cont'] for gid in gids]),
+                    sum([failed_tests_gids[gid]['cm1_qual'] for gid in gids]),
+                    sum([failed_tests_gids[gid]['cm2_comp'] for gid in gids]),
+                    sum([failed_tests_gids[gid]['cm2_cont'] for gid in gids]),
+                    sum([failed_tests_gids[gid]['cm2_qual'] for gid in gids]),
                     sum([failed_tests_gids[gid]['marker_perc']
                          for gid in gids]),
                     sum([failed_tests_gids[gid]['contig_count']
@@ -408,25 +435,31 @@ class QcGenomes():
                     sum([failed_tests_gids[gid]['ambig'] for gid in gids])))
 
                 for gid in type_fail.union(other_fail):
-                    fout_fail_sp.write('{}\t{}\t{}\t{}\t{}\t{:.2f}\t{:.2f}\t{:.2f}\t{:.2f}\t{:.2f}\t{:.2f}\t{}\t{}\t{}'.format(
+                    fout_fail_sp.write('{}\t{}\t{}\t{}\t{}\t{:.2f}\t{:.2f}\t{:.2f}\t{:.2f}\t{:.2f}\t{:.2f}\t{:.2f}\t{:.2f}\t{:.2f}\t{}\t{}\t{}'.format(
                         sp,
                         gid,
                         cur_genomes[gid].gtdb_taxa,
                         cur_genomes[gid].ncbi_taxa,
                         gid in type_fail,
                         float(cur_genomes[gid].length)/1e6,
-                        cur_genomes[gid].comp,
-                        cur_genomes[gid].cont,
-                        cur_genomes[gid].comp-5*cur_genomes[gid].cont,
-                        cur_genomes[gid].strain_heterogeneity_100,
+                        cur_genomes[gid].cm1_comp,
+                        cur_genomes[gid].cm1_cont,
+                        cur_genomes[gid].cm1_assembly_quality(),
+                        cur_genomes[gid].cm1_strain_heterogeneity_100,
+                        cur_genomes[gid].cm2_comp,
+                        cur_genomes[gid].cm2_cont,
+                        cur_genomes[gid].cm2_assembly_quality(),
                         marker_perc[gid],
                         cur_genomes[gid].contig_count,
                         cur_genomes[gid].contig_n50,
                         cur_genomes[gid].ambiguous_bases))
                     fout_fail_sp.write('\t{}\t{}\t{}\t{}\t{}\t{}\t{}'.format(
-                        failed_tests_gids[gid]['comp'],
-                        failed_tests_gids[gid]['cont'],
-                        failed_tests_gids[gid]['qual'],
+                        failed_tests_gids[gid]['cm1_comp'],
+                        failed_tests_gids[gid]['cm1_cont'],
+                        failed_tests_gids[gid]['cm1_qual'],
+                        failed_tests_gids[gid]['cm2_comp'],
+                        failed_tests_gids[gid]['cm2_cont'],
+                        failed_tests_gids[gid]['cm2_qual'],
                         failed_tests_gids[gid]['marker_perc'],
                         failed_tests_gids[gid]['contig_count'],
                         failed_tests_gids[gid]['N50'],

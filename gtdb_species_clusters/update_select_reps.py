@@ -239,7 +239,7 @@ class UpdateSelectRepresentatives():
             self.output_dir, 'gtdb_rep_genomes_initial.tsv')
         fout = open(init_rep_out_file, 'w')
         fout.write('NCBI species\tRepresentative\tStrain IDs\tType status\tType sources\tNCBI assembly types\tNCBI representative\tNCBI assembly level')
-        fout.write('\tNCBI genome category\tGenome size (bp)\tQuality score\tCompleteness (%)\tContamination (%)\tNo. scaffolds\tNo. contigs\tN50 contigs\tAmbiguous bases\tSSU count\tSSU length (bp)')
+        fout.write('\tNCBI genome category\tGenome size (bp)\tQuality score\tCM1 completeness (%)\tCM1 contamination (%)\tNo. scaffolds\tNo. contigs\tN50 contigs\tAmbiguous bases\tSSU count\tSSU length (bp)')
         fout.write(
             '\tNo. type genomes\tNo. species genomes\tMean ANI\tMean AF\tMin ANI\tMin AF\tNCBI exclude from RefSeq\tSelection note\n')
 
@@ -248,7 +248,7 @@ class UpdateSelectRepresentatives():
         fout_manual.write(
             'NCBI species\tAccession\tGTDB taxonomy\tNCBI taxonomy\tGTDB type genome\tType status\tANI to rep\tAF to rep\tSelection note')
         fout_manual.write(
-            '\tNCBI genome category\tGenome size (bp)\tQuality score\tCompleteness (%)\tContamination (%)\tNo. scaffolds\tNo. contigs\tN50 contigs\tAmbiguous bases\tSSU count\tSSU length (bp)')
+            '\tNCBI genome category\tGenome size (bp)\tQuality score\tCM1 completeness (%)\tCM1 contamination (%)\tNo. scaffolds\tNo. contigs\tN50 contigs\tAmbiguous bases\tSSU count\tSSU length (bp)')
         fout_manual.write(
             '\tNo. type genomes\tNo. species genomes\tMean ANI\tMean AF\tMin ANI\tMin AF\tNCBI exclude from RefSeq\tType accessions\tSpecies accessions\n')
 
@@ -522,8 +522,8 @@ class UpdateSelectRepresentatives():
                                 cur_genomes[cur_gid].ncbi_genome_category,
                                 cur_genomes[cur_gid].length,
                                 cur_genomes[cur_gid].score_assembly(),
-                                cur_genomes[cur_gid].comp,
-                                cur_genomes[cur_gid].cont,
+                                cur_genomes[cur_gid].cm1_comp,
+                                cur_genomes[cur_gid].cm1_cont,
                                 cur_genomes[cur_gid].scaffold_count,
                                 cur_genomes[cur_gid].contig_count,
                                 cur_genomes[cur_gid].contig_n50,
@@ -559,8 +559,8 @@ class UpdateSelectRepresentatives():
             cur_genomes[rep_gid].ncbi_genome_category,
             cur_genomes[rep_gid].length,
             cur_genomes[rep_gid].score_assembly(),
-            cur_genomes[rep_gid].comp,
-            cur_genomes[rep_gid].cont,
+            cur_genomes[rep_gid].cm1_comp,
+            cur_genomes[rep_gid].cm1_cont,
             cur_genomes[rep_gid].scaffold_count,
             cur_genomes[rep_gid].contig_count,
             cur_genomes[rep_gid].contig_n50,
@@ -637,18 +637,23 @@ class UpdateSelectRepresentatives():
 
                 prev_reps_factor = 0
                 if gid1 in updated_sp_clusters and gid2 in updated_sp_clusters:
-                    # HACK: representatives were distinct GTDB species clusters in
-                    # the previous release so only consider them ANI neibhours
+                    # HACK: representatives where distinct GTDB species clusters in
+                    # the previous release so only consider them ANI neighbours
                     # if they exceed an additional 'fudge factor' for ANI
                     # similarity. This accounts for small differences in ANI
-                    # calculated by different versions of FastANI / skani that can
+                    # calculated by different versions of skani that can
                     # cause two GTDB clusters to just miss the neighbour
-                    # cutoff in one release and then exceeed it in the next
+                    # cutoff in one release and then exceeed it in the next.
                     prev_reps_factor = 0.1
 
                 # TODO: in order to preserve Latin species names, these are allowed to 
                 # have an ANI upto 97%. In contrast, placeholder species should be
-                # clustered at 95%.
+                # clustered at 95%. Currently, this threshold is always set at 97%
+                # with the idea that a previous GTDB species representative is effectively
+                # acting as type material. There is also a chicken-and-egg issue here in 
+                # that the final GTDB species classification for genomes is not known at
+                # this time. There is an argument that this isn't the best approach though
+                # since it does result in additional GTDB species clusters at 97% instead of 95%. 
                 if False:
                     specific1 = specific_epithet(cur_genomes[gid1].gtdb_taxa.species)
                     specific2 = specific_epithet(cur_genomes[gid2].gtdb_taxa.species)
@@ -835,7 +840,7 @@ class UpdateSelectRepresentatives():
             'Writing final representatives to: {}'.format(out_file))
         fout = open(out_file, 'w')
         fout.write('Representative\tProposed species\tNCBI species\tGTDB species\tStrain IDs\tGTDB type designation\tType sources\tNCBI type strain\tNCBI representative\tNCBI assembly level')
-        fout.write('\tNCBI genome category\tGenome size (bp)\tQuality score\tCompleteness (%)\tContamination (%)\tNo. scaffolds\tNo. contigs\tN50 contigs\tAmbiguous bases\tSSU count\tSSU length (bp)')
+        fout.write('\tNCBI genome category\tGenome size (bp)\tQuality score\tCM1 completeness (%)\tCM1 contamination (%)\tNo. scaffolds\tNo. contigs\tN50 contigs\tAmbiguous bases\tSSU count\tSSU length (bp)')
         fout.write('\tNCBI exclude from RefSeq\n')
 
         num_reps = 0
@@ -862,8 +867,8 @@ class UpdateSelectRepresentatives():
                 cur_genomes[rid].ncbi_genome_category,
                 cur_genomes[rid].length,
                 cur_genomes[rid].score_assembly(),
-                cur_genomes[rid].comp,
-                cur_genomes[rid].cont,
+                cur_genomes[rid].cm1_comp,
+                cur_genomes[rid].cm1_cont,
                 cur_genomes[rid].scaffold_count,
                 cur_genomes[rid].contig_count,
                 cur_genomes[rid].contig_n50,

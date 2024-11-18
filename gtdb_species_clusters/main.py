@@ -24,7 +24,6 @@ from gtdblib.util.shell.gtdbshutil import check_file_exists, make_sure_path_exis
 from gtdb_species_clusters.update_new_genomes import NewGenomes
 from gtdb_species_clusters.update_qc_genomes import QcGenomes, QcCriteria
 from gtdb_species_clusters.update_lpsn_ssu_types import LPSN_SSU_Types
-from gtdb_species_clusters.update_ani_cache import Update_ANI_Cache
 from gtdb_species_clusters.update_resolve_types import ResolveTypes
 from gtdb_species_clusters.update_gtdbtk import GTDB_Tk
 from gtdb_species_clusters.update_rep_changes import RepChanges
@@ -44,6 +43,7 @@ from gtdb_species_clusters.pmc_check_type_strains import PMC_CheckTypeStrains
 from gtdb_species_clusters.pmc_species_names import PMC_SpeciesNames
 from gtdb_species_clusters.pmc_validation import PMC_Validation
 from gtdb_species_clusters.pmc_cluster_stats import PMC_ClusterStats
+from gtdb_species_clusters.pmc_cleanup import PMC_Cleanup
 
 from gtdb_species_clusters.merge_test import MergeTest
 from gtdb_species_clusters.ani_sp_pair import ANI_SpeciesPair
@@ -99,7 +99,8 @@ class OptionsParser():
             args.min_perc_markers,
             args.max_contigs,
             args.min_N50,
-            args.max_ambiguous)
+            args.max_ambiguous,
+            args.max_cm_xor_contigs)
 
         p = QcGenomes(args.output_dir)
         p.run(args.prev_gtdb_metadata_file,
@@ -135,17 +136,6 @@ class OptionsParser():
               args.gtdb_type_strains_ledger,
               args.untrustworthy_type_ledger)
 
-    def u_update_ani_cache(self, args):
-        """Update ANI cache to remove entries for updates genomes."""
-
-        check_file_exists(args.genomes_new_updated_file)
-        check_file_exists(args.prev_ani_cache)
-
-        p = Update_ANI_Cache()
-        p.run(args.genomes_new_updated_file,
-              args.prev_ani_cache,
-              args.out_ani_cache)
-
     def u_resolve_types(self, args):
         """Resolve cases where a species has multiple genomes assembled from the type strain."""
 
@@ -159,7 +149,7 @@ class OptionsParser():
         check_file_exists(args.ncbi_env_bioproject_ledger)
         make_sure_path_exists(args.output_dir)
 
-        p = ResolveTypes(args.ani_cache_file, args.cpus, args.output_dir)
+        p = ResolveTypes(args.cpus, args.output_dir)
         p.run(args.cur_gtdb_metadata_file,
               args.cur_genomic_path_file,
               args.qc_passed_file,
@@ -227,7 +217,7 @@ class OptionsParser():
         check_file_exists(args.lpsn_gss_file)
         make_sure_path_exists(args.output_dir)
 
-        p = RepActions(args.ani_cache_file, args.cpus, args.output_dir)
+        p = RepActions(args.cpus, args.output_dir)
         p.run(args.rep_change_summary_file,
               args.prev_gtdb_metadata_file,
               args.prev_genomic_path_file,
@@ -716,6 +706,14 @@ class OptionsParser():
         p.run(args.sp_cluster_file,
               args.genome_path_file,
               args.gtdb_metadata_file)
+        
+    def pmc_cleanup(self, args):
+        """Remove temporary files and compress large files."""
+
+        check_file_exists(args.output_toml_file)
+
+        p = PMC_Cleanup()
+        p.run(args.output_toml_file)
 
     def merge_test(self, args):
         """Produce information relevant to merging two sister species."""
@@ -961,8 +959,6 @@ class OptionsParser():
             self.u_qc_genomes(args)
         elif args.subparser_name == 'u_lpsn_rna_types':
             self.u_lpsn_rna_types(args)
-        elif args.subparser_name == 'u_update_ani_cache':
-            self.u_update_ani_cache(args)
         elif args.subparser_name == 'u_resolve_types':
             self.u_resolve_types(args)
         elif args.subparser_name == 'u_gtdbtk':
@@ -1003,6 +999,8 @@ class OptionsParser():
             self.pmc_validate(args)
         elif args.subparser_name == 'pmc_cluster_stats':
             self.pmc_cluster_stats(args)
+        elif args.subparser_name == 'pmc_cleanup':
+            self.pmc_cleanup(args) 
         elif args.subparser_name == 'merge_test':
             self.merge_test(args)
         elif args.subparser_name == 'ani_sp_pair':

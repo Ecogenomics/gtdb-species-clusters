@@ -200,6 +200,8 @@ def read_gtdbtk_classifications(gtdbtk_classify_file):
                         'o__', 'f__', 'g__', 's__']
             elif taxa[0] == 'Unclassified Archaea':
                 taxa = ['d__Archaea', 'p__', 'c__', 'o__', 'f__', 'g__', 's__']
+            elif taxa[0] == 'Unclassified':
+                taxa = ['d__', 'p__', 'c__', 'o__', 'f__', 'g__', 's__']
 
             classification[gid] = taxa
 
