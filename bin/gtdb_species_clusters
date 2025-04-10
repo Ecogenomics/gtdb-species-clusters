@@ -560,7 +560,9 @@ if __name__ == '__main__':
     u_pmc_species_names_parser.add_argument(
         'taxonomy_init', help="file with initial, best guess at taxonomy from domain to genus (u_species_init: gtdb_ar_taxonomy.tsv or gtdb_bac_taxonomy.tsv")
     u_pmc_species_names_parser.add_argument(
-        'manual_sp_file', help="file indicating manual species assignments that override those in the `taxonomy_init` file")
+        'seqcode_file', help="file indicating species assignments in SeqCode that should generally be reflected in the GTDB (seqcode_table.tsv in seqcode directory)")
+    u_pmc_species_names_parser.add_argument(
+        'manual_sp_file', help="file indicating manual species assignments that override those in the `taxonomy_init` or 'seqcode' file")
     u_pmc_species_names_parser.add_argument(
         'gtdb_clusters_file', help="file indicating representatives of each GTDB species cluster (u_cluster_de_novo: gtdb_clusters_de_novo.tsv)")
     u_pmc_species_names_parser.add_argument(
@@ -684,6 +686,8 @@ if __name__ == '__main__':
                                                      description='Establish final species names based on manual curation.')
     pmc_species_names_parser.add_argument(
         'curation_tree', help="scaled, manually curated tree to relabel with final species names")
+    pmc_species_names_parser.add_argument(
+        'seqcode_file', help="file indicating species assignments in SeqCode that should generally be reflected in the GTDB (seqcode_table.tsv in seqcode directory)")
     pmc_species_names_parser.add_argument(
         'manual_sp_names', help="file indicating species names explicitly set by manually curated (pmc_manual_species: manual_species_names.tsv)")
     pmc_species_names_parser.add_argument(

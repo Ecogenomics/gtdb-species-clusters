@@ -594,6 +594,7 @@ class PMC_SpeciesNames(object):
     def finalize_species_names(self,
                                mc_taxonomy,
                                mc_species,
+                               seqcode_species,
                                cur_clusters,
                                new_to_prev_rid,
                                prev_genomes,
@@ -616,10 +617,14 @@ class PMC_SpeciesNames(object):
                                       cur_clusters,
                                       prev_genomes,
                                       cur_genomes,
+                                      seqcode_species,
                                       mc_species)
-        manual_curation_rids, type_species_rids, type_strains_rids, binomial_rids, placeholder_rids = rtn
-
-        print()
+        (manual_curation_rids, 
+         seqcode_species_rids, 
+         type_species_rids, 
+         type_strains_rids, 
+         binomial_rids, 
+         placeholder_rids) = rtn
 
         # establish final name for each GTDB species cluster
         case_count = defaultdict(int)
@@ -629,6 +634,20 @@ class PMC_SpeciesNames(object):
             case = 'MANUAL_CURATION'
             note = 'Species name set by manual curation'
             final_sp = mc_species[rid]
+
+            self.finalize_species_name(rid,
+                                       final_sp,
+                                       case,
+                                       note,
+                                       final_taxonomy,
+                                       cur_gtdb_sp)
+            
+        for rid in seqcode_species_rids:
+            case = 'SEQCODE'
+            note = 'Species specific name set based on SeqCode classification'
+            generic = generic_name(final_taxonomy[rid][Taxonomy.SPECIES_INDEX])
+            specific = specific_epithet(seqcode_species[rid])
+            final_sp = f's__{generic} {specific}'
 
             self.finalize_species_name(rid,
                                        final_sp,
@@ -1007,9 +1026,35 @@ class PMC_SpeciesNames(object):
                 ncbi_subsp_classification))
         fout.close()
 
+    def parse_seqcode_classification(self, secode_file: str):
+        """Parse classification of species at SeqCode."""
+
+        seqcode_sp = {}
+        with open(secode_file) as f:
+            header = f.readline().strip().split('\t')
+
+            gid_idx = header.index('seqcode_type_material_accn')
+            name_idx = header.index('seqcode_name')
+            rank_idx = header.index('seqcode_rank')
+
+            for line in f:
+                tokens = line.strip().split('\t')
+
+                rank = tokens[rank_idx]
+                if rank != 'species':
+                    continue
+
+                gid = canonical_gid(tokens[gid_idx])
+                sp = tokens[name_idx]
+
+                seqcode_sp[gid] = f's__{sp}'
+
+        return seqcode_sp
+
     def run(self,
             curation_tree,
             manual_taxonomy,
+            secode_file,
             manual_sp_names,
             pmc_custom_species,
             gtdb_clusters_file,
@@ -1037,11 +1082,18 @@ class PMC_SpeciesNames(object):
         self.log.info(' - identified taxonomy strings for {:,} genomes'.format(
             len(mc_taxonomy)))
 
+        # read species classifications at SeqCode
+        self.log.info('Parsing species classification at SeqCode:')
+        seqcode_species = self.parse_seqcode_classification(secode_file)
+        self.log.info(f' - identified species names for {len(seqcode_species):} genomes')
+
         # read species names explicitly set via manual curation
+        self.log.info('Parsing species names set via manual curation:')
         mc_species = parse_manual_sp_curation_files(manual_sp_names,
                                                     pmc_custom_species)
+        self.log.info(f' - identified species names for {len(mc_species):} genomes')
 
-        # sanity check that manually curated species names don't conflict with ledger
+        # sanity check that SeqCode or manually curated species names don't conflict with ledger
         with open(species_classification_ledger) as f:
             f.readline()
             for line in f:
@@ -1052,6 +1104,10 @@ class PMC_SpeciesNames(object):
                     self.log.error(
                         f'Manually-curated name for {gid} conflicts with {species_classification_ledger}: {mc_species[gid]} {tokens[1]}')
                     sys.exit(-1)
+
+                if gid in seqcode_species and seqcode_species[gid].replace('s__', '') != tokens[1].replace('s__', ''):
+                    self.log.warning(
+                        f'SeqCode species name for {gid} conflicts with {species_classification_ledger}: {seqcode_species[gid]} {tokens[1]}')
 
         # create previous and current GTDB genome sets
         self.log.info('Creating previous GTDB genome set:')
@@ -1190,6 +1246,7 @@ class PMC_SpeciesNames(object):
         # establish appropriate species names for GTDB clusters with new representatives
         final_taxonomy = self.finalize_species_names(mc_taxonomy,
                                                      mc_species,
+                                                     seqcode_species,
                                                      cur_clusters,
                                                      new_to_prev_rid,
                                                      prev_genomes,
@@ -1227,3 +1284,10 @@ class PMC_SpeciesNames(object):
         out_file = os.path.join(self.output_dir, 'gtdb_synonyms_final.tsv')
         self.write_gtdb_synonym_table(
             cur_genomes, final_taxonomy, ncbi_synonym_file, out_file)
+
+        # sanity check species names at SeqCode
+        for rid, seqcode_sp in seqcode_species.items():
+            if rid in final_taxonomy:
+                final_sp = final_taxonomy[rid][Taxonomy.SPECIES_INDEX]
+                if final_sp != seqcode_sp:
+                    self.log.warning(f'Final taxonomy for {rid} does not reflect SeqCode classification: {final_sp} {seqcode_sp}')

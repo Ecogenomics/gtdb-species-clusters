@@ -537,6 +537,7 @@ class OptionsParser():
         """Refine species names using post-manual curation rules."""
 
         check_file_exists(args.taxonomy_init)
+        check_file_exists(args.seqcode_file)
         check_file_exists(args.gtdb_clusters_file)
         check_file_exists(args.prev_gtdb_metadata_file)
         check_file_exists(args.cur_gtdb_metadata_file)
@@ -559,6 +560,7 @@ class OptionsParser():
         p = PMC_SpeciesNames(args.output_dir)
         p.run(None,
               args.taxonomy_init,
+              args.seqcode_file,
               None,
               args.manual_sp_file,
               args.gtdb_clusters_file,
@@ -584,6 +586,7 @@ class OptionsParser():
 
         check_file_exists(args.curation_tree)
         check_file_exists(args.manual_taxonomy)
+        check_file_exists(args.seqcode_file)
         check_file_exists(args.manual_sp_names)
         check_file_exists(args.pmc_custom_species)
         check_file_exists(args.gtdb_clusters_file)
@@ -608,6 +611,7 @@ class OptionsParser():
         p = PMC_SpeciesNames(args.output_dir)
         p.run(args.curation_tree,
               args.manual_taxonomy,
+              args.seqcode_file,
               args.manual_sp_names,
               args.pmc_custom_species,
               args.gtdb_clusters_file,
