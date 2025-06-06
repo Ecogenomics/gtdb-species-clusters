@@ -448,11 +448,15 @@ class Genomes(object):
             ncbi_refseq_cat_index = headers.index('ncbi_refseq_category')
             ncbi_genome_cat_index = headers.index('ncbi_genome_category')
 
-            comp_index = headers.index('checkm_completeness')
-            cont_index = headers.index('checkm_contamination')
-            sh_100_index = None
+            cm1_comp_index = headers.index('checkm_completeness')
+            cm1_cont_index = headers.index('checkm_contamination')
+            cm1_sh_100_index = None
             if 'checkm_strain_heterogeneity_100' in headers:
-                sh_100_index = headers.index('checkm_strain_heterogeneity_100')
+                cm1_sh_100_index = headers.index('checkm_strain_heterogeneity_100')
+
+            cm2_comp_index = headers.index('checkm2_completeness')
+            cm2_cont_index = headers.index('checkm2_contamination')
+
             gs_index = headers.index('genome_size')
             contig_count_index = headers.index('contig_count')
             n50_index = headers.index('n50_contigs')
@@ -475,22 +479,22 @@ class Genomes(object):
                 lpsn_priority_index = headers.index('lpsn_priority_year')
 
             for line in f:
-                line_split = line.strip().split('\t')
+                tokens = line.strip().split('\t')
 
-                ncbi_accn = line_split[genome_index]
+                ncbi_accn = tokens[genome_index]
                 gid = canonical_gid(ncbi_accn)
                 self.full_gid[gid] = ncbi_accn
 
                 if pass_qc_gids and gid not in pass_qc_gids:
                     continue
 
-                gtdb_taxonomy = Taxa(line_split[gtdb_taxonomy_index])
-                ncbi_taxonomy = Taxa(line_split[ncbi_taxonomy_index])
+                gtdb_taxonomy = Taxa(tokens[gtdb_taxonomy_index])
+                ncbi_taxonomy = Taxa(tokens[ncbi_taxonomy_index])
                 ncbi_taxonomy_unfiltered = Taxa(
-                    line_split[ncbi_taxonomy_unfiltered_index], filtered=False)
+                    tokens[ncbi_taxonomy_unfiltered_index], filtered=False)
 
-                gtdb_type = line_split[gtdb_type_index]
-                gtdb_type_sources = line_split[gtdb_type_sources_index]
+                gtdb_type = tokens[gtdb_type_index]
+                gtdb_type_sources = tokens[gtdb_type_sources_index]
                 if gid in gtdb_type_strains:
                     gtdb_type = 'type strain of species'
                     gtdb_type_sources = 'GTDB curator'
@@ -498,14 +502,14 @@ class Genomes(object):
                     # force specified species name into GTDB taxonomy string
                     gtdb_taxonomy.species = gtdb_type_strains[gid]
 
-                gtdb_type_species_of_genus = line_split[gtdb_type_species_of_genus_index] == 't'
+                gtdb_type_species_of_genus = tokens[gtdb_type_species_of_genus_index] == 't'
 
-                ncbi_type = line_split[ncbi_type_index]
-                ncbi_strain_identifiers = line_split[ncbi_strain_identifiers_index]
-                ncbi_asm_level = line_split[ncbi_asm_level_index]
-                ncbi_genome_representation = line_split[ncbi_genome_representation_index]
-                ncbi_refseq_cat = line_split[ncbi_refseq_cat_index]
-                ncbi_genome_cat = line_split[ncbi_genome_cat_index]
+                ncbi_type = tokens[ncbi_type_index]
+                ncbi_strain_identifiers = tokens[ncbi_strain_identifiers_index]
+                ncbi_asm_level = tokens[ncbi_asm_level_index]
+                ncbi_genome_representation = tokens[ncbi_genome_representation_index]
+                ncbi_refseq_cat = tokens[ncbi_refseq_cat_index]
+                ncbi_genome_cat = tokens[ncbi_genome_cat_index]
 
                 if ncbi_bioproject.get(gid, None) in ncbi_env_bioproject:  # ***
                     # HACK to force genomes from MAG mining projects
@@ -513,28 +517,32 @@ class Genomes(object):
                     # not correctly annotated at NCBI
                     ncbi_genome_cat = 'derived from environmental source'
 
-                comp = float(line_split[comp_index])
-                cont = float(line_split[cont_index])
-                sh_100 = 0
-                if sh_100_index:
-                    sh_100 = self._convert_float(line_split[sh_100_index])
-                gs = int(line_split[gs_index])
-                contig_count = int(line_split[contig_count_index])
-                n50 = int(line_split[n50_index])
-                scaffold_count = int(line_split[scaffold_count_index])
-                ambiguous_bases = int(line_split[ambiguous_bases_index])
-                total_gap_len = int(line_split[total_gap_len_index])
-                ssu_count = int(line_split[ssu_count_index])
-                ssu_length = self._convert_int(line_split[ssu_length_index])
-                ncbi_molecule_count = self._convert_int(
-                    line_split[ncbi_molecule_count_index])
-                ncbi_unspanned_gaps = self._convert_int(
-                    line_split[ncbi_unspanned_gaps_index])
-                ncbi_spanned_gaps = self._convert_int(
-                    line_split[ncbi_spanned_gaps_index])
+                cm1_comp = float(tokens[cm1_comp_index])
+                cm1_cont = float(tokens[cm1_cont_index])
+                cm1_sh_100 = 0
+                if cm1_sh_100_index:
+                    cm1_sh_100 = self._convert_float(tokens[cm1_sh_100_index])
 
-                gtdb_is_rep = line_split[gtdb_rep_index] == 't'
-                gtdb_rid = canonical_gid(line_split[gtdb_genome_rep_index])
+                cm2_comp = float(tokens[cm2_comp_index])
+                cm2_cont = float(tokens[cm2_cont_index])
+
+                gs = int(tokens[gs_index])
+                contig_count = int(tokens[contig_count_index])
+                n50 = int(tokens[n50_index])
+                scaffold_count = int(tokens[scaffold_count_index])
+                ambiguous_bases = int(tokens[ambiguous_bases_index])
+                total_gap_len = int(tokens[total_gap_len_index])
+                ssu_count = int(tokens[ssu_count_index])
+                ssu_length = self._convert_int(tokens[ssu_length_index])
+                ncbi_molecule_count = self._convert_int(
+                    tokens[ncbi_molecule_count_index])
+                ncbi_unspanned_gaps = self._convert_int(
+                    tokens[ncbi_unspanned_gaps_index])
+                ncbi_spanned_gaps = self._convert_int(
+                    tokens[ncbi_spanned_gaps_index])
+
+                gtdb_is_rep = tokens[gtdb_rep_index] == 't'
+                gtdb_rid = canonical_gid(tokens[gtdb_genome_rep_index])
                 if create_sp_clusters and gtdb_rid != 'none':
                     self.sp_clusters.update_sp_cluster(
                         gtdb_rid, gid, gtdb_taxonomy.species)
@@ -542,7 +550,7 @@ class Genomes(object):
                 lpsn_priority_year = Genome.NO_PRIORITY_YEAR
                 if 'lpsn_priority_year' in headers:
                     lpsn_priority_year = self._convert_int(
-                        line_split[lpsn_priority_index], Genome.NO_PRIORITY_YEAR)
+                        tokens[lpsn_priority_index], Genome.NO_PRIORITY_YEAR)
 
                 self.genomes[gid] = Genome(gid,
                                            ncbi_accn,
@@ -564,9 +572,11 @@ class Genomes(object):
                                            ncbi_genome_cat,
                                            excluded_from_refseq_note.get(
                                                gid, ''),
-                                           comp,
-                                           cont,
-                                           sh_100,
+                                           cm1_comp,
+                                           cm1_cont,
+                                           cm1_sh_100,
+                                           cm2_comp,
+                                           cm2_cont,
                                            gs,
                                            contig_count,
                                            n50,

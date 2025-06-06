@@ -222,7 +222,10 @@ def is_placeholder_sp_epithet(sp_epithet):
 def is_placeholder_taxon(taxon):
     """Check if taxon name is a placeholder."""
 
-    assert '__' in taxon  # expect taxon name to have rank prefix
+    if '__' not in taxon:  # expect taxon name to have rank prefix
+        print(f'[ERROR] Taxon name is missing rank prefix: {taxon}')
+        
+    assert '__' in taxon
 
     test_taxon = taxon[3:].replace('[', '').replace(']', '')
     if test_taxon == '':
@@ -299,11 +302,13 @@ def sort_by_naming_priority(rids_of_interest,
                             sp_clusters,
                             prev_genomes,
                             cur_genomes,
+                            seqcode_species,
                             mc_species):
     """Sort representatives by naming priority."""
 
     # group by naming priority
     manual_curation = []
+    cur_seqcode_species = []
     type_species = []
     type_strains = []
     binomial = []
@@ -319,6 +324,8 @@ def sort_by_naming_priority(rids_of_interest,
 
         if rid in mc_species:
             manual_curation.append(rid)
+        elif rid in seqcode_species:
+            cur_seqcode_species.append(rid)
         elif (cur_genomes[rid].is_gtdb_type_species()
               and gtdb_genus == ncbi_genus):
             type_species.append(rid)
@@ -330,16 +337,19 @@ def sort_by_naming_priority(rids_of_interest,
             placeholder.append(rid)
 
     assert len(rids_of_interest) == len(manual_curation) + \
+        len(cur_seqcode_species) + \
         len(type_species) + len(type_strains) + \
         len(binomial) + len(placeholder)
 
     # sort groups so previous GTDB representatives are processed first
     manual_curation_sorted = []
+    cur_seqcode_species_sorted = []
     type_species_sorted = []
     type_strains_sorted = []
     binomial_sorted = []
     placeholder_sorted = []
     for d, d_sorted in [(manual_curation, manual_curation_sorted),
+                        (cur_seqcode_species, cur_seqcode_species_sorted),
                         (type_species, type_species_sorted),
                         (type_strains, type_strains_sorted),
                         (binomial, binomial_sorted),
@@ -355,7 +365,7 @@ def sort_by_naming_priority(rids_of_interest,
         d_sorted.extend(prev_reps)
         d_sorted.extend(new_reps)
 
-    return manual_curation_sorted, type_species_sorted, type_strains_sorted, binomial_sorted, placeholder_sorted
+    return manual_curation_sorted, cur_seqcode_species_sorted, type_species_sorted, type_strains_sorted, binomial_sorted, placeholder_sorted
 
 
 def generic_specific_names(species_name):

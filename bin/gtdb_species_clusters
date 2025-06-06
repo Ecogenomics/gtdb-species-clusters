@@ -78,6 +78,7 @@ def print_help():
       pmc_validate           -> Validate final species names
       pmc_name_stats         -> [TBD] Summary statistics indicating changes to GTDB species cluster names
       pmc_cluster_stats      -> Calculate final statistics for species clusters [Run with website data; not critical]
+      pmc_cleanup            -> Remove temporary files and compress large files (run after release of GTDB)
 
     Inspect species clusters:
       merge_test      -> Produce information relevant to merging two sister species
@@ -160,6 +161,8 @@ if __name__ == '__main__':
     u_qc_genomes_parser.add_argument(
         '--max_ambiguous', help='maximum number of ambiguous bases within contigs for a genome to be a type genome', type=int, default=Defaults.QC_MAX_AMBIGUOUS)
     u_qc_genomes_parser.add_argument(
+        '--max_cm_xor_contigs', help='maximum number of contigs in genome that passes only CheckM v1 or v2 quality criteria', type=int, default=Defaults.MAX_CHECKM_XOR_CONTIGS)
+    u_qc_genomes_parser.add_argument(
         '--silent', help="suppress output", action='store_true')
 
     # perform initial classification of new and updated genomes using GTDB-Tk
@@ -204,19 +207,6 @@ if __name__ == '__main__':
     u_lpsn_rna_types_parser.add_argument(
         '--silent', help="suppress output", action='store_true')
 
-    # update ANI cache to remove entries for updates genomes
-    u_update_ani_cache_parser = subparsers.add_parser('u_update_ani_cache',
-                                                      formatter_class=argparse.ArgumentDefaultsHelpFormatter,
-                                                      description='Update ANI cache to remove entries for updates genomes.')
-    u_update_ani_cache_parser.add_argument(
-        'genomes_new_updated_file', help="file indicating new and updated genomes (u_new_genomes: genomes_new_updated.tsv)")
-    u_update_ani_cache_parser.add_argument(
-        'prev_ani_cache', help="ANI cache file from previous GTDB release")
-    u_update_ani_cache_parser.add_argument(
-        'out_ani_cache', help="updated ANI cache file")
-    u_update_ani_cache_parser.add_argument(
-        '--silent', help="suppress output", action='store_true')
-
     # resolve cases where a species has multiple genomes assembled from the type strain
     u_resolve_types_parser = subparsers.add_parser('u_resolve_types',
                                                    formatter_class=argparse.ArgumentDefaultsHelpFormatter,
@@ -238,8 +228,6 @@ if __name__ == '__main__':
     u_resolve_types_parser.add_argument(
         'ncbi_env_bioproject_ledger', help="file indicating NCBI BioProjects composed on MAGs or SAGs incorrectly annotated at NCBI")
     u_resolve_types_parser.add_argument('output_dir', help="output directory")
-    u_resolve_types_parser.add_argument(
-        '--ani_cache_file', help='file with precomputed ANI and AF values')
     u_resolve_types_parser.add_argument(
         '-c', '--cpus', help='number of cpus', type=int, default=1)
     u_resolve_types_parser.add_argument(
@@ -308,8 +296,6 @@ if __name__ == '__main__':
     u_rep_actions_parser.add_argument(
         'lpsn_gss_file', help="table from lpsn.dsmz.de with nomenclature information (lpsn_gss_<date>.csv)")
     u_rep_actions_parser.add_argument('output_dir', help="output directory")
-    u_rep_actions_parser.add_argument(
-        '--ani_cache_file', help='file with precomputed ANI and AF values')
     u_rep_actions_parser.add_argument(
         '-c', '--cpus', help='number of cpus', type=int, default=1)
     u_rep_actions_parser.add_argument(
@@ -574,7 +560,9 @@ if __name__ == '__main__':
     u_pmc_species_names_parser.add_argument(
         'taxonomy_init', help="file with initial, best guess at taxonomy from domain to genus (u_species_init: gtdb_ar_taxonomy.tsv or gtdb_bac_taxonomy.tsv")
     u_pmc_species_names_parser.add_argument(
-        'manual_sp_file', help="file indicating manual species assignments that override those in the `taxonomy_init` file")
+        'seqcode_file', help="file indicating species assignments in SeqCode that should generally be reflected in the GTDB (seqcode_table.tsv in seqcode directory)")
+    u_pmc_species_names_parser.add_argument(
+        'manual_sp_file', help="file indicating manual species assignments that override those in the `taxonomy_init` or 'seqcode' file")
     u_pmc_species_names_parser.add_argument(
         'gtdb_clusters_file', help="file indicating representatives of each GTDB species cluster (u_cluster_de_novo: gtdb_clusters_de_novo.tsv)")
     u_pmc_species_names_parser.add_argument(
@@ -699,6 +687,8 @@ if __name__ == '__main__':
     pmc_species_names_parser.add_argument(
         'curation_tree', help="scaled, manually curated tree to relabel with final species names")
     pmc_species_names_parser.add_argument(
+        'seqcode_file', help="file indicating species assignments in SeqCode that should generally be reflected in the GTDB (seqcode_table.tsv in seqcode directory)")
+    pmc_species_names_parser.add_argument(
         'manual_sp_names', help="file indicating species names explicitly set by manually curated (pmc_manual_species: manual_species_names.tsv)")
     pmc_species_names_parser.add_argument(
         'manual_taxonomy', help="file with manually curated taxonomy (pmc_replace_generic: taxonomy_updated_sp.tsv)")
@@ -812,14 +802,21 @@ if __name__ == '__main__':
     pmc_cluster_stats_parser.add_argument(
         'output_dir', help="output directory")
     pmc_cluster_stats_parser.add_argument(
-        '--ani_cache_file', help='file with precomputed ANI and AF values')
-    pmc_cluster_stats_parser.add_argument(
         '--max_genomes', help='maximum randomly selected genomes to consider in a species cluster', type=int, default=100)
     pmc_cluster_stats_parser.add_argument(
         '--af_sp', help='minimum AF for defining species clusters', type=float, default=Defaults.AF_SP)
     pmc_cluster_stats_parser.add_argument(
         '-c', '--cpus', help='number of cpus', type=int, default=1)
     pmc_cluster_stats_parser.add_argument(
+        '--silent', help="suppress output", action='store_true')
+
+    # remove temporary files and compress large files
+    pmc_cleanup_parser = subparsers.add_parser('pmc_cleanup',
+                                                     formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+                                                     description='Remove temporary files and compress large files.')
+    pmc_cleanup_parser.add_argument(
+        'output_toml_file', help='file indicating output directory of each step in the pipeline')
+    pmc_cleanup_parser.add_argument(
         '--silent', help="suppress output", action='store_true')
 
     # compare current and previous representatives

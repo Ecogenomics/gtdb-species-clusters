@@ -15,6 +15,7 @@
 #                                                                             #
 ###############################################################################
 
+import sys
 import logging
 from dataclasses import dataclass
 
@@ -44,9 +45,11 @@ class Genome(object):
     ncbi_refseq_category: str
     ncbi_genome_category: str
     excluded_from_refseq_note: str
-    comp: float
-    cont: float
-    strain_heterogeneity_100: float
+    cm1_comp: float
+    cm1_cont: float
+    cm1_strain_heterogeneity_100: float
+    cm2_comp: float
+    cm2_cont: float
     length: int
     contig_count: int
     contig_n50: int
@@ -356,6 +359,16 @@ class Genome(object):
 
         return self.lpsn_priority_year
 
+    def cm1_assembly_quality(self):
+        """Quality of genome assembly based on CheckM v1 completeness and contamination estimates."""
+
+        return self.cm1_comp - 5*self.cm1_cont
+
+    def cm2_assembly_quality(self):
+        """Quality of genome assembly based on CheckM v2 completeness and contamination estimates."""
+
+        return self.cm2_comp - 5*self.cm2_cont
+
     def score_ani(self, ani):
         """Calculate balanced score that accounts for ANI to previous representative."""
 
@@ -394,7 +407,7 @@ class Genome(object):
         if self.is_complete_genome():
             q += 100
 
-        q += self.comp - 5*self.cont
+        q += self.cm1_comp - 5*self.cm1_cont
         q -= 5*float(self.contig_count-1)/100
         q -= 5*float(self.ambiguous_bases)/1e5
 
@@ -419,34 +432,70 @@ class Genome(object):
 
         return q
 
+    def pass_checkm1_qc(self, qc_criteria):
+        """Check if genome passes CheckM v1 quality criteria."""
+
+        if self.cm1_comp < qc_criteria.min_comp:
+            return False, 'cm1_comp'
+
+        if self.cm1_strain_heterogeneity_100 >= qc_criteria.sh_exception:
+            if self.cm1_cont > 20:
+                return False, 'cm1_cont'
+            
+            q = self.cm1_comp - 5*self.cm1_cont * \
+                (1.0 - self.cm1_strain_heterogeneity_100/100.0)
+            if q < qc_criteria.min_quality:
+                return False, 'cm1_qual'
+        else:
+            if self.cm1_cont > qc_criteria.max_cont:
+                return False, 'cm1_cont'
+            
+            if self.cm1_assembly_quality() < qc_criteria.min_quality:
+                return False, 'cm1_qual'
+
+        return True, None
+    
+    def pass_checkm2_qc(self, qc_criteria):
+        """Check if genome passes CheckM v2 quality criteria."""
+
+        if self.cm2_comp < qc_criteria.min_comp:
+            return False, 'cm2_comp'
+
+        if self.cm2_cont > qc_criteria.max_cont:
+            return False, 'cm2_cont'
+        
+        if self.cm2_assembly_quality() < qc_criteria.min_quality:
+            return False, 'cm2_qual'
+
+        return True, None
+
     def pass_qc(self,
                 marker_perc,
                 qc_criteria,
                 failed_tests):
         """Check if genome passes QC."""
 
-        failed = False
-        if self.comp < qc_criteria.min_comp:
-            failed_tests['comp'] += 1
-            failed = True
+        cm1_pass, cm1_fail_reason = self.pass_checkm1_qc(qc_criteria)
+        cm2_pass, cm2_fail_reason = self.pass_checkm2_qc(qc_criteria)
 
-        if self.strain_heterogeneity_100 >= qc_criteria.sh_exception:
-            if self.cont > 20:
-                failed_tests['cont'] += 1
+        failed = False
+        if not cm1_pass and not cm2_pass:
+            failed = True
+            failed_tests[cm1_fail_reason] += 1
+            failed_tests[cm2_fail_reason] += 1
+        elif cm1_pass and not cm2_pass:
+            if self.contig_count > qc_criteria.max_cm_xor_contigs:
                 failed = True
-            q = self.comp - 5*self.cont * \
-                (1.0 - self.strain_heterogeneity_100/100.0)
-            if q < qc_criteria.min_quality:
-                failed_tests['qual'] += 1
+                failed_tests[cm2_fail_reason] += 1
+        elif not cm1_pass and cm2_pass:
+            if self.contig_count > qc_criteria.max_cm_xor_contigs:
                 failed = True
+                failed_tests[cm1_fail_reason] += 1
+        elif cm1_pass and cm2_pass:
+            pass
         else:
-            if self.cont > qc_criteria.max_cont:
-                failed_tests['cont'] += 1
-                failed = True
-            q = self.comp - 5*self.cont
-            if q < qc_criteria.min_quality:
-                failed_tests['qual'] += 1
-                failed = True
+            self.log.error('Unhandle case in genome.pass_qc()')
+            sys.exit(-1)
 
         if marker_perc < qc_criteria.min_perc_markers:
             failed_tests['marker_perc'] += 1

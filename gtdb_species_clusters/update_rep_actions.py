@@ -42,12 +42,13 @@ class RepActions():
     # increase in ANI score require to select new representative genome
     NEW_REP_QC_THRESHOLD = 10
 
-    def __init__(self, ani_cache_file, cpus, output_dir):
+    def __init__(self, cpus, output_dir):
         """Initialization."""
 
         self.output_dir = output_dir
         self.log = logging.getLogger('rich')
 
+        ani_cache_file = os.path.join(self.output_dir, 'ani_cache.sql')
         self.skani = Skani(ani_cache_file, cpus)
 
         # create log indicate actions taken to GTDB
@@ -94,6 +95,13 @@ class RepActions():
             gid_pairs.append((f'{prev_rid}-P', f'{cid}-C'))
             genome_paths[f'{prev_rid}-P'] = prev_genomes[prev_rid].genomic_file
             genome_paths[f'{cid}-C'] = cur_genomes[cid].genomic_file
+
+            if prev_genomes[prev_rid].genomic_file is None:
+                self.log.error(f'No genomic file in prev_genomes for {prev_rid}.')
+                sys.exit(1)
+            elif cur_genomes[cid].genomic_file is None:
+                self.log.error(f'No genomic file in cur_genomes for {cid}.')
+                sys.exit(1)
 
         ani_af = self.skani.pairs(
             gid_pairs, 
@@ -329,7 +337,8 @@ class RepActions():
 
             ani, af = self.skani.calculate(f'{prev_rid}-P', f'{prev_rid}-C',
                                                         prev_genomes[prev_rid].genomic_file,
-                                                        cur_genomes[prev_rid].genomic_file)
+                                                        cur_genomes[prev_rid].genomic_file,
+                                                        Defaults.SKANI_PRESET)
 
             params = {}
             params['ani'] = ani
@@ -833,7 +842,8 @@ class RepActions():
                 ani, af = self.skani.calculate(updated_rid,
                                                 highest_priority_gid,
                                                 cur_genomes[updated_rid].genomic_file,
-                                                cur_genomes[highest_priority_gid].genomic_file)
+                                                cur_genomes[highest_priority_gid].genomic_file,
+                                                Defaults.SKANI_PRESET)
 
                 anis.append(ani)
                 afs.append(af)

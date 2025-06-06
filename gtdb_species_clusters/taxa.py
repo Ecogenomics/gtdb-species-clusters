@@ -40,7 +40,7 @@ class Taxa(object):
                 taxa_str = taxa_str.replace(']', '')
             self.taxa = [t.strip() for t in taxa_str.split(';')]
         else:
-            self.taxa = Taxonomy.RANK_PREFIXES
+            self.taxa = list(Taxonomy.RANK_PREFIXES)
 
         self.standard_taxa = {}
         for taxon in self.taxa:

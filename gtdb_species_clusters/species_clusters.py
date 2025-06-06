@@ -202,6 +202,7 @@ class SpeciesClusters():
         new_sp = 0
         for gid, taxa in gtdbtk_classifications.items():
             sp = taxa[6]
+
             if sp == 's__':
                 new_sp += 1
                 continue
@@ -212,7 +213,11 @@ class SpeciesClusters():
                 sys.exit(-1)
 
             orig_rid = orig_sp_rid_map[sp]
-            if gid in self.new_gids:
+            if gid in self.new_gids or gid not in orig_gid_sp_map:
+                # genomes can be new to this release, or download in a previous
+                # release but only passing QC for the first time this release
+                # (due to QC changes) and thus not previously assigned a GTDB 
+                # species 
                 self.update_sp_cluster(orig_rid, gid, sp)
             elif gid in self.updated_gids:
                 self.update_sp_cluster(orig_rid, gid, sp)

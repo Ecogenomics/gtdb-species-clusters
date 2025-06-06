@@ -38,7 +38,7 @@ class ANIError(Exception):
     pass
 
 
-def skani(qid: str, rid: str, q_gf: str, r_gf: str, preset: str = '--medium'):
+def skani(qid: str, rid: str, q_gf: str, r_gf: str, preset: str):
     """CalculateANI between a pair of genomes."""
 
     # run skani and write results to stdout
@@ -636,20 +636,21 @@ class Skani():
 
         return ani_af
 
-    def calculate(self, gid1, gid2, genome_file1, genome_file2):
+    def calculate(self, gid1, gid2, genome_file1, genome_file2, preset):
         """Calculate symmetric ANI and AF between two genomes."""
 
-        ani_af = skani(gid1, gid2, genome_file1, genome_file2)
+        ani_af = skani(gid1, gid2, genome_file1, genome_file2, preset)
 
         _qid, _rid, ani, af_r, af_q = ani_af
         self.ani_af_cache[gid1][gid2] = (ani, af_r, af_q)
         self.ani_af_cache[gid2][gid1] = (ani, af_q, af_r)
 
-        db_ani_af = []
-        db_ani_af.append((gid1, gid2, ani, af_r, af_q))
-        db_ani_af.append((gid2, gid1, ani, af_q, af_r))
-        self.db_cur.executemany('INSERT INTO ani_table (query_id, ref_id, ani, af_r, af_q) VALUES (?, ?, ?, ?, ?)',
-                                db_ani_af)
-        self.db_conn.commit()
+        if self.db_conn:
+            db_ani_af = []
+            db_ani_af.append((gid1, gid2, ani, af_r, af_q))
+            db_ani_af.append((gid2, gid1, ani, af_q, af_r))
+            self.db_cur.executemany('INSERT INTO ani_table (query_id, ref_id, ani, af_r, af_q) VALUES (?, ?, ?, ?, ?)',
+                                    db_ani_af)
+            self.db_conn.commit()
 
         return ani, max(af_r, af_q)
