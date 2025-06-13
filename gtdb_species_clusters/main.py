@@ -15,9 +15,15 @@
 #                                                                             #
 ###############################################################################
 
+import os
 import sys
 import csv
 import logging
+
+if sys.version_info >= (3, 11):
+    import tomllib
+else:
+    import toml as tomllib
 
 from gtdblib.util.shell.gtdbshutil import check_file_exists, make_sure_path_exists
 
@@ -63,33 +69,51 @@ class OptionsParser():
         """Initialization"""
         self.log = logging.getLogger()
 
+    def parse_input_params(self, input_params_file):
+        """Parse input parameters from a file."""
+
+        params = {}
+        with open(input_params_file, 'r') as f:
+            params = tomllib.load(f)
+
+        return params
+
     def u_new_genomes(self, args):
         """Identify new and updated genomes."""
 
-        check_file_exists(args.prev_gtdb_metadata_file)
-        check_file_exists(args.cur_gtdb_metadata_file)
-        check_file_exists(args.cur_genome_paths)
-        check_file_exists(args.ncbi_assembly_summary_genbank)
+        check_file_exists(args.input_params_file)
+        params = self.parse_input_params(args.input_params_file)
 
-        make_sure_path_exists(args.output_dir)
+        check_file_exists(params['data_files']['prev_gtdb_metadata_file'])
+        check_file_exists(params['data_files']['cur_gtdb_metadata_file'])
+        check_file_exists(params['data_files']['cur_genome_path_file'])
+        check_file_exists(params['data_files']['ncbi_assembly_summary_genbank_file'])
 
-        p = NewGenomes(args.output_dir)
-        p.run(args.prev_gtdb_metadata_file,
-              args.cur_gtdb_metadata_file,
-              args.cur_genome_paths,
-              args.ncbi_assembly_summary_genbank)
+        make_sure_path_exists(params['output_dirs']['u_new_genomes'])
+        self.log.info(f"Output directory: {params['output_dirs']['u_new_genomes']}")
+
+        p = NewGenomes(params['output_dirs']['u_new_genomes'])
+        p.run(params['data_files']['prev_gtdb_metadata_file'],
+              params['data_files']['cur_gtdb_metadata_file'],
+              params['data_files']['cur_genome_path_file'],
+              params['data_files']['ncbi_assembly_summary_genbank_file'])
 
     def u_qc_genomes(self, args):
         """Quality check new and updated genomes."""
 
-        check_file_exists(args.prev_gtdb_metadata_file)
-        check_file_exists(args.cur_gtdb_metadata_file)
-        check_file_exists(args.cur_genbank_assembly_file)
-        check_file_exists(args.cur_gtdb_domain_report)
-        check_file_exists(args.gtdb_type_strains_ledger)
-        check_file_exists(args.qc_exception_file)
-        check_file_exists(args.ncbi_env_bioproject_ledger)
-        make_sure_path_exists(args.output_dir)
+        check_file_exists(args.input_params_file)
+        params = self.parse_input_params(args.input_params_file)
+
+        check_file_exists(params['data_files']['prev_gtdb_metadata_file'])
+        check_file_exists(params['data_files']['cur_gtdb_metadata_file'])
+        check_file_exists(params['data_files']['ncbi_assembly_summary_genbank_file'])
+        check_file_exists(params['data_files']['cur_gtdb_domain_report'])
+        check_file_exists(params['ledgers']['gtdb_type_strains_ledger'])
+        check_file_exists(params['ledgers']['qc_exception_ledger'])
+        check_file_exists(params['ledgers']['ncbi_env_bioproject_ledger'])
+
+        make_sure_path_exists(params['output_dirs']['u_qc_genomes'])
+        self.log.info(f"Output directory: {params['output_dirs']['u_qc_genomes']}")
 
         qc_criteria = QcCriteria(
             args.min_comp,
@@ -102,376 +126,597 @@ class OptionsParser():
             args.max_ambiguous,
             args.max_cm_xor_contigs)
 
-        p = QcGenomes(args.output_dir)
-        p.run(args.prev_gtdb_metadata_file,
-              args.cur_gtdb_metadata_file,
-              args.cur_genbank_assembly_file,
-              args.cur_gtdb_domain_report,
-              args.gtdb_type_strains_ledger,
-              args.qc_exception_file,
-              args.ncbi_env_bioproject_ledger,
+        p = QcGenomes(params['output_dirs']['u_qc_genomes'])
+        p.run(params['data_files']['prev_gtdb_metadata_file'],
+              params['data_files']['cur_gtdb_metadata_file'],
+              params['data_files']['ncbi_assembly_summary_genbank_file'],
+              params['data_files']['cur_gtdb_domain_report'],
+              params['ledgers']['gtdb_type_strains_ledger'],
+              params['ledgers']['qc_exception_ledger'],
+              params['ledgers']['ncbi_env_bioproject_ledger'],
               qc_criteria)
-
-        self.log.info(
-            f'Quality checking information written to: {args.output_dir}')
-
-    def u_lpsn_rna_types(self, args):
-        """Identify type genomes based on type 16S rRNA sequences indicated at LPSN."""
-
-        check_file_exists(args.lpsn_metadata_file)
-        check_file_exists(args.cur_gtdb_metadata_file)
-        check_file_exists(args.cur_genomic_path_file)
-        check_file_exists(args.qc_passed_file)
-        check_file_exists(args.ncbi_genbank_assembly_file)
-        check_file_exists(args.gtdb_type_strains_ledger)
-        check_file_exists(args.untrustworthy_type_ledger)
-        make_sure_path_exists(args.output_dir)
-
-        p = LPSN_SSU_Types(args.cpus, args.output_dir)
-        p.run(args.lpsn_metadata_file,
-              args.cur_gtdb_metadata_file,
-              args.cur_genomic_path_file,
-              args.qc_passed_file,
-              args.ncbi_genbank_assembly_file,
-              args.gtdb_type_strains_ledger,
-              args.untrustworthy_type_ledger)
-
-    def u_resolve_types(self, args):
-        """Resolve cases where a species has multiple genomes assembled from the type strain."""
-
-        check_file_exists(args.cur_gtdb_metadata_file)
-        check_file_exists(args.cur_genomic_path_file)
-        check_file_exists(args.qc_passed_file)
-        check_file_exists(args.ncbi_genbank_assembly_file)
-        check_file_exists(args.ltp_taxonomy_file)
-        check_file_exists(args.gtdb_type_strains_ledger)
-        check_file_exists(args.untrustworthy_type_ledger)
-        check_file_exists(args.ncbi_env_bioproject_ledger)
-        make_sure_path_exists(args.output_dir)
-
-        p = ResolveTypes(args.cpus, args.output_dir)
-        p.run(args.cur_gtdb_metadata_file,
-              args.cur_genomic_path_file,
-              args.qc_passed_file,
-              args.ncbi_genbank_assembly_file,
-              args.ltp_taxonomy_file,
-              args.gtdb_type_strains_ledger,
-              args.untrustworthy_type_ledger,
-              args.ncbi_env_bioproject_ledger)
 
     def u_gtdbtk(self, args):
         """Perform initial classification of new and updated genomes using GTDB-Tk."""
 
-        check_file_exists(args.genomes_new_updated_file)
-        check_file_exists(args.qc_passed_file)
-        make_sure_path_exists(args.output_dir)
+        check_file_exists(args.input_params_file)
+        params = self.parse_input_params(args.input_params_file)
 
-        p = GTDB_Tk(args.cpus, args.output_dir)
-        p.run(args.genomes_new_updated_file,
-              args.qc_passed_file,
-              args.mash_db_file,
+        genomes_new_updated = os.path.join(params['output_dirs']['u_new_genomes'], 'genomes_new_updated.tsv')
+        qc_passed = os.path.join(params['output_dirs']['u_qc_genomes'], 'qc_passed.tsv')
+
+        check_file_exists(genomes_new_updated)
+        check_file_exists(qc_passed)
+        check_file_exists(params['data_files']['mash_db_file'])
+        
+        make_sure_path_exists(params['output_dirs']['u_gtdbtk'])
+        self.log.info(f"Output directory: {params['output_dirs']['u_gtdbtk']}")
+
+        p = GTDB_Tk(args.cpus, params['output_dirs']['u_gtdbtk'])
+        p.run(genomes_new_updated,
+              qc_passed,
+              params['data_files']['mash_db_file'],
               args.batch_size)
+
+    def u_lpsn_rna_types(self, args):
+        """Identify type genomes based on type 16S rRNA sequences indicated at LPSN."""
+
+        check_file_exists(args.input_params_file)
+        params = self.parse_input_params(args.input_params_file)
+
+        qc_passed = os.path.join(params['output_dirs']['u_qc_genomes'], 'qc_passed.tsv')
+
+        check_file_exists(params['data_files']['lpsn_metadata_file'])
+        check_file_exists(params['data_files']['cur_gtdb_metadata_file'])
+        check_file_exists(params['data_files']['cur_genome_path_file'])
+        check_file_exists(qc_passed)
+        check_file_exists(params['data_files']['ncbi_assembly_summary_genbank_file'])
+        check_file_exists(params['ledgers']['gtdb_type_strains_ledger'])
+        check_file_exists(params['ledgers']['untrustworthy_type_ledger'])
+
+        make_sure_path_exists(params['output_dirs']['u_lpsn_rna_types'])
+        self.log.info(f"Output directory: {params['output_dirs']['u_lpsn_rna_types']}")
+
+        p = LPSN_SSU_Types(args.cpus, params['output_dirs']['u_lpsn_rna_types'])
+        p.run(params['data_files']['lpsn_metadata_file'],
+              params['data_files']['cur_gtdb_metadata_file'],
+              params['data_files']['cur_genome_path_file'],
+              qc_passed,
+              params['data_files']['ncbi_assembly_summary_genbank_file'],
+              params['ledgers']['gtdb_type_strains_ledger'],
+              params['ledgers']['untrustworthy_type_ledger'])
+
+    def u_resolve_types(self, args):
+        """Resolve cases where a species has multiple genomes assembled from the type strain."""
+
+        check_file_exists(args.input_params_file)
+        params = self.parse_input_params(args.input_params_file)
+
+        qc_passed = os.path.join(params['output_dirs']['u_qc_genomes'], 'qc_passed.tsv')
+        
+        check_file_exists(qc_passed)
+        check_file_exists(params['data_files']['cur_gtdb_metadata_file'])
+        check_file_exists(params['data_files']['cur_genome_path_file'])
+        check_file_exists(params['data_files']['ncbi_assembly_summary_genbank_file'])
+        check_file_exists(params['data_files']['ltp_taxonomy_file'])
+        check_file_exists(params['ledgers']['gtdb_type_strains_ledger'])
+        check_file_exists(params['ledgers']['untrustworthy_type_ledger'])
+        check_file_exists(params['ledgers']['ncbi_env_bioproject_ledger'])
+
+        make_sure_path_exists(params['output_dirs']['u_resolve_types'])
+        self.log.info(f"Output directory: {params['output_dirs']['u_resolve_types']}")
+
+        p = ResolveTypes(args.cpus, params['output_dirs']['u_resolve_types'])
+        p.run(params['data_files']['cur_gtdb_metadata_file'],
+              params['data_files']['cur_genome_path_file'],
+              qc_passed,
+              params['data_files']['ncbi_assembly_summary_genbank_file'],
+              params['data_files']['ltp_taxonomy_file'],
+              params['ledgers']['gtdb_type_strains_ledger'],
+              params['ledgers']['untrustworthy_type_ledger'],
+              params['ledgers']['ncbi_env_bioproject_ledger'])
 
     def u_rep_changes(self, args):
         """Identify species representatives that have changed from previous release."""
 
-        check_file_exists(args.prev_gtdb_metadata_file)
-        check_file_exists(args.cur_gtdb_metadata_file)
-        check_file_exists(args.genomes_new_updated_file)
-        check_file_exists(args.qc_passed_file)
-        check_file_exists(args.gtdbtk_classify_file)
-        check_file_exists(args.ncbi_genbank_assembly_file)
-        check_file_exists(args.untrustworthy_type_file)
-        check_file_exists(args.disband_cluster_ledger)
-        check_file_exists(args.gtdb_type_strains_ledger)
-        check_file_exists(args.ncbi_env_bioproject_ledger)
-        make_sure_path_exists(args.output_dir)
+        check_file_exists(args.input_params_file)
+        params = self.parse_input_params(args.input_params_file)
 
-        p = RepChanges(args.output_dir)
-        p.run(args.prev_gtdb_metadata_file,
-              args.cur_gtdb_metadata_file,
-              args.genomes_new_updated_file,
-              args.qc_passed_file,
-              args.gtdbtk_classify_file,
-              args.ncbi_genbank_assembly_file,
-              args.untrustworthy_type_file,
-              args.disband_cluster_ledger,
-              args.gtdb_type_strains_ledger,
-              args.ncbi_env_bioproject_ledger)
+        genomes_new_updated = os.path.join(params['output_dirs']['u_new_genomes'], 'genomes_new_updated.tsv')
+        qc_passed = os.path.join(params['output_dirs']['u_qc_genomes'], 'qc_passed.tsv')
+        gtdbtk_classify_file = os.path.join(params['output_dirs']['u_gtdbtk'], 'gtdbtk_classify.tsv')
+        untrustworthy_type_file = os.path.join(params['output_dirs']['u_resolve_types'], 'untrustworthy_type_material.tsv')
+
+        check_file_exists(params['data_files']['prev_gtdb_metadata_file'])
+        check_file_exists(params['data_files']['cur_gtdb_metadata_file'])
+        check_file_exists(genomes_new_updated)
+        check_file_exists(qc_passed)
+        check_file_exists(gtdbtk_classify_file)
+        check_file_exists(params['data_files']['ncbi_assembly_summary_genbank_file'])
+        check_file_exists(untrustworthy_type_file)
+        check_file_exists(params['ledgers']['disband_cluster_ledger'])
+        check_file_exists(params['ledgers']['gtdb_type_strains_ledger'])
+        check_file_exists(params['ledgers']['ncbi_env_bioproject_ledger'])
+
+        make_sure_path_exists(params['output_dirs']['u_rep_changes'])
+        self.log.info(f"Output directory: {params['output_dirs']['u_rep_changes']}")
+
+        p = RepChanges(params['output_dirs']['u_rep_changes'])
+        p.run(params['data_files']['prev_gtdb_metadata_file'],
+              params['data_files']['cur_gtdb_metadata_file'],
+              genomes_new_updated,
+              qc_passed,
+              gtdbtk_classify_file,
+              params['data_files']['ncbi_assembly_summary_genbank_file'],
+              untrustworthy_type_file,
+              params['ledgers']['disband_cluster_ledger'],
+              params['ledgers']['gtdb_type_strains_ledger'],
+              params['ledgers']['ncbi_env_bioproject_ledger'])
 
     def u_rep_actions(self, args):
         """Perform initial actions required for changed representatives."""
 
-        check_file_exists(args.rep_change_summary_file)
-        check_file_exists(args.prev_genomic_path_file)
-        check_file_exists(args.cur_genomic_path_file)
-        check_file_exists(args.genomes_new_updated_file)
-        check_file_exists(args.qc_passed_file)
-        check_file_exists(args.gtdbtk_classify_file)
-        check_file_exists(args.ncbi_genbank_assembly_file)
-        check_file_exists(args.untrustworthy_type_file)
-        check_file_exists(args.gtdb_type_strains_ledger)
-        check_file_exists(args.sp_priority_ledger)
-        check_file_exists(args.genus_priority_ledger)
-        check_file_exists(args.ncbi_env_bioproject_ledger)
-        check_file_exists(args.lpsn_gss_file)
-        make_sure_path_exists(args.output_dir)
+        check_file_exists(args.input_params_file)
+        params = self.parse_input_params(args.input_params_file)
 
-        p = RepActions(args.cpus, args.output_dir)
-        p.run(args.rep_change_summary_file,
-              args.prev_gtdb_metadata_file,
-              args.prev_genomic_path_file,
-              args.cur_gtdb_metadata_file,
-              args.cur_genomic_path_file,
-              args.genomes_new_updated_file,
-              args.qc_passed_file,
-              args.gtdbtk_classify_file,
-              args.ncbi_genbank_assembly_file,
-              args.untrustworthy_type_file,
-              args.gtdb_type_strains_ledger,
-              args.sp_priority_ledger,
-              args.genus_priority_ledger,
-              args.ncbi_env_bioproject_ledger,
-              args.lpsn_gss_file)
+        genomes_new_updated = os.path.join(params['output_dirs']['u_new_genomes'], 'genomes_new_updated.tsv')
+        qc_passed = os.path.join(params['output_dirs']['u_qc_genomes'], 'qc_passed.tsv')
+        gtdbtk_classify_file = os.path.join(params['output_dirs']['u_gtdbtk'], 'gtdbtk_classify.tsv')
+        untrustworthy_type_file = os.path.join(params['output_dirs']['u_resolve_types'], 'untrustworthy_type_material.tsv')
+        rep_change_summary_file = os.path.join(params['output_dirs']['u_rep_changes'], 'rep_change_summary.tsv')
+
+        check_file_exists(rep_change_summary_file)
+        check_file_exists(params['data_files']['prev_genome_path_file'])
+        check_file_exists(params['data_files']['cur_genome_path_file'])
+        check_file_exists(genomes_new_updated)
+        check_file_exists(qc_passed)
+        check_file_exists(gtdbtk_classify_file)
+        check_file_exists(params['data_files']['ncbi_assembly_summary_genbank_file'])
+        check_file_exists(untrustworthy_type_file)
+        check_file_exists(params['ledgers']['gtdb_type_strains_ledger'])
+        check_file_exists(params['ledgers']['sp_priority_ledger'])
+        check_file_exists(params['ledgers']['genus_priority_ledger'])
+        check_file_exists(params['ledgers']['ncbi_env_bioproject_ledger'])
+        check_file_exists(params['data_files']['lpsn_gss_file'])
+
+        make_sure_path_exists(params['output_dirs']['u_rep_actions'])
+        self.log.info(f"Output directory: {params['output_dirs']['u_rep_actions']}")
+
+        p = RepActions(args.cpus, params['output_dirs']['u_rep_actions'])
+        p.run(rep_change_summary_file,
+              params['data_files']['prev_gtdb_metadata_file'],
+              params['data_files']['prev_genome_path_file'],
+              params['data_files']['cur_gtdb_metadata_file'],
+              params['data_files']['cur_genome_path_file'],
+              genomes_new_updated,
+              qc_passed,
+              gtdbtk_classify_file,
+              params['data_files']['ncbi_assembly_summary_genbank_file'],
+              untrustworthy_type_file,
+              params['ledgers']['gtdb_type_strains_ledger'],
+              params['ledgers']['sp_priority_ledger'],
+              params['ledgers']['genus_priority_ledger'],
+              params['ledgers']['ncbi_env_bioproject_ledger'],
+              params['data_files']['lpsn_gss_file'])
 
     def u_sel_reps(self, args):
         """Select representatives for all named species at NCBI."""
 
-        check_file_exists(args.updated_sp_cluster_file)
-        check_file_exists(args.cur_gtdb_metadata_file)
-        check_file_exists(args.cur_genomic_path_file)
-        check_file_exists(args.qc_passed_file)
-        check_file_exists(args.ncbi_genbank_assembly_file)
-        check_file_exists(args.untrustworthy_type_file)
-        check_file_exists(args.gtdb_type_strains_ledger)
-        check_file_exists(args.ncbi_untrustworthy_sp_ledger)
-        check_file_exists(args.sp_priority_ledger)
-        check_file_exists(args.genus_priority_ledger)
-        check_file_exists(args.ncbi_env_bioproject_ledger)
-        check_file_exists(args.lpsn_gss_file)
-        make_sure_path_exists(args.output_dir)
+        check_file_exists(args.input_params_file)
+        params = self.parse_input_params(args.input_params_file)
+
+        qc_passed = os.path.join(params['output_dirs']['u_qc_genomes'], 'qc_passed.tsv')
+        untrustworthy_type_file = os.path.join(params['output_dirs']['u_resolve_types'], 'untrustworthy_type_material.tsv')
+        updated_sp_cluster_file = os.path.join(params['output_dirs']['u_rep_actions'], 'updated_sp_clusters.tsv')
+
+        check_file_exists(updated_sp_cluster_file)
+        check_file_exists(params['data_files']['cur_gtdb_metadata_file'])
+        check_file_exists(params['data_files']['cur_genome_path_file'])
+        check_file_exists(qc_passed)
+        check_file_exists(params['data_files']['ncbi_assembly_summary_genbank_file'])
+        check_file_exists(untrustworthy_type_file)
+        check_file_exists(params['ledgers']['gtdb_type_strains_ledger'])
+        check_file_exists(params['ledgers']['ncbi_untrustworthy_sp_ledger'])
+        check_file_exists(params['ledgers']['sp_priority_ledger'])
+        check_file_exists(params['ledgers']['genus_priority_ledger'])
+        check_file_exists(params['ledgers']['ncbi_env_bioproject_ledger'])
+        check_file_exists(params['data_files']['lpsn_gss_file'])
+
+        make_sure_path_exists(params['output_dirs']['u_sel_reps'])
+        self.log.info(f"Output directory: {params['output_dirs']['u_sel_reps']}")
 
         p = UpdateSelectRepresentatives(args.cpus,
-                                        args.output_dir)
-        p.run(args.updated_sp_cluster_file,
-              args.cur_gtdb_metadata_file,
-              args.cur_genomic_path_file,
-              args.qc_passed_file,
-              args.ncbi_genbank_assembly_file,
-              args.untrustworthy_type_file,
-              args.gtdb_type_strains_ledger,
-              args.ncbi_untrustworthy_sp_ledger,
-              args.sp_priority_ledger,
-              args.genus_priority_ledger,
-              args.ncbi_env_bioproject_ledger,
-              args.lpsn_gss_file)
+                                        params['output_dirs']['u_sel_reps'])
+        p.run(updated_sp_cluster_file,
+              params['data_files']['cur_gtdb_metadata_file'],
+              params['data_files']['cur_genome_path_file'],
+              qc_passed,
+              params['data_files']['ncbi_assembly_summary_genbank_file'],
+              untrustworthy_type_file,
+              params['ledgers']['gtdb_type_strains_ledger'],
+              params['ledgers']['ncbi_untrustworthy_sp_ledger'],
+              params['ledgers']['sp_priority_ledger'],
+              params['ledgers']['genus_priority_ledger'],
+              params['ledgers']['ncbi_env_bioproject_ledger'],
+              params['data_files']['lpsn_gss_file'])
 
     def u_cluster_named_reps(self, args):
         """Cluster genomes to selected GTDB representatives."""
 
-        check_file_exists(args.named_rep_file)
-        check_file_exists(args.cur_gtdb_metadata_file)
-        check_file_exists(args.cur_genomic_path_file)
-        check_file_exists(args.qc_passed_file)
-        check_file_exists(args.ncbi_genbank_assembly_file)
-        check_file_exists(args.untrustworthy_type_file)
-        check_file_exists(args.rep_ani_file)
-        check_file_exists(args.gtdb_type_strains_ledger)
-        check_file_exists(args.ncbi_env_bioproject_ledger)
-        make_sure_path_exists(args.output_dir)
+        check_file_exists(args.input_params_file)
+        params = self.parse_input_params(args.input_params_file)
+
+        qc_passed = os.path.join(params['output_dirs']['u_qc_genomes'], 'qc_passed.tsv')
+        untrustworthy_type_file = os.path.join(params['output_dirs']['u_resolve_types'], 'untrustworthy_type_material.tsv')
+        named_rep_file = os.path.join(params['output_dirs']['u_sel_reps'], 'gtdb_named_reps_final.tsv')
+        rep_ani_file = os.path.join(params['output_dirs']['u_sel_reps'], 'gtdb_rep_pairwise_ani.tsv')
+
+        check_file_exists(named_rep_file)
+        check_file_exists(params['data_files']['cur_gtdb_metadata_file'])
+        check_file_exists(params['data_files']['cur_genome_path_file'])
+        check_file_exists(qc_passed)
+        check_file_exists(params['data_files']['ncbi_assembly_summary_genbank_file'])
+        check_file_exists(untrustworthy_type_file)
+        check_file_exists(rep_ani_file)
+        check_file_exists(params['ledgers']['gtdb_type_strains_ledger'])
+        check_file_exists(params['ledgers']['ncbi_env_bioproject_ledger'])
+
+        make_sure_path_exists(params['output_dirs']['u_cluster_named_reps'])
+        self.log.info(f"Output directory: {params['output_dirs']['u_cluster_named_reps']}")
 
         p = UpdateClusterNamedReps(args.ani_sp,
                                    args.af_sp,
                                    args.cpus,
-                                   args.output_dir)
-        p.run(args.named_rep_file,
-              args.cur_gtdb_metadata_file,
-              args.cur_genomic_path_file,
-              args.qc_passed_file,
-              args.ncbi_genbank_assembly_file,
-              args.untrustworthy_type_file,
-              args.rep_ani_file,
-              args.gtdb_type_strains_ledger,
-              args.ncbi_env_bioproject_ledger)
-
-    def u_ncbi_erroneous(self, args):
-        """Identify genomes with erroneous NCBI species assignments."""
-
-        check_file_exists(args.gtdb_clusters_file)
-        check_file_exists(args.cur_gtdb_metadata_file)
-        check_file_exists(args.cur_genomic_path_file)
-        check_file_exists(args.qc_passed_file)
-        check_file_exists(args.ncbi_genbank_assembly_file)
-        check_file_exists(args.untrustworthy_type_file)
-        check_file_exists(args.gtdb_type_strains_ledger)
-        check_file_exists(args.ncbi_untrustworthy_sp_ledger)
-        check_file_exists(args.ncbi_env_bioproject_ledger)
-        make_sure_path_exists(args.output_dir)
-
-        p = UpdateErroneousNCBI(args.output_dir)
-        p.run(args.gtdb_clusters_file,
-              args.cur_gtdb_metadata_file,
-              args.cur_genomic_path_file,
-              args.qc_passed_file,
-              args.ncbi_genbank_assembly_file,
-              args.untrustworthy_type_file,
-              args.gtdb_type_strains_ledger,
-              args.ncbi_untrustworthy_sp_ledger,
-              args.ncbi_env_bioproject_ledger)
-
-    def u_synonyms(self, args):
-        """Determine synonyms for validly or effectively published species."""
-
-        check_file_exists(args.gtdb_clusters_file)
-        check_file_exists(args.cur_gtdb_metadata_file)
-        check_file_exists(args.qc_passed_file)
-        check_file_exists(args.ncbi_misclassified_file)
-        check_file_exists(args.ncbi_genbank_assembly_file)
-        check_file_exists(args.untrustworthy_type_file)
-        check_file_exists(args.ani_af_nonrep_vs_rep)
-        check_file_exists(args.gtdb_type_strains_ledger)
-        check_file_exists(args.sp_priority_ledger)
-        check_file_exists(args.genus_priority_ledger)
-        check_file_exists(args.ncbi_untrustworthy_sp_ledger)
-        check_file_exists(args.ncbi_env_bioproject_ledger)
-        check_file_exists(args.lpsn_gss_file)
-        make_sure_path_exists(args.output_dir)
-
-        p = UpdateSynonyms(args.output_dir)
-        p.run(args.gtdb_clusters_file,
-              args.cur_gtdb_metadata_file,
-              args.qc_passed_file,
-              args.ncbi_misclassified_file,
-              args.ncbi_genbank_assembly_file,
-              args.untrustworthy_type_file,
-              args.ani_af_nonrep_vs_rep,
-              args.gtdb_type_strains_ledger,
-              args.sp_priority_ledger,
-              args.genus_priority_ledger,
-              args.ncbi_untrustworthy_sp_ledger,
-              args.ncbi_env_bioproject_ledger,
-              args.lpsn_gss_file)
+                                   params['output_dirs']['u_cluster_named_reps'])
+        p.run(named_rep_file,
+              params['data_files']['cur_gtdb_metadata_file'],
+              params['data_files']['cur_genome_path_file'],
+              qc_passed,
+              params['data_files']['ncbi_assembly_summary_genbank_file'],
+              untrustworthy_type_file,
+              rep_ani_file,
+              params['ledgers']['gtdb_type_strains_ledger'],
+              params['ledgers']['ncbi_env_bioproject_ledger'])
 
     def u_cluster_de_novo(self, args):
         """Infer de novo species clusters and representatives for remaining genomes."""
 
-        check_file_exists(args.named_cluster_file)
-        check_file_exists(args.cur_gtdb_metadata_file)
-        check_file_exists(args.cur_genomic_path_file)
-        check_file_exists(args.qc_passed_file)
-        check_file_exists(args.ncbi_genbank_assembly_file)
-        check_file_exists(args.untrustworthy_type_file)
-        check_file_exists(args.ani_af_nonrep_vs_rep)
-        check_file_exists(args.gtdb_type_strains_ledger)
-        check_file_exists(args.ncbi_env_bioproject_ledger)
-        make_sure_path_exists(args.output_dir)
+        check_file_exists(args.input_params_file)
+        params = self.parse_input_params(args.input_params_file)
+
+        qc_passed = os.path.join(params['output_dirs']['u_qc_genomes'], 'qc_passed.tsv')
+        untrustworthy_type_file = os.path.join(params['output_dirs']['u_resolve_types'], 'untrustworthy_type_material.tsv')
+        named_cluster_file = os.path.join(params['output_dirs']['u_cluster_named_reps'], 'gtdb_named_rep_clusters.tsv')
+        ani_af_nonrep_vs_rep = os.path.join(params['output_dirs']['u_cluster_named_reps'], 'ani_af_nonrep_vs_rep.pkl')
+
+        check_file_exists(named_cluster_file)
+        check_file_exists(params['data_files']['cur_gtdb_metadata_file'])
+        check_file_exists(params['data_files']['cur_genome_path_file'])
+        check_file_exists(qc_passed)
+        check_file_exists(params['data_files']['ncbi_assembly_summary_genbank_file'])
+        check_file_exists(untrustworthy_type_file)
+        check_file_exists(ani_af_nonrep_vs_rep)
+        check_file_exists(params['ledgers']['gtdb_type_strains_ledger'])
+        check_file_exists(params['ledgers']['ncbi_env_bioproject_ledger'])
+
+        make_sure_path_exists(params['output_dirs']['u_cluster_de_novo'])
+        self.log.info(f"Output directory: {params['output_dirs']['u_cluster_de_novo']}")
 
         p = UpdateClusterDeNovo(args.ani_sp,
                                 args.af_sp,
                                 args.cpus,
-                                args.output_dir)
-        p.run(args.named_cluster_file,
-              args.cur_gtdb_metadata_file,
-              args.cur_genomic_path_file,
-              args.qc_passed_file,
-              args.ncbi_genbank_assembly_file,
-              args.untrustworthy_type_file,
-              args.ani_af_nonrep_vs_rep,
-              args.gtdb_type_strains_ledger,
-              args.ncbi_env_bioproject_ledger)
+                                params['output_dirs']['u_cluster_de_novo'])
+        p.run(named_cluster_file,
+              params['data_files']['cur_gtdb_metadata_file'],
+              params['data_files']['cur_genome_path_file'],
+              qc_passed,
+              params['data_files']['ncbi_assembly_summary_genbank_file'],
+              untrustworthy_type_file,
+              ani_af_nonrep_vs_rep,
+              params['ledgers']['gtdb_type_strains_ledger'],
+              params['ledgers']['ncbi_env_bioproject_ledger'])
 
     def u_cluster_stats(self, args):
         """Summary statistics indicating changes to GTDB species cluster membership."""
 
-        check_file_exists(args.gtdb_clusters_file)
-        check_file_exists(args.prev_gtdb_metadata_file)
-        check_file_exists(args.cur_gtdb_metadata_file)
-        check_file_exists(args.qc_passed_file)
-        check_file_exists(args.ncbi_genbank_assembly_file)
-        check_file_exists(args.untrustworthy_type_file)
-        check_file_exists(args.gtdb_type_strains_ledger)
-        check_file_exists(args.ncbi_env_bioproject_ledger)
-        make_sure_path_exists(args.output_dir)
+        check_file_exists(args.input_params_file)
+        params = self.parse_input_params(args.input_params_file)
 
-        p = UpdateClusterStats(args.output_dir)
-        p.run(args.gtdb_clusters_file,
-              args.prev_gtdb_metadata_file,
-              args.cur_gtdb_metadata_file,
-              args.qc_passed_file,
-              args.ncbi_genbank_assembly_file,
-              args.untrustworthy_type_file,
-              args.gtdb_type_strains_ledger,
-              args.ncbi_env_bioproject_ledger)
+        qc_passed = os.path.join(params['output_dirs']['u_qc_genomes'], 'qc_passed.tsv')
+        untrustworthy_type_file = os.path.join(params['output_dirs']['u_resolve_types'], 'untrustworthy_type_material.tsv')
+        gtdb_clusters_file = os.path.join(params['output_dirs']['u_cluster_de_novo'], 'gtdb_clusters_de_novo.tsv')
+
+        check_file_exists(gtdb_clusters_file)
+        check_file_exists(params['data_files']['prev_gtdb_metadata_file'])
+        check_file_exists(params['data_files']['cur_gtdb_metadata_file'])
+        check_file_exists(qc_passed)
+        check_file_exists(params['data_files']['ncbi_assembly_summary_genbank_file'])
+        check_file_exists(untrustworthy_type_file)
+        check_file_exists(params['ledgers']['gtdb_type_strains_ledger'])
+        check_file_exists(params['ledgers']['ncbi_env_bioproject_ledger'])
+
+        make_sure_path_exists(params['output_dirs']['u_cluster_stats'])
+        self.log.info(f"Output directory: {params['output_dirs']['u_cluster_stats']}")
+
+        p = UpdateClusterStats(params['output_dirs']['u_cluster_stats'])
+        p.run(gtdb_clusters_file,
+              params['data_files']['prev_gtdb_metadata_file'],
+              params['data_files']['cur_gtdb_metadata_file'],
+              qc_passed,
+              params['data_files']['ncbi_assembly_summary_genbank_file'],
+              untrustworthy_type_file,
+              params['ledgers']['gtdb_type_strains_ledger'],
+              params['ledgers']['ncbi_env_bioproject_ledger'])
+
+    def u_ncbi_erroneous(self, args):
+        """Identify genomes with erroneous NCBI species assignments."""
+
+        check_file_exists(args.input_params_file)
+        params = self.parse_input_params(args.input_params_file)
+
+        qc_passed = os.path.join(params['output_dirs']['u_qc_genomes'], 'qc_passed.tsv')
+        untrustworthy_type_file = os.path.join(params['output_dirs']['u_resolve_types'], 'untrustworthy_type_material.tsv')
+        gtdb_clusters_file = os.path.join(params['output_dirs']['u_cluster_de_novo'], 'gtdb_clusters_de_novo.tsv')
+
+        check_file_exists(gtdb_clusters_file)
+        check_file_exists(params['data_files']['cur_gtdb_metadata_file'])
+        check_file_exists(params['data_files']['cur_genome_path_file'])
+        check_file_exists(qc_passed)
+        check_file_exists(params['data_files']['ncbi_assembly_summary_genbank_file'])
+        check_file_exists(untrustworthy_type_file)
+        check_file_exists(params['ledgers']['gtdb_type_strains_ledger'])
+        check_file_exists(params['ledgers']['ncbi_untrustworthy_sp_ledger'])
+        check_file_exists(params['ledgers']['ncbi_env_bioproject_ledger'])
+
+        make_sure_path_exists(params['output_dirs']['u_ncbi_erroneous'])
+        self.log.info(f"Output directory: {params['output_dirs']['u_ncbi_erroneous']}")
+
+        p = UpdateErroneousNCBI(params['output_dirs']['u_ncbi_erroneous'])
+        p.run(gtdb_clusters_file,
+              params['data_files']['cur_gtdb_metadata_file'],
+              params['data_files']['cur_genome_path_file'],
+              qc_passed,
+              params['data_files']['ncbi_assembly_summary_genbank_file'],
+              untrustworthy_type_file,
+              params['ledgers']['gtdb_type_strains_ledger'],
+              params['ledgers']['ncbi_untrustworthy_sp_ledger'],
+              params['ledgers']['ncbi_env_bioproject_ledger'])
+
+    def u_synonyms(self, args):
+        """Determine synonyms for validly or effectively published species."""
+
+        check_file_exists(args.input_params_file)
+        params = self.parse_input_params(args.input_params_file)
+
+        qc_passed = os.path.join(params['output_dirs']['u_qc_genomes'], 'qc_passed.tsv')
+        untrustworthy_type_file = os.path.join(params['output_dirs']['u_resolve_types'], 'untrustworthy_type_material.tsv')
+        gtdb_clusters_file = os.path.join(params['output_dirs']['u_cluster_de_novo'], 'gtdb_clusters_de_novo.tsv')
+        ncbi_misclassified_file = os.path.join(params['output_dirs']['u_ncbi_erroneous'], 'ncbi_misclassified_sp.gtdb_clustering.tsv')
+        ani_af_nonrep_vs_rep = os.path.join(params['output_dirs']['u_cluster_named_reps'], 'ani_af_nonrep_vs_rep.pkl')
+
+        check_file_exists(gtdb_clusters_file)
+        check_file_exists(params['data_files']['cur_gtdb_metadata_file'])
+        check_file_exists(qc_passed)
+        check_file_exists(ncbi_misclassified_file)
+        check_file_exists(params['data_files']['ncbi_assembly_summary_genbank_file'])
+        check_file_exists(untrustworthy_type_file)
+        check_file_exists(ani_af_nonrep_vs_rep)
+        check_file_exists(params['ledgers']['gtdb_type_strains_ledger'])
+        check_file_exists(params['ledgers']['sp_priority_ledger'])
+        check_file_exists(params['ledgers']['genus_priority_ledger'])
+        check_file_exists(params['ledgers']['ncbi_untrustworthy_sp_ledger'])
+        check_file_exists(params['ledgers']['ncbi_env_bioproject_ledger'])
+        check_file_exists(params['data_files']['lpsn_gss_file'])
+
+        make_sure_path_exists(params['output_dirs']['u_synonyms'])
+        self.log.info(f"Output directory: {params['output_dirs']['u_synonyms']}")
+
+        p = UpdateSynonyms(params['output_dirs']['u_synonyms'])
+        p.run(gtdb_clusters_file,
+              params['data_files']['cur_gtdb_metadata_file'],
+              qc_passed,
+              ncbi_misclassified_file,
+              params['data_files']['ncbi_assembly_summary_genbank_file'],
+              untrustworthy_type_file,
+              ani_af_nonrep_vs_rep,
+              params['ledgers']['gtdb_type_strains_ledger'],
+              params['ledgers']['sp_priority_ledger'],
+              params['ledgers']['genus_priority_ledger'],
+              params['ledgers']['ncbi_untrustworthy_sp_ledger'],
+              params['ledgers']['ncbi_env_bioproject_ledger'],
+              params['data_files']['lpsn_gss_file'])
 
     def u_curation_trees(self, args):
         """Produce curation trees highlighting new NCBI taxa."""
 
-        check_file_exists(args.gtdb_clusters_file)
-        check_file_exists(args.prev_gtdb_metadata_file)
-        check_file_exists(args.cur_gtdb_metadata_file)
-        check_file_exists(args.qc_passed_file)
-        check_file_exists(args.ncbi_genbank_assembly_file)
-        check_file_exists(args.untrustworthy_type_file)
-        check_file_exists(args.gtdb_type_strains_ledger)
-        check_file_exists(args.ncbi_untrustworthy_sp_ledger)
-        check_file_exists(args.ncbi_env_bioproject_ledger)
-        make_sure_path_exists(args.output_dir)
+        check_file_exists(args.input_params_file)
+        params = self.parse_input_params(args.input_params_file)
 
-        p = UpdateCurationTrees(args.output_dir, args.output_prefix)
-        p.run(args.gtdb_clusters_file,
-              args.prev_gtdb_metadata_file,
-              args.cur_gtdb_metadata_file,
-              args.qc_passed_file,
-              args.ncbi_genbank_assembly_file,
-              args.untrustworthy_type_file,
-              args.gtdb_type_strains_ledger,
-              args.ncbi_untrustworthy_sp_ledger,
-              args.ncbi_env_bioproject_ledger)
+        qc_passed = os.path.join(params['output_dirs']['u_qc_genomes'], 'qc_passed.tsv')
+        untrustworthy_type_file = os.path.join(params['output_dirs']['u_resolve_types'], 'untrustworthy_type_material.tsv')
+        gtdb_clusters_file = os.path.join(params['output_dirs']['u_cluster_de_novo'], 'gtdb_clusters_de_novo.tsv')
+
+        check_file_exists(gtdb_clusters_file)
+        check_file_exists(params['data_files']['prev_gtdb_metadata_file'])
+        check_file_exists(params['data_files']['cur_gtdb_metadata_file'])
+        check_file_exists(qc_passed)
+        check_file_exists(params['data_files']['ncbi_assembly_summary_genbank_file'])
+        check_file_exists(untrustworthy_type_file)
+        check_file_exists(params['ledgers']['gtdb_type_strains_ledger'])
+        check_file_exists(params['ledgers']['ncbi_untrustworthy_sp_ledger'])
+        check_file_exists(params['ledgers']['ncbi_env_bioproject_ledger'])
+
+        make_sure_path_exists(params['output_dirs']['u_curation_trees'])
+        self.log.info(f"Output directory: {params['output_dirs']['u_curation_trees']}")
+
+        p = UpdateCurationTrees(params['output_dirs']['u_curation_trees'], f"gtdb_{params['release']}")
+        p.run(gtdb_clusters_file,
+              params['data_files']['prev_gtdb_metadata_file'],
+              params['data_files']['cur_gtdb_metadata_file'],
+              qc_passed,
+              params['data_files']['ncbi_assembly_summary_genbank_file'],
+              untrustworthy_type_file,
+              params['ledgers']['gtdb_type_strains_ledger'],
+              params['ledgers']['ncbi_untrustworthy_sp_ledger'],
+              params['ledgers']['ncbi_env_bioproject_ledger'])
 
     def u_species_init(self, args):
         """Produce initial best guess at GTDB species clusters."""
 
-        check_file_exists(args.gtdb_clusters_file)
-        check_file_exists(args.prev_gtdb_metadata_file)
-        check_file_exists(args.cur_gtdb_metadata_file)
-        check_file_exists(args.qc_passed_file)
-        check_file_exists(args.gtdbtk_classify_file)
-        check_file_exists(args.ncbi_genbank_assembly_file)
-        check_file_exists(args.untrustworthy_type_file)
-        check_file_exists(args.synonym_file)
-        check_file_exists(args.gtdb_type_strains_ledger)
-        check_file_exists(args.sp_priority_ledger)
-        check_file_exists(args.genus_priority_ledger)
-        check_file_exists(args.ncbi_untrustworthy_sp_ledger)
-        check_file_exists(args.ncbi_env_bioproject_ledger)
-        check_file_exists(args.lpsn_gss_file)
-        make_sure_path_exists(args.output_dir)
+        check_file_exists(args.input_params_file)
+        params = self.parse_input_params(args.input_params_file)
 
-        p = UpdateSpeciesInit(args.output_dir)
-        p.run(args.gtdb_clusters_file,
-              args.prev_gtdb_metadata_file,
-              args.cur_gtdb_metadata_file,
-              args.qc_passed_file,
-              args.gtdbtk_classify_file,
-              args.ncbi_genbank_assembly_file,
-              args.untrustworthy_type_file,
-              args.synonym_file,
-              args.gtdb_type_strains_ledger,
-              args.sp_priority_ledger,
-              args.genus_priority_ledger,
-              args.ncbi_untrustworthy_sp_ledger,
-              args.ncbi_env_bioproject_ledger,
-              args.lpsn_gss_file)
+        qc_passed = os.path.join(params['output_dirs']['u_qc_genomes'], 'qc_passed.tsv')
+        untrustworthy_type_file = os.path.join(params['output_dirs']['u_resolve_types'], 'untrustworthy_type_material.tsv')
+        gtdb_clusters_file = os.path.join(params['output_dirs']['u_cluster_de_novo'], 'gtdb_clusters_de_novo.tsv')
+        gtdbtk_classify_file = os.path.join(params['output_dirs']['u_gtdbtk'], 'gtdbtk_classify.tsv')
+        synonym_file = os.path.join(params['output_dirs']['u_synonyms'], 'synonyms.tsv')
+
+        check_file_exists(gtdb_clusters_file)
+        check_file_exists(params['data_files']['prev_gtdb_metadata_file'])
+        check_file_exists(params['data_files']['cur_gtdb_metadata_file'])
+        check_file_exists(qc_passed)
+        check_file_exists(gtdbtk_classify_file)
+        check_file_exists(params['data_files']['ncbi_assembly_summary_genbank_file'])
+        check_file_exists(untrustworthy_type_file)
+        check_file_exists(synonym_file)
+        check_file_exists(params['ledgers']['gtdb_type_strains_ledger'])
+        check_file_exists(params['ledgers']['sp_priority_ledger'])
+        check_file_exists(params['ledgers']['genus_priority_ledger'])
+        check_file_exists(params['ledgers']['ncbi_untrustworthy_sp_ledger'])
+        check_file_exists(params['ledgers']['ncbi_env_bioproject_ledger'])
+        check_file_exists(params['data_files']['lpsn_gss_file'])
+
+        make_sure_path_exists(params['output_dirs']['u_species_init'])
+        self.log.info(f"Output directory: {params['output_dirs']['u_species_init']}")
+
+        p = UpdateSpeciesInit(params['output_dirs']['u_species_init'])
+        p.run(gtdb_clusters_file,
+              params['data_files']['prev_gtdb_metadata_file'],
+              params['data_files']['cur_gtdb_metadata_file'],
+              qc_passed,
+              gtdbtk_classify_file,
+              params['data_files']['ncbi_assembly_summary_genbank_file'],
+              untrustworthy_type_file,
+              synonym_file,
+              params['ledgers']['gtdb_type_strains_ledger'],
+              params['ledgers']['sp_priority_ledger'],
+              params['ledgers']['genus_priority_ledger'],
+              params['ledgers']['ncbi_untrustworthy_sp_ledger'],
+              params['ledgers']['ncbi_env_bioproject_ledger'],
+              params['data_files']['lpsn_gss_file'])
+
+    def u_pmc_species_names(self, args):
+        """Refine species names using post-manual curation rules."""
+
+        check_file_exists(args.input_params_file)
+        params = self.parse_input_params(args.input_params_file)
+
+        qc_passed = os.path.join(params['output_dirs']['u_qc_genomes'], 'qc_passed.tsv')
+        untrustworthy_type_file = os.path.join(params['output_dirs']['u_resolve_types'], 'untrustworthy_type_material.tsv')
+        gtdb_clusters_file = os.path.join(params['output_dirs']['u_cluster_de_novo'], 'gtdb_clusters_de_novo.tsv')
+        synonym_file = os.path.join(params['output_dirs']['u_synonyms'], 'synonyms.tsv')
+        ncbi_misclassified_file = os.path.join(params['output_dirs']['u_ncbi_erroneous'], 'ncbi_misclassified_sp.gtdb_clustering.tsv')
+        updated_species_reps_file = os.path.join(params['output_dirs']['u_rep_actions'], 'updated_species_reps.tsv')
+        taxonomy_init_ar = os.path.join(params['output_dirs']['u_species_init'], 'gtdb_ar_taxonomy.tsv')
+        taxonomy_init_bac = os.path.join(params['output_dirs']['u_species_init'], 'gtdb_ar_taxonomy.tsv')
+
+        check_file_exists(taxonomy_init_ar)
+        check_file_exists(taxonomy_init_bac)
+        check_file_exists(params['data_files']['seqcode_file'])
+        check_file_exists(gtdb_clusters_file)
+        check_file_exists(params['data_files']['prev_gtdb_metadata_file'])
+        check_file_exists(params['data_files']['cur_gtdb_metadata_file'])
+        check_file_exists(qc_passed)
+        check_file_exists(ncbi_misclassified_file)
+        check_file_exists(params['data_files']['ncbi_assembly_summary_genbank_file'])
+        check_file_exists(untrustworthy_type_file)
+        check_file_exists(synonym_file)
+        check_file_exists(updated_species_reps_file)
+        check_file_exists(params['ledgers']['gtdb_type_strains_ledger'])
+        check_file_exists(params['ledgers']['species_classification_ledger'])
+        check_file_exists(params['ledgers']['sp_priority_ledger'])
+        check_file_exists(params['ledgers']['genus_priority_ledger'])
+        check_file_exists(params['ledgers']['specific_epithet_ledger_ar'])
+        check_file_exists(params['ledgers']['specific_epithet_ledger_bac'])
+        check_file_exists(params['ledgers']['ncbi_untrustworthy_sp_ledger'])
+        check_file_exists(params['ledgers']['ncbi_env_bioproject_ledger'])
+        check_file_exists(params['data_files']['lpsn_gss_file'])
+        check_file_exists(args.manual_sp_file)
+
+        # create archaeal species names
+        make_sure_path_exists(params['output_dirs']['u_pmc_species_names_ar'])
+        self.log.info(f"Output directory (ar): {params['output_dirs']['u_pmc_species_names_ar']}")
+
+        p = PMC_SpeciesNames(params['output_dirs']['u_pmc_species_names_ar'])
+        p.run(None,
+              taxonomy_init_ar,
+              params['data_files']['seqcode_file'],
+              None,
+              args.manual_sp_file,
+              gtdb_clusters_file,
+              params['data_files']['prev_gtdb_metadata_file'],
+              params['data_files']['cur_gtdb_metadata_file'],
+              qc_passed,
+              ncbi_misclassified_file,
+              params['data_files']['ncbi_assembly_summary_genbank_file'],
+              untrustworthy_type_file,
+              synonym_file,
+              updated_species_reps_file,
+              params['ledgers']['gtdb_type_strains_ledger'],
+              params['ledgers']['species_classification_ledger'],
+              params['ledgers']['sp_priority_ledger'],
+              params['ledgers']['genus_priority_ledger'],
+              params['ledgers']['specific_epithet_ledger_ar'],
+              params['ledgers']['ncbi_untrustworthy_sp_ledger'],
+              params['ledgers']['ncbi_env_bioproject_ledger'],
+              params['data_files']['lpsn_gss_file'])
+
+        # create bacterial species names
+        make_sure_path_exists(params['output_dirs']['u_pmc_species_names_bac'])        
+        self.log.info(f"Output directory (bac): {params['output_dirs']['u_pmc_species_names_bac']}")
+
+        p = PMC_SpeciesNames(params['output_dirs']['u_pmc_species_names_bac'])
+        p.run(None,
+              taxonomy_init_ar,
+              params['data_files']['seqcode_file'],
+              None,
+              args.manual_sp_file,
+              gtdb_clusters_file,
+              params['data_files']['prev_gtdb_metadata_file'],
+              params['data_files']['cur_gtdb_metadata_file'],
+              qc_passed,
+              ncbi_misclassified_file,
+              params['data_files']['ncbi_assembly_summary_genbank_file'],
+              untrustworthy_type_file,
+              synonym_file,
+              updated_species_reps_file,
+              params['ledgers']['gtdb_type_strains_ledger'],
+              params['ledgers']['species_classification_ledger'],
+              params['ledgers']['sp_priority_ledger'],
+              params['ledgers']['genus_priority_ledger'],
+              params['ledgers']['specific_epithet_ledger_bac'],
+              params['ledgers']['ncbi_untrustworthy_sp_ledger'],
+              params['ledgers']['ncbi_env_bioproject_ledger'],
+              params['data_files']['lpsn_gss_file'])
 
     def pmc_manual_species(self, args):
         """Identify species names manually set by curators."""
 
-        check_file_exists(args.init_taxonomy)
+        check_file_exists(args.input_params_file)
+        params = self.parse_input_params(args.input_params_file)
+
+        if params.domain == 'Archaea':
+            init_taxonomy = os.path.join(params['root_dir'], params['output_dirs']['u_pmc_species_names_ar'], 'final_taxonomy.tsv')
+        else:
+            init_taxonomy = os.path.join(params['root_dir'],params['output_dirs']['u_pmc_species_names_bac'], 'final_taxonomy.tsv')
+
+        check_file_exists(init_taxonomy)
         check_file_exists(args.manually_curated_tree)
         make_sure_path_exists(args.output_dir)
 
         p = PMC_Checks(args.output_dir)
-        p.manual_species(args.init_taxonomy,
+        p.manual_species(init_taxonomy,
                          args.manually_curated_tree)
 
     def pmc_replace_generic(self, args):
@@ -488,152 +733,178 @@ class OptionsParser():
     def pmc_check_type_species(self, args):
         """Check for agreement between GTDB genera and genomes assembled from type species of genus."""
 
+        check_file_exists(args.input_params_file)
+        params = self.parse_input_params(args.input_params_file)
+
+        cur_gtdb_metadata_file = os.path.join(params['root_dir'], params['data_files']['cur_gtdb_metadata_file'])
+        qc_passed_file = os.path.join(params['root_dir'], params['output_dirs']['u_qc_genomes'], 'qc_passed.tsv')
+        ncbi_assembly_summary_genbank_file = os.path.join(params['root_dir'], params['data_files']['ncbi_assembly_summary_genbank_file'])
+        untrustworthy_type_file = os.path.join(params['root_dir'], params['ledgers']['untrustworthy_type_ledger'])
+        gtdb_type_strains_ledger = os.path.join(params['root_dir'], params['ledgers']['gtdb_type_strains_ledger'])
+        sp_priority_ledger = os.path.join(params['root_dir'], params['ledgers']['sp_priority_ledger'])
+        genus_priority_ledger = os.path.join(params['root_dir'], params['ledgers']['genus_priority_ledger'])
+        ncbi_env_bioproject_ledger = os.path.join(params['root_dir'], params['ledgers']['ncbi_env_bioproject_ledger'])
+        lpsn_gss_file = os.path.join(params['root_dir'], params['data_files']['lpsn_gss_file'])
+
         check_file_exists(args.manual_taxonomy)
-        check_file_exists(args.cur_gtdb_metadata_file)
-        check_file_exists(args.qc_passed_file)
-        check_file_exists(args.ncbi_genbank_assembly_file)
-        check_file_exists(args.untrustworthy_type_file)
-        check_file_exists(args.gtdb_type_strains_ledger)
-        check_file_exists(args.sp_priority_ledger)
-        check_file_exists(args.genus_priority_ledger)
-        check_file_exists(args.ncbi_env_bioproject_ledger)
-        check_file_exists(args.lpsn_gss_file)
+        check_file_exists(cur_gtdb_metadata_file)
+        check_file_exists(qc_passed_file)
+        check_file_exists(ncbi_assembly_summary_genbank_file)
+        check_file_exists(untrustworthy_type_file)
+        check_file_exists(gtdb_type_strains_ledger)
+        check_file_exists(sp_priority_ledger)
+        check_file_exists(genus_priority_ledger)
+        check_file_exists(ncbi_env_bioproject_ledger)
+        check_file_exists(lpsn_gss_file)
         make_sure_path_exists(args.output_dir)
 
         p = PMC_CheckTypeSpecies(args.output_dir)
         p.run(args.manual_taxonomy,
-              args.cur_gtdb_metadata_file,
-              args.qc_passed_file,
-              args.ncbi_genbank_assembly_file,
-              args.untrustworthy_type_file,
-              args.gtdb_type_strains_ledger,
-              args.sp_priority_ledger,
-              args.genus_priority_ledger,
-              args.ncbi_env_bioproject_ledger,
+              cur_gtdb_metadata_file,
+              qc_passed_file,
+              ncbi_assembly_summary_genbank_file,
+              untrustworthy_type_file,
+              gtdb_type_strains_ledger,
+              sp_priority_ledger,
+              genus_priority_ledger,
+              ncbi_env_bioproject_ledger,
               args.lpsn_gss_file)
 
     def pmc_check_type_strains(self, args):
         """Check for agreement between GTDB species and genomes assembled from type strain of species."""
 
+        check_file_exists(args.input_params_file)
+        params = self.parse_input_params(args.input_params_file)
+
+        cur_gtdb_metadata_file = os.path.join(params['root_dir'], params['data_files']['cur_gtdb_metadata_file'])
+        qc_passed_file = os.path.join(params['root_dir'], params['output_dirs']['u_qc_genomes'], 'qc_passed.tsv')
+        ncbi_assembly_summary_genbank_file = os.path.join(params['root_dir'], params['data_files']['ncbi_assembly_summary_genbank_file'])
+        untrustworthy_type_file = os.path.join(params['root_dir'], params['ledgers']['untrustworthy_type_ledger'])
+        gtdb_type_strains_ledger = os.path.join(params['root_dir'], params['ledgers']['gtdb_type_strains_ledger'])
+        ncbi_env_bioproject_ledger = os.path.join(params['root_dir'], params['ledgers']['ncbi_env_bioproject_ledger'])
+
         check_file_exists(args.manual_taxonomy)
-        check_file_exists(args.cur_gtdb_metadata_file)
-        check_file_exists(args.qc_passed_file)
-        check_file_exists(args.ncbi_genbank_assembly_file)
-        check_file_exists(args.untrustworthy_type_file)
-        check_file_exists(args.gtdb_type_strains_ledger)
-        check_file_exists(args.ncbi_env_bioproject_ledger)
+        check_file_exists(cur_gtdb_metadata_file)
+        check_file_exists(qc_passed_file)
+        check_file_exists(ncbi_assembly_summary_genbank_file)
+        check_file_exists(untrustworthy_type_file)
+        check_file_exists(gtdb_type_strains_ledger)
+        check_file_exists(ncbi_env_bioproject_ledger)
         make_sure_path_exists(args.output_dir)
 
         p = PMC_CheckTypeStrains(args.output_dir)
         p.run(args.manual_taxonomy,
-              args.cur_gtdb_metadata_file,
-              args.qc_passed_file,
-              args.ncbi_genbank_assembly_file,
-              args.untrustworthy_type_file,
-              args.gtdb_type_strains_ledger,
-              args.ncbi_env_bioproject_ledger)
-
-    def u_pmc_species_names(self, args):
-        """Refine species names using post-manual curation rules."""
-
-        check_file_exists(args.taxonomy_init)
-        check_file_exists(args.seqcode_file)
-        check_file_exists(args.gtdb_clusters_file)
-        check_file_exists(args.prev_gtdb_metadata_file)
-        check_file_exists(args.cur_gtdb_metadata_file)
-        check_file_exists(args.qc_passed_file)
-        check_file_exists(args.ncbi_misclassified_file)
-        check_file_exists(args.ncbi_genbank_assembly_file)
-        check_file_exists(args.untrustworthy_type_file)
-        check_file_exists(args.synonym_file)
-        check_file_exists(args.updated_species_reps)
-        check_file_exists(args.gtdb_type_strains_ledger)
-        check_file_exists(args.species_classification_ledger)
-        check_file_exists(args.sp_priority_ledger)
-        check_file_exists(args.genus_priority_ledger)
-        check_file_exists(args.specific_epithet_ledger)
-        check_file_exists(args.ncbi_untrustworthy_sp_ledger)
-        check_file_exists(args.ncbi_env_bioproject_ledger)
-        check_file_exists(args.lpsn_gss_file)
-        make_sure_path_exists(args.output_dir)
-
-        p = PMC_SpeciesNames(args.output_dir)
-        p.run(None,
-              args.taxonomy_init,
-              args.seqcode_file,
-              None,
-              args.manual_sp_file,
-              args.gtdb_clusters_file,
-              args.prev_gtdb_metadata_file,
-              args.cur_gtdb_metadata_file,
-              args.qc_passed_file,
-              args.ncbi_misclassified_file,
-              args.ncbi_genbank_assembly_file,
-              args.untrustworthy_type_file,
-              args.synonym_file,
-              args.updated_species_reps,
-              args.gtdb_type_strains_ledger,
-              args.species_classification_ledger,
-              args.sp_priority_ledger,
-              args.genus_priority_ledger,
-              args.specific_epithet_ledger,
-              args.ncbi_untrustworthy_sp_ledger,
-              args.ncbi_env_bioproject_ledger,
-              args.lpsn_gss_file)
+              cur_gtdb_metadata_file,
+              qc_passed_file,
+              ncbi_assembly_summary_genbank_file,
+              untrustworthy_type_file,
+              gtdb_type_strains_ledger,
+              ncbi_env_bioproject_ledger)
 
     def pmc_species_names(self, args):
         """Establish final species names based on manual curation."""
 
+        check_file_exists(args.input_params_file)
+        params = self.parse_input_params(args.input_params_file)
+
+        if params.domain == 'Archaea':
+            specific_epithet_ledger = os.path.join(params['root_dir'], params['output_dirs']['specific_epithet_ledger_ar'])
+        else:
+            specific_epithet_ledger = os.path.join(params['root_dir'],params['output_dirs']['specific_epithet_ledger_bac'])
+
+        seqcode_file = os.path.join(params['root_dir'], params['data_files']['seqcode_file'])
+        gtdb_clusters_file = os.path.join(params['output_dirs']['u_cluster_de_novo'], 'gtdb_clusters_de_novo.tsv')
+        prev_gtdb_metadata_file = os.path.join(params['root_dir'], params['data_files']['prev_gtdb_metadata_file'])
+        cur_gtdb_metadata_file = os.path.join(params['root_dir'], params['data_files']['cur_gtdb_metadata_file'])
+        qc_passed_file = os.path.join(params['root_dir'], params['output_dirs']['u_qc_genomes'], 'qc_passed.tsv')
+        ncbi_misclassified_file = os.path.join(params['root_dir'], params['output_dirs']['u_ncbi_erroneous'], 'ncbi_misclassified_sp.gtdb_clustering.tsv')
+        ncbi_genbank_assembly_file = os.path.join(params['root_dir'], params['data_files']['ncbi_assembly_summary_genbank_file'])
+        untrustworthy_type_file = os.path.join(params['root_dir'], params['ledgers']['untrustworthy_type_ledger'])
+        synonym_file = os.path.join(params['root_dir'], params['output_dirs']['u_synonyms'], 'synonyms.tsv')
+        updated_species_reps = os.path.join(params['root_dir'], params['output_dirs']['u_rep_actions'], 'updated_species_reps.tsv')
+        gtdb_type_strains_ledger = os.path.join(params['root_dir'], params['ledgers']['gtdb_type_strains_ledger'])
+        species_classification_ledger = os.path.join(params['root_dir'], params['ledgers']['species_classification_ledger'])
+        sp_priority_ledger = os.path.join(params['root_dir'], params['ledgers']['sp_priority_ledger'])
+        genus_priority_ledger = os.path.join(params['root_dir'], params['ledgers']['genus_priority_ledger'])
+        ncbi_untrustworthy_sp_ledger = os.path.join(params['root_dir'], params['ledgers']['ncbi_untrustworthy_sp_ledger'])
+        ncbi_env_bioproject_ledger = os.path.join(params['root_dir'], params['ledgers']['ncbi_env_bioproject_ledger'])
+        lpsn_gss_file = os.path.join(params['root_dir'], params['data_files']['lpsn_gss_file'])
+
         check_file_exists(args.curation_tree)
         check_file_exists(args.manual_taxonomy)
-        check_file_exists(args.seqcode_file)
+        check_file_exists(seqcode_file)
         check_file_exists(args.manual_sp_names)
         check_file_exists(args.pmc_custom_species)
-        check_file_exists(args.gtdb_clusters_file)
-        check_file_exists(args.prev_gtdb_metadata_file)
-        check_file_exists(args.cur_gtdb_metadata_file)
-        check_file_exists(args.qc_passed_file)
-        check_file_exists(args.ncbi_misclassified_file)
-        check_file_exists(args.ncbi_genbank_assembly_file)
-        check_file_exists(args.untrustworthy_type_file)
-        check_file_exists(args.synonym_file)
-        check_file_exists(args.updated_species_reps)
-        check_file_exists(args.gtdb_type_strains_ledger)
-        check_file_exists(args.species_classification_ledger)
-        check_file_exists(args.sp_priority_ledger)
-        check_file_exists(args.genus_priority_ledger)
-        check_file_exists(args.specific_epithet_ledger)
-        check_file_exists(args.ncbi_untrustworthy_sp_ledger)
-        check_file_exists(args.ncbi_env_bioproject_ledger)
-        check_file_exists(args.lpsn_gss_file)
+        check_file_exists(gtdb_clusters_file)
+        check_file_exists(prev_gtdb_metadata_file)
+        check_file_exists(cur_gtdb_metadata_file)
+        check_file_exists(qc_passed_file)
+        check_file_exists(ncbi_misclassified_file)
+        check_file_exists(ncbi_genbank_assembly_file)
+        check_file_exists(untrustworthy_type_file)
+        check_file_exists(synonym_file)
+        check_file_exists(updated_species_reps)
+        check_file_exists(gtdb_type_strains_ledger)
+        check_file_exists(species_classification_ledger)
+        check_file_exists(sp_priority_ledger)
+        check_file_exists(genus_priority_ledger)
+        check_file_exists(specific_epithet_ledger)
+        check_file_exists(ncbi_untrustworthy_sp_ledger)
+        check_file_exists(ncbi_env_bioproject_ledger)
+        check_file_exists(lpsn_gss_file)
         make_sure_path_exists(args.output_dir)
 
         p = PMC_SpeciesNames(args.output_dir)
         p.run(args.curation_tree,
               args.manual_taxonomy,
-              args.seqcode_file,
+              seqcode_file,
               args.manual_sp_names,
               args.pmc_custom_species,
-              args.gtdb_clusters_file,
-              args.prev_gtdb_metadata_file,
-              args.cur_gtdb_metadata_file,
-              args.qc_passed_file,
-              args.ncbi_misclassified_file,
-              args.ncbi_genbank_assembly_file,
-              args.untrustworthy_type_file,
-              args.synonym_file,
-              args.updated_species_reps,
-              args.gtdb_type_strains_ledger,
-              args.species_classification_ledger,
-              args.sp_priority_ledger,
-              args.genus_priority_ledger,
-              args.specific_epithet_ledger,
-              args.ncbi_untrustworthy_sp_ledger,
-              args.ncbi_env_bioproject_ledger,
-              args.lpsn_gss_file)
+              gtdb_clusters_file,
+              prev_gtdb_metadata_file,
+              cur_gtdb_metadata_file,
+              qc_passed_file,
+              ncbi_misclassified_file,
+              ncbi_genbank_assembly_file,
+              untrustworthy_type_file,
+              synonym_file,
+              updated_species_reps,
+              gtdb_type_strains_ledger,
+              species_classification_ledger,
+              sp_priority_ledger,
+              genus_priority_ledger,
+              specific_epithet_ledger,
+              ncbi_untrustworthy_sp_ledger,
+              ncbi_env_bioproject_ledger,
+              lpsn_gss_file)
 
     def pmc_validate(self, args):
         """Validate final species names."""
+
+        check_file_exists(args.input_params_file)
+        params = self.parse_input_params(args.input_params_file)
+
+        if params.domain == 'Archaea':
+            specific_epithet_ledger = os.path.join(params['root_dir'], params['output_dirs']['specific_epithet_ledger_ar'])
+        else:
+            specific_epithet_ledger = os.path.join(params['root_dir'],params['output_dirs']['specific_epithet_ledger_bac'])
+
+        gtdb_clusters_file = os.path.join(params['output_dirs']['u_cluster_de_novo'], 'gtdb_clusters_de_novo.tsv')
+        prev_gtdb_metadata_file = os.path.join(params['root_dir'], params['data_files']['prev_gtdb_metadata_file'])
+        cur_gtdb_metadata_file = os.path.join(params['root_dir'], params['data_files']['cur_gtdb_metadata_file'])
+        qc_passed_file = os.path.join(params['root_dir'], params['output_dirs']['u_qc_genomes'], 'qc_passed.tsv')
+        ncbi_misclassified_file = os.path.join(params['root_dir'], params['output_dirs']['u_ncbi_erroneous'], 'ncbi_misclassified_sp.gtdb_clustering.tsv')
+        ncbi_genbank_assembly_file = os.path.join(params['root_dir'], params['data_files']['ncbi_assembly_summary_genbank_file'])
+        untrustworthy_type_file = os.path.join(params['root_dir'], params['ledgers']['untrustworthy_type_ledger'])
+        synonym_file = os.path.join(params['root_dir'], params['output_dirs']['u_synonyms'], 'synonyms.tsv')
+        updated_species_reps = os.path.join(params['root_dir'], params['output_dirs']['u_rep_actions'], 'updated_species_reps.tsv')
+        gtdb_type_strains_ledger = os.path.join(params['root_dir'], params['ledgers']['gtdb_type_strains_ledger'])
+        species_classification_ledger = os.path.join(params['root_dir'], params['ledgers']['species_classification_ledger'])
+        sp_priority_ledger = os.path.join(params['root_dir'], params['ledgers']['sp_priority_ledger'])
+        genus_priority_ledger = os.path.join(params['root_dir'], params['ledgers']['genus_priority_ledger'])
+        ncbi_env_bioproject_ledger = os.path.join(params['root_dir'], params['ledgers']['ncbi_env_bioproject_ledger'])
+        lpsn_gss_metadata_file = os.path.join(params['root_dir'], params['data_files']['lpsn_metadata_file'])
+        lpsn_gss_file = os.path.join(params['root_dir'], params['data_files']['lpsn_gss_file'])
 
         check_file_exists(args.final_taxonomy)
 
@@ -646,23 +917,23 @@ class OptionsParser():
         if args.pmc_custom_species.lower() != 'none':
             check_file_exists(args.pmc_custom_species)
 
-        check_file_exists(args.gtdb_clusters_file)
-        check_file_exists(args.prev_gtdb_metadata_file)
-        check_file_exists(args.cur_gtdb_metadata_file)
-        check_file_exists(args.qc_passed_file)
-        check_file_exists(args.ncbi_misclassified_file)
-        check_file_exists(args.ncbi_genbank_assembly_file)
-        check_file_exists(args.untrustworthy_type_file)
-        check_file_exists(args.synonym_file)
-        check_file_exists(args.updated_species_reps)
-        check_file_exists(args.gtdb_type_strains_ledger)
-        check_file_exists(args.species_classification_ledger)
-        check_file_exists(args.sp_priority_ledger)
-        check_file_exists(args.genus_priority_ledger)
-        check_file_exists(args.specific_epithet_ledger)
-        check_file_exists(args.ncbi_env_bioproject_ledger)
-        check_file_exists(args.lpsn_gss_metadata_file)
-        check_file_exists(args.lpsn_data)
+        check_file_exists(gtdb_clusters_file)
+        check_file_exists(prev_gtdb_metadata_file)
+        check_file_exists(cur_gtdb_metadata_file)
+        check_file_exists(qc_passed_file)
+        check_file_exists(ncbi_misclassified_file)
+        check_file_exists(ncbi_genbank_assembly_file)
+        check_file_exists(untrustworthy_type_file)
+        check_file_exists(synonym_file)
+        check_file_exists(updated_species_reps)
+        check_file_exists(gtdb_type_strains_ledger)
+        check_file_exists(species_classification_ledger)
+        check_file_exists(sp_priority_ledger)
+        check_file_exists(genus_priority_ledger)
+        check_file_exists(specific_epithet_ledger)
+        check_file_exists(ncbi_env_bioproject_ledger)
+        check_file_exists(lpsn_gss_metadata_file)
+        check_file_exists(lpsn_gss_file)
 
         if args.ground_truth_test_cases.lower() != 'none':
             check_file_exists(args.ground_truth_test_cases)
@@ -674,23 +945,23 @@ class OptionsParser():
               args.final_scaled_tree,
               args.manual_sp_names,
               args.pmc_custom_species,
-              args.gtdb_clusters_file,
-              args.prev_gtdb_metadata_file,
-              args.cur_gtdb_metadata_file,
-              args.qc_passed_file,
-              args.ncbi_misclassified_file,
-              args.ncbi_genbank_assembly_file,
-              args.untrustworthy_type_file,
-              args.synonym_file,
-              args.updated_species_reps,
-              args.gtdb_type_strains_ledger,
-              args.species_classification_ledger,
-              args.sp_priority_ledger,
-              args.genus_priority_ledger,
-              args.specific_epithet_ledger,
-              args.ncbi_env_bioproject_ledger,
-              args.lpsn_gss_metadata_file,
-              args.lpsn_data,
+              gtdb_clusters_file,
+              prev_gtdb_metadata_file,
+              cur_gtdb_metadata_file,
+              qc_passed_file,
+              ncbi_misclassified_file,
+              ncbi_genbank_assembly_file,
+              untrustworthy_type_file,
+              synonym_file,
+              updated_species_reps,
+              gtdb_type_strains_ledger,
+              species_classification_ledger,
+              sp_priority_ledger,
+              genus_priority_ledger,
+              specific_epithet_ledger,
+              ncbi_env_bioproject_ledger,
+              lpsn_gss_metadata_file,
+              lpsn_gss_file,
               args.ground_truth_test_cases,
               args.skip_full_taxonomy_checks,
               args.skip_genus_checks)
@@ -714,10 +985,11 @@ class OptionsParser():
     def pmc_cleanup(self, args):
         """Remove temporary files and compress large files."""
 
-        check_file_exists(args.output_toml_file)
+        check_file_exists(args.input_params_file)
+        params = self.parse_input_params(args.input_params_file)
 
         p = PMC_Cleanup()
-        p.run(args.output_toml_file)
+        p.run(params['root_dir'], params['output_dirs'])
 
     def merge_test(self, args):
         """Produce information relevant to merging two sister species."""

@@ -20,8 +20,7 @@ import sys
 import logging
 import subprocess
 import shutil
-
-import tomli 
+from typing import Dict
 
 from gtdblib.util.shell.execute import check_dependencies
 
@@ -323,27 +322,24 @@ class PMC_Cleanup(object):
 
         compress_dir(output_dir, remove_dir=True)
 
-    def run(self, output_toml_file: str):
+    def run(self, root_output_dir: str, output_dirs: Dict[str, str]) -> None:
         """Remove temporary files and compress large files."""
 
-        with open(output_toml_file, mode="rb") as fp:
-            output_dirs = tomli.load(fp)
-
-        self.clean_root(output_dirs["root_dir"])
-        self.clean_u_new_genomes(os.path.join(output_dirs["root_dir"], output_dirs["u_new_genomes"]))
-        self.clean_u_qc_genomes(os.path.join(output_dirs["root_dir"], output_dirs["u_qc_genomes"]))
-        self.clean_u_gtdbtk(os.path.join(output_dirs["root_dir"], output_dirs["u_gtdbtk"]))
-        self.clean_u_lpsn_rna_types(os.path.join(output_dirs["root_dir"], output_dirs["u_lpsn_rna_types"]))
-        self.clean_u_resolve_types(os.path.join(output_dirs["root_dir"], output_dirs["u_resolve_types"]))
-        self.clean_u_rep_changes(os.path.join(output_dirs["root_dir"], output_dirs["u_rep_changes"]))
-        self.clean_u_rep_actions(os.path.join(output_dirs["root_dir"], output_dirs["u_rep_actions"]))
-        self.clean_u_sel_reps(os.path.join(output_dirs["root_dir"], output_dirs["u_sel_reps"]))
-        self.clean_u_cluster_named_reps(os.path.join(output_dirs["root_dir"], output_dirs["u_cluster_named_reps"]))
-        self.clean_u_cluster_de_novo(os.path.join(output_dirs["root_dir"], output_dirs["u_cluster_de_novo"]))
-        self.clean_u_cluster_stats(os.path.join(output_dirs["root_dir"], output_dirs["u_cluster_stats"]))
-        self.clean_u_ncbi_erroneous(os.path.join(output_dirs["root_dir"], output_dirs["u_ncbi_erroneous"]))
-        self.clean_u_synonyms(os.path.join(output_dirs["root_dir"], output_dirs["u_synonyms"]))
-        self.clean_u_curation_trees(os.path.join(output_dirs["root_dir"], output_dirs["u_curation_trees"]))
-        self.clean_u_species_init(os.path.join(output_dirs["root_dir"], output_dirs["u_species_init"]))
-        self.clean_u_pmc_species_names_ar(os.path.join(output_dirs["root_dir"], output_dirs["u_pmc_species_names_ar"]))
-        self.clean_u_pmc_species_names_bac(os.path.join(output_dirs["root_dir"], output_dirs["u_pmc_species_names_bac"]))
+        self.clean_root(root_output_dir)
+        self.clean_u_new_genomes(os.path.join(root_output_dir, output_dirs["u_new_genomes"]))
+        self.clean_u_qc_genomes(os.path.join(root_output_dir, output_dirs["u_qc_genomes"]))
+        self.clean_u_gtdbtk(os.path.join(root_output_dir, output_dirs["u_gtdbtk"]))
+        self.clean_u_lpsn_rna_types(os.path.join(root_output_dir, output_dirs["u_lpsn_rna_types"]))
+        self.clean_u_resolve_types(os.path.join(root_output_dir, output_dirs["u_resolve_types"]))
+        self.clean_u_rep_changes(os.path.join(root_output_dir, output_dirs["u_rep_changes"]))
+        self.clean_u_rep_actions(os.path.join(root_output_dir, output_dirs["u_rep_actions"]))
+        self.clean_u_sel_reps(os.path.join(root_output_dir, output_dirs["u_sel_reps"]))
+        self.clean_u_cluster_named_reps(os.path.join(root_output_dir, output_dirs["u_cluster_named_reps"]))
+        self.clean_u_cluster_de_novo(os.path.join(root_output_dir, output_dirs["u_cluster_de_novo"]))
+        self.clean_u_cluster_stats(os.path.join(root_output_dir, output_dirs["u_cluster_stats"]))
+        self.clean_u_ncbi_erroneous(os.path.join(root_output_dir, output_dirs["u_ncbi_erroneous"]))
+        self.clean_u_synonyms(os.path.join(root_output_dir, output_dirs["u_synonyms"]))
+        self.clean_u_curation_trees(os.path.join(root_output_dir, output_dirs["u_curation_trees"]))
+        self.clean_u_species_init(os.path.join(root_output_dir, output_dirs["u_species_init"]))
+        self.clean_u_pmc_species_names_ar(os.path.join(root_output_dir, output_dirs["u_pmc_species_names_ar"]))
+        self.clean_u_pmc_species_names_bac(os.path.join(root_output_dir, output_dirs["u_pmc_species_names_bac"]))
