@@ -1,3 +1,6 @@
+0.5.0
+- changed CLI to use a TOML file indicate parameters
+
 0.4.4
 - added CLI method to clean-up pipeline results (remove temp files; compress each directory)
 
