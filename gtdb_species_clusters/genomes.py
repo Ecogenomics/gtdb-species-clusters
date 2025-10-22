@@ -472,6 +472,7 @@ class Genomes(object):
             gtdb_genome_rep_index = headers.index('gtdb_genome_representative')
             gtdb_rep_index = headers.index('gtdb_representative')
 
+            lpsn_priority_index = None
             if 'lpsn_priority_year' in headers:
                 # this information will be missing from the previous
                 # GTDB metadata file as we strip this out due to
@@ -548,7 +549,7 @@ class Genomes(object):
                         gtdb_rid, gid, gtdb_taxonomy.species)
 
                 lpsn_priority_year = Genome.NO_PRIORITY_YEAR
-                if 'lpsn_priority_year' in headers:
+                if lpsn_priority_index is not None:
                     lpsn_priority_year = self._convert_int(
                         tokens[lpsn_priority_index], Genome.NO_PRIORITY_YEAR)
 

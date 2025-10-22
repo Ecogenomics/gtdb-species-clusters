@@ -15,7 +15,6 @@
 #                                                                             #
 ###############################################################################
 
-import os
 import sys
 import csv
 import re
@@ -23,8 +22,7 @@ import datetime
 import logging
 from collections import defaultdict
 from dataclasses import dataclass
-
-from gtdb_species_clusters.genome import Genome
+from typing import Optional
 
 
 @dataclass
@@ -40,13 +38,14 @@ class LPSN_Taxon(object):
     name: str
     priority_year: int
     type_material: str
-    type_material_priority_year: int
+    type_material_priority_year: Optional[int]
 
 
 class LPSN(object):
     """LPSN metadata for taxa."""
 
-    def parse_lpsn_priority_year(reference_str):
+    @staticmethod
+    def parse_lpsn_priority_year(reference_str: str):
         """Parse year of priority from LPSN reference string."""
 
         references = reference_str.replace('(', '').replace(')', '')

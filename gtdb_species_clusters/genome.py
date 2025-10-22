@@ -76,7 +76,7 @@ class Genome(object):
         ['type strain of subspecies', 'type strain of heterotypic synonym'])
     GTDB_NOT_TYPE_MATERIAL = set(['not type material'])
 
-    NO_PRIORITY_YEAR = 1e6
+    NO_PRIORITY_YEAR = int(1e6)
 
     def __post_init__(self):
         """Post data initialization."""

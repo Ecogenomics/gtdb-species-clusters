@@ -59,7 +59,6 @@ class RepActions():
             'Genome ID\tPrevious GTDB species\tAction\tParameters\n')
 
         self.new_reps = {}
-        self.sp_priority_mngr = None
 
     def rep_change_gids(self, rep_change_summary_file, field, value):
         """Get genomes with a specific change."""
@@ -104,9 +103,9 @@ class RepActions():
                 sys.exit(1)
 
         ani_af = self.skani.pairs(
-            gid_pairs, 
-            genome_paths, 
-            preset = Defaults.SKANI_PRESET,
+            gid_pairs,
+            genome_paths,
+            preset=Defaults.SKANI_PRESET,
             report_progress=False)
 
         # determine highest ANI score
@@ -120,7 +119,9 @@ class RepActions():
 
             cur_score = cur_genomes[cid].score_ani(ani)
             if (cur_score > max_score
-                    or (cur_score == max_score and ani > max_ani)):
+                    or (cur_score == max_score
+                        and max_ani is not None
+                        and ani > max_ani)):
                 max_score = cur_score
                 max_rid = cid
                 max_ani = ani
@@ -140,9 +141,9 @@ class RepActions():
             gid_pairs.append((cid, prev_rid))
 
         ani_af = self.skani.pairs(gid_pairs,
-                                    cur_genomes.genomic_files,
-                                    preset = Defaults.SKANI_PRESET,
-                                    report_progress=False)
+                                  cur_genomes.genomic_files,
+                                  preset=Defaults.SKANI_PRESET,
+                                  report_progress=False)
 
         # find genome with top ANI score
         max_score = -1e6
@@ -336,9 +337,9 @@ class RepActions():
             assert prev_rid in cur_genomes
 
             ani, af = self.skani.calculate(f'{prev_rid}-P', f'{prev_rid}-C',
-                                                        prev_genomes[prev_rid].genomic_file,
-                                                        cur_genomes[prev_rid].genomic_file,
-                                                        Defaults.SKANI_PRESET)
+                                           prev_genomes[prev_rid].genomic_file,
+                                           cur_genomes[prev_rid].genomic_file,
+                                           Defaults.SKANI_PRESET)
 
             params = {}
             params['ani'] = ani
@@ -815,7 +816,7 @@ class RepActions():
 
                 # self.log.warning('Representative is a non-type strain genome even though type strain genomes exist in species cluster: {}: {}, {}: {}'.format(
                 #                    prev_rid, cur_genomes[prev_rid].is_effective_type_strain(), updated_rid, cur_genomes[updated_rid].is_effective_type_strain()))
-                #self.log.warning('Type strain genomes: {}'.format(','.join(type_strain_gids)))
+                # self.log.warning('Type strain genomes: {}'.format(','.join(type_strain_gids)))
 
             # find highest priority genome
             note = ''
@@ -840,10 +841,10 @@ class RepActions():
                 num_higher_priority += 1
 
                 ani, af = self.skani.calculate(updated_rid,
-                                                highest_priority_gid,
-                                                cur_genomes[updated_rid].genomic_file,
-                                                cur_genomes[highest_priority_gid].genomic_file,
-                                                Defaults.SKANI_PRESET)
+                                               highest_priority_gid,
+                                               cur_genomes[updated_rid].genomic_file,
+                                               cur_genomes[highest_priority_gid].genomic_file,
+                                               Defaults.SKANI_PRESET)
 
                 anis.append(ani)
                 afs.append(af)
@@ -970,7 +971,7 @@ class RepActions():
         # create previous and current GTDB genome sets; the gtdb_type_strains_ledger is not
         # set for the previous genome since we want to compare names without the influence
         # of this file; moreover, the species names for the previous set must match the GTDB-Tk
-        # classifications which may not happen if species names are changed by the gtdb_type_strains_ledger 
+        # classifications which may not happen if species names are changed by the gtdb_type_strains_ledger
         self.log.info('Creating previous GTDB genome set:')
         prev_genomes = Genomes()
         prev_genomes.load_from_metadata_file(prev_gtdb_metadata_file,

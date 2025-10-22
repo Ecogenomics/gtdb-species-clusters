@@ -21,13 +21,12 @@ import logging
 import pickle
 from collections import defaultdict, namedtuple
 from itertools import combinations
-from typing import Dict, List, Tuple, Set
+from typing import DefaultDict, Dict, List, Tuple, Set, Optional
 
 from numpy import (mean as np_mean, std as np_std)
 
 from gtdblib.util.bio.accession import canonical_gid
 
-import gtdb_species_clusters.config as Config
 from gtdb_species_clusters.skani import Skani
 from gtdb_species_clusters.genomes import Genomes
 from gtdb_species_clusters.taxon_utils import generic_name, specific_epithet, canonical_taxon
@@ -35,11 +34,11 @@ from gtdb_species_clusters import defaults as Defaults
 
 
 LTP_METADATA = namedtuple(
-    'LTP_METADATA', 'taxonomy taxa species ssu_len evalue bitscore aln_len perc_iden perc_aln')
+    'LTP_METADATA', 'accession taxonomy taxa species ssu_len evalue bitscore aln_len perc_iden perc_aln')
 
 
 SsuLtpMetadata = Dict[str, List[LTP_METADATA]]
-AniPairs = Dict[str, Dict[str, Tuple[float, float, float]]]
+AniPairs = Dict[str, Dict[str, float]]
 Resolution = Tuple[bool, Dict[str, str]]
 
 
@@ -56,7 +55,7 @@ class ResolveTypes():
     address.
     """
 
-    def __init__(self, cpus: int, output_dir: str):
+    def __init__(self, cpus: int, ltp_dir: str, output_dir: str):
         """Initialization.
 
         :param ani_cache_file: TSV file with pre-computed skani values.
@@ -64,14 +63,15 @@ class ResolveTypes():
         :param output_dir: Output directory.
         """
 
-        # ToDo: read path from global GTDB release config file
-        self.ltp_dir = Config.LTP_DIR
-        self.ltp_results_file = Config.LTP_RESULTS_FILE
+        self.ltp_dir = ltp_dir
+        self.ltp_results_file = 'ssu.taxonomy.tsv'
 
         self.ltp_pi_threshold = 99.0
         self.ltp_pa_threshold = 90.0
         self.ltp_ssu_len_threshold = 900
         self.ltp_evalue_threshold = 1e-10
+
+        self.ltp_ani_same_strain = 88.0
 
         self.output_dir = output_dir
         self.log = logging.getLogger('rich')
@@ -83,7 +83,7 @@ class ResolveTypes():
         if not os.path.exists(self.ani_pickle_dir):
             os.makedirs(self.ani_pickle_dir)
 
-    def _parse_ltp_taxonomy_str(self, ltp_taxonomy_str: str) -> Tuple[List[str], str]:
+    def _parse_ltp_taxonomy_str(self, ltp_taxonomy_str: str) -> Tuple[List[str], Optional[str]]:
         """Parse taxa and species from LTP taxonomy string.
 
         :param ltp_taxonomy_str: LTP-style taxonomy string.
@@ -112,14 +112,17 @@ class ResolveTypes():
         sp = taxa[-1].replace('"', '')
         if ' subsp. ' in sp:
             sp = ' '.join(sp.split()[0:2])
+        if sp.startswith('Candidatus '):
+            sp = sp.replace('Candidatus ', '')
 
         # validate that terminal taxon appears to be a
         # valid binomial species name
-        if (sp[0].islower()
+        if (not sp
+                or sp[0].islower()
                 or any(c.isdigit() for c in sp)
                 or any(c.isupper() for c in sp[1:])):
-            print(ltp_taxonomy_str, taxa)
-            assert False
+            self.log.warning(f'Invalid LTP taxonomy string: {ltp_taxonomy_str} -> {taxa}')
+            return [], None
 
         return taxa, 's__' + sp
 
@@ -141,6 +144,7 @@ class ResolveTypes():
                 with open(ltp_file) as f:
                     header = f.readline().strip().split('\t')
 
+                    subject_id_idx = header.index('blast_subject_id')
                     taxonomy_index = header.index('taxonomy')
                     ssu_len_index = header.index('length')
                     evalue_index = header.index('blast_evalue')
@@ -151,6 +155,7 @@ class ResolveTypes():
                     for line in f:
                         tokens = line.strip().split('\t')
 
+                        subject_id = tokens[subject_id_idx]
                         taxonomy = tokens[taxonomy_index]
                         ssu_len = int(tokens[ssu_len_index])
                         evalue = float(tokens[evalue_index])
@@ -160,7 +165,11 @@ class ResolveTypes():
 
                         taxa, sp = self._parse_ltp_taxonomy_str(taxonomy)
 
+                        if sp is None:
+                            continue
+
                         metadata[gid].append(LTP_METADATA(
+                            accession=subject_id,
                             taxonomy=taxonomy,
                             taxa=taxa,
                             species=sp,
@@ -187,6 +196,10 @@ class ResolveTypes():
 
                 taxonomy = tokens[1]
                 _taxa, sp = self._parse_ltp_taxonomy_str(taxonomy)
+
+                if sp is None:
+                    continue
+
                 ltp_species.add(sp)
 
         return ltp_species
@@ -222,7 +235,7 @@ class ResolveTypes():
             if gid1 in untrustworthy_gids or gid2 in untrustworthy_gids:
                 continue
 
-            if gid_anis[gid1][gid2] < Config.ANI_SAME_STRAIN:
+            if gid_anis[gid1][gid2] < self.ltp_ani_same_strain:
                 return False
 
         return True
@@ -407,9 +420,10 @@ class ResolveTypes():
                         # genome has been assigned to another species
                         # defined by a type strain genome
                         ani, af = self.skani.calculate(gid,
-                                                        gtdb_sp_rid,
-                                                        cur_genomes[gid].genomic_file,
-                                                        cur_genomes[gtdb_sp_rid].genomic_file)
+                                                       gtdb_sp_rid,
+                                                       cur_genomes[gid].genomic_file,
+                                                       cur_genomes[gtdb_sp_rid].genomic_file,
+                                                       Defaults.SKANI_PRESET)
                         untrustworthy_gids[
                             gid] = f'Conflicting GTDB species assignment of {cur_genomes[gid].gtdb_taxa.species} [ANI={ani:.2f}%; AF={af:.2f}%]'
 
@@ -532,14 +546,14 @@ class ResolveTypes():
 
         return manual_untrustworthy_types
 
-    def sp_with_mult_type_strains(self, cur_genomes: Genomes) -> Dict[str, List[str]]:
+    def sp_with_mult_type_strains(self, cur_genomes: Genomes) -> Dict[str, Set[str]]:
         """Identify NCBI species with multiple type strain of species genomes.
 
         :param cur_genomes: Metadata for genomes in the current GTDB release.
         :return: Mapping from NCBI species to type strain genome accessions.
         """
 
-        sp_type_strain_genomes = defaultdict(set)
+        sp_type_strain_genomes: DefaultDict[str, set[str]] = defaultdict(set)
         for gid in cur_genomes:
             if cur_genomes[gid].is_effective_type_strain():
                 ncbi_sp = cur_genomes[gid].ncbi_taxa.species
@@ -566,9 +580,9 @@ class ResolveTypes():
         ncbi_sp_str = ncbi_sp[3:].lower().replace(' ', '_')
         if not use_pickled_results:  # ***
             ani_af = self.skani.pairwise(
-                type_gids, 
+                type_gids,
                 cur_genomes.genomic_files,
-                preset = Defaults.SKANI_PRESET,
+                preset=Defaults.SKANI_PRESET,
                 report_progress=False)
             pickle.dump(ani_af, open(os.path.join(
                 self.ani_pickle_dir, f'{ncbi_sp_str}.pkl'), 'wb'))
@@ -583,7 +597,7 @@ class ResolveTypes():
         all_similar = True
         for gid1, gid2 in combinations(type_gids, 2):
             ani, af = Skani.symmetric_ani_af(ani_af, gid1, gid2)
-            if ani < Config.ANI_SAME_STRAIN or af < Defaults.AF_SP:
+            if ani < self.ltp_ani_same_strain or af < Defaults.AF_SP:
                 all_similar = False
 
             anis.append(ani)
@@ -620,7 +634,7 @@ class ResolveTypes():
 
         # get species in LTP reference database
         self.log.info(
-            'Determining species defined in LTP reference database.')
+            'Determining species defined in LTP reference database:')
         ltp_defined_species = self.ltp_defined_species(ltp_taxonomy_file)
         self.log.info(
             f' - identified {len(ltp_defined_species):,} species.')
@@ -687,6 +701,10 @@ class ResolveTypes():
         fout_untrustworthy.write(
             'Genome ID\tNCBI species\tGTDB species\tLTP species\tReason for declaring untrustworthy\n')
 
+        fout_ltp = open(os.path.join(self.output_dir, 'ltp_blast_results.tsv'), 'w')
+        fout_ltp.write('Genome ID\tNCBI species\tGTDB species\tLTP species\tAccession')
+        fout_ltp.write('\tPercent Identity\tPercent Alignment\tLength\tAlignment length\tE-value\tBitscore\tLTP taxonomy\n')
+
         for gid in manual_untrustworthy_types:
             ncbi_sp, reason = manual_untrustworthy_types[gid]
             fout_untrustworthy.write('{}\t{}\t{}\t{}\t{}\t{}\n'.format(
@@ -739,6 +757,23 @@ class ResolveTypes():
 
             # read LTP metadata for genomes
             ltp_metadata = self.parse_ltp_metadata(type_gids, cur_genomes)
+
+            for gid, hits in ltp_metadata.items():
+                for hit in hits:
+                    fout_ltp.write('{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\n'.format(
+                        gid,
+                        cur_genomes[gid].gtdb_taxa.species,
+                        ncbi_sp,
+                        hit.species,
+                        hit.accession,
+                        hit.perc_iden,
+                        hit.perc_aln,
+                        hit.ssu_len,
+                        hit.aln_len,
+                        hit.evalue,
+                        hit.bitscore,
+                        hit.taxonomy
+                    ))
 
             untrustworthy_gids = {}
             gtdb_resolved_sp_conflict = False
@@ -968,6 +1003,7 @@ class ResolveTypes():
         fout_high_divergence.close()
         fout_genomes.close()
         fout_untrustworthy.close()
+        fout_ltp.close()
 
         self.log.info(
             f'Identified {num_divergent:,} species with 1 or more divergent type strain genomes.')

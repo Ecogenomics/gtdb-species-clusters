@@ -20,11 +20,6 @@ import sys
 import csv
 import logging
 
-if sys.version_info >= (3, 11):
-    import tomllib
-else:
-    import toml as tomllib
-
 from gtdblib.util.shell.gtdbshutil import check_file_exists, make_sure_path_exists
 
 from gtdb_species_clusters.update_new_genomes import NewGenomes
@@ -62,6 +57,20 @@ from gtdb_species_clusters.inspect_genomes import InspectGenomes
 from gtdb_species_clusters.sandbox import Sandbox
 
 
+if sys.version_info >= (3, 11):
+    import tomllib
+
+    def parse_toml_file(toml_file: str):
+        with open(toml_file, 'rb') as f:
+            return tomllib.load(f)
+else:
+    import toml as tomllib
+
+    def parse_toml_file(toml_file: str):
+        with open(toml_file, 'r') as f:
+            return tomllib.load(f)
+
+
 class OptionsParser():
     """Validate and execute command-line interface."""
 
@@ -69,20 +78,11 @@ class OptionsParser():
         """Initialization"""
         self.log = logging.getLogger()
 
-    def parse_input_params(self, input_params_file):
-        """Parse input parameters from a file."""
-
-        params = {}
-        with open(input_params_file, 'r') as f:
-            params = tomllib.load(f)
-
-        return params
-
     def u_new_genomes(self, args):
         """Identify new and updated genomes."""
 
         check_file_exists(args.input_params_file)
-        params = self.parse_input_params(args.input_params_file)
+        params = parse_toml_file(args.input_params_file)
 
         check_file_exists(params['data_files']['prev_gtdb_metadata_file'])
         check_file_exists(params['data_files']['cur_gtdb_metadata_file'])
@@ -102,7 +102,7 @@ class OptionsParser():
         """Quality check new and updated genomes."""
 
         check_file_exists(args.input_params_file)
-        params = self.parse_input_params(args.input_params_file)
+        params = parse_toml_file(args.input_params_file)
 
         check_file_exists(params['data_files']['prev_gtdb_metadata_file'])
         check_file_exists(params['data_files']['cur_gtdb_metadata_file'])
@@ -140,15 +140,14 @@ class OptionsParser():
         """Perform initial classification of new and updated genomes using GTDB-Tk."""
 
         check_file_exists(args.input_params_file)
-        params = self.parse_input_params(args.input_params_file)
+        params = parse_toml_file(args.input_params_file)
 
         genomes_new_updated = os.path.join(params['output_dirs']['u_new_genomes'], 'genomes_new_updated.tsv')
         qc_passed = os.path.join(params['output_dirs']['u_qc_genomes'], 'qc_passed.tsv')
 
         check_file_exists(genomes_new_updated)
         check_file_exists(qc_passed)
-        check_file_exists(params['data_files']['mash_db_file'])
-        
+
         make_sure_path_exists(params['output_dirs']['u_gtdbtk'])
         self.log.info(f"Output directory: {params['output_dirs']['u_gtdbtk']}")
 
@@ -162,7 +161,7 @@ class OptionsParser():
         """Identify type genomes based on type 16S rRNA sequences indicated at LPSN."""
 
         check_file_exists(args.input_params_file)
-        params = self.parse_input_params(args.input_params_file)
+        params = parse_toml_file(args.input_params_file)
 
         qc_passed = os.path.join(params['output_dirs']['u_qc_genomes'], 'qc_passed.tsv')
 
@@ -190,15 +189,15 @@ class OptionsParser():
         """Resolve cases where a species has multiple genomes assembled from the type strain."""
 
         check_file_exists(args.input_params_file)
-        params = self.parse_input_params(args.input_params_file)
+        params = parse_toml_file(args.input_params_file)
 
         qc_passed = os.path.join(params['output_dirs']['u_qc_genomes'], 'qc_passed.tsv')
-        
+
         check_file_exists(qc_passed)
         check_file_exists(params['data_files']['cur_gtdb_metadata_file'])
         check_file_exists(params['data_files']['cur_genome_path_file'])
         check_file_exists(params['data_files']['ncbi_assembly_summary_genbank_file'])
-        check_file_exists(params['data_files']['ltp_taxonomy_file'])
+        check_file_exists(params['ltp']['ltp_taxonomy_file'])
         check_file_exists(params['ledgers']['gtdb_type_strains_ledger'])
         check_file_exists(params['ledgers']['untrustworthy_type_ledger'])
         check_file_exists(params['ledgers']['ncbi_env_bioproject_ledger'])
@@ -206,12 +205,12 @@ class OptionsParser():
         make_sure_path_exists(params['output_dirs']['u_resolve_types'])
         self.log.info(f"Output directory: {params['output_dirs']['u_resolve_types']}")
 
-        p = ResolveTypes(args.cpus, params['output_dirs']['u_resolve_types'])
+        p = ResolveTypes(args.cpus, params['ltp']['ltp_dir'], params['output_dirs']['u_resolve_types'])
         p.run(params['data_files']['cur_gtdb_metadata_file'],
               params['data_files']['cur_genome_path_file'],
               qc_passed,
               params['data_files']['ncbi_assembly_summary_genbank_file'],
-              params['data_files']['ltp_taxonomy_file'],
+              params['ltp']['ltp_taxonomy_file'],
               params['ledgers']['gtdb_type_strains_ledger'],
               params['ledgers']['untrustworthy_type_ledger'],
               params['ledgers']['ncbi_env_bioproject_ledger'])
@@ -220,7 +219,7 @@ class OptionsParser():
         """Identify species representatives that have changed from previous release."""
 
         check_file_exists(args.input_params_file)
-        params = self.parse_input_params(args.input_params_file)
+        params = parse_toml_file(args.input_params_file)
 
         genomes_new_updated = os.path.join(params['output_dirs']['u_new_genomes'], 'genomes_new_updated.tsv')
         qc_passed = os.path.join(params['output_dirs']['u_qc_genomes'], 'qc_passed.tsv')
@@ -257,7 +256,7 @@ class OptionsParser():
         """Perform initial actions required for changed representatives."""
 
         check_file_exists(args.input_params_file)
-        params = self.parse_input_params(args.input_params_file)
+        params = parse_toml_file(args.input_params_file)
 
         genomes_new_updated = os.path.join(params['output_dirs']['u_new_genomes'], 'genomes_new_updated.tsv')
         qc_passed = os.path.join(params['output_dirs']['u_qc_genomes'], 'qc_passed.tsv')
@@ -303,7 +302,7 @@ class OptionsParser():
         """Select representatives for all named species at NCBI."""
 
         check_file_exists(args.input_params_file)
-        params = self.parse_input_params(args.input_params_file)
+        params = parse_toml_file(args.input_params_file)
 
         qc_passed = os.path.join(params['output_dirs']['u_qc_genomes'], 'qc_passed.tsv')
         untrustworthy_type_file = os.path.join(params['output_dirs']['u_resolve_types'], 'untrustworthy_type_material.tsv')
@@ -344,7 +343,7 @@ class OptionsParser():
         """Cluster genomes to selected GTDB representatives."""
 
         check_file_exists(args.input_params_file)
-        params = self.parse_input_params(args.input_params_file)
+        params = parse_toml_file(args.input_params_file)
 
         qc_passed = os.path.join(params['output_dirs']['u_qc_genomes'], 'qc_passed.tsv')
         untrustworthy_type_file = os.path.join(params['output_dirs']['u_resolve_types'], 'untrustworthy_type_material.tsv')
@@ -382,7 +381,7 @@ class OptionsParser():
         """Infer de novo species clusters and representatives for remaining genomes."""
 
         check_file_exists(args.input_params_file)
-        params = self.parse_input_params(args.input_params_file)
+        params = parse_toml_file(args.input_params_file)
 
         qc_passed = os.path.join(params['output_dirs']['u_qc_genomes'], 'qc_passed.tsv')
         untrustworthy_type_file = os.path.join(params['output_dirs']['u_resolve_types'], 'untrustworthy_type_material.tsv')
@@ -420,7 +419,7 @@ class OptionsParser():
         """Summary statistics indicating changes to GTDB species cluster membership."""
 
         check_file_exists(args.input_params_file)
-        params = self.parse_input_params(args.input_params_file)
+        params = parse_toml_file(args.input_params_file)
 
         qc_passed = os.path.join(params['output_dirs']['u_qc_genomes'], 'qc_passed.tsv')
         untrustworthy_type_file = os.path.join(params['output_dirs']['u_resolve_types'], 'untrustworthy_type_material.tsv')
@@ -452,7 +451,7 @@ class OptionsParser():
         """Identify genomes with erroneous NCBI species assignments."""
 
         check_file_exists(args.input_params_file)
-        params = self.parse_input_params(args.input_params_file)
+        params = parse_toml_file(args.input_params_file)
 
         qc_passed = os.path.join(params['output_dirs']['u_qc_genomes'], 'qc_passed.tsv')
         untrustworthy_type_file = os.path.join(params['output_dirs']['u_resolve_types'], 'untrustworthy_type_material.tsv')
@@ -486,12 +485,13 @@ class OptionsParser():
         """Determine synonyms for validly or effectively published species."""
 
         check_file_exists(args.input_params_file)
-        params = self.parse_input_params(args.input_params_file)
+        params = parse_toml_file(args.input_params_file)
 
         qc_passed = os.path.join(params['output_dirs']['u_qc_genomes'], 'qc_passed.tsv')
         untrustworthy_type_file = os.path.join(params['output_dirs']['u_resolve_types'], 'untrustworthy_type_material.tsv')
         gtdb_clusters_file = os.path.join(params['output_dirs']['u_cluster_de_novo'], 'gtdb_clusters_de_novo.tsv')
-        ncbi_misclassified_file = os.path.join(params['output_dirs']['u_ncbi_erroneous'], 'ncbi_misclassified_sp.gtdb_clustering.tsv')
+        ncbi_misclassified_file = os.path.join(
+            params['output_dirs']['u_ncbi_erroneous'], 'ncbi_misclassified_sp.gtdb_clustering.tsv')
         ani_af_nonrep_vs_rep = os.path.join(params['output_dirs']['u_cluster_named_reps'], 'ani_af_nonrep_vs_rep.pkl')
 
         check_file_exists(gtdb_clusters_file)
@@ -530,7 +530,7 @@ class OptionsParser():
         """Produce curation trees highlighting new NCBI taxa."""
 
         check_file_exists(args.input_params_file)
-        params = self.parse_input_params(args.input_params_file)
+        params = parse_toml_file(args.input_params_file)
 
         qc_passed = os.path.join(params['output_dirs']['u_qc_genomes'], 'qc_passed.tsv')
         untrustworthy_type_file = os.path.join(params['output_dirs']['u_resolve_types'], 'untrustworthy_type_material.tsv')
@@ -564,7 +564,7 @@ class OptionsParser():
         """Produce initial best guess at GTDB species clusters."""
 
         check_file_exists(args.input_params_file)
-        params = self.parse_input_params(args.input_params_file)
+        params = parse_toml_file(args.input_params_file)
 
         qc_passed = os.path.join(params['output_dirs']['u_qc_genomes'], 'qc_passed.tsv')
         untrustworthy_type_file = os.path.join(params['output_dirs']['u_resolve_types'], 'untrustworthy_type_material.tsv')
@@ -610,13 +610,14 @@ class OptionsParser():
         """Refine species names using post-manual curation rules."""
 
         check_file_exists(args.input_params_file)
-        params = self.parse_input_params(args.input_params_file)
+        params = parse_toml_file(args.input_params_file)
 
         qc_passed = os.path.join(params['output_dirs']['u_qc_genomes'], 'qc_passed.tsv')
         untrustworthy_type_file = os.path.join(params['output_dirs']['u_resolve_types'], 'untrustworthy_type_material.tsv')
         gtdb_clusters_file = os.path.join(params['output_dirs']['u_cluster_de_novo'], 'gtdb_clusters_de_novo.tsv')
         synonym_file = os.path.join(params['output_dirs']['u_synonyms'], 'synonyms.tsv')
-        ncbi_misclassified_file = os.path.join(params['output_dirs']['u_ncbi_erroneous'], 'ncbi_misclassified_sp.gtdb_clustering.tsv')
+        ncbi_misclassified_file = os.path.join(
+            params['output_dirs']['u_ncbi_erroneous'], 'ncbi_misclassified_sp.gtdb_clustering.tsv')
         updated_species_reps_file = os.path.join(params['output_dirs']['u_rep_actions'], 'updated_species_reps.tsv')
         taxonomy_init_ar = os.path.join(params['output_dirs']['u_species_init'], 'gtdb_ar_taxonomy.tsv')
         taxonomy_init_bac = os.path.join(params['output_dirs']['u_species_init'], 'gtdb_ar_taxonomy.tsv')
@@ -673,7 +674,7 @@ class OptionsParser():
               params['data_files']['lpsn_gss_file'])
 
         # create bacterial species names
-        make_sure_path_exists(params['output_dirs']['u_pmc_species_names_bac'])        
+        make_sure_path_exists(params['output_dirs']['u_pmc_species_names_bac'])
         self.log.info(f"Output directory (bac): {params['output_dirs']['u_pmc_species_names_bac']}")
 
         p = PMC_SpeciesNames(params['output_dirs']['u_pmc_species_names_bac'])
@@ -704,12 +705,16 @@ class OptionsParser():
         """Identify species names manually set by curators."""
 
         check_file_exists(args.input_params_file)
-        params = self.parse_input_params(args.input_params_file)
+        params = parse_toml_file(args.input_params_file)
 
-        if params.domain == 'Archaea':
-            init_taxonomy = os.path.join(params['root_dir'], params['output_dirs']['u_pmc_species_names_ar'], 'final_taxonomy.tsv')
+        if args.domain == 'Archaea':
+            init_taxonomy = os.path.join(params['root_dir'],
+                                         params['output_dirs']['u_pmc_species_names_ar'],
+                                         'final_taxonomy.tsv')
         else:
-            init_taxonomy = os.path.join(params['root_dir'],params['output_dirs']['u_pmc_species_names_bac'], 'final_taxonomy.tsv')
+            init_taxonomy = os.path.join(params['root_dir'],
+                                         params['output_dirs']['u_pmc_species_names_bac'],
+                                         'final_taxonomy.tsv')
 
         check_file_exists(init_taxonomy)
         check_file_exists(args.manually_curated_tree)
@@ -734,11 +739,12 @@ class OptionsParser():
         """Check for agreement between GTDB genera and genomes assembled from type species of genus."""
 
         check_file_exists(args.input_params_file)
-        params = self.parse_input_params(args.input_params_file)
+        params = parse_toml_file(args.input_params_file)
 
         cur_gtdb_metadata_file = os.path.join(params['root_dir'], params['data_files']['cur_gtdb_metadata_file'])
         qc_passed_file = os.path.join(params['root_dir'], params['output_dirs']['u_qc_genomes'], 'qc_passed.tsv')
-        ncbi_assembly_summary_genbank_file = os.path.join(params['root_dir'], params['data_files']['ncbi_assembly_summary_genbank_file'])
+        ncbi_assembly_summary_genbank_file = os.path.join(
+            params['root_dir'], params['data_files']['ncbi_assembly_summary_genbank_file'])
         untrustworthy_type_file = os.path.join(params['root_dir'], params['ledgers']['untrustworthy_type_ledger'])
         gtdb_type_strains_ledger = os.path.join(params['root_dir'], params['ledgers']['gtdb_type_strains_ledger'])
         sp_priority_ledger = os.path.join(params['root_dir'], params['ledgers']['sp_priority_ledger'])
@@ -774,11 +780,12 @@ class OptionsParser():
         """Check for agreement between GTDB species and genomes assembled from type strain of species."""
 
         check_file_exists(args.input_params_file)
-        params = self.parse_input_params(args.input_params_file)
+        params = parse_toml_file(args.input_params_file)
 
         cur_gtdb_metadata_file = os.path.join(params['root_dir'], params['data_files']['cur_gtdb_metadata_file'])
         qc_passed_file = os.path.join(params['root_dir'], params['output_dirs']['u_qc_genomes'], 'qc_passed.tsv')
-        ncbi_assembly_summary_genbank_file = os.path.join(params['root_dir'], params['data_files']['ncbi_assembly_summary_genbank_file'])
+        ncbi_assembly_summary_genbank_file = os.path.join(
+            params['root_dir'], params['data_files']['ncbi_assembly_summary_genbank_file'])
         untrustworthy_type_file = os.path.join(params['root_dir'], params['ledgers']['untrustworthy_type_ledger'])
         gtdb_type_strains_ledger = os.path.join(params['root_dir'], params['ledgers']['gtdb_type_strains_ledger'])
         ncbi_env_bioproject_ledger = os.path.join(params['root_dir'], params['ledgers']['ncbi_env_bioproject_ledger'])
@@ -805,23 +812,26 @@ class OptionsParser():
         """Establish final species names based on manual curation."""
 
         check_file_exists(args.input_params_file)
-        params = self.parse_input_params(args.input_params_file)
+        params = parse_toml_file(args.input_params_file)
 
-        if params.domain == 'Archaea':
+        if args.domain == 'Archaea':
             specific_epithet_ledger = os.path.join(params['root_dir'], params['output_dirs']['specific_epithet_ledger_ar'])
         else:
-            specific_epithet_ledger = os.path.join(params['root_dir'],params['output_dirs']['specific_epithet_ledger_bac'])
+            specific_epithet_ledger = os.path.join(params['root_dir'], params['output_dirs']['specific_epithet_ledger_bac'])
 
         seqcode_file = os.path.join(params['root_dir'], params['data_files']['seqcode_file'])
         gtdb_clusters_file = os.path.join(params['output_dirs']['u_cluster_de_novo'], 'gtdb_clusters_de_novo.tsv')
         prev_gtdb_metadata_file = os.path.join(params['root_dir'], params['data_files']['prev_gtdb_metadata_file'])
         cur_gtdb_metadata_file = os.path.join(params['root_dir'], params['data_files']['cur_gtdb_metadata_file'])
         qc_passed_file = os.path.join(params['root_dir'], params['output_dirs']['u_qc_genomes'], 'qc_passed.tsv')
-        ncbi_misclassified_file = os.path.join(params['root_dir'], params['output_dirs']['u_ncbi_erroneous'], 'ncbi_misclassified_sp.gtdb_clustering.tsv')
-        ncbi_genbank_assembly_file = os.path.join(params['root_dir'], params['data_files']['ncbi_assembly_summary_genbank_file'])
+        ncbi_misclassified_file = os.path.join(
+            params['root_dir'], params['output_dirs']['u_ncbi_erroneous'], 'ncbi_misclassified_sp.gtdb_clustering.tsv')
+        ncbi_genbank_assembly_file = os.path.join(
+            params['root_dir'], params['data_files']['ncbi_assembly_summary_genbank_file'])
         untrustworthy_type_file = os.path.join(params['root_dir'], params['ledgers']['untrustworthy_type_ledger'])
         synonym_file = os.path.join(params['root_dir'], params['output_dirs']['u_synonyms'], 'synonyms.tsv')
-        updated_species_reps = os.path.join(params['root_dir'], params['output_dirs']['u_rep_actions'], 'updated_species_reps.tsv')
+        updated_species_reps = os.path.join(params['root_dir'], params['output_dirs']
+                                            ['u_rep_actions'], 'updated_species_reps.tsv')
         gtdb_type_strains_ledger = os.path.join(params['root_dir'], params['ledgers']['gtdb_type_strains_ledger'])
         species_classification_ledger = os.path.join(params['root_dir'], params['ledgers']['species_classification_ledger'])
         sp_priority_ledger = os.path.join(params['root_dir'], params['ledgers']['sp_priority_ledger'])
@@ -882,29 +892,32 @@ class OptionsParser():
         """Validate final species names."""
 
         check_file_exists(args.input_params_file)
-        params = self.parse_input_params(args.input_params_file)
+        params = parse_toml_file(args.input_params_file)
 
-        if params.domain == 'Archaea':
+        if args.domain == 'Archaea':
             specific_epithet_ledger = os.path.join(params['root_dir'], params['output_dirs']['specific_epithet_ledger_ar'])
         else:
-            specific_epithet_ledger = os.path.join(params['root_dir'],params['output_dirs']['specific_epithet_ledger_bac'])
+            specific_epithet_ledger = os.path.join(params['root_dir'], params['output_dirs']['specific_epithet_ledger_bac'])
 
         gtdb_clusters_file = os.path.join(params['output_dirs']['u_cluster_de_novo'], 'gtdb_clusters_de_novo.tsv')
         prev_gtdb_metadata_file = os.path.join(params['root_dir'], params['data_files']['prev_gtdb_metadata_file'])
         cur_gtdb_metadata_file = os.path.join(params['root_dir'], params['data_files']['cur_gtdb_metadata_file'])
         qc_passed_file = os.path.join(params['root_dir'], params['output_dirs']['u_qc_genomes'], 'qc_passed.tsv')
-        ncbi_misclassified_file = os.path.join(params['root_dir'], params['output_dirs']['u_ncbi_erroneous'], 'ncbi_misclassified_sp.gtdb_clustering.tsv')
-        ncbi_genbank_assembly_file = os.path.join(params['root_dir'], params['data_files']['ncbi_assembly_summary_genbank_file'])
+        ncbi_misclassified_file = os.path.join(
+            params['root_dir'], params['output_dirs']['u_ncbi_erroneous'], 'ncbi_misclassified_sp.gtdb_clustering.tsv')
+        ncbi_genbank_assembly_file = os.path.join(
+            params['root_dir'], params['data_files']['ncbi_assembly_summary_genbank_file'])
         untrustworthy_type_file = os.path.join(params['root_dir'], params['ledgers']['untrustworthy_type_ledger'])
         synonym_file = os.path.join(params['root_dir'], params['output_dirs']['u_synonyms'], 'synonyms.tsv')
-        updated_species_reps = os.path.join(params['root_dir'], params['output_dirs']['u_rep_actions'], 'updated_species_reps.tsv')
+        updated_species_reps = os.path.join(params['root_dir'], params['output_dirs']
+                                            ['u_rep_actions'], 'updated_species_reps.tsv')
         gtdb_type_strains_ledger = os.path.join(params['root_dir'], params['ledgers']['gtdb_type_strains_ledger'])
         species_classification_ledger = os.path.join(params['root_dir'], params['ledgers']['species_classification_ledger'])
         sp_priority_ledger = os.path.join(params['root_dir'], params['ledgers']['sp_priority_ledger'])
         genus_priority_ledger = os.path.join(params['root_dir'], params['ledgers']['genus_priority_ledger'])
         ncbi_env_bioproject_ledger = os.path.join(params['root_dir'], params['ledgers']['ncbi_env_bioproject_ledger'])
-        lpsn_gss_metadata_file = os.path.join(params['root_dir'], params['data_files']['lpsn_metadata_file'])
-        lpsn_gss_file = os.path.join(params['root_dir'], params['data_files']['lpsn_gss_file'])
+        lpsn_gss_metadata_file = os.path.join(params['root_dir'], params['data_files']['lpsn_gss_file'])
+        lpsn_gss_file = os.path.join(params['root_dir'], params['data_files']['lpsn_metadata_file'])
 
         check_file_exists(args.final_taxonomy)
 
@@ -981,12 +994,12 @@ class OptionsParser():
         p.run(args.sp_cluster_file,
               args.genome_path_file,
               args.gtdb_metadata_file)
-        
+
     def pmc_cleanup(self, args):
         """Remove temporary files and compress large files."""
 
         check_file_exists(args.input_params_file)
-        params = self.parse_input_params(args.input_params_file)
+        params = parse_toml_file(args.input_params_file)
 
         p = PMC_Cleanup()
         p.run(params['root_dir'], params['output_dirs'])
@@ -1099,59 +1112,68 @@ class OptionsParser():
         cur_reps_taxa = {}
         cur_rep_species = set()
         cur_rep_genera = set()
-        header = True
-        for row in csv.reader(open(args.cur_metadata_file)):
-            if header:
-                header = False
-                gtdb_rep_index = row.index('gtdb_representative')
-                gtdb_taxonomy_index = row.index('gtdb_taxonomy')
-            else:
-                gid = row[0]
-                cur_gids.add(gid)
 
-                gtdb_taxonomy = row[gtdb_taxonomy_index]
-                if gtdb_taxonomy:
-                    gtdb_taxa = [t.strip()
-                                 for t in row[gtdb_taxonomy_index].split(';')]
-                    if gtdb_taxa[6] != 's__':
-                        cur_species.add(gtdb_taxa[6])
-                    if gtdb_taxa[5] != 'g__':
-                        cur_genera.add(gtdb_taxa[5])
+        reader = csv.reader(open(args.cur_metadata_file))
+        header = next(reader, None)
+        if header:
+            gtdb_rep_index = header.index('gtdb_representative')
+            gtdb_taxonomy_index = header.index('gtdb_taxonomy')
+        else:
+            self.log.error(f"No header found in {args.cur_metadata_file}")
+            sys.exit(1)
 
-                if row[gtdb_rep_index] == 't':
-                    cur_reps_taxa[gid] = gtdb_taxa
+        for row in reader:
+            gid = row[0]
+            cur_gids.add(gid)
 
-                    if gtdb_taxa[6] != 's__':
-                        cur_rep_species.add(gtdb_taxa[6])
+            gtdb_taxa = ['']*7
+            gtdb_taxonomy = row[gtdb_taxonomy_index]
+            if gtdb_taxonomy:
+                gtdb_taxa = [t.strip()
+                             for t in row[gtdb_taxonomy_index].split(';')]
+                if gtdb_taxa[6] != 's__':
+                    cur_species.add(gtdb_taxa[6])
+                if gtdb_taxa[5] != 'g__':
+                    cur_genera.add(gtdb_taxa[5])
 
-                    if gtdb_taxa[5] != 'g__':
-                        cur_rep_genera.add(gtdb_taxa[5])
+            if row[gtdb_rep_index] == 't':
+                cur_reps_taxa[gid] = gtdb_taxa
+
+                if gtdb_taxa[6] != 's__':
+                    cur_rep_species.add(gtdb_taxa[6])
+
+                if gtdb_taxa[5] != 'g__':
+                    cur_rep_genera.add(gtdb_taxa[5])
 
         # get representatives in previous taxonomy
         prev_reps_taxa = {}
         prev_rep_species = set()
         prev_rep_genera = set()
-        header = True
-        for row in csv.reader(open(args.prev_metadata_file)):
-            if header:
-                header = False
-                gtdb_rep_index = row.index('gtdb_representative')
-                gtdb_taxonomy_index = row.index('gtdb_taxonomy')
-            else:
-                if row[gtdb_rep_index] == 't':
-                    gid = row[0]
-                    gtdb_taxonomy = row[gtdb_taxonomy_index]
-                    if gtdb_taxonomy:
-                        gtdb_taxa = [t.strip()
-                                     for t in row[gtdb_taxonomy_index].split(';')]
 
-                        prev_reps_taxa[gid] = gtdb_taxa
+        reader = csv.reader(open(args.prev_metadata_file))
+        header = next(reader, None)
+        if header:
+            gtdb_rep_index = header.index('gtdb_representative')
+            gtdb_taxonomy_index = header.index('gtdb_taxonomy')
+        else:
+            self.log.error(f"No header found in {args.prev_metadata_file}")
+            sys.exit(1)
 
-                        if gtdb_taxa[6] != 's__':
-                            prev_rep_species.add(gtdb_taxa[6])
+        for row in reader:
+            if row[gtdb_rep_index] == 't':
+                gid = row[0]
+                gtdb_taxonomy = row[gtdb_taxonomy_index]
+                if gtdb_taxonomy:
+                    gtdb_taxa = [t.strip()
+                                 for t in row[gtdb_taxonomy_index].split(';')]
 
-                        if gtdb_taxa[5] != 'g__':
-                            prev_rep_genera.add(gtdb_taxa[5])
+                    prev_reps_taxa[gid] = gtdb_taxa
+
+                    if gtdb_taxa[6] != 's__':
+                        prev_rep_species.add(gtdb_taxa[6])
+
+                    if gtdb_taxa[5] != 'g__':
+                        prev_rep_genera.add(gtdb_taxa[5])
 
         # summarize differences
         print('No. current representatives: %d' % len(cur_reps_taxa))
@@ -1276,7 +1298,7 @@ class OptionsParser():
         elif args.subparser_name == 'pmc_cluster_stats':
             self.pmc_cluster_stats(args)
         elif args.subparser_name == 'pmc_cleanup':
-            self.pmc_cleanup(args) 
+            self.pmc_cleanup(args)
         elif args.subparser_name == 'merge_test':
             self.merge_test(args)
         elif args.subparser_name == 'ani_sp_pair':
