@@ -23,6 +23,7 @@ from gtdblib.taxonomy.taxonomy import read_taxonomy
 
 from gtdb_species_clusters.genomes import Genomes
 from gtdb_species_clusters.species_priority_manager import SpeciesPriorityManager
+from gtdb_species_clusters.type_genome_utils import parse_manual_sp_curation_files
 
 
 class PMC_CheckTypeSpecies(object):
@@ -36,6 +37,8 @@ class PMC_CheckTypeSpecies(object):
 
     def run(self,
             manual_taxonomy,
+            manual_sp_file,
+            pmc_custom_species_file,
             cur_gtdb_metadata_file,
             qc_passed_file,
             ncbi_genbank_assembly_file,
@@ -45,13 +48,17 @@ class PMC_CheckTypeSpecies(object):
             genus_priority_ledger,
             ncbi_env_bioproject_ledger,
             lpsn_gss_file):
-        """Finalize species names based on results of manual curation."""
+        """Check for agreement between GTDB genera and genomes assembled from type species of genus."""
 
         # initialize species priority manager
         sp_priority_mngr = SpeciesPriorityManager(sp_priority_ledger,
                                                   genus_priority_ledger,
                                                   lpsn_gss_file,
                                                   self.output_dir)
+
+        # read species names explicitly set via manual curation
+        mc_species = parse_manual_sp_curation_files(manual_sp_file,
+                                                    pmc_custom_species_file)
 
         # identify species and genus names updated during manual curation
         self.log.info('Parsing manually curated taxonomy.')
@@ -78,7 +85,7 @@ class PMC_CheckTypeSpecies(object):
         fout = open(os.path.join(self.output_dir,
                                  'type_species_incongruencies.tsv'), 'w')
         fout.write(
-            'Genome ID\tGTDB genus\tNCBI genus\tGTDB genus priority date\tNCBI genus priority date\tPriority status\tNCBI RefSeq note\n')
+            'Genome ID\tGTDB genus\tNCBI genus\tGTDB genus priority date\tNCBI genus priority date\tPriority status\tNote\tNCBI RefSeq note\n')
         num_incongruent = 0
         for rid, taxa in mc_taxonomy.items():
             if cur_genomes[rid].is_gtdb_type_species():
@@ -97,13 +104,14 @@ class PMC_CheckTypeSpecies(object):
                         else:
                             priority_status = 'Genus with priority must be manually established'
 
-                        fout.write('{}\t{}\t{}\t{}\t{}\t{}\t{}\n'.format(
+                        fout.write('{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\n'.format(
                             rid,
                             gtdb_genus,
                             ncbi_genus,
                             sp_priority_mngr.genus_priority_year(gtdb_genus),
                             sp_priority_mngr.genus_priority_year(ncbi_genus),
                             priority_status,
+                            'Species name set manually' if rid in mc_species else '',
                             cur_genomes[rid].excluded_from_refseq_note))
 
         self.log.info(

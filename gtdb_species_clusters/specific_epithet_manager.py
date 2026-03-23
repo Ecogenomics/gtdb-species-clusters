@@ -25,6 +25,7 @@ from gtdb_species_clusters.taxon_utils import (canonical_taxon,
                                                generic_name,
                                                specific_epithet,
                                                is_placeholder_taxon,
+                                               is_suffixed_sp_epithet,
                                                longest_common_suffix)
 
 
@@ -131,12 +132,13 @@ class SpecificEpithetManager():
                 else:
                     gtdb_species = cur_genomes[rid].gtdb_taxa.species
 
-                gtdb_specific = canonical_taxon(specific_epithet(gtdb_species))
+                gtdb_specific_canonical = canonical_taxon(specific_epithet(gtdb_species))
 
-                self.gtdb_ncbi_generic_map[gtdb_generic][gtdb_specific].append(
+                self.gtdb_ncbi_generic_map[gtdb_generic][gtdb_specific_canonical].append(
                     ncbi_generic)
 
-                if test_same_epithet(ncbi_specific, gtdb_specific):
+                gtdb_specific = specific_epithet(gtdb_species)
+                if test_same_epithet(ncbi_specific, gtdb_specific) and not is_suffixed_sp_epithet(gtdb_specific):
                     ncbi_sp_epithet_list[ncbi_specific].append(gtdb_specific)
 
             for ncbi_specific, gtdb_specific_list in ncbi_sp_epithet_list.items():
@@ -149,7 +151,7 @@ class SpecificEpithetManager():
                 if map_perc >= 50:
                     self.sp_epithet_map[gtdb_generic][ncbi_specific] = top_gtdb_specific
 
-                if map_perc != 100:
+                if map_perc != 100 and top_gtdb_specific != ncbi_specific:
                     self.log.warning('Imperfect suffix mapping between {} {} to {} at {:.1f}%.'.format(
                         gtdb_generic,
                         top_gtdb_specific,

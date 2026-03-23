@@ -21,6 +21,7 @@ import logging
 from collections import defaultdict, Counter
 
 from gtdblib.taxonomy.taxonomy import Taxonomy
+from gtdblib.util.bio.accession import canonical_gid
 
 from gtdb_species_clusters.genome import Genome
 from gtdb_species_clusters.species_priority_manager import SpeciesPriorityManager
@@ -45,7 +46,7 @@ class NCBI_SpeciesManager():
     MAJORITY_VOTE = 'MAJORITY_VOTE'
     TYPE_STRAIN_GENOME = 'TYPE_STRAIN_GENOME'
 
-    def __init__(self, cur_genomes, cur_clusters, mc_species, output_dir):
+    def __init__(self, cur_genomes, cur_clusters, mc_species, untrustworthy_type_file, output_dir):
         """Initialization."""
 
         self.log = logging.getLogger('rich')
@@ -65,13 +66,28 @@ class NCBI_SpeciesManager():
         self.log.info(' - identified effective type strain genomes for {:,} NCBI species'.format(
             len(self.ncbi_sp_type_strain_genomes)))
 
-        self.validate_type_strain_clustering(mc_species)
+        self.validate_type_strain_clustering(mc_species, untrustworthy_type_file)
 
-    def validate_type_strain_clustering(self, mc_species):
+    def parse_untrustworthy_type_ledger(self, untrustworth_type_ledger):
+        """Determine genomes that should be considered untrustworthy as type material."""
+
+        untrustworthy_as_type = set()
+        with open(untrustworth_type_ledger) as f:
+            f.readline()
+            for line in f:
+                tokens = line.strip().split('\t')
+                untrustworthy_as_type.add(canonical_gid(tokens[0]))
+
+        return untrustworthy_as_type
+
+    def validate_type_strain_clustering(self, mc_species, untrustworthy_type_file):
         """Validate that all type strain genomes for an NCBI species occur in a single GTDB cluster."""
 
-        self.log.info(
-            'Verifying that all type strain genomes for a NCBI species occur in a single GTDB cluster.')
+        self.log.info('Verifying that all type strain genomes for a NCBI species occur in a single GTDB cluster:')
+
+        untrustworthy_as_type = self.parse_untrustworthy_type_ledger(untrustworthy_type_file)
+        self.log.info(f' - identified {len(untrustworthy_as_type):,} genomes as untrustworthy as type material')
+
         rid_map = {}
         for rid, gids in self.cur_clusters.items():
             rid_map[rid] = rid
@@ -79,7 +95,7 @@ class NCBI_SpeciesManager():
                 rid_map[gid] = rid
 
         for ncbi_sp, type_gids in self.ncbi_sp_type_strain_genomes.items():
-            gtdb_rids = set([rid_map[gid] for gid in type_gids])
+            gtdb_rids = set([rid_map[gid] for gid in type_gids if gid not in untrustworthy_as_type])
 
             gtdb_rids = set()
             for gid in type_gids:
@@ -87,8 +103,7 @@ class NCBI_SpeciesManager():
                 ncbi_specific = specific_epithet(
                     self.cur_genomes[rid].ncbi_taxa.species)
 
-                if (rid in mc_species
-                        and specific_epithet(mc_species[rid]) != ncbi_specific):
+                if (rid in mc_species and specific_epithet(mc_species[rid]) != ncbi_specific):
                     # skip this genome as it has been manually changed, likely
                     # to resolve this NCBI species having multiple type strain genomes
                     continue
@@ -96,11 +111,10 @@ class NCBI_SpeciesManager():
                 gtdb_rids.add(rid)
 
             if len(gtdb_rids) > 1:
-                self.log.error('Type strain genomes from NCBI species {} were assigned to {:,} GTDB species clusters: {}.'.format(
+                self.log.warning('Type strain genomes from NCBI species {} were assigned to {:,} GTDB species clusters: {}.'.format(
                     ncbi_sp,
                     len(gtdb_rids),
                     [(rid, self.cur_genomes[rid].gtdb_taxa.species) for rid in gtdb_rids]))
-                # sys.exit(-1)
 
     def identify_type_strain_synonyms(self, ncbi_misclassified_gids):
         """Identify synonyms arising from multiple type strain genomes residing in the same GTDB cluster.

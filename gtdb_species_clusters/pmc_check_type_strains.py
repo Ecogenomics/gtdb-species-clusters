@@ -20,6 +20,7 @@ import logging
 
 from gtdblib.taxonomy.taxonomy import Taxonomy
 from gtdblib.taxonomy.taxonomy import read_taxonomy
+from gtdblib.util.bio.accession import canonical_gid
 
 from gtdb_species_clusters.genomes import Genomes
 
@@ -28,6 +29,7 @@ from gtdb_species_clusters.taxon_utils import (generic_name,
                                                canonical_species,
                                                is_placeholder_taxon,
                                                test_same_epithet)
+from gtdb_species_clusters.type_genome_utils import parse_manual_sp_curation_files
 
 
 class PMC_CheckTypeStrains(object):
@@ -39,15 +41,52 @@ class PMC_CheckTypeStrains(object):
         self.output_dir = output_dir
         self.log = logging.getLogger('rich')
 
+    def parse_seqcode_classification(self, secode_file: str):
+        """Parse representative genome for species at SeqCode."""
+
+        seqcode_sp = {}
+        with open(secode_file) as f:
+            header = f.readline().strip().split('\t')
+
+            gid_idx = header.index('seqcode_type_material_accn')
+            name_idx = header.index('seqcode_name')
+            rank_idx = header.index('seqcode_rank')
+
+            for line in f:
+                tokens = line.strip().split('\t')
+
+                rank = tokens[rank_idx]
+                if rank != 'species':
+                    continue
+
+                gid = canonical_gid(tokens[gid_idx])
+                sp = tokens[name_idx]
+
+                seqcode_sp[gid] = f's__{sp}' 
+
+        return seqcode_sp
+
     def run(self,
             manual_taxonomy,
+            manual_sp_file,
+            pmc_custom_species_file,
             cur_gtdb_metadata_file,
             qc_passed_file,
             ncbi_genbank_assembly_file,
             untrustworthy_type_file,
             gtdb_type_strains_ledger,
+            seqcode_file,
             ncbi_env_bioproject_ledger):
         """Finalize species names based on results of manual curation."""
+
+        # read species classifications at SeqCode
+        self.log.info('Parsing species classification at SeqCode:')
+        seqcode_species = self.parse_seqcode_classification(seqcode_file)
+        self.log.info(f' - identified species names for {len(seqcode_species):} genomes')
+
+        # read species names explicitly set via manual curation
+        mc_species = parse_manual_sp_curation_files(manual_sp_file,
+                                                    pmc_custom_species_file)
 
         # identify species and genus names updated during manual curation
         self.log.info('Parsing manually curated taxonomy.')
@@ -81,7 +120,7 @@ class PMC_CheckTypeStrains(object):
         fout = open(os.path.join(self.output_dir,
                                  'type_strains_incongruencies.tsv'), 'w')
         fout.write(
-            'Genome ID\tGTDB species\tNCBI species\tGTDB type strain\tNCBI type strain\tNCBI RefSeq note\n')
+            'Genome ID\tGTDB species\tNCBI species\tSeqCode species\tGTDB type strain\tNCBI type strain\tNCBI RefSeq note\n')
         num_incongruent = 0
         for rid, taxa in mc_taxonomy.items():
             if cur_genomes[rid].is_effective_type_strain():
@@ -90,6 +129,8 @@ class PMC_CheckTypeStrains(object):
 
                 ncbi_sp = cur_genomes[rid].ncbi_taxa.species
                 ncbi_generic = generic_name(ncbi_sp)
+
+                seqcode_sp = seqcode_species.get(rid, '')
 
                 if ncbi_sp == 's__':
                     # NCBI taxonomy is sometimes behind the genome annotation pages,
@@ -108,14 +149,20 @@ class PMC_CheckTypeStrains(object):
                         and canonical_species(gtdb_sp) in gtdb_type_species):
                     continue
 
+                # check if GTDB species name for this genome comes from SeqCode
+                if gtdb_sp == seqcode_sp:
+                    continue
+
                 if not test_same_epithet(specific_epithet(gtdb_sp), specific_epithet(ncbi_sp)):
                     num_incongruent += 1
-                    fout.write('{}\t{}\t{}\t{}\t{}\t{}\n'.format(
+                    fout.write('{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\n'.format(
                         rid,
                         gtdb_sp,
                         ncbi_sp,
+                        seqcode_sp,
                         cur_genomes[rid].is_gtdb_type_strain(),
                         cur_genomes[rid].is_ncbi_type_strain(),
+                        'Species name set manually' if rid in mc_species else '',
                         cur_genomes[rid].excluded_from_refseq_note))
 
         self.log.info(

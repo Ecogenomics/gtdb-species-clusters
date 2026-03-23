@@ -620,7 +620,7 @@ class OptionsParser():
             params['output_dirs']['u_ncbi_erroneous'], 'ncbi_misclassified_sp.gtdb_clustering.tsv')
         updated_species_reps_file = os.path.join(params['output_dirs']['u_rep_actions'], 'updated_species_reps.tsv')
         taxonomy_init_ar = os.path.join(params['output_dirs']['u_species_init'], 'gtdb_ar_taxonomy.tsv')
-        taxonomy_init_bac = os.path.join(params['output_dirs']['u_species_init'], 'gtdb_ar_taxonomy.tsv')
+        taxonomy_init_bac = os.path.join(params['output_dirs']['u_species_init'], 'gtdb_bac_taxonomy.tsv')
 
         check_file_exists(taxonomy_init_ar)
         check_file_exists(taxonomy_init_bac)
@@ -646,10 +646,11 @@ class OptionsParser():
         check_file_exists(args.manual_sp_file)
 
         # create archaeal species names
-        make_sure_path_exists(params['output_dirs']['u_pmc_species_names_ar'])
-        self.log.info(f"Output directory (ar): {params['output_dirs']['u_pmc_species_names_ar']}")
+        ar_out_dir = os.path.join(params['output_dirs']['u_pmc_species_names'], 'ar')
+        make_sure_path_exists(ar_out_dir)
+        self.log.info(f"Output directory (ar): {ar_out_dir}")
 
-        p = PMC_SpeciesNames(params['output_dirs']['u_pmc_species_names_ar'])
+        p = PMC_SpeciesNames(ar_out_dir)
         p.run(None,
               taxonomy_init_ar,
               params['data_files']['seqcode_file'],
@@ -674,12 +675,13 @@ class OptionsParser():
               params['data_files']['lpsn_gss_file'])
 
         # create bacterial species names
-        make_sure_path_exists(params['output_dirs']['u_pmc_species_names_bac'])
-        self.log.info(f"Output directory (bac): {params['output_dirs']['u_pmc_species_names_bac']}")
+        bac_out_dir = os.path.join(params['output_dirs']['u_pmc_species_names'], 'bac')
+        make_sure_path_exists(bac_out_dir)
+        self.log.info(f"Output directory (bac): {bac_out_dir}")
 
-        p = PMC_SpeciesNames(params['output_dirs']['u_pmc_species_names_bac'])
+        p = PMC_SpeciesNames(bac_out_dir)
         p.run(None,
-              taxonomy_init_ar,
+              taxonomy_init_bac,
               params['data_files']['seqcode_file'],
               None,
               args.manual_sp_file,
@@ -709,11 +711,13 @@ class OptionsParser():
 
         if args.domain == 'Archaea':
             init_taxonomy = os.path.join(params['root_dir'],
-                                         params['output_dirs']['u_pmc_species_names_ar'],
+                                         params['output_dirs']['u_pmc_species_names'],
+                                         'ar',
                                          'final_taxonomy.tsv')
         else:
             init_taxonomy = os.path.join(params['root_dir'],
-                                         params['output_dirs']['u_pmc_species_names_bac'],
+                                         params['output_dirs']['u_pmc_species_names'],
+                                         'bac',
                                          'final_taxonomy.tsv')
 
         check_file_exists(init_taxonomy)
@@ -745,7 +749,7 @@ class OptionsParser():
         qc_passed_file = os.path.join(params['root_dir'], params['output_dirs']['u_qc_genomes'], 'qc_passed.tsv')
         ncbi_assembly_summary_genbank_file = os.path.join(
             params['root_dir'], params['data_files']['ncbi_assembly_summary_genbank_file'])
-        untrustworthy_type_file = os.path.join(params['root_dir'], params['ledgers']['untrustworthy_type_ledger'])
+        untrustworthy_type_file = os.path.join(params['root_dir'], params['output_dirs']['u_resolve_types'], 'untrustworthy_type_material.tsv')
         gtdb_type_strains_ledger = os.path.join(params['root_dir'], params['ledgers']['gtdb_type_strains_ledger'])
         sp_priority_ledger = os.path.join(params['root_dir'], params['ledgers']['sp_priority_ledger'])
         genus_priority_ledger = os.path.join(params['root_dir'], params['ledgers']['genus_priority_ledger'])
@@ -753,6 +757,8 @@ class OptionsParser():
         lpsn_gss_file = os.path.join(params['root_dir'], params['data_files']['lpsn_gss_file'])
 
         check_file_exists(args.manual_taxonomy)
+        check_file_exists(args.manual_sp_file)
+        check_file_exists(args.pmc_custom_species)
         check_file_exists(cur_gtdb_metadata_file)
         check_file_exists(qc_passed_file)
         check_file_exists(ncbi_assembly_summary_genbank_file)
@@ -766,15 +772,17 @@ class OptionsParser():
 
         p = PMC_CheckTypeSpecies(args.output_dir)
         p.run(args.manual_taxonomy,
-              cur_gtdb_metadata_file,
-              qc_passed_file,
-              ncbi_assembly_summary_genbank_file,
-              untrustworthy_type_file,
-              gtdb_type_strains_ledger,
-              sp_priority_ledger,
-              genus_priority_ledger,
-              ncbi_env_bioproject_ledger,
-              args.lpsn_gss_file)
+                args.manual_sp_file,
+                args.pmc_custom_species,
+                cur_gtdb_metadata_file,
+                qc_passed_file,
+                ncbi_assembly_summary_genbank_file,
+                untrustworthy_type_file,
+                gtdb_type_strains_ledger,
+                sp_priority_ledger,
+                genus_priority_ledger,
+                ncbi_env_bioproject_ledger,
+                lpsn_gss_file)
 
     def pmc_check_type_strains(self, args):
         """Check for agreement between GTDB species and genomes assembled from type strain of species."""
@@ -786,27 +794,34 @@ class OptionsParser():
         qc_passed_file = os.path.join(params['root_dir'], params['output_dirs']['u_qc_genomes'], 'qc_passed.tsv')
         ncbi_assembly_summary_genbank_file = os.path.join(
             params['root_dir'], params['data_files']['ncbi_assembly_summary_genbank_file'])
-        untrustworthy_type_file = os.path.join(params['root_dir'], params['ledgers']['untrustworthy_type_ledger'])
+        untrustworthy_type_file = os.path.join(params['root_dir'], params['output_dirs']['u_resolve_types'], 'untrustworthy_type_material.tsv')
         gtdb_type_strains_ledger = os.path.join(params['root_dir'], params['ledgers']['gtdb_type_strains_ledger'])
+        seqcode_file = os.path.join(params['root_dir'], params['data_files']['seqcode_file'])
         ncbi_env_bioproject_ledger = os.path.join(params['root_dir'], params['ledgers']['ncbi_env_bioproject_ledger'])
-
+        
         check_file_exists(args.manual_taxonomy)
+        check_file_exists(args.manual_sp_file)
+        check_file_exists(args.pmc_custom_species)
         check_file_exists(cur_gtdb_metadata_file)
         check_file_exists(qc_passed_file)
         check_file_exists(ncbi_assembly_summary_genbank_file)
         check_file_exists(untrustworthy_type_file)
         check_file_exists(gtdb_type_strains_ledger)
+        check_file_exists(seqcode_file)
         check_file_exists(ncbi_env_bioproject_ledger)
         make_sure_path_exists(args.output_dir)
 
         p = PMC_CheckTypeStrains(args.output_dir)
         p.run(args.manual_taxonomy,
-              cur_gtdb_metadata_file,
-              qc_passed_file,
-              ncbi_assembly_summary_genbank_file,
-              untrustworthy_type_file,
-              gtdb_type_strains_ledger,
-              ncbi_env_bioproject_ledger)
+                args.manual_sp_file,
+                args.pmc_custom_species,
+                cur_gtdb_metadata_file,
+                qc_passed_file,
+                ncbi_assembly_summary_genbank_file,
+                untrustworthy_type_file,
+                gtdb_type_strains_ledger,
+                seqcode_file,
+                ncbi_env_bioproject_ledger)
 
     def pmc_species_names(self, args):
         """Establish final species names based on manual curation."""
@@ -815,12 +830,12 @@ class OptionsParser():
         params = parse_toml_file(args.input_params_file)
 
         if args.domain == 'Archaea':
-            specific_epithet_ledger = os.path.join(params['root_dir'], params['output_dirs']['specific_epithet_ledger_ar'])
+            specific_epithet_ledger = os.path.join(params['root_dir'], params['ledgers']['specific_epithet_ledger_ar'])
         else:
-            specific_epithet_ledger = os.path.join(params['root_dir'], params['output_dirs']['specific_epithet_ledger_bac'])
+            specific_epithet_ledger = os.path.join(params['root_dir'], params['ledgers']['specific_epithet_ledger_bac'])
 
         seqcode_file = os.path.join(params['root_dir'], params['data_files']['seqcode_file'])
-        gtdb_clusters_file = os.path.join(params['output_dirs']['u_cluster_de_novo'], 'gtdb_clusters_de_novo.tsv')
+        gtdb_clusters_file = os.path.join(params['root_dir'], params['output_dirs']['u_cluster_de_novo'], 'gtdb_clusters_de_novo.tsv')
         prev_gtdb_metadata_file = os.path.join(params['root_dir'], params['data_files']['prev_gtdb_metadata_file'])
         cur_gtdb_metadata_file = os.path.join(params['root_dir'], params['data_files']['cur_gtdb_metadata_file'])
         qc_passed_file = os.path.join(params['root_dir'], params['output_dirs']['u_qc_genomes'], 'qc_passed.tsv')
@@ -828,7 +843,7 @@ class OptionsParser():
             params['root_dir'], params['output_dirs']['u_ncbi_erroneous'], 'ncbi_misclassified_sp.gtdb_clustering.tsv')
         ncbi_genbank_assembly_file = os.path.join(
             params['root_dir'], params['data_files']['ncbi_assembly_summary_genbank_file'])
-        untrustworthy_type_file = os.path.join(params['root_dir'], params['ledgers']['untrustworthy_type_ledger'])
+        untrustworthy_type_file = os.path.join(params['root_dir'], params['output_dirs']['u_resolve_types'], 'untrustworthy_type_material.tsv')
         synonym_file = os.path.join(params['root_dir'], params['output_dirs']['u_synonyms'], 'synonyms.tsv')
         updated_species_reps = os.path.join(params['root_dir'], params['output_dirs']
                                             ['u_rep_actions'], 'updated_species_reps.tsv')
@@ -895,22 +910,19 @@ class OptionsParser():
         params = parse_toml_file(args.input_params_file)
 
         if args.domain == 'Archaea':
-            specific_epithet_ledger = os.path.join(params['root_dir'], params['output_dirs']['specific_epithet_ledger_ar'])
+            specific_epithet_ledger = os.path.join(params['root_dir'], params['ledgers']['specific_epithet_ledger_ar'])
         else:
-            specific_epithet_ledger = os.path.join(params['root_dir'], params['output_dirs']['specific_epithet_ledger_bac'])
+            specific_epithet_ledger = os.path.join(params['root_dir'], params['ledgers']['specific_epithet_ledger_bac'])
 
-        gtdb_clusters_file = os.path.join(params['output_dirs']['u_cluster_de_novo'], 'gtdb_clusters_de_novo.tsv')
+        gtdb_clusters_file = os.path.join(params['root_dir'], params['output_dirs']['u_cluster_de_novo'], 'gtdb_clusters_de_novo.tsv')
         prev_gtdb_metadata_file = os.path.join(params['root_dir'], params['data_files']['prev_gtdb_metadata_file'])
         cur_gtdb_metadata_file = os.path.join(params['root_dir'], params['data_files']['cur_gtdb_metadata_file'])
         qc_passed_file = os.path.join(params['root_dir'], params['output_dirs']['u_qc_genomes'], 'qc_passed.tsv')
-        ncbi_misclassified_file = os.path.join(
-            params['root_dir'], params['output_dirs']['u_ncbi_erroneous'], 'ncbi_misclassified_sp.gtdb_clustering.tsv')
-        ncbi_genbank_assembly_file = os.path.join(
-            params['root_dir'], params['data_files']['ncbi_assembly_summary_genbank_file'])
-        untrustworthy_type_file = os.path.join(params['root_dir'], params['ledgers']['untrustworthy_type_ledger'])
+        ncbi_misclassified_file = os.path.join(params['root_dir'], params['output_dirs']['u_ncbi_erroneous'], 'ncbi_misclassified_sp.gtdb_clustering.tsv')
+        ncbi_genbank_assembly_file = os.path.join(params['root_dir'], params['data_files']['ncbi_assembly_summary_genbank_file'])
+        untrustworthy_type_file = os.path.join(params['root_dir'], params['output_dirs']['u_resolve_types'], 'untrustworthy_type_material.tsv')
         synonym_file = os.path.join(params['root_dir'], params['output_dirs']['u_synonyms'], 'synonyms.tsv')
-        updated_species_reps = os.path.join(params['root_dir'], params['output_dirs']
-                                            ['u_rep_actions'], 'updated_species_reps.tsv')
+        updated_species_reps = os.path.join(params['root_dir'], params['output_dirs']['u_rep_actions'], 'updated_species_reps.tsv')
         gtdb_type_strains_ledger = os.path.join(params['root_dir'], params['ledgers']['gtdb_type_strains_ledger'])
         species_classification_ledger = os.path.join(params['root_dir'], params['ledgers']['species_classification_ledger'])
         sp_priority_ledger = os.path.join(params['root_dir'], params['ledgers']['sp_priority_ledger'])
@@ -918,6 +930,7 @@ class OptionsParser():
         ncbi_env_bioproject_ledger = os.path.join(params['root_dir'], params['ledgers']['ncbi_env_bioproject_ledger'])
         lpsn_gss_metadata_file = os.path.join(params['root_dir'], params['data_files']['lpsn_gss_file'])
         lpsn_gss_file = os.path.join(params['root_dir'], params['data_files']['lpsn_metadata_file'])
+        seqcode_file = os.path.join(params['root_dir'], params['data_files']['seqcode_file'])
 
         check_file_exists(args.final_taxonomy)
 
@@ -947,6 +960,7 @@ class OptionsParser():
         check_file_exists(ncbi_env_bioproject_ledger)
         check_file_exists(lpsn_gss_metadata_file)
         check_file_exists(lpsn_gss_file)
+        check_file_exists(seqcode_file)
 
         if args.ground_truth_test_cases.lower() != 'none':
             check_file_exists(args.ground_truth_test_cases)
@@ -954,7 +968,8 @@ class OptionsParser():
         make_sure_path_exists(args.output_dir)
 
         p = PMC_Validation(args.output_dir)
-        p.run(args.final_taxonomy,
+        p.run(args.domain,
+              args.final_taxonomy,
               args.final_scaled_tree,
               args.manual_sp_names,
               args.pmc_custom_species,
@@ -975,6 +990,7 @@ class OptionsParser():
               ncbi_env_bioproject_ledger,
               lpsn_gss_metadata_file,
               lpsn_gss_file,
+              seqcode_file,
               args.ground_truth_test_cases,
               args.skip_full_taxonomy_checks,
               args.skip_genus_checks)

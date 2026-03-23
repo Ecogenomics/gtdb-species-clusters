@@ -8,7 +8,7 @@ QC_MAX_CONTIGS = 2000
 QC_MIN_N50 = 5000
 QC_MAX_AMBIGUOUS = 100000
 
-# maximum contigs for passing QC when a genome only 
+# maximum contigs for passing QC when a genome only
 # passes one of CheckM v1 or v2
 MAX_CHECKM_XOR_CONTIGS = 9
 
@@ -18,6 +18,9 @@ AF_SP = 50.0
 
 # criteria used for defining synonyms
 ANI_SYNONYMS = 97.0
+
+# ANI criterion to consider two genomes as representing the same strain
+ANI_SAME_STRAIN = 99.0
 
 # minimum ANI estimate from skani sketch estimate for genome
 # pair to be fully processsed

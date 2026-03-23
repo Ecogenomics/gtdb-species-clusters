@@ -110,7 +110,6 @@ class PMC_SpeciesNames(object):
             self.log.error('NCBI species {} represented by type species genome {} not designated as an unambiguous NCBI species.'.format(
                 ncbi_sp,
                 rid))
-            sys.exit(-1)
 
         note = ''
         if gtdb_species != ncbi_sp:
@@ -120,14 +119,18 @@ class PMC_SpeciesNames(object):
             if gtdb_genus != ncbi_genus and (gtdb_priority is None or gtdb_priority == ncbi_genus):
                 case_count['INCONGRUENT_TYPE_SPECIES_GENERIC'] += 1
                 note = 'incongruent type species'
-                print('INCONGRUENT_TYPE_SPECIES_GENERIC',
-                      rid, gtdb_genus, ncbi_genus)
+                self.log.warning('INCONGRUENT_TYPE_SPECIES_GENERIC: rid = {}, gtdb_genus = {}, ncbi_genus = {}'.format(
+                                rid, 
+                                gtdb_genus,
+                                ncbi_genus))
 
             if not test_same_epithet(gtdb_specific, specific_epithet(ncbi_sp)):
                 case_count['INCONGRUENT_TYPE_SPECIES_SPECIFIC'] += 1
                 note = 'incongruent type species'
-                print('INCONGRUENT_TYPE_SPECIES_SPECIFIC',
-                      rid, gtdb_species, ncbi_sp)
+                self.log.warning('INCONGRUENT_TYPE_SPECIES_SPECIFIC: rid = {}, gtdb_species = {}, ncbi_species = {}'.format(
+                      rid, 
+                      gtdb_species, 
+                      ncbi_sp))
 
         return gtdb_species, note
 
@@ -140,6 +143,7 @@ class PMC_SpeciesNames(object):
          gtdb_specific) = self.key_taxon(rid, final_taxonomy)
 
         ncbi_sp = cur_genomes[rid].ncbi_taxa.species
+        ncbi_generic = generic_name(ncbi_sp)
         ncbi_specific = specific_epithet(ncbi_sp)
 
         if ncbi_sp != 's__' and (ncbi_sp not in unambiguous_ncbi_sp or rid != unambiguous_ncbi_sp[ncbi_sp][0]):
@@ -159,22 +163,28 @@ class PMC_SpeciesNames(object):
             case_count['INCONGRUENT_TYPE_STRAIN'] += 1
             note = 'type strain genome had different GTDB and NCBI specific epithets'
             final_sp = 's__{} {}'.format(gtdb_generic, ncbi_specific)
-            print('INCONGRUENT_TYPE_STRAIN', rid,
-                  gtdb_species, ncbi_sp, final_sp)
+            self.log.warning('INCONGRUENT_TYPE_STRAIN: rid = {}, gtdb_species = {}, ncbi_sp = {}, final_sp = {}'.format(
+                            rid,
+                            gtdb_species, 
+                            ncbi_sp, 
+                            final_sp))
         elif is_placeholder_sp_epithet(gtdb_specific):
             # Latin name with a suffix or sp<accn> specific name is by definition an
-            # error since this is a type strain genome
-            # [DHP (Mar. 22, 2021): actually this isn't always true since we have the
-            # case of a type strain genome being transferred to a new genus where
-            # the specific name needs a suffix, e.g.: G002240355 is the type strain
-            # of Prauserella marina, but was transferred to the genus Saccharomonospora
-            # and S. marina is already a recognized name so this genome should have
-            # the name S. marina_A].
-            case_count['ERRONEOUS_SUFFIX_TYPE_STRAIN'] += 1
-            note = 'type strain genome had erroneous placeholder suffix'
-            final_sp = 's__{} {}'.format(gtdb_generic, ncbi_specific)
-            print('ERRONEOUS_SUFFIX_TYPE_STRAIN', rid,
-                  gtdb_species, ncbi_sp, final_sp)
+            # error since this is a type strain genome, but only when the genome has 
+            # not been transferred to a new genus. 
+            # Example: G002240355 is the type strain of Prauserella marina, but was 
+            # transferred to the genus Saccharomonospora and S. marina is already a 
+            # recognized name so this genome must be named S. marina_A].
+
+            if gtdb_generic == ncbi_generic:
+                case_count['ERRONEOUS_SUFFIX_TYPE_STRAIN'] += 1
+                note = 'type strain genome had erroneous placeholder suffix'
+                final_sp = 's__{} {}'.format(gtdb_generic, ncbi_specific)
+                self.log.warning('ERRONEOUS_SUFFIX_TYPE_STRAIN: rid = {}, gtdb_species = {}, ncbi_sp = {}, final_sp = {}'.format(
+                                rid,
+                                gtdb_species,
+                                ncbi_sp, 
+                                final_sp))
 
         return final_sp, note
 
@@ -559,7 +569,7 @@ class PMC_SpeciesNames(object):
                                 new_sp = cur_genomes[rid].gtdb_taxa.species
                             mc_taxonomy[rid][Taxonomy.SPECIES_INDEX] = new_sp
 
-                            print('Modified {} from {} to {} as multiple type strain species had the proposed name and this genome was transferred from a different NCBI genera, {}.'.format(
+                            self.log.info('Modified {} from {} to {} as multiple type strain species had the proposed name and this genome was transferred from a different NCBI genera, {}.'.format(
                                 rid,
                                 sp,
                                 mc_taxonomy[rid][Taxonomy.SPECIES_INDEX],
@@ -727,7 +737,7 @@ class PMC_SpeciesNames(object):
                                        cur_gtdb_sp)
 
         for case, count in case_count.items():
-            print('{}\t{}'.format(case, count))
+            self.log.info('{}\t{}'.format(case, count))
 
         # resolve specific epithets requiring changes due to genus transfers
         self.log.info(
@@ -922,8 +932,6 @@ class PMC_SpeciesNames(object):
 
                 taxa = []
                 if taxon_label:
-                    if 's__' in taxon_label:
-                        print(rid, taxon_label)
                     taxa = [t.strip() for t in taxon_label.split(';')]
 
                 node_taxa = taxa + [final_taxonomy[rid]
@@ -1054,7 +1062,7 @@ class PMC_SpeciesNames(object):
     def run(self,
             curation_tree,
             manual_taxonomy,
-            secode_file,
+            seqcode_file,
             manual_sp_names,
             pmc_custom_species,
             gtdb_clusters_file,
@@ -1084,14 +1092,12 @@ class PMC_SpeciesNames(object):
 
         # read species classifications at SeqCode
         self.log.info('Parsing species classification at SeqCode:')
-        seqcode_species = self.parse_seqcode_classification(secode_file)
+        seqcode_species = self.parse_seqcode_classification(seqcode_file)
         self.log.info(f' - identified species names for {len(seqcode_species):} genomes')
 
         # read species names explicitly set via manual curation
-        self.log.info('Parsing species names set via manual curation:')
         mc_species = parse_manual_sp_curation_files(manual_sp_names,
                                                     pmc_custom_species)
-        self.log.info(f' - identified species names for {len(mc_species):} genomes')
 
         # sanity check that SeqCode or manually curated species names don't conflict with ledger
         with open(species_classification_ledger) as f:
@@ -1151,7 +1157,7 @@ class PMC_SpeciesNames(object):
             cur_gtdb_sp = mc_taxonomy[gid][Taxonomy.SPECIES_INDEX]
             ledger_sp = gtdb_type_strain_ledger[gid]
             if cur_gtdb_sp != ledger_sp:
-                self.log.warning('Assigned species name for {} conflicts with GTDB type strain ledger: {} {}'.format(
+                self.log.warning('Assigned species name for {} conflicts with GTDB type strain ledger (GTDB species, Ledger species): {} {}'.format(
                     gid,
                     cur_gtdb_sp,
                     ledger_sp))
@@ -1194,6 +1200,7 @@ class PMC_SpeciesNames(object):
         ncbi_species_mngr = NCBI_SpeciesManager(cur_genomes,
                                                 cur_clusters,
                                                 mc_species,
+                                                untrustworthy_type_file,
                                                 self.output_dir)
         self.forbidden_specific_names = ncbi_species_mngr.forbidden_specific_names
 
@@ -1289,5 +1296,7 @@ class PMC_SpeciesNames(object):
         for rid, seqcode_sp in seqcode_species.items():
             if rid in final_taxonomy:
                 final_sp = final_taxonomy[rid][Taxonomy.SPECIES_INDEX]
-                if final_sp != seqcode_sp:
-                    self.log.warning(f'Final taxonomy for {rid} does not reflect SeqCode classification: {final_sp} {seqcode_sp}')
+                final_specific = final_sp.split()[1]
+                seqcode_specific = seqcode_sp.split()[1]
+                if final_specific != seqcode_specific:
+                    self.log.warning(f'Final taxonomy for {rid} does not reflect SeqCode specific name: {final_sp} {seqcode_sp}')

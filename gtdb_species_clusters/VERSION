@@ -1,3 +1,6 @@
+0.5.1
+- fixes to CLI to use TOML file for pmc commands
+
 0.5.0
 - changed CLI to use a TOML file indicate parameters
 

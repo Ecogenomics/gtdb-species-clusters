@@ -161,7 +161,7 @@ class PMC_Validation(object):
             validated_count,
             ' - identified {:,} invalid type species genomes (Proposed GTDB species, NCBI genus):'.format(len(invalid_type_sp)))
 
-    def validate_type_strain(self, final_taxonomy, cur_genomes):
+    def validate_type_strain(self, final_taxonomy, cur_genomes, seqcode_species):
         """Validate specific name of type strains."""
 
         # get all GTDB species represented by a type strain:
@@ -179,8 +179,12 @@ class PMC_Validation(object):
             if rid in self.mc_species:
                 continue
 
-            if cur_genomes[rid].is_effective_type_strain():
-                gtdb_species = final_taxonomy[rid][Taxonomy.SPECIES_INDEX]
+            gtdb_species = final_taxonomy[rid][Taxonomy.SPECIES_INDEX]
+            if gtdb_species == seqcode_species.get(rid, ''):
+                validated_count += 1
+                continue
+
+            if cur_genomes[rid].is_effective_type_strain(): 
                 gtdb_generic = generic_name(gtdb_species)
                 gtdb_specific = specific_epithet(gtdb_species)
 
@@ -210,13 +214,13 @@ class PMC_Validation(object):
             validated_count,
             ' - identified {:,} invalid type strain genomes (Proposed GTDB species, NCBI species):'.format(len(invalid_type_strain)))
 
-    def validate_lpsn_correct_names(self, final_taxonomy, lpsn):
-        """Validate that GTDB is using the 'correct' names as specified at LPSN."""
+    def validate_correct_names(self, final_taxonomy, lpsn, seqcode_species):
+        """Validate that GTDB is using the 'correct' names as specified at LPSN or SeqCode."""
 
         fout = open(os.path.join(self.output_dir,
                                  'validate_lpsn_correct_sp.tsv'), 'w')
         fout.write(
-            'Genome ID\tGTDB species\tLPSN correct species\tLPSN synonyms\tGeneric change\tSpecific change\n')
+            'Genome ID\tGTDB species\tLPSN correct species\tLPSN synonyms\tGeneric change\tSpecific change\tSeqCode species\n')
 
         incorrect_names = {}
         validated_count = 0
@@ -224,6 +228,10 @@ class PMC_Validation(object):
         for rid in final_taxonomy:
             gtdb_sp = final_taxonomy[rid][Taxonomy.SPECIES_INDEX]
             if is_placeholder_taxon(gtdb_sp):
+                continue
+
+            if gtdb_sp == seqcode_species.get(rid, ''):
+                validated_count += 1
                 continue
 
             gtdb_generic = generic_name(gtdb_sp)
@@ -245,7 +253,8 @@ class PMC_Validation(object):
                            lpsn_corr_taxon,
                            synonym,
                            gtdb_generic != generic_name(lpsn_corr_sp),
-                           gtdb_specific != specific_epithet(lpsn_corr_sp))
+                           gtdb_specific != specific_epithet(lpsn_corr_sp),
+                           seqcode_species.get(rid, ''))
 
                     fout.write('{}\n'.format('\t'.join([str(f) for f in row])))
                     if not synonym:
@@ -260,7 +269,7 @@ class PMC_Validation(object):
         self.report_validation(
             incorrect_names,
             validated_count,
-            ' - identified {:,} GTDB species that disagrees with correct species names at LPSN (GTDB species, LPSN correct species, LPSN synonyms, Generic change, Specific change):'.format(len(incorrect_names)))
+            ' - identified {:,} GTDB species that disagrees with correct species names at LPSN (GTDB species, LPSN correct species, LPSN synonyms, Generic change, Specific change, SeqCode species):'.format(len(incorrect_names)))
 
         fout.close()
 
@@ -715,7 +724,8 @@ class PMC_Validation(object):
                                                final_taxonomy,
                                                cur_genomes,
                                                unambiguous_ncbi_sp,
-                                               unambiguous_ncbi_subsp):
+                                               unambiguous_ncbi_subsp,
+                                               seqcode_species):
         """Validate suffix assignment rules for specific names."""
 
         unambiguous_sp_rids = set()
@@ -738,29 +748,45 @@ class PMC_Validation(object):
             gtdb_specific = specific_epithet(gtdb_species)
             ncbi_species = cur_genomes[rid].ncbi_taxa.species
 
+            if gtdb_species == seqcode_species.get(rid, ''):
+                validated_count += 1
+                continue
+
             if rid in unambiguous_sp_rids:
                 if not is_latin_sp_epithet(gtdb_specific):
                     invalid_suffix[rid] = (
-                        rid, gtdb_species, ncbi_species, 'UNAMBIGUOUS_SPECIES_WITH_SUFFIX')
+                        rid, 
+                        gtdb_species, 
+                        ncbi_species, 
+                        'UNAMBIGUOUS_SPECIES_WITH_SUFFIX', 
+                        seqcode_species.get(rid, ''))
                 else:
                     validated_count += 1
             elif rid in unambiguous_subsp_rids:
                 if not is_latin_sp_epithet(gtdb_specific):
                     invalid_suffix[rid] = (
-                        rid, gtdb_species, ncbi_species, 'UNAMBIGUOUS_SUBSPECIES_WITH_SUFFIX')
+                        rid, 
+                        gtdb_species, 
+                        ncbi_species, 
+                        'UNAMBIGUOUS_SUBSPECIES_WITH_SUFFIX', 
+                        seqcode_species.get(rid, ''))
                 else:
                     validated_count += 1
             else:
                 if not is_placeholder_sp_epithet(gtdb_specific):
                     invalid_suffix[rid] = (
-                        rid, gtdb_species, ncbi_species, 'AMBIGUOUS_SPECIES_WITH_LATIN_SPECIFIC_NAME')
+                        rid, 
+                        gtdb_species, 
+                        ncbi_species, 
+                        'AMBIGUOUS_SPECIES_WITH_LATIN_SPECIFIC_NAME', 
+                        seqcode_species.get(rid, ''))
                 else:
                     validated_count += 1
 
         self.report_validation(
             invalid_suffix,
             validated_count,
-            ' - identified {:,} genomes which violate the suffixing rules for specific names (Proposed GTDB species, NCBI species, Case):'.format(len(invalid_suffix)))
+            ' - identified {:,} genomes which violate the suffixing rules for specific names (Proposed GTDB species, NCBI species, Case, SeqCode classification):'.format(len(invalid_suffix)))
 
     def validate_genera_placeholder_suffixes(self, final_taxonomy, cur_genomes, reassigned_rid_mapping):
         """Validate placeholder suffixes of genera."""
@@ -1120,7 +1146,7 @@ class PMC_Validation(object):
             validated_count,
             ' - identified {:,} NCBI genera without justification for being absent in GTDB (NCBI genus, GTDB genera):'.format(len(invalid_missing_ncbi_genera)))
 
-    def validate_no_latin_genus_name(self, final_taxonomy, cur_genomes):
+    def validate_no_latin_genus_name(self, target_domain, final_taxonomy, cur_genomes):
         """Validate placeholder genus names lacking potential Latin names."""
 
         # get genomes comprising GTDB and NCBI genera
@@ -1128,36 +1154,45 @@ class PMC_Validation(object):
         ncbi_genus_gids = defaultdict(set)
         gtdb_genera = set()
         for rid in final_taxonomy:
+            if final_taxonomy[rid][Taxonomy.DOMAIN_INDEX] != f'd__{target_domain}':
+                continue
+
             gtdb_genus = final_taxonomy[rid][Taxonomy.GENUS_INDEX]
             gtdb_genera.add(gtdb_genus)
 
             if is_placeholder_taxon(gtdb_genus):
                 gtdb_placeholder_genus_gids[gtdb_genus].append(rid)
 
+            ncbi_domain = cur_genomes[rid].ncbi_taxa.domain
+            if ncbi_domain != f'd__{target_domain}':
+                continue
+
             ncbi_genus = cur_genomes[rid].ncbi_taxa.genus
             if ncbi_genus != 'g__':
                 ncbi_genus_gids[ncbi_genus].add(rid)
 
         # check if genus could be assigned a Latin name
-        fout = open(os.path.join(self.output_dir,
-                                 'latin_names_for_gtdb_genera.tsv'), 'w')
+        out_file = 'latin_names_for_gtdb_genera.tsv'
+        fout = open(os.path.join(self.output_dir, out_file), 'w')
         fout.write(
-            'Proposed GTDB genus\tNCBI genus\tPropostion of NCBI genus genomes\tNote\n')
+            'Proposed GTDB genus\tNCBI genus\tPropostion of NCBI genus genomes\tNote\tGenomes\n')
         invalid_placeholder = {}
         validated_count = 0
         for gtdb_genus, rids in gtdb_placeholder_genus_gids.items():
             ncbi_genera = []
+            ncbi_genera_rids = defaultdict(list)
             for rid in rids:
+                ncbi_domain = cur_genomes[rid].ncbi_taxa.domain
                 ncbi_genus = cur_genomes[rid].ncbi_taxa.genus
-                if ncbi_genus != 'g__':
+                if ncbi_genus != 'g__' and ncbi_domain == f'd__{target_domain}':
                     ncbi_genera.append(ncbi_genus)
+                    ncbi_genera_rids[ncbi_genus].append(rid)
 
             if not ncbi_genera:
                 validated_count += 1
             else:
                 top_ncbi_genera, count = Counter(ncbi_genera).most_common(1)[0]
-                perc_in_gtdb_genus = count*100.0 / \
-                    len(ncbi_genus_gids[top_ncbi_genera])
+                perc_in_gtdb_genus = 100.0*count / len(ncbi_genus_gids[top_ncbi_genera])
 
                 # check if genomes from NCBI genus not in this GTDB genus, contain
                 # the type species of the genus
@@ -1191,12 +1226,14 @@ class PMC_Validation(object):
                     invalid_placeholder[gtdb_genus] = (gtdb_genus,
                                                        top_ncbi_genera,
                                                        perc_str,
-                                                       '; '.join(note))
+                                                       '; '.join(note),
+                                                       '; '.join(ncbi_genera_rids[top_ncbi_genera]))
 
-                    fout.write('{}\t{}\t{}\t{}\n'.format(gtdb_genus,
+                    fout.write('{}\t{}\t{}\t{}\t{}\n'.format(gtdb_genus,
                                                          top_ncbi_genera,
                                                          perc_str,
-                                                         '; '.join(note)))
+                                                         '; '.join(note),
+                                                         '; '.join(ncbi_genera_rids[top_ncbi_genera])))
 
                 else:
                     validated_count += 1
@@ -1207,6 +1244,8 @@ class PMC_Validation(object):
             invalid_placeholder,
             validated_count,
             ' - identified {:,} GTDB placeholder genera with candidate Latin names (Proposed GTDB genus, NCBI genus, Proportion of NCBI genus genomes):'.format(len(invalid_placeholder)))
+        
+        self.log.info(f' - results written to: {out_file}')
 
     def validate_genus_placeholder_change(self, final_taxonomy, cur_genomes, prev_genomes):
         """Validate that genus names are not a replacement of one placeholder for another."""
@@ -1276,7 +1315,8 @@ class PMC_Validation(object):
 
     def validate_unambiguous_ncbi_sp(self, final_taxonomy,
                                      unambiguous_ncbi_sp,
-                                     lpsn):
+                                     lpsn,
+                                     seqcode_species):
         """'Validating NCBI species names classified as having an unambiguous assignment within the GTDB."""
 
         invalid_unambiguous = {}
@@ -1291,25 +1331,33 @@ class PMC_Validation(object):
 
             gtdb_species = final_taxonomy[rid][Taxonomy.SPECIES_INDEX]
             gtdb_specific = specific_epithet(gtdb_species)
-
             ncbi_specific = specific_epithet(ncbi_sp)
+
+            if gtdb_species == seqcode_species.get(rid, ''):
+                validated_count += 1
+                continue
 
             if not test_same_epithet(gtdb_specific, ncbi_specific):
                 invalid_unambiguous[rid] = (
-                    rid, gtdb_species, ncbi_sp, ','.join(lpsn.sp_synonyms[ncbi_sp]))
+                    rid, 
+                    gtdb_species, 
+                    ncbi_sp,
+                    seqcode_species.get(rid, ''), 
+                    ','.join(lpsn.sp_synonyms[ncbi_sp]))
             else:
                 validated_count += 1
 
         self.report_validation(
             invalid_unambiguous,
             validated_count,
-            ' - identified {:,} unambiguous NCBI species with an invalid GTDB species name (Proposed GTDB species, NCBI classification, LPSN synonym):'.format(
+            ' - identified {:,} unambiguous NCBI species with an invalid GTDB species name (Proposed GTDB species, NCBI classification, SeqCode classification, LPSN synonym):'.format(
                 len(invalid_unambiguous)))
 
     def validate_ambiguous_ncbi_sp(self, final_taxonomy,
                                    cur_genomes,
                                    unambiguous_ncbi_sp,
-                                   unambiguous_ncbi_subsp):
+                                   unambiguous_ncbi_subsp,
+                                   seqcode_species):
         """'Validating NCBI species names classified as having an ambiguous assignment within the GTDB."""
 
         unambiguous_sp_rids = set()
@@ -1333,16 +1381,20 @@ class PMC_Validation(object):
             gtdb_species = final_taxonomy[gid][Taxonomy.SPECIES_INDEX]
             gtdb_specific = specific_epithet(gtdb_species)
 
+            if gtdb_species == seqcode_species.get(gid, ''):
+                validated_count += 1
+                continue
+
             if not is_placeholder_sp_epithet(gtdb_specific):
                 ncbi_sp = cur_genomes[gid].ncbi_taxa.species
-                invalid_ambiguous[gid] = (gid, gtdb_species, ncbi_sp)
+                invalid_ambiguous[gid] = (gid, gtdb_species, ncbi_sp, seqcode_species.get(gid, ''))
             else:
                 validated_count += 1
 
         self.report_validation(
             invalid_ambiguous,
             validated_count,
-            ' - identified {:,} ambiguous NCBI species with an invalid GTDB species name (Proposed GTDB species, NCBI classification):'.format(
+            ' - identified {:,} ambiguous NCBI species with an invalid GTDB species name (Proposed GTDB species, NCBI classification, SeqCode classification):'.format(
                 len(invalid_ambiguous)))
 
     def validate_misclassified_genomes(self,
@@ -1636,8 +1688,8 @@ class PMC_Validation(object):
             " - identified {:,} GTDB species names with an alphanumeric generic name and suffixed Latin specific name:".format(
                 len(invalid_name)))
 
-    def validate_suffix_of_specific_names(self, final_taxonomy, cur_genomes, lpsn):
-        """Validate suffix of specific names by comparison with LPSN names.
+    def validate_suffix_of_specific_names(self, final_taxonomy, cur_genomes, lpsn, seqcode_species):
+        """Validate suffix of specific names by comparison with LPSN and SeqCode names.
 
         Example: Lacrimispora algidixylanolyticum vs. L. algidixylanolytica
         """
@@ -1655,9 +1707,10 @@ class PMC_Validation(object):
             gtdb_genus = taxa[Taxonomy.GENUS_INDEX]
             gtdb_sp = taxa[Taxonomy.SPECIES_INDEX]
             gtdb_specific = gtdb_sp.split()[1]
+            seqcode_sp = seqcode_species.get(gid, None)
 
-            # check if name is recognized at LPSN
-            if gtdb_sp in lpsn_species_in_genus[gtdb_genus]:
+            # check if name is recognized at LPSN or SeqCode
+            if gtdb_sp in lpsn_species_in_genus[gtdb_genus] or gtdb_sp == seqcode_sp:
                 validated_count += 1
                 continue
 
@@ -2331,7 +2384,33 @@ class PMC_Validation(object):
 
         return ncbi_subspecies, unambiguous_ncbi_subsp, ambiguous_ncbi_subsp
 
+    def parse_seqcode_classification(self, secode_file: str):
+        """Parse classification of species at SeqCode."""
+
+        seqcode_sp = {}
+        with open(secode_file) as f:
+            header = f.readline().strip().split('\t')
+
+            gid_idx = header.index('seqcode_type_material_accn')
+            name_idx = header.index('seqcode_name')
+            rank_idx = header.index('seqcode_rank')
+
+            for line in f:
+                tokens = line.strip().split('\t')
+
+                rank = tokens[rank_idx]
+                if rank != 'species':
+                    continue
+
+                gid = canonical_gid(tokens[gid_idx])
+                sp = tokens[name_idx]
+
+                seqcode_sp[gid] = f's__{sp}'
+
+        return seqcode_sp
+
     def run(self,
+            target_domain,
             final_taxonomy,
             final_scaled_tree,
             manual_sp_names,
@@ -2353,10 +2432,16 @@ class PMC_Validation(object):
             ncbi_env_bioproject_ledger,
             lpsn_gss_metadata_file,
             lpsn_data,
+            seqcode_file,
             ground_truth_test_cases,
             skip_full_taxonomy_checks,
             skip_genus_checks):
         """Validate final species names."""
+
+        # read species classifications at SeqCode
+        self.log.info('Parsing species classification at SeqCode:')
+        seqcode_species = self.parse_seqcode_classification(seqcode_file)
+        self.log.info(f' - identified species names for {len(seqcode_species):} genomes')
 
         # read LPSN metadata
         self.log.info('Reading LPSN metadata:')
@@ -2456,6 +2541,7 @@ class PMC_Validation(object):
         ncbi_species_mngr = NCBI_SpeciesManager(cur_genomes,
                                                 cur_clusters,
                                                 self.mc_species,
+                                                untrustworthy_type_file,
                                                 self.output_dir)
         ncbi_species_mngr.ncbi_sp_gtdb_cluster_table(final_taxonomy)
         self.forbidden_specific_names = ncbi_species_mngr.forbidden_specific_names
@@ -2535,9 +2621,9 @@ class PMC_Validation(object):
 
         # validate suffix of specific names by looking for small deviations relative to LPSN names
         self.log.info(
-            "Validating suffix of specific names by identifying small deviations from LPSN names.")
+            "Validating suffix of specific names by identifying small deviations from LPSN and SeqCode names.")
         self.validate_suffix_of_specific_names(
-            final_taxonomy, cur_genomes, lpsn)
+            final_taxonomy, cur_genomes, lpsn, seqcode_species)
 
         # validate application of names for merged taxa
         self.log.info("Validating names of merged taxa.")
@@ -2550,8 +2636,8 @@ class PMC_Validation(object):
 
         # validate that GTDB is using the 'correct' names as specified at LPSN
         self.log.info(
-            "Validating that GTDB species names are using the 'correct' name according to LPSN.")
-        self.validate_lpsn_correct_names(final_taxonomy, lpsn)
+            "Validating that GTDB species names are using the 'correct' name according to LPSN or SeqCode.")
+        self.validate_correct_names(final_taxonomy, lpsn, seqcode_species)
 
         # validate that transferred species do not use a specific epithet which
         # has already been validated for the species
@@ -2601,7 +2687,7 @@ class PMC_Validation(object):
 
         # validate type strain
         self.log.info('Validating type strains of species.')
-        self.validate_type_strain(final_taxonomy, cur_genomes)
+        self.validate_type_strain(final_taxonomy, cur_genomes, seqcode_species)
 
         # validate ground truth test cases
         self.log.info('Validating ground truth test cases.')
@@ -2618,7 +2704,8 @@ class PMC_Validation(object):
             'Validating NCBI species names classified as having an unambiguous assignment within the GTDB.')
         self.validate_unambiguous_ncbi_sp(final_taxonomy,
                                           unambiguous_ncbi_sp,
-                                          lpsn)
+                                          lpsn,
+                                          seqcode_species)
 
         # validate NCBI species not considered to have an unambiguous assignment within the GTDB
         self.log.info(
@@ -2626,7 +2713,8 @@ class PMC_Validation(object):
         self.validate_ambiguous_ncbi_sp(final_taxonomy,
                                         cur_genomes,
                                         unambiguous_ncbi_sp,
-                                        unambiguous_ncbi_subsp)
+                                        unambiguous_ncbi_subsp,
+                                        seqcode_species)
 
         # validate species names of genomes misclassified at NCBI
         self.log.info(
@@ -2669,7 +2757,8 @@ class PMC_Validation(object):
         self.validate_specific_placeholder_suffixes(final_taxonomy,
                                                     cur_genomes,
                                                     unambiguous_ncbi_sp,
-                                                    unambiguous_ncbi_subsp)
+                                                    unambiguous_ncbi_subsp,
+                                                    seqcode_species)
 
         # validate spelling of genera
         self.log.info('Validating spelling of genera.')
@@ -2708,7 +2797,7 @@ class PMC_Validation(object):
             # validate placeholder genus names lack potential Latin names
             self.log.info(
                 'Validating placeholder genus names lack potential Latin names.')
-            self.validate_no_latin_genus_name(final_taxonomy, cur_genomes)
+            self.validate_no_latin_genus_name(target_domain, final_taxonomy, cur_genomes)
 
             # validate that genus names are not a replacement of one placeholder for another
             self.log.info(

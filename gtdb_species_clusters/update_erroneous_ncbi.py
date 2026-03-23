@@ -58,24 +58,30 @@ class UpdateErroneousNCBI():
 
         # get NCBI species anchored by a type strain genome
         ncbi_type_anchored_species = {}
-        unresolved_type_strains = False
+
+        ncbi_divergent_type_strains = defaultdict(lambda: defaultdict(set))
         for rid, cids in cur_clusters.items():
             for cid in cids:
                 if cur_genomes[cid].is_effective_type_strain():
                     ncbi_type_species = cur_genomes[cid].ncbi_taxa.species
-                    ncbi_specific = specific_epithet(ncbi_species)
-                    if ncbi_type_species != 's__' and ncbi_specific not in forbidden_names:
-                        if (ncbi_type_species in ncbi_type_anchored_species
-                                and rid != ncbi_type_anchored_species[ncbi_type_species]):
-                            self.log.error('NCBI species {} has multiple effective type strain genomes in different clusters.'.format(
-                                ncbi_type_species))
-                            unresolved_type_strains = True
+                    ncbi_specific = specific_epithet(ncbi_type_species)
+                    if ncbi_type_species == 's__' or ncbi_specific in forbidden_names:
+                        continue
 
-                        ncbi_type_anchored_species[ncbi_type_species] = rid
+                    ncbi_divergent_type_strains[ncbi_type_species][rid].add(cid)
+                    ncbi_type_anchored_species[ncbi_type_species] = rid
+
+        unresolved_type_strains = False
+        for ncbi_sp, rids in ncbi_divergent_type_strains.items():
+            if len(rids) > 1:
+                type_gids = []
+                for rid in rids:
+                    type_gids.append(ncbi_divergent_type_strains[ncbi_sp][rid])
+                self.log.error(f'NCBI species {ncbi_sp} has multiple type strain genomes in different clusters: {type_gids}')
+                unresolved_type_strains = True
 
         if unresolved_type_strains:
-            self.log.error(
-                'The unresolved type strains listed above must be resolved.')
+            self.log.error('The unresolved type strains listed above must be resolved.')
 
         self.log.info(' - identified {:,} NCBI species anchored by a type strain genome'.format(
             len(ncbi_type_anchored_species)))

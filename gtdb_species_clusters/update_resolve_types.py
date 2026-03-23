@@ -71,8 +71,6 @@ class ResolveTypes():
         self.ltp_ssu_len_threshold = 900
         self.ltp_evalue_threshold = 1e-10
 
-        self.ltp_ani_same_strain = 88.0
-
         self.output_dir = output_dir
         self.log = logging.getLogger('rich')
         self.cpus = cpus
@@ -235,7 +233,7 @@ class ResolveTypes():
             if gid1 in untrustworthy_gids or gid2 in untrustworthy_gids:
                 continue
 
-            if gid_anis[gid1][gid2] < self.ltp_ani_same_strain:
+            if gid_anis[gid1][gid2] < Defaults.ANI_SAME_STRAIN:
                 return False
 
         return True
@@ -597,7 +595,7 @@ class ResolveTypes():
         all_similar = True
         for gid1, gid2 in combinations(type_gids, 2):
             ani, af = Skani.symmetric_ani_af(ani_af, gid1, gid2)
-            if ani < self.ltp_ani_same_strain or af < Defaults.AF_SP:
+            if ani < Defaults.ANI_SAME_STRAIN or af < Defaults.AF_SP:
                 all_similar = False
 
             anis.append(ani)

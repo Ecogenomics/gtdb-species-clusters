@@ -286,11 +286,8 @@ if __name__ == '__main__':
                                                        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
                                                        description='Refine species names using post-manual curation rules.')
     u_pmc_species_names_parser.add_argument('input_params_file', help='TOML file indicating input parameters')
-    u_pmc_species_names_parser.add_argument(
-        'manual_sp_file', help="file indicating manual species assignments that override those in the `taxonomy_init` or 'seqcode' file")
-
-    u_pmc_species_names_parser.add_argument(
-        '--silent', help="suppress output", action='store_true')
+    u_pmc_species_names_parser.add_argument('manual_sp_file', help="file indicating manual species assignments that override other species assignments")
+    u_pmc_species_names_parser.add_argument('--silent', help="suppress output", action='store_true')
 
     # identify species names manually set by curators
     pmc_manual_species_parser = subparsers.add_parser('pmc_manual_species',
@@ -322,8 +319,9 @@ if __name__ == '__main__':
                                                           formatter_class=argparse.ArgumentDefaultsHelpFormatter,
                                                           description='Check for agreement between GTDB genera and genomes assembled from type species of genus.')
     pmc_check_type_species_parser.add_argument('input_params_file', help='TOML file indicating input parameters')
-    pmc_check_type_species_parser.add_argument(
-        'manual_taxonomy', help="file with manually curated taxonomy (pmc_species_names: final_taxonomy.tsv)")
+    pmc_check_type_species_parser.add_argument('manual_taxonomy', help="file with manually curated taxonomy (pmc_species_names: final_taxonomy.tsv)")
+    pmc_check_type_species_parser.add_argument('manual_sp_file', help="file indicating manual species assignments (pmc_manual_species: manual_species_names.tsv)")
+    pmc_check_type_species_parser.add_argument('pmc_custom_species', help="file indicating post-curation, manual species assignments that are hard to automatically generate")
     pmc_check_type_species_parser.add_argument('output_dir', help="output directory")
     pmc_check_type_species_parser.add_argument('--silent', help="suppress output", action='store_true')
 
@@ -332,19 +330,18 @@ if __name__ == '__main__':
                                                           formatter_class=argparse.ArgumentDefaultsHelpFormatter,
                                                           description='Check for agreement between GTDB species and genomes assembled from type strain of species.')
     pmc_check_type_strains_parser.add_argument('input_params_file', help='TOML file indicating input parameters')
-    pmc_check_type_strains_parser.add_argument(
-        'manual_taxonomy', help="file with manually curated taxonomy (pmc_species_names: final_taxonomy.tsv)")
-    pmc_check_type_strains_parser.add_argument(
-        'output_dir', help="output directory")
-    pmc_check_type_strains_parser.add_argument(
-        '--silent', help="suppress output", action='store_true')
+    pmc_check_type_strains_parser.add_argument('manual_taxonomy', help="file with manually curated taxonomy (pmc_species_names: final_taxonomy.tsv)")
+    pmc_check_type_strains_parser.add_argument('manual_sp_file', help="file indicating manual species assignments (pmc_manual_species: manual_species_names.tsv)")
+    pmc_check_type_strains_parser.add_argument('pmc_custom_species', help="file indicating post-curation, manual species assignments that are hard to automatically generate")
+    pmc_check_type_strains_parser.add_argument('output_dir', help="output directory")
+    pmc_check_type_strains_parser.add_argument('--silent', help="suppress output", action='store_true')
 
     # establish final species names based on manual curation
     pmc_species_names_parser = subparsers.add_parser('pmc_species_names',
                                                      formatter_class=argparse.ArgumentDefaultsHelpFormatter,
                                                      description='Establish final species names based on manual curation.')
     pmc_species_names_parser.add_argument('input_params_file', help='TOML file indicating input parameters')
-    pmc_manual_species_parser.add_argument(
+    pmc_species_names_parser.add_argument(
         'domain', help='domain to process (Bacteria or Archaea)', choices=['Bacteria', 'Archaea'])
     pmc_species_names_parser.add_argument(
         'curation_tree', help="scaled, manually curated tree to relabel with final species names")
@@ -362,8 +359,8 @@ if __name__ == '__main__':
     pmc_validate_parser = subparsers.add_parser('pmc_validate',
                                                 formatter_class=argparse.ArgumentDefaultsHelpFormatter,
                                                 description='Validate final species names.')
-    pmc_species_names_parser.add_argument('input_params_file', help='TOML file indicating input parameters')
-    pmc_manual_species_parser.add_argument(
+    pmc_validate_parser.add_argument('input_params_file', help='TOML file indicating input parameters')
+    pmc_validate_parser.add_argument(
         'domain', help='domain to process (Bacteria or Archaea)', choices=['Bacteria', 'Archaea'])
     pmc_validate_parser.add_argument(
         'manual_sp_names', help="file indicating species names explicitly set by manually curated (pmc_manual_species: manual_species_names.tsv)")
@@ -578,14 +575,16 @@ if __name__ == '__main__':
         args = parser.parse_args()
 
     # parse input parameters file
-    params = parse_toml_file(args.input_params_file)
+    params = {}
+    if hasattr(args, 'input_params_file'):
+        params = parse_toml_file(args.input_params_file)
 
     # get output directory
     output_dir = None
-    if args.subparser_name in params['output_dirs']:
-        output_dir = params['output_dirs'][args.subparser_name]
-    elif hasattr(args, 'output_dir'):
+    if hasattr(args, 'output_dir'):
         output_dir = args.output_dir
+    elif args.subparser_name in params['output_dirs']:
+        output_dir = params['output_dirs'][args.subparser_name]
 
     # setup logging
     log = logging.getLogger("rich")
