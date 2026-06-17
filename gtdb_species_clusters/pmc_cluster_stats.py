@@ -29,6 +29,8 @@ from numpy import (mean as np_mean,
                    zeros as np_zeros,
                    argmin as np_argmin)
 
+from tqdm import tqdm
+
 from gtdblib.util.shell.execute import check_dependencies
 from gtdblib.util.bio.accession import canonical_gid
 
@@ -42,7 +44,7 @@ from gtdb_species_clusters import defaults as Defaults
 class PMC_ClusterStats(object):
     """Calculate statistics for species cluster."""
 
-    def __init__(self, af_sp, max_genomes, ani_cache_file, cpus, output_dir):
+    def __init__(self, af_sp, max_genomes, cpus, output_dir):
         """Initialization."""
 
         check_dependencies(['skani'])
@@ -54,7 +56,7 @@ class PMC_ClusterStats(object):
 
         self.af_sp = af_sp
 
-        self.skani = Skani(ani_cache_file, cpus)
+        self.skani = Skani(None, cpus)
 
         # maximum number of randomly selected genomes to
         self.max_genomes_for_stats = max_genomes
@@ -98,8 +100,7 @@ class PMC_ClusterStats(object):
                 if rid not in cur_ani_cache:
                     continue
 
-                ani, af = Skani.symmetric_ani(
-                    self.skani.ani_cache, gid, rid)
+                ani, af = Skani.symmetric_ani(self.skani.ani_cache, gid, rid)
                 if af >= self.af_sp and ani >= cluster_radius[rid].ani:
                     nonrep_rep_count[gid].add((rid, ani))
 
@@ -115,41 +116,33 @@ class PMC_ClusterStats(object):
 
         return nonrep_rep_count
 
-    def intragenus_pairwise_ani(self, clusters, species, genome_files, gtdb_taxonomy):
+    def intragenus_pairwise_ani(self,  species, genome_files, gtdb_taxonomy):
         """Determine pairwise intra-genus ANI between representative genomes."""
 
         self.log.info(
             'Calculating pairwise intra-genus ANI values between GTDB representatives.')
 
-        # get genus for each representative
-        genus = {}
+        # get genomes in each genus
+        genus_gids = defaultdict(list)
+        gid_to_genus = {}
         for rid, sp in species.items():
-            genus[rid] = sp.split()[0].replace('s__', '')
-            assert genus[rid] == gtdb_taxonomy[rid][5].replace('g__', '')
+            genus = sp.split()[0].replace('s__', '')
+            assert genus == gtdb_taxonomy[rid][5].replace('g__', '')
+            genus_gids[genus].append(rid)
+            gid_to_genus[rid] = genus
 
         # determine all intra-genus pairs between representative genomes
         self.log.info('Determining intra-genus genome pairs.')
-        ani_pairs = []
+        ani_pairs = set()
         all_ani_pairs = []
-        for qid in clusters:
-            for rid in clusters:
-                if qid == rid:
-                    continue
-
-                genusA = genus[qid]
-                genusB = genus[rid]
-                if genusA != genusB:
-                    continue
-
+        for _genus, rids in tqdm(genus_gids.items()):
+            for gidA, gidB in combinations(rids, 2):
                 # skani ANI is symmetric and the AF is calculated in both
                 # directions so only need to run a given pair once
-                if qid < rid:
-                    ani_pairs.append((qid, rid))
-                else:
-                    ani_pairs.append((rid, qid))
+                ani_pairs.add((gidA, gidB))
 
-                all_ani_pairs.append((qid, rid))
-                all_ani_pairs.append((rid, qid))
+                all_ani_pairs.append((gidA, gidB))
+                all_ani_pairs.append((gidB, gidA))
 
         self.log.info(
             'Identified {:,} intra-genus genome pairs.'.format(len(ani_pairs)))
@@ -158,7 +151,7 @@ class PMC_ClusterStats(object):
         self.log.info(
             'Calculating ANI between {:,} genome pairs:'.format(len(ani_pairs)))
         if True:  # ***DEBUGGING
-            ani_af = self.skani.pairs(ani_pairs, genome_files, preset = Defaults.SKANI_PRESET,)
+            ani_af = self.skani.pairs(ani_pairs, genome_files, preset=Defaults.SKANI_PRESET)
             pickle.dump(ani_af, open(os.path.join(
                 self.output_dir, 'type_genomes_ani_af.pkl'), 'wb'))
         else:
@@ -172,30 +165,30 @@ class PMC_ClusterStats(object):
             'Genus\tSpecies 1\tGenome ID 1\tSpecies 2\tGenome ID2\tANI\tAF\n')
         closest_intragenus_rep = {}
         for qid, rid in all_ani_pairs:
-            genusA = genus[qid]
-            genusB = genus[rid]
+            genusA = gid_to_genus[qid]
+            genusB = gid_to_genus[rid]
             assert genusA == genusB
 
             cur_ani = 0
             ani, af = ('n/a', 'n/a')
             if qid in ani_af and rid in ani_af[qid]:
-                ani, af = Skani.symmetric_ani(ani_af, qid, rid)
+                ani, af = Skani.symmetric_ani_af(ani_af, qid, rid)
                 cur_ani = ani
                 cur_af = af
 
-            fout.write('{}\t{}\t{}\t{}\t{}\t{:.2f}\t{:.3f}\n'.format(
+            fout.write('{}\t{}\t{}\t{}\t{}\t{}\t{}\n'.format(
                 genusA,
                 species[qid],
                 qid,
                 species[rid],
                 rid,
-                ani,
-                af))
+                f'{ani:.3f}' if ani != 'n/a' else 'n/a',
+                f'{af:.3f}' if af != 'n/a' else 'n/a'))
 
             if cur_ani > closest_intragenus_rep.get(qid, ['dummy', 0, 0])[1]:
                 closest_intragenus_rep[qid] = (
-                    rid, 
-                    cur_ani, 
+                    rid,
+                    cur_ani,
                     cur_af)
 
         fout.close()
@@ -273,9 +266,9 @@ class PMC_ClusterStats(object):
 
                 if True:  # *** DEBUGGING
                     ani_af = self.skani.pairs(gid_pairs,
-                                                genome_files,
-                                                preset = Defaults.SKANI_PRESET,
-                                                report_progress=False)
+                                              genome_files,
+                                              preset=Defaults.SKANI_PRESET,
+                                              report_progress=False)
                 else:
                     ani_af = self.skani.ani_cache
 
@@ -339,9 +332,9 @@ class PMC_ClusterStats(object):
 
                 if True:  # ***DEBUGGING
                     ani_af = self.skani.pairs(gid_pairs,
-                                                genome_files,
-                                                preset = Defaults.SKANI_PRESET,
-                                                report_progress=False)
+                                              genome_files,
+                                              preset=Defaults.SKANI_PRESET,
+                                              report_progress=False)
                 else:
                     ani_af = self.skani.ani_cache
 
@@ -474,12 +467,11 @@ class PMC_ClusterStats(object):
 
         # find closest representative genome to each representative genome
         self.intragenus_pairwise_ani(
-            clusters,
             species,
             genome_files,
             gtdb_taxonomy)
 
-        sys.exit() #***
+        sys.exit()  # ***
 
         # determine number of non-rep genomes within ANI radius of multiple rep genomes
         nonrep_rep_count = self.find_multiple_reps(clusters, cluster_radius)

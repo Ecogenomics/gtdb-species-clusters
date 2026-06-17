@@ -393,7 +393,7 @@ if __name__ == '__main__':
     pmc_cluster_stats_parser.add_argument(
         'output_dir', help="output directory")
     pmc_cluster_stats_parser.add_argument(
-        '--max_genomes', help='maximum randomly selected genomes to consider in a species cluster', type=int, default=100)
+        '--max_genomes', help='maximum randomly selected genomes to consider in a species cluster', type=int, default=1000)
     pmc_cluster_stats_parser.add_argument(
         '--af_sp', help='minimum AF for defining species clusters', type=float, default=Defaults.AF_SP)
     pmc_cluster_stats_parser.add_argument(

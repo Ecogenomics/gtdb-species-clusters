@@ -47,7 +47,7 @@ def read_genome_path(genome_path_file):
         accession = os.path.basename(os.path.normpath(genome_path))
 
         genome_files[gid] = os.path.join(
-            genome_path, accession + '_genomic.fna')
+            genome_path, accession + '_genomic.fna.gz')
 
     return genome_files
 

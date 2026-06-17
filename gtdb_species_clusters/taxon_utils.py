@@ -16,6 +16,7 @@
 ###############################################################################
 
 import sys
+import gzip
 import logging
 from itertools import takewhile
 
@@ -224,7 +225,7 @@ def is_placeholder_taxon(taxon):
 
     if '__' not in taxon:  # expect taxon name to have rank prefix
         print(f'[ERROR] Taxon name is missing rank prefix: {taxon}')
-        
+
     assert '__' in taxon
 
     test_taxon = taxon[3:].replace('[', '').replace(']', '')
@@ -393,7 +394,9 @@ def read_gtdb_taxonomy(metadata_file):
 
     taxonomy = {}
 
-    with open(metadata_file, encoding='utf-8') as f:
+    open_func = gzip.open if metadata_file.endswith('.gz') else open
+
+    with open_func(metadata_file, mode='rt', encoding='utf-8') as f:
         headers = f.readline().strip().split('\t')
         genome_index = headers.index('accession')
         taxonomy_index = headers.index('gtdb_taxonomy')
