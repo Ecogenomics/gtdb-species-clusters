@@ -463,6 +463,7 @@ class Genomes(object):
             scaffold_count_index = headers.index('scaffold_count')
             ambiguous_bases_index = headers.index('ambiguous_bases')
             total_gap_len_index = headers.index('total_gap_length')
+            coding_density_index = headers.index('coding_density')
             ssu_count_index = headers.index('ssu_count')
             ssu_length_index = headers.index('ssu_length')
             ncbi_molecule_count_index = headers.index('ncbi_molecule_count')
@@ -533,6 +534,7 @@ class Genomes(object):
                 scaffold_count = int(tokens[scaffold_count_index])
                 ambiguous_bases = int(tokens[ambiguous_bases_index])
                 total_gap_len = int(tokens[total_gap_len_index])
+                coding_density = float(tokens[coding_density_index])
                 ssu_count = int(tokens[ssu_count_index])
                 ssu_length = self._convert_int(tokens[ssu_length_index])
                 ncbi_molecule_count = self._convert_int(
@@ -571,8 +573,7 @@ class Genomes(object):
                                            ncbi_genome_representation,
                                            ncbi_refseq_cat,
                                            ncbi_genome_cat,
-                                           excluded_from_refseq_note.get(
-                                               gid, ''),
+                                           excluded_from_refseq_note.get(gid, ''),
                                            cm1_comp,
                                            cm1_cont,
                                            cm1_sh_100,
@@ -584,6 +585,7 @@ class Genomes(object):
                                            scaffold_count,
                                            ambiguous_bases,
                                            total_gap_len,
+                                           coding_density,
                                            ssu_count,
                                            ssu_length,
                                            ncbi_molecule_count,

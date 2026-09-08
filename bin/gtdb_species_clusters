@@ -137,6 +137,20 @@ if __name__ == '__main__':
     u_qc_genomes_parser.add_argument(
         '--max_ambiguous', help='maximum number of ambiguous bases within contigs for a genome to be a type genome', type=int, default=Defaults.QC_MAX_AMBIGUOUS)
     u_qc_genomes_parser.add_argument(
+        '--abnormal_genome_size_mb', help='minimum genome size (in Mb) to subject genome to a coding density test', type=int, default=Defaults.QC_ABNORMAL_GENOME_SIZE_MB)
+    u_qc_genomes_parser.add_argument(
+        '--abnormal_genome_size_coding_density', help='minimum coding density to pass QC for genomes larger than abnormal_genome_size_min_mb', type=float, default=Defaults.QC_ABNORMAL_GENOME_SIZE_CODING_DENSITY)
+    u_qc_genomes_parser.add_argument(
+        '--frameshift_cm2_comp', help='minimum CheckM v2 completeness to pass QC for genomes with frameshift errors', type=float, default=Defaults.QC_FRAMESHIFT_CM2_COMP)
+    u_qc_genomes_parser.add_argument(
+        '--frameshift_coding_density', help='minimum coding density to pass QC for genomes with frameshift errors', type=float, default=Defaults.QC_FRAMESHIFT_CODING_DENSITY)
+    u_qc_genomes_parser.add_argument(
+        '--frameshift_contigs', help='maximum number of contigs with frameshift errors to pass QC', type=int, default=Defaults.QC_FRAMESHIFT_CONTIGS)
+    u_qc_genomes_parser.add_argument(
+        '--ncbi_frameshift_cm2_comp', help='minimum CheckM v2 completeness to pass QC for genomes marked as having a frameshift issue by NCBI', type=float, default=Defaults.QC_NCBI_FRAMESHIFT_CM2_COMP)
+    u_qc_genomes_parser.add_argument(
+        '--ncbi_frameshift_coding_density', help='minimum coding density to pass QC for genomes marked as having a frameshift issue by NCBI', type=float, default=Defaults.QC_NCBI_FRAMESHIFT_CODING_DENSITY)
+    u_qc_genomes_parser.add_argument(
         '--max_cm_xor_contigs', help='maximum number of contigs in genome that passes only CheckM v1 or v2 quality criteria', type=int, default=Defaults.MAX_CHECKM_XOR_CONTIGS)
     u_qc_genomes_parser.add_argument('--silent', help="suppress output", action='store_true')
 

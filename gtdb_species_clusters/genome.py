@@ -56,6 +56,7 @@ class Genome(object):
     scaffold_count: int
     ambiguous_bases: int
     total_gap_len: int
+    coding_density: float
     ssu_count: int
     ssu_length: int
     ncbi_molecule_count: int
@@ -500,7 +501,6 @@ class Genome(object):
         if marker_perc < qc_criteria.min_perc_markers:
             failed_tests['marker_perc'] += 1
             failed = True
-
         if self.contig_count > qc_criteria.max_contigs:
             failed_tests['contig_count'] += 1
             failed = True
@@ -510,5 +510,19 @@ class Genome(object):
         if self.ambiguous_bases > qc_criteria.max_ambiguous:
             failed_tests['ambig'] += 1
             failed = True
+        if (self.length >= qc_criteria.abnormal_genome_size_mb * 1e6
+            and self.coding_density < qc_criteria.abnormal_genome_size_coding_density):
+                failed_tests['abnormal_genome_size'] += 1
+                failed = True
+        if (self.cm2_comp < qc_criteria.frameshift_cm2_comp
+            and self.coding_density < qc_criteria.frameshift_coding_density
+            and self.contig_count < qc_criteria.frameshift_contigs):
+                failed_tests['frameshift'] += 1
+                failed = True
+        if (self.is_ncbi_many_frameshifted_proteins()
+                and self.cm2_comp < qc_criteria.ncbi_frameshift_cm2_comp
+                and self.coding_density < qc_criteria.ncbi_frameshift_coding_density):
+                    failed_tests['ncbi_frameshift'] += 1
+                    failed = True
 
         return not failed

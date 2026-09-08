@@ -162,7 +162,7 @@ class PMC_ClusterStats(object):
         fout = open(os.path.join(self.output_dir,
                                  'intra_genus_pairwise_ani.tsv'), 'w')
         fout.write(
-            'Genus\tSpecies 1\tGenome ID 1\tSpecies 2\tGenome ID2\tANI\tAF\n')
+            'Genus\tSpecies 1\tGenome ID 1\tSpecies 2\tGenome ID 2\tANI\tAF\n')
         closest_intragenus_rep = {}
         for qid, rid in all_ani_pairs:
             genusA = gid_to_genus[qid]
@@ -521,3 +521,5 @@ class PMC_ClusterStats(object):
                                  cluster_radius,
                                  rep_stats,
                                  pairwise_stats)
+
+        self.log.info('Done.')

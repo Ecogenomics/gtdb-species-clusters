@@ -128,6 +128,13 @@ class OptionsParser():
             args.max_contigs,
             args.min_N50,
             args.max_ambiguous,
+            args.abnormal_genome_size_mb,
+            args.abnormal_genome_size_coding_density,
+            args.frameshift_cm2_comp,
+            args.frameshift_coding_density,
+            args.frameshift_contigs,
+            args.ncbi_frameshift_cm2_comp,
+            args.ncbi_frameshift_coding_density,
             args.max_cm_xor_contigs)
 
         p = QcGenomes(params['output_dirs']['u_qc_genomes'])

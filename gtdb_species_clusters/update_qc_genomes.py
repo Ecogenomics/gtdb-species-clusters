@@ -39,6 +39,13 @@ class QcCriteria:
     :param max_contigs: Maximum number of contigs to pass QC.
     :param min_N50: Minimum N50 to pass QC.
     :param max_ambiguous: Maximum number of ambiguous bases to pass QC.
+    :param abnormal_genome_size_mb: Minimum genome size (in Mb) to subject genome to a coding density test.
+    :param abnormal_genome_size_coding_density: Minimum coding density to pass QC for genomes larger than abnormal_genome_size_mb.
+    :param frameshift_cm2_comp: Minimum CheckM v2 completeness to pass QC for genomes with frameshift errors.
+    :param frameshift_coding_density: Minimum coding density to pass QC for genomes with frameshift errors.
+    :param frameshift_contigs: Maximum number of contigs with frameshift errors to pass QC.
+    :param ncbi_frameshift_cm2_comp: Minimum CheckM v2 completeness to pass QC for genomes marked as having a frameshift issue by NCBI.
+    :param ncbi_frameshift_coding_density: Minimum coding density to pass QC for genomes marked as having a frameshift issue by NCBI.
     :param max_cm_xor_contigs: Maximum number of contigs in genome that passes only CheckM v1 or v2 quality criteria.
     """
 
@@ -50,6 +57,16 @@ class QcCriteria:
     max_contigs: int
     min_N50: int
     max_ambiguous: int
+
+    abnormal_genome_size_mb: int
+    abnormal_genome_size_coding_density: float
+
+    frameshift_cm2_comp: float
+    frameshift_coding_density: float
+    frameshift_contigs: int
+    ncbi_frameshift_cm2_comp: float
+    ncbi_frameshift_coding_density: float
+
     max_cm_xor_contigs: int
 
 
@@ -200,23 +217,21 @@ class QcGenomes():
         fout_passed = open(os.path.join(self.output_dir, 'qc_passed.tsv'), 'w')
         fout_failed = open(os.path.join(self.output_dir, 'qc_failed.tsv'), 'w')
 
-        header = 'Accession\tNCBI species\tGTDB taxonomy'
+        header = 'Accession\tNCBI species\tGTDB taxonomy\tGenome size (bp)'
         header += '\tCM1 completeness (%)\tCM1 contamination (%)\tCM1 quality\tCM1 strain heterogeneity at 100%'
         header += '\tCM2 completeness (%)\tCM2 contamination (%)\tCM2 quality'
-        header += '\tMarkers (%)\tNo. contigs\tN50 contigs\tAmbiguous bases'
+        header += '\tMarkers (%)\tNo. contigs\tN50 contigs\tAmbiguous bases\tCoding density'
 
         fout_passed.write(
             header + '\tScore\tNote\tNCBI exclude from RefSeq\tMarked in GTDB ledger\n')
         fout_failed.write(header)
-        fout_failed.write(
-            '\tFailed CM1 completeness\tFailed CM1 contamination\tFailed CM1 quality')
-        fout_failed.write(
-            '\tFailed CM2 completeness\tFailed CM2 contamination\tFailed CM2 quality')
-        fout_failed.write(
-            '\tFailed marker percentage\tFailed no. contigs\tFailed N50 contigs')
-        fout_failed.write(
-            '\tFailed ambiguous bases\tNCBI exclude from RefSeq\tMarked in GTDB ledger\n')
+        fout_failed.write('\tFailed CM1 completeness\tFailed CM1 contamination\tFailed CM1 quality')
+        fout_failed.write('\tFailed CM2 completeness\tFailed CM2 contamination\tFailed CM2 quality')
+        fout_failed.write('\tFailed marker percentage\tFailed no. contigs\tFailed N50 contigs')
+        fout_failed.write('\tFailed ambiguous bases\tFailed abnormal genome size\tFailed frameshift\tFailed NCBI frameshift')
+        fout_failed.write('\tNCBI exclude from RefSeq\tMarked in GTDB ledger\n')
 
+        failed_tests_cumulative = defaultdict(int)
         passed_qc_gids = set()
         failed_qc_gids = set()
         for gid in cur_genomes:
@@ -229,7 +244,8 @@ class QcGenomes():
                 passed_qc_gids.add(gid)
                 fout_passed.write('{}\t{}\t{}'.format(
                     gid, cur_genomes[gid].ncbi_taxa.species, cur_genomes[gid].gtdb_taxa))
-                fout_passed.write('\t{:.2f}\t{:.2f}\t{:.2f}\t{}\t{:.2f}\t{:.2f}\t{:.2f}\t{:.2f}\t{}\t{}\t{}\t{:.2f}\t{}\t{}\t{}\n'.format(
+                fout_passed.write('\t{}\t{:.2f}\t{:.2f}\t{:.2f}\t{}\t{:.2f}\t{:.2f}\t{:.2f}\t{:.2f}\t{}\t{}\t{}\t{:.2f}\t{:.2f}\t{}\t{}\t{}\n'.format(
+                    cur_genomes[gid].length,
                     cur_genomes[gid].cm1_comp,
                     cur_genomes[gid].cm1_cont,
                     cur_genomes[gid].cm1_assembly_quality(),
@@ -241,6 +257,7 @@ class QcGenomes():
                     cur_genomes[gid].contig_count,
                     cur_genomes[gid].contig_n50,
                     cur_genomes[gid].ambiguous_bases,
+                    cur_genomes[gid].coding_density,
                     cur_genomes[gid].score_type_strain(),
                     'Passed QC' if passed_qc else 'Retained as exception',
                     excluded_from_refseq_note.get(gid, ''),
@@ -249,7 +266,8 @@ class QcGenomes():
                 failed_qc_gids.add(gid)
                 fout_failed.write('{}\t{}\t{}'.format(
                     gid, cur_genomes[gid].ncbi_taxa.species, cur_genomes[gid].gtdb_taxa))
-                fout_failed.write('\t{:.2f}\t{:.2f}\t{:.2f}\t{}\t{:.2f}\t{:.2f}\t{:.2f}\t{:.2f}\t{}\t{}\t{}'.format(
+                fout_failed.write('\t{}\t{:.2f}\t{:.2f}\t{:.2f}\t{}\t{:.2f}\t{:.2f}\t{:.2f}\t{:.2f}\t{}\t{}\t{}\t{:.2f}'.format(
+                    cur_genomes[gid].length,
                     cur_genomes[gid].cm1_comp,
                     cur_genomes[gid].cm1_cont,
                     cur_genomes[gid].cm1_assembly_quality(),
@@ -260,8 +278,9 @@ class QcGenomes():
                     marker_perc[gid],
                     cur_genomes[gid].contig_count,
                     cur_genomes[gid].contig_n50,
-                    cur_genomes[gid].ambiguous_bases))
-                fout_failed.write('\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\n'.format(
+                    cur_genomes[gid].ambiguous_bases,
+                    cur_genomes[gid].coding_density))
+                fout_failed.write('\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\n'.format(
                     failed_tests['cm1_comp'],
                     failed_tests['cm1_cont'],
                     failed_tests['cm1_qual'],
@@ -272,8 +291,15 @@ class QcGenomes():
                     failed_tests['contig_count'],
                     failed_tests['N50'],
                     failed_tests['ambig'],
+                    failed_tests['abnormal_genome_size'],
+                    failed_tests['frameshift'],
+                    failed_tests['ncbi_frameshift'],
                     excluded_from_refseq_note.get(gid, ''),
                     gid in filter_exceptions))
+
+                for test, count in failed_tests.items():
+                    failed_tests_cumulative[test] += count
+
         fout_passed.close()
         fout_failed.close()
 
@@ -282,6 +308,10 @@ class QcGenomes():
             len(passed_qc_gids)*100.0/len(cur_genomes),
             len(failed_qc_gids),
             len(failed_qc_gids)*100.0/len(cur_genomes)))
+
+        self.log.info('Genomes filtered by each criterion:')
+        for test in sorted(failed_tests_cumulative):
+            self.log.info(f'  {test}: {failed_tests_cumulative[test]:,}')
 
         return passed_qc_gids, failed_qc_gids
 
@@ -321,7 +351,7 @@ class QcGenomes():
         fout_type_fail.write(
             '\tCM2 completeness (%)\tCM2 contamination (%)\tCM2 quality')
         fout_type_fail.write(
-            '\tMarkers (%)\tNo. contigs\tN50 contigs\tAmbiguous bases\tNCBI exclude from RefSeq\tLost species\n')
+            '\tMarkers (%)\tNo. contigs\tN50 contigs\tAmbiguous bases\tCoding density\tNCBI exclude from RefSeq\tLost species\n')
 
         fout_fail_sp = open(os.path.join(
             self.output_dir, 'species_fail_qc.tsv'), 'w')
@@ -332,11 +362,12 @@ class QcGenomes():
         fout_fail_sp.write(
             '\tCM2 completeness (%)\tCM2 contamination (%)\tCM2 quality')
         fout_fail_sp.write(
-            '\tMarkers (%)\tNo. contigs\tN50 contigs\tAmbiguous bases')
+            '\tMarkers (%)\tNo. contigs\tN50 contigs\tAmbiguous bases\tCoding density')
         fout_fail_sp.write(
             '\tFailed completeness\tFailed contamination\tFailed quality')
         fout_fail_sp.write(
             '\tFailed marker percentage\tFailed no. contigs\tFailed N50 contigs\tFailed ambiguous bases')
+        fout_fail_sp.write('\tFailed abnormal genome size\tFailed frameshift\tFailed NCBI frameshift')
         fout_fail_sp.write('\tNCBI exclude from RefSeq\n')
 
         fout_sp_lost = open(os.path.join(
@@ -347,7 +378,8 @@ class QcGenomes():
         fout_sp_lost.write(
             '\tFail CM2 completeness\tFail CM2 contamination\tFail CM2 quality')
         fout_sp_lost.write(
-            '\tFailed percent markers\tFail no. contigs\tFail N50 contigs\tFail ambiguous bases\n')
+            '\tFailed percent markers\tFail no. contigs\tFail N50 contigs\tFail ambiguous bases')
+        fout_sp_lost.write('\tFailed abnormal genome size\tFailed frameshift\tFailed NCBI frameshift\n')
 
         lost_type = 0
         lost_sp = 0
@@ -393,7 +425,7 @@ class QcGenomes():
                 # all potential type genomes for species failed QC so report these for manual inspection
                 lost_type += 1
                 for gid in type_fail:
-                    fout_type_fail.write('{}\t{}\t{}\t{}\t{}\t{}\t{:.2f}\t{:.2f}\t{:.2f}\t{:.2f}\t{:.2f}\t{:.2f}\t{:.2f}\t{:.2f}\t{:.2f}\t{}\t{}\t{}\t{}\t{}\n'.format(
+                    fout_type_fail.write('{}\t{}\t{}\t{}\t{}\t{}\t{:.2f}\t{:.2f}\t{:.2f}\t{:.2f}\t{:.2f}\t{:.2f}\t{:.2f}\t{:.2f}\t{:.2f}\t{}\t{}\t{}\t{:.2f}\t{}\t{}\n'.format(
                         sp,
                         gid,
                         cur_genomes[gid].gtdb_taxa,
@@ -412,6 +444,7 @@ class QcGenomes():
                         cur_genomes[gid].contig_count,
                         cur_genomes[gid].contig_n50,
                         cur_genomes[gid].ambiguous_bases,
+                        cur_genomes[gid].coding_density,
                         excluded_from_refseq_note[gid],
                         len(other_pass) == 0))
 
@@ -420,22 +453,23 @@ class QcGenomes():
                 lost_sp += 1
                 fout_sp_lost.write('{}\t{}\t{}'.format(
                     sp, len(gids), len(type_fail)))
-                fout_sp_lost.write('\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\n'.format(
+                fout_sp_lost.write('\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\n'.format(
                     sum([failed_tests_gids[gid]['cm1_comp'] for gid in gids]),
                     sum([failed_tests_gids[gid]['cm1_cont'] for gid in gids]),
                     sum([failed_tests_gids[gid]['cm1_qual'] for gid in gids]),
                     sum([failed_tests_gids[gid]['cm2_comp'] for gid in gids]),
                     sum([failed_tests_gids[gid]['cm2_cont'] for gid in gids]),
                     sum([failed_tests_gids[gid]['cm2_qual'] for gid in gids]),
-                    sum([failed_tests_gids[gid]['marker_perc']
-                         for gid in gids]),
-                    sum([failed_tests_gids[gid]['contig_count']
-                         for gid in gids]),
+                    sum([failed_tests_gids[gid]['marker_perc'] for gid in gids]),
+                    sum([failed_tests_gids[gid]['contig_count'] for gid in gids]),
                     sum([failed_tests_gids[gid]['N50'] for gid in gids]),
-                    sum([failed_tests_gids[gid]['ambig'] for gid in gids])))
+                    sum([failed_tests_gids[gid]['ambig'] for gid in gids]),
+                    sum([failed_tests_gids[gid]['abnormal_genome_size'] for gid in gids]),
+                    sum([failed_tests_gids[gid]['frameshift'] for gid in gids]),
+                    sum([failed_tests_gids[gid]['ncbi_frameshift'] for gid in gids])))
 
                 for gid in type_fail.union(other_fail):
-                    fout_fail_sp.write('{}\t{}\t{}\t{}\t{}\t{:.2f}\t{:.2f}\t{:.2f}\t{:.2f}\t{:.2f}\t{:.2f}\t{:.2f}\t{:.2f}\t{:.2f}\t{}\t{}\t{}'.format(
+                    fout_fail_sp.write('{}\t{}\t{}\t{}\t{}\t{:.2f}\t{:.2f}\t{:.2f}\t{:.2f}\t{:.2f}\t{:.2f}\t{:.2f}\t{:.2f}\t{:.2f}\t{}\t{}\t{}\t{:.2f}'.format(
                         sp,
                         gid,
                         cur_genomes[gid].gtdb_taxa,
@@ -452,8 +486,10 @@ class QcGenomes():
                         marker_perc[gid],
                         cur_genomes[gid].contig_count,
                         cur_genomes[gid].contig_n50,
-                        cur_genomes[gid].ambiguous_bases))
-                    fout_fail_sp.write('\t{}\t{}\t{}\t{}\t{}\t{}\t{}'.format(
+                        cur_genomes[gid].ambiguous_bases,
+                        cur_genomes[gid].coding_density
+                        ))
+                    fout_fail_sp.write('\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}'.format(
                         failed_tests_gids[gid]['cm1_comp'],
                         failed_tests_gids[gid]['cm1_cont'],
                         failed_tests_gids[gid]['cm1_qual'],
@@ -463,7 +499,10 @@ class QcGenomes():
                         failed_tests_gids[gid]['marker_perc'],
                         failed_tests_gids[gid]['contig_count'],
                         failed_tests_gids[gid]['N50'],
-                        failed_tests_gids[gid]['ambig']))
+                        failed_tests_gids[gid]['ambig'],
+                        failed_tests_gids[gid]['abnormal_genome_size'],
+                        failed_tests_gids[gid]['frameshift'],
+                        failed_tests_gids[gid]['ncbi_frameshift']))
                     fout_fail_sp.write('\t{}\n'.format(
                         excluded_from_refseq_note[gid]))
 
@@ -478,7 +517,7 @@ class QcGenomes():
         self.log.info(
             'Genomes from NCBI species filtered by each criterion:')
         for test in sorted(failed_tests_cumulative):
-            self.log.info(f'{test}: {failed_tests_cumulative[test]:,}')
+            self.log.info(f'  {test}: {failed_tests_cumulative[test]:,}')
 
     def run(self,
             prev_gtdb_metadata_file: str,
@@ -536,8 +575,7 @@ class QcGenomes():
 
         # parse NCBI assembly files
         self.log.info('Parsing NCBI assembly files.')
-        excluded_from_refseq_note = exclude_from_refseq(
-            ncbi_genbank_assembly_file)
+        excluded_from_refseq_note = exclude_from_refseq(ncbi_genbank_assembly_file)
 
         # QC all genomes
         self.log.info('Validating genomes.')

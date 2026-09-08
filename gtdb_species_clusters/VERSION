@@ -1,3 +1,6 @@
+0.6.0
+- added abnormal genome size and frameshift QC tests
+
 0.5.1
 - fixes to CLI to use TOML file for pmc commands
 
