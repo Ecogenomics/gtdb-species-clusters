@@ -1,3 +1,9 @@
+0.7.4
+- u_gtdbtk can run on several servers at once: each batch is claimed with a canary.running file (host, PID, start time) and marked with a done file when complete; other instances skip claimed or done batches
+- u_gtdbtk removes the canary and terminates GTDB-Tk if interrupted or if GTDB-Tk fails, and reclaims canaries left by dead processes on the same host
+- u_gtdbtk combines GTDB-Tk results only once all batches are done, and reports how many batches are done, running (per host), and remaining
+- genome batch files are created atomically so instances started together do not conflict
+
 0.7.3
 - u_gtdbtk no longer passes --mash_db/--mash_max_distance to GTDB-Tk (removed in GTDB-Tk 2.5+); mash_db_file is no longer read from the TOML file
 - u_gtdbtk handles batches without archaeal or bacterial genomes, and reruns batches whose output directory lacks GTDB-Tk results

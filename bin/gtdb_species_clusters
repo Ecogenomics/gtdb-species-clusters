@@ -157,7 +157,8 @@ if __name__ == '__main__':
     # perform initial classification of new and updated genomes using GTDB-Tk
     u_gtdbtk_parser = subparsers.add_parser('u_gtdbtk',
                                             formatter_class=argparse.ArgumentDefaultsHelpFormatter,
-                                            description='Perform initial classification of new and updated genomes using GTDB-Tk.')
+                                            description='Perform initial classification of new and updated genomes using GTDB-Tk. '
+                                                        'Multiple instances can be run at the same time on different servers to process batches in parallel.')
     u_gtdbtk_parser.add_argument('input_params_file', help='TOML file indicating input parameters')
 
     u_gtdbtk_parser.add_argument(
