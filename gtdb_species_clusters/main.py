@@ -215,7 +215,6 @@ class OptionsParser():
         p = GTDB_Tk(args.cpus, params['output_dirs']['u_gtdbtk'])
         p.run(genomes_new_updated,
               qc_passed,
-              params['data_files']['mash_db_file'],
               args.batch_size)
 
     def u_lpsn_rna_types(self, args):

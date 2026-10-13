@@ -1,3 +1,8 @@
+0.7.3
+- u_gtdbtk no longer passes --mash_db/--mash_max_distance to GTDB-Tk (removed in GTDB-Tk 2.5+); mash_db_file is no longer read from the TOML file
+- u_gtdbtk handles batches without archaeal or bacterial genomes, and reruns batches whose output directory lacks GTDB-Tk results
+- GTDB-Tk 2.8.0 is the supported version
+
 0.7.2
 - missing ('none') CheckM completeness and contamination values are treated as 0% and 100%, respectively, so genomes fail CheckM QC instead of crashing the metadata loader
 - missing coding density and genome size values are treated as 0
