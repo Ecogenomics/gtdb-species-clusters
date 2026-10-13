@@ -1,3 +1,8 @@
+0.7.1
+- updated stale Genome unit tests and expanded QC tests to cover CheckM v1/v2, strain heterogeneity, genome size, and frameshift criteria
+- fixed Skani.dist() using undefined query path mapping
+- setup.py uses setuptools and lists actual dependencies (gtdblib instead of biolib)
+
 0.7.0
 - support separate archaeal and bacterial files for previous GTDB metadata and NCBI GenBank assembly summaries (prev_gtdb_{ar,bac}_metadata_file, ncbi_assembly_summary_{ar,bac}_genbank_file)
 - input metadata, genome path, NCBI assembly summary, and domain report files can be gzip compressed

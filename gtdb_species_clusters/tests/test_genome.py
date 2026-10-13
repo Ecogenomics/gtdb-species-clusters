@@ -5,44 +5,66 @@ import copy
 
 from gtdb_species_clusters.genome import Genome
 from gtdb_species_clusters.taxa import Taxa
+from gtdb_species_clusters.update_qc_genomes import QcCriteria
+from gtdb_species_clusters import defaults as Defaults
 
-test_genome = Genome("G012345678",
-                     "GCA_012345678.1",
-                     "G012345678",
-                     True,
-                     Taxa(
+test_genome = Genome(gid="G012345678",
+                     ncbi_accn="GCA_012345678.1",
+                     gtdb_rid="G012345678",
+                     gtdb_is_rep=True,
+                     gtdb_taxa=Taxa(
                          "d__Bacteria;p__Proteobacteria;c__Gammaproteobacteria;o__Enterobacterales;f__Enterobacteriaceae;g__Escherichia;s__Escherichia flexneri"),
-                     Taxa(
+                     ncbi_taxa=Taxa(
                          "d__Bacteria;p__Proteobacteria;c__Gammaproteobacteria;o__Enterobacterales;f__Enterobacteriaceae;g__Escherichia;s__Escherichia flexneri"),
-                     Taxa(
+                     ncbi_unfiltered_taxa=Taxa(
                          "d__Bacteria;p__Proteobacteria;c__Gammaproteobacteria;o__Enterobacterales;f__Enterobacteriaceae;g__Escherichia;s__Escherichia flexneri"),
-                     "type strain of species",
-                     "LPSN",
-                     True,
-                     False,
-                     False,
-                     'assembly from type material',
-                     "K-12",
-                     "Complete genome",
-                     "Full",
-                     "Reference genome",
-                     None,
-                     "",
-                     100,
-                     0,
-                     0,
-                     3500000,
-                     1,
-                     3500000,
-                     1,
-                     0,
-                     0,
-                     1,
-                     1600,
-                     1,
-                     0,
-                     0,
-                     "1900")
+                     gtdb_type_designation="type strain of species",
+                     gtdb_type_designation_sources="LPSN",
+                     gtdb_type_species_of_genus=True,
+                     gtdb_untrustworthy_as_type=False,
+                     ncbi_untrustworthy_sp=False,
+                     ncbi_type_material='assembly from type material',
+                     ncbi_strain_identifiers="K-12",
+                     ncbi_assembly_level="Complete genome",
+                     ncbi_genome_representation="Full",
+                     ncbi_refseq_category="Reference genome",
+                     ncbi_genome_category=None,
+                     excluded_from_refseq_note="",
+                     cm1_comp=100,
+                     cm1_cont=0,
+                     cm1_strain_heterogeneity_100=0,
+                     cm2_comp=100,
+                     cm2_cont=0,
+                     length=3500000,
+                     contig_count=1,
+                     contig_n50=3500000,
+                     scaffold_count=1,
+                     ambiguous_bases=0,
+                     total_gap_len=0,
+                     coding_density=88.0,
+                     ssu_count=1,
+                     ssu_length=1600,
+                     ncbi_molecule_count=1,
+                     ncbi_unspanned_gaps=0,
+                     ncbi_spanned_gaps=0,
+                     lpsn_priority_year=1900)
+
+qc_criteria = QcCriteria(min_comp=Defaults.QC_MIN_COMP,
+                         max_cont=Defaults.QC_MAX_CONT,
+                         min_quality=Defaults.QC_MIN_QUALITY,
+                         sh_exception=Defaults.QC_SH_EXCEPTION,
+                         min_perc_markers=Defaults.QC_MIN_PERC_MARKERS,
+                         max_contigs=Defaults.QC_MAX_CONTIGS,
+                         min_N50=Defaults.QC_MIN_N50,
+                         max_ambiguous=Defaults.QC_MAX_AMBIGUOUS,
+                         abnormal_genome_size_mb=Defaults.QC_ABNORMAL_GENOME_SIZE_MB,
+                         abnormal_genome_size_coding_density=Defaults.QC_ABNORMAL_GENOME_SIZE_CODING_DENSITY,
+                         frameshift_cm2_comp=Defaults.QC_FRAMESHIFT_CM2_COMP,
+                         frameshift_coding_density=Defaults.QC_FRAMESHIFT_CODING_DENSITY,
+                         frameshift_contigs=Defaults.QC_FRAMESHIFT_CONTIGS,
+                         ncbi_frameshift_cm2_comp=Defaults.QC_NCBI_FRAMESHIFT_CM2_COMP,
+                         ncbi_frameshift_coding_density=Defaults.QC_NCBI_FRAMESHIFT_CODING_DENSITY,
+                         max_cm_xor_contigs=Defaults.MAX_CHECKM_XOR_CONTIGS)
 
 
 class TestGenome:
@@ -216,41 +238,53 @@ class TestGenome:
     def test_pass_qc(self):
         """Test reporting of genome passing QC."""
 
-        g = copy.copy(test_genome)
+        def run_qc(marker_perc=100, **attrs):
+            g = copy.copy(test_genome)
+            for k, v in attrs.items():
+                setattr(g, k, v)
 
-        failed_tests = defaultdict(int)
-        assert g.pass_qc(100,  # marker_perc
-                         50,  # min_comp
-                         10,  # max_cont
-                         50,  # min_quality
-                         80,  # sh_exception
-                         40,  # min_perc_markers
-                         1000,  # max_contigs
-                         5000,  # min_N50
-                         100000,  # max_ambiguous
-                         failed_tests)
+            failed_tests = defaultdict(int)
+            passed = g.pass_qc(marker_perc, qc_criteria, failed_tests)
 
-        g.comp = 49
-        assert not g.pass_qc(100,  # marker_perc
-                             50,  # min_comp
-                             10,  # max_cont
-                             50,  # min_quality
-                             80,  # sh_exception
-                             40,  # min_perc_markers
-                             1000,  # max_contigs
-                             5000,  # min_N50
-                             100000,  # max_ambiguous
-                             failed_tests)
+            return passed, set(failed_tests)
 
-        g.comp = 51
-        g.cont = 11
-        assert not g.pass_qc(100,  # marker_perc
-                             50,  # min_comp
-                             10,  # max_cont
-                             50,  # min_quality
-                             80,  # sh_exception
-                             40,  # min_perc_markers
-                             1000,  # max_contigs
-                             5000,  # min_N50
-                             100000,  # max_ambiguous
-                             failed_tests)
+        # high quality genome passes QC
+        assert run_qc() == (True, set())
+
+        # fails if both CheckM v1 and v2 estimates fail
+        assert run_qc(cm1_comp=49, cm2_comp=49) == (False, {'cm1_comp', 'cm2_comp'})
+
+        # passes if only one of CheckM v1 or v2 estimates fail,
+        # provided the genome has few contigs
+        assert run_qc(cm1_cont=11) == (True, set())
+        assert run_qc(cm2_cont=11) == (True, set())
+        assert run_qc(cm1_cont=11, contig_count=10) == (False, {'cm1_cont'})
+        assert run_qc(cm2_cont=11, contig_count=10) == (False, {'cm2_cont'})
+
+        # CheckM v1 contamination is discounted for genomes with high strain heterogeneity
+        # (up to 20%), so long as the estimated quality is sufficient
+        assert run_qc(cm1_cont=15, contig_count=10) == (False, {'cm1_cont'})
+        assert run_qc(cm1_cont=15, cm1_strain_heterogeneity_100=90, contig_count=10) == (True, set())
+        assert run_qc(cm1_cont=21, cm1_strain_heterogeneity_100=90, contig_count=10) == (False, {'cm1_cont'})
+        assert run_qc(cm1_comp=60, cm1_cont=15, cm1_strain_heterogeneity_100=80,
+                      contig_count=10) == (False, {'cm1_qual'})
+
+        # assembly and marker gene criteria
+        assert run_qc(marker_perc=39) == (False, {'marker_perc'})
+        assert run_qc(contig_count=2001) == (False, {'contig_count'})
+        assert run_qc(contig_n50=4999) == (False, {'N50'})
+        assert run_qc(ambiguous_bases=100001) == (False, {'ambig'})
+
+        # large genomes with low coding density
+        assert run_qc(length=15e6, coding_density=69) == (False, {'abnormal_genome_size'})
+        assert run_qc(length=14e6, coding_density=69) == (True, set())
+
+        # genomes likely to have frameshift errors
+        assert run_qc(cm2_comp=69, coding_density=69) == (False, {'frameshift'})
+        assert run_qc(cm2_comp=69, coding_density=69, contig_count=20) == (True, set())
+
+        # genomes marked by NCBI as having many frameshifted proteins
+        assert run_qc(excluded_from_refseq_note='many frameshifted proteins',
+                      cm2_comp=79, coding_density=79) == (False, {'ncbi_frameshift'})
+        assert run_qc(excluded_from_refseq_note='many frameshifted proteins',
+                      cm2_comp=80, coding_density=79) == (True, set())
