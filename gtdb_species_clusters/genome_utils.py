@@ -16,9 +16,74 @@
 ###############################################################################
 
 import os
+import gzip
 from collections import namedtuple
 
 from gtdblib.util.bio.accession import canonical_gid
+
+
+def open_file(input_file):
+    """Open plain text or gzip compressed file for reading."""
+
+    if input_file.endswith('.gz'):
+        return gzip.open(input_file, 'rt', encoding='utf-8')
+
+    return open(input_file, encoding='utf-8')
+
+
+class MultiFileReader():
+    """Read lines from one or more plain text or gzip compressed files as if they were a single file.
+
+    If has_header is True, the first line of each file is treated as a header
+    which must be identical across all files and is only returned once.
+    """
+
+    def __init__(self, input_files, has_header=True):
+        """Initialization."""
+
+        if isinstance(input_files, str):
+            input_files = [input_files]
+
+        self.input_files = list(input_files)
+        self.has_header = has_header
+        self.cur_file = None
+        self.lines = self._read_lines()
+
+    def _read_lines(self):
+        """Generator over lines in all files."""
+
+        header = None
+        for input_file in self.input_files:
+            self.cur_file = open_file(input_file)
+
+            if self.has_header:
+                file_header = self.cur_file.readline()
+                if header is None:
+                    header = file_header
+                    yield header
+                elif file_header != header:
+                    raise ValueError(
+                        f'Header of {input_file} differs from header of {self.input_files[0]}.')
+
+            yield from self.cur_file
+
+            self.cur_file.close()
+            self.cur_file = None
+
+    def readline(self):
+        """Read next line, returning an empty string once all files have been read."""
+
+        return next(self.lines, '')
+
+    def __iter__(self):
+        return self.lines
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        if self.cur_file is not None:
+            self.cur_file.close()
 
 
 def select_highest_quality(gids, cur_genomes):
@@ -37,17 +102,18 @@ def read_genome_path(genome_path_file):
     """Determine path to genomic FASTA file for each genome."""
 
     genome_files = {}
-    for line in open(genome_path_file):
-        line_split = line.strip().split('\t')
+    with open_file(genome_path_file) as f:
+        for line in f:
+            line_split = line.strip().split('\t')
 
-        gid = line_split[0]
-        gid = canonical_gid(gid)
+            gid = line_split[0]
+            gid = canonical_gid(gid)
 
-        genome_path = line_split[1]
-        accession = os.path.basename(os.path.normpath(genome_path))
+            genome_path = line_split[1]
+            accession = os.path.basename(os.path.normpath(genome_path))
 
-        genome_files[gid] = os.path.join(
-            genome_path, accession + '_genomic.fna.gz')
+            genome_files[gid] = os.path.join(
+                genome_path, accession + '_genomic.fna.gz')
 
     return genome_files
 
@@ -71,7 +137,7 @@ def read_gtdb_metadata(metadata_file, fields):
     gtdb_metadata = namedtuple('gtdb_metadata', ' '.join(fields))
     m = {}
 
-    with open(metadata_file, encoding='utf-8') as f:
+    with MultiFileReader(metadata_file) as f:
         headers = f.readline().strip().split('\t')
 
         genome_index = headers.index('accession')
@@ -108,7 +174,7 @@ def exclude_from_refseq(genbank_assembly_file):
     """Parse exclude from RefSeq field from NCBI assembly files."""
 
     excluded_from_refseq_note = {}
-    with open(genbank_assembly_file, encoding='utf-8') as f:
+    with MultiFileReader(genbank_assembly_file, has_header=False) as f:
         for line in f:
             if line[0] == '#':
                 if line.startswith('# assembly_accession') or line.startswith('#assembly_accession'):
@@ -126,7 +192,7 @@ def parse_ncbi_bioproject(genbank_assembly_file):
     """Parse BioProject field from NCBI assembly files."""
 
     bioproject = {}
-    with open(genbank_assembly_file, encoding='utf-8') as f:
+    with MultiFileReader(genbank_assembly_file, has_header=False) as f:
         for line in f:
             if line[0] == '#':
                 if line.startswith('# assembly_accession') or line.startswith('#assembly_accession'):

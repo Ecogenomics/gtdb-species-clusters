@@ -99,3 +99,6 @@ ENV/
 
 # mypy
 .mypy_cache/
+
+# task tracking for resuming interrupted work (see CLAUDE.md)
+CURRENT_TASK.md

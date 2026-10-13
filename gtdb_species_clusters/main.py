@@ -60,15 +60,65 @@ from gtdb_species_clusters.sandbox import Sandbox
 if sys.version_info >= (3, 11):
     import tomllib
 
-    def parse_toml_file(toml_file: str):
+    def load_toml_file(toml_file: str):
         with open(toml_file, 'rb') as f:
             return tomllib.load(f)
 else:
     import toml as tomllib
 
-    def parse_toml_file(toml_file: str):
+    def load_toml_file(toml_file: str):
         with open(toml_file, 'r') as f:
             return tomllib.load(f)
+
+
+def parse_toml_file(toml_file: str):
+    """Parse TOML file with input parameters.
+
+    Paths to data files, ledgers, the LTP taxonomy file, and output directories
+    are resolved relative to root_dir (absolute paths are unchanged). Note that
+    ltp_dir is the name of a subdirectory within each genome directory and is
+    therefore not resolved.
+    """
+
+    params = load_toml_file(toml_file)
+
+    if 'root_dir' in params:
+        root_dir = os.path.abspath(params['root_dir'])
+        params['root_dir'] = root_dir
+
+        def resolve(path):
+            return os.path.normpath(os.path.join(root_dir, path))
+
+        for section in ['data_files', 'ledgers', 'output_dirs']:
+            for key, path in params.get(section, {}).items():
+                params[section][key] = resolve(path)
+
+        if 'ltp_taxonomy_file' in params.get('ltp', {}):
+            params['ltp']['ltp_taxonomy_file'] = resolve(
+                params['ltp']['ltp_taxonomy_file'])
+
+    return params
+
+
+def prev_gtdb_metadata_files(params):
+    """Get GTDB metadata files for archaeal and bacterial genomes in previous GTDB release."""
+
+    return [params['data_files']['prev_gtdb_ar_metadata_file'],
+            params['data_files']['prev_gtdb_bac_metadata_file']]
+
+
+def ncbi_assembly_summary_genbank_files(params):
+    """Get NCBI assembly summary files for archaeal and bacterial GenBank assemblies."""
+
+    return [params['data_files']['ncbi_assembly_summary_ar_genbank_file'],
+            params['data_files']['ncbi_assembly_summary_bac_genbank_file']]
+
+
+def check_files_exist(input_files):
+    """Check that all specified files exist."""
+
+    for input_file in input_files:
+        check_file_exists(input_file)
 
 
 class OptionsParser():
@@ -84,21 +134,20 @@ class OptionsParser():
         check_file_exists(args.input_params_file)
         params = parse_toml_file(args.input_params_file)
 
-        check_file_exists(params['data_files']['prev_gtdb_metadata_file'])
+        check_files_exist(prev_gtdb_metadata_files(params))
         check_file_exists(params['data_files']['cur_gtdb_metadata_file'])
         check_file_exists(params['data_files']['cur_genome_path_file'])
-        check_file_exists(params['data_files']
-                          ['ncbi_assembly_summary_genbank_file'])
+        check_files_exist(ncbi_assembly_summary_genbank_files(params))
 
         make_sure_path_exists(params['output_dirs']['u_new_genomes'])
         self.log.info(
             f"Output directory: {params['output_dirs']['u_new_genomes']}")
 
         p = NewGenomes(params['output_dirs']['u_new_genomes'])
-        p.run(params['data_files']['prev_gtdb_metadata_file'],
+        p.run(prev_gtdb_metadata_files(params),
               params['data_files']['cur_gtdb_metadata_file'],
               params['data_files']['cur_genome_path_file'],
-              params['data_files']['ncbi_assembly_summary_genbank_file'])
+              ncbi_assembly_summary_genbank_files(params))
 
     def u_qc_genomes(self, args):
         """Quality check new and updated genomes."""
@@ -106,10 +155,9 @@ class OptionsParser():
         check_file_exists(args.input_params_file)
         params = parse_toml_file(args.input_params_file)
 
-        check_file_exists(params['data_files']['prev_gtdb_metadata_file'])
+        check_files_exist(prev_gtdb_metadata_files(params))
         check_file_exists(params['data_files']['cur_gtdb_metadata_file'])
-        check_file_exists(params['data_files']
-                          ['ncbi_assembly_summary_genbank_file'])
+        check_files_exist(ncbi_assembly_summary_genbank_files(params))
         check_file_exists(params['data_files']['cur_gtdb_domain_report'])
         check_file_exists(params['ledgers']['gtdb_type_strains_ledger'])
         check_file_exists(params['ledgers']['qc_exception_ledger'])
@@ -138,9 +186,9 @@ class OptionsParser():
             args.max_cm_xor_contigs)
 
         p = QcGenomes(params['output_dirs']['u_qc_genomes'])
-        p.run(params['data_files']['prev_gtdb_metadata_file'],
+        p.run(prev_gtdb_metadata_files(params),
               params['data_files']['cur_gtdb_metadata_file'],
-              params['data_files']['ncbi_assembly_summary_genbank_file'],
+              ncbi_assembly_summary_genbank_files(params),
               params['data_files']['cur_gtdb_domain_report'],
               params['ledgers']['gtdb_type_strains_ledger'],
               params['ledgers']['qc_exception_ledger'],
@@ -183,8 +231,7 @@ class OptionsParser():
         check_file_exists(params['data_files']['cur_gtdb_metadata_file'])
         check_file_exists(params['data_files']['cur_genome_path_file'])
         check_file_exists(qc_passed)
-        check_file_exists(params['data_files']
-                          ['ncbi_assembly_summary_genbank_file'])
+        check_files_exist(ncbi_assembly_summary_genbank_files(params))
         check_file_exists(params['ledgers']['gtdb_type_strains_ledger'])
         check_file_exists(params['ledgers']['untrustworthy_type_ledger'])
 
@@ -198,7 +245,7 @@ class OptionsParser():
               params['data_files']['cur_gtdb_metadata_file'],
               params['data_files']['cur_genome_path_file'],
               qc_passed,
-              params['data_files']['ncbi_assembly_summary_genbank_file'],
+              ncbi_assembly_summary_genbank_files(params),
               params['ledgers']['gtdb_type_strains_ledger'],
               params['ledgers']['untrustworthy_type_ledger'])
 
@@ -214,8 +261,7 @@ class OptionsParser():
         check_file_exists(qc_passed)
         check_file_exists(params['data_files']['cur_gtdb_metadata_file'])
         check_file_exists(params['data_files']['cur_genome_path_file'])
-        check_file_exists(params['data_files']
-                          ['ncbi_assembly_summary_genbank_file'])
+        check_files_exist(ncbi_assembly_summary_genbank_files(params))
         check_file_exists(params['ltp']['ltp_taxonomy_file'])
         check_file_exists(params['ledgers']['gtdb_type_strains_ledger'])
         check_file_exists(params['ledgers']['untrustworthy_type_ledger'])
@@ -230,7 +276,7 @@ class OptionsParser():
         p.run(params['data_files']['cur_gtdb_metadata_file'],
               params['data_files']['cur_genome_path_file'],
               qc_passed,
-              params['data_files']['ncbi_assembly_summary_genbank_file'],
+              ncbi_assembly_summary_genbank_files(params),
               params['ltp']['ltp_taxonomy_file'],
               params['ledgers']['gtdb_type_strains_ledger'],
               params['ledgers']['untrustworthy_type_ledger'],
@@ -251,13 +297,12 @@ class OptionsParser():
         untrustworthy_type_file = os.path.join(
             params['output_dirs']['u_resolve_types'], 'untrustworthy_type_material.tsv')
 
-        check_file_exists(params['data_files']['prev_gtdb_metadata_file'])
+        check_files_exist(prev_gtdb_metadata_files(params))
         check_file_exists(params['data_files']['cur_gtdb_metadata_file'])
         check_file_exists(genomes_new_updated)
         check_file_exists(qc_passed)
         check_file_exists(gtdbtk_classify_file)
-        check_file_exists(params['data_files']
-                          ['ncbi_assembly_summary_genbank_file'])
+        check_files_exist(ncbi_assembly_summary_genbank_files(params))
         check_file_exists(untrustworthy_type_file)
         check_file_exists(params['ledgers']['disband_cluster_ledger'])
         check_file_exists(params['ledgers']['gtdb_type_strains_ledger'])
@@ -268,12 +313,12 @@ class OptionsParser():
             f"Output directory: {params['output_dirs']['u_rep_changes']}")
 
         p = RepChanges(params['output_dirs']['u_rep_changes'])
-        p.run(params['data_files']['prev_gtdb_metadata_file'],
+        p.run(prev_gtdb_metadata_files(params),
               params['data_files']['cur_gtdb_metadata_file'],
               genomes_new_updated,
               qc_passed,
               gtdbtk_classify_file,
-              params['data_files']['ncbi_assembly_summary_genbank_file'],
+              ncbi_assembly_summary_genbank_files(params),
               untrustworthy_type_file,
               params['ledgers']['disband_cluster_ledger'],
               params['ledgers']['gtdb_type_strains_ledger'],
@@ -302,8 +347,7 @@ class OptionsParser():
         check_file_exists(genomes_new_updated)
         check_file_exists(qc_passed)
         check_file_exists(gtdbtk_classify_file)
-        check_file_exists(params['data_files']
-                          ['ncbi_assembly_summary_genbank_file'])
+        check_files_exist(ncbi_assembly_summary_genbank_files(params))
         check_file_exists(untrustworthy_type_file)
         check_file_exists(params['ledgers']['gtdb_type_strains_ledger'])
         check_file_exists(params['ledgers']['sp_priority_ledger'])
@@ -317,14 +361,14 @@ class OptionsParser():
 
         p = RepActions(args.cpus, params['output_dirs']['u_rep_actions'])
         p.run(rep_change_summary_file,
-              params['data_files']['prev_gtdb_metadata_file'],
+              prev_gtdb_metadata_files(params),
               params['data_files']['prev_genome_path_file'],
               params['data_files']['cur_gtdb_metadata_file'],
               params['data_files']['cur_genome_path_file'],
               genomes_new_updated,
               qc_passed,
               gtdbtk_classify_file,
-              params['data_files']['ncbi_assembly_summary_genbank_file'],
+              ncbi_assembly_summary_genbank_files(params),
               untrustworthy_type_file,
               params['ledgers']['gtdb_type_strains_ledger'],
               params['ledgers']['sp_priority_ledger'],
@@ -349,8 +393,7 @@ class OptionsParser():
         check_file_exists(params['data_files']['cur_gtdb_metadata_file'])
         check_file_exists(params['data_files']['cur_genome_path_file'])
         check_file_exists(qc_passed)
-        check_file_exists(params['data_files']
-                          ['ncbi_assembly_summary_genbank_file'])
+        check_files_exist(ncbi_assembly_summary_genbank_files(params))
         check_file_exists(untrustworthy_type_file)
         check_file_exists(params['ledgers']['gtdb_type_strains_ledger'])
         check_file_exists(params['ledgers']['ncbi_untrustworthy_sp_ledger'])
@@ -369,7 +412,7 @@ class OptionsParser():
               params['data_files']['cur_gtdb_metadata_file'],
               params['data_files']['cur_genome_path_file'],
               qc_passed,
-              params['data_files']['ncbi_assembly_summary_genbank_file'],
+              ncbi_assembly_summary_genbank_files(params),
               untrustworthy_type_file,
               params['ledgers']['gtdb_type_strains_ledger'],
               params['ledgers']['ncbi_untrustworthy_sp_ledger'],
@@ -397,8 +440,7 @@ class OptionsParser():
         check_file_exists(params['data_files']['cur_gtdb_metadata_file'])
         check_file_exists(params['data_files']['cur_genome_path_file'])
         check_file_exists(qc_passed)
-        check_file_exists(params['data_files']
-                          ['ncbi_assembly_summary_genbank_file'])
+        check_files_exist(ncbi_assembly_summary_genbank_files(params))
         check_file_exists(untrustworthy_type_file)
         check_file_exists(rep_ani_file)
         check_file_exists(params['ledgers']['gtdb_type_strains_ledger'])
@@ -416,7 +458,7 @@ class OptionsParser():
               params['data_files']['cur_gtdb_metadata_file'],
               params['data_files']['cur_genome_path_file'],
               qc_passed,
-              params['data_files']['ncbi_assembly_summary_genbank_file'],
+              ncbi_assembly_summary_genbank_files(params),
               untrustworthy_type_file,
               rep_ani_file,
               params['ledgers']['gtdb_type_strains_ledger'],
@@ -441,8 +483,7 @@ class OptionsParser():
         check_file_exists(params['data_files']['cur_gtdb_metadata_file'])
         check_file_exists(params['data_files']['cur_genome_path_file'])
         check_file_exists(qc_passed)
-        check_file_exists(params['data_files']
-                          ['ncbi_assembly_summary_genbank_file'])
+        check_files_exist(ncbi_assembly_summary_genbank_files(params))
         check_file_exists(untrustworthy_type_file)
         check_file_exists(ani_af_nonrep_vs_rep)
         check_file_exists(params['ledgers']['gtdb_type_strains_ledger'])
@@ -460,7 +501,7 @@ class OptionsParser():
               params['data_files']['cur_gtdb_metadata_file'],
               params['data_files']['cur_genome_path_file'],
               qc_passed,
-              params['data_files']['ncbi_assembly_summary_genbank_file'],
+              ncbi_assembly_summary_genbank_files(params),
               untrustworthy_type_file,
               ani_af_nonrep_vs_rep,
               params['ledgers']['gtdb_type_strains_ledger'],
@@ -480,11 +521,10 @@ class OptionsParser():
             params['output_dirs']['u_cluster_de_novo'], 'gtdb_clusters_de_novo.tsv')
 
         check_file_exists(gtdb_clusters_file)
-        check_file_exists(params['data_files']['prev_gtdb_metadata_file'])
+        check_files_exist(prev_gtdb_metadata_files(params))
         check_file_exists(params['data_files']['cur_gtdb_metadata_file'])
         check_file_exists(qc_passed)
-        check_file_exists(params['data_files']
-                          ['ncbi_assembly_summary_genbank_file'])
+        check_files_exist(ncbi_assembly_summary_genbank_files(params))
         check_file_exists(untrustworthy_type_file)
         check_file_exists(params['ledgers']['gtdb_type_strains_ledger'])
         check_file_exists(params['ledgers']['ncbi_env_bioproject_ledger'])
@@ -495,10 +535,10 @@ class OptionsParser():
 
         p = UpdateClusterStats(params['output_dirs']['u_cluster_stats'])
         p.run(gtdb_clusters_file,
-              params['data_files']['prev_gtdb_metadata_file'],
+              prev_gtdb_metadata_files(params),
               params['data_files']['cur_gtdb_metadata_file'],
               qc_passed,
-              params['data_files']['ncbi_assembly_summary_genbank_file'],
+              ncbi_assembly_summary_genbank_files(params),
               untrustworthy_type_file,
               params['ledgers']['gtdb_type_strains_ledger'],
               params['ledgers']['ncbi_env_bioproject_ledger'])
@@ -520,8 +560,7 @@ class OptionsParser():
         check_file_exists(params['data_files']['cur_gtdb_metadata_file'])
         check_file_exists(params['data_files']['cur_genome_path_file'])
         check_file_exists(qc_passed)
-        check_file_exists(params['data_files']
-                          ['ncbi_assembly_summary_genbank_file'])
+        check_files_exist(ncbi_assembly_summary_genbank_files(params))
         check_file_exists(untrustworthy_type_file)
         check_file_exists(params['ledgers']['gtdb_type_strains_ledger'])
         check_file_exists(params['ledgers']['ncbi_untrustworthy_sp_ledger'])
@@ -536,7 +575,7 @@ class OptionsParser():
               params['data_files']['cur_gtdb_metadata_file'],
               params['data_files']['cur_genome_path_file'],
               qc_passed,
-              params['data_files']['ncbi_assembly_summary_genbank_file'],
+              ncbi_assembly_summary_genbank_files(params),
               untrustworthy_type_file,
               params['ledgers']['gtdb_type_strains_ledger'],
               params['ledgers']['ncbi_untrustworthy_sp_ledger'],
@@ -563,8 +602,7 @@ class OptionsParser():
         check_file_exists(params['data_files']['cur_gtdb_metadata_file'])
         check_file_exists(qc_passed)
         check_file_exists(ncbi_misclassified_file)
-        check_file_exists(params['data_files']
-                          ['ncbi_assembly_summary_genbank_file'])
+        check_files_exist(ncbi_assembly_summary_genbank_files(params))
         check_file_exists(untrustworthy_type_file)
         check_file_exists(ani_af_nonrep_vs_rep)
         check_file_exists(params['ledgers']['gtdb_type_strains_ledger'])
@@ -583,7 +621,7 @@ class OptionsParser():
               params['data_files']['cur_gtdb_metadata_file'],
               qc_passed,
               ncbi_misclassified_file,
-              params['data_files']['ncbi_assembly_summary_genbank_file'],
+              ncbi_assembly_summary_genbank_files(params),
               untrustworthy_type_file,
               ani_af_nonrep_vs_rep,
               params['ledgers']['gtdb_type_strains_ledger'],
@@ -607,11 +645,10 @@ class OptionsParser():
             params['output_dirs']['u_cluster_de_novo'], 'gtdb_clusters_de_novo.tsv')
 
         check_file_exists(gtdb_clusters_file)
-        check_file_exists(params['data_files']['prev_gtdb_metadata_file'])
+        check_files_exist(prev_gtdb_metadata_files(params))
         check_file_exists(params['data_files']['cur_gtdb_metadata_file'])
         check_file_exists(qc_passed)
-        check_file_exists(params['data_files']
-                          ['ncbi_assembly_summary_genbank_file'])
+        check_files_exist(ncbi_assembly_summary_genbank_files(params))
         check_file_exists(untrustworthy_type_file)
         check_file_exists(params['ledgers']['gtdb_type_strains_ledger'])
         check_file_exists(params['ledgers']['ncbi_untrustworthy_sp_ledger'])
@@ -624,10 +661,10 @@ class OptionsParser():
         p = UpdateCurationTrees(
             params['output_dirs']['u_curation_trees'], f"gtdb_{params['release']}")
         p.run(gtdb_clusters_file,
-              params['data_files']['prev_gtdb_metadata_file'],
+              prev_gtdb_metadata_files(params),
               params['data_files']['cur_gtdb_metadata_file'],
               qc_passed,
-              params['data_files']['ncbi_assembly_summary_genbank_file'],
+              ncbi_assembly_summary_genbank_files(params),
               untrustworthy_type_file,
               params['ledgers']['gtdb_type_strains_ledger'],
               params['ledgers']['ncbi_untrustworthy_sp_ledger'],
@@ -651,12 +688,11 @@ class OptionsParser():
             params['output_dirs']['u_synonyms'], 'synonyms.tsv')
 
         check_file_exists(gtdb_clusters_file)
-        check_file_exists(params['data_files']['prev_gtdb_metadata_file'])
+        check_files_exist(prev_gtdb_metadata_files(params))
         check_file_exists(params['data_files']['cur_gtdb_metadata_file'])
         check_file_exists(qc_passed)
         check_file_exists(gtdbtk_classify_file)
-        check_file_exists(params['data_files']
-                          ['ncbi_assembly_summary_genbank_file'])
+        check_files_exist(ncbi_assembly_summary_genbank_files(params))
         check_file_exists(untrustworthy_type_file)
         check_file_exists(synonym_file)
         check_file_exists(params['ledgers']['gtdb_type_strains_ledger'])
@@ -672,11 +708,11 @@ class OptionsParser():
 
         p = UpdateSpeciesInit(params['output_dirs']['u_species_init'])
         p.run(gtdb_clusters_file,
-              params['data_files']['prev_gtdb_metadata_file'],
+              prev_gtdb_metadata_files(params),
               params['data_files']['cur_gtdb_metadata_file'],
               qc_passed,
               gtdbtk_classify_file,
-              params['data_files']['ncbi_assembly_summary_genbank_file'],
+              ncbi_assembly_summary_genbank_files(params),
               untrustworthy_type_file,
               synonym_file,
               params['ledgers']['gtdb_type_strains_ledger'],
@@ -713,12 +749,11 @@ class OptionsParser():
         check_file_exists(taxonomy_init_bac)
         check_file_exists(params['data_files']['seqcode_file'])
         check_file_exists(gtdb_clusters_file)
-        check_file_exists(params['data_files']['prev_gtdb_metadata_file'])
+        check_files_exist(prev_gtdb_metadata_files(params))
         check_file_exists(params['data_files']['cur_gtdb_metadata_file'])
         check_file_exists(qc_passed)
         check_file_exists(ncbi_misclassified_file)
-        check_file_exists(params['data_files']
-                          ['ncbi_assembly_summary_genbank_file'])
+        check_files_exist(ncbi_assembly_summary_genbank_files(params))
         check_file_exists(untrustworthy_type_file)
         check_file_exists(synonym_file)
         check_file_exists(updated_species_reps_file)
@@ -746,11 +781,11 @@ class OptionsParser():
               None,
               args.manual_sp_file,
               gtdb_clusters_file,
-              params['data_files']['prev_gtdb_metadata_file'],
+              prev_gtdb_metadata_files(params),
               params['data_files']['cur_gtdb_metadata_file'],
               qc_passed,
               ncbi_misclassified_file,
-              params['data_files']['ncbi_assembly_summary_genbank_file'],
+              ncbi_assembly_summary_genbank_files(params),
               untrustworthy_type_file,
               synonym_file,
               updated_species_reps_file,
@@ -776,11 +811,11 @@ class OptionsParser():
               None,
               args.manual_sp_file,
               gtdb_clusters_file,
-              params['data_files']['prev_gtdb_metadata_file'],
+              prev_gtdb_metadata_files(params),
               params['data_files']['cur_gtdb_metadata_file'],
               qc_passed,
               ncbi_misclassified_file,
-              params['data_files']['ncbi_assembly_summary_genbank_file'],
+              ncbi_assembly_summary_genbank_files(params),
               untrustworthy_type_file,
               synonym_file,
               updated_species_reps_file,
@@ -839,8 +874,7 @@ class OptionsParser():
             params['root_dir'], params['data_files']['cur_gtdb_metadata_file'])
         qc_passed_file = os.path.join(
             params['root_dir'], params['output_dirs']['u_qc_genomes'], 'qc_passed.tsv')
-        ncbi_assembly_summary_genbank_file = os.path.join(
-            params['root_dir'], params['data_files']['ncbi_assembly_summary_genbank_file'])
+        ncbi_assembly_summary_genbank_file = ncbi_assembly_summary_genbank_files(params)
         untrustworthy_type_file = os.path.join(
             params['root_dir'], params['output_dirs']['u_resolve_types'], 'untrustworthy_type_material.tsv')
         gtdb_type_strains_ledger = os.path.join(
@@ -859,7 +893,7 @@ class OptionsParser():
         check_file_exists(args.pmc_custom_species)
         check_file_exists(cur_gtdb_metadata_file)
         check_file_exists(qc_passed_file)
-        check_file_exists(ncbi_assembly_summary_genbank_file)
+        check_files_exist(ncbi_assembly_summary_genbank_file)
         check_file_exists(untrustworthy_type_file)
         check_file_exists(gtdb_type_strains_ledger)
         check_file_exists(sp_priority_ledger)
@@ -892,8 +926,7 @@ class OptionsParser():
             params['root_dir'], params['data_files']['cur_gtdb_metadata_file'])
         qc_passed_file = os.path.join(
             params['root_dir'], params['output_dirs']['u_qc_genomes'], 'qc_passed.tsv')
-        ncbi_assembly_summary_genbank_file = os.path.join(
-            params['root_dir'], params['data_files']['ncbi_assembly_summary_genbank_file'])
+        ncbi_assembly_summary_genbank_file = ncbi_assembly_summary_genbank_files(params)
         untrustworthy_type_file = os.path.join(
             params['root_dir'], params['output_dirs']['u_resolve_types'], 'untrustworthy_type_material.tsv')
         gtdb_type_strains_ledger = os.path.join(
@@ -908,7 +941,7 @@ class OptionsParser():
         check_file_exists(args.pmc_custom_species)
         check_file_exists(cur_gtdb_metadata_file)
         check_file_exists(qc_passed_file)
-        check_file_exists(ncbi_assembly_summary_genbank_file)
+        check_files_exist(ncbi_assembly_summary_genbank_file)
         check_file_exists(untrustworthy_type_file)
         check_file_exists(gtdb_type_strains_ledger)
         check_file_exists(seqcode_file)
@@ -944,16 +977,14 @@ class OptionsParser():
             params['root_dir'], params['data_files']['seqcode_file'])
         gtdb_clusters_file = os.path.join(
             params['root_dir'], params['output_dirs']['u_cluster_de_novo'], 'gtdb_clusters_de_novo.tsv')
-        prev_gtdb_metadata_file = os.path.join(
-            params['root_dir'], params['data_files']['prev_gtdb_metadata_file'])
+        prev_gtdb_metadata_file = prev_gtdb_metadata_files(params)
         cur_gtdb_metadata_file = os.path.join(
             params['root_dir'], params['data_files']['cur_gtdb_metadata_file'])
         qc_passed_file = os.path.join(
             params['root_dir'], params['output_dirs']['u_qc_genomes'], 'qc_passed.tsv')
         ncbi_misclassified_file = os.path.join(
             params['root_dir'], params['output_dirs']['u_ncbi_erroneous'], 'ncbi_misclassified_sp.gtdb_clustering.tsv')
-        ncbi_genbank_assembly_file = os.path.join(
-            params['root_dir'], params['data_files']['ncbi_assembly_summary_genbank_file'])
+        ncbi_genbank_assembly_file = ncbi_assembly_summary_genbank_files(params)
         untrustworthy_type_file = os.path.join(
             params['root_dir'], params['output_dirs']['u_resolve_types'], 'untrustworthy_type_material.tsv')
         synonym_file = os.path.join(
@@ -981,11 +1012,11 @@ class OptionsParser():
         check_file_exists(args.manual_sp_names)
         check_file_exists(args.pmc_custom_species)
         check_file_exists(gtdb_clusters_file)
-        check_file_exists(prev_gtdb_metadata_file)
+        check_files_exist(prev_gtdb_metadata_file)
         check_file_exists(cur_gtdb_metadata_file)
         check_file_exists(qc_passed_file)
         check_file_exists(ncbi_misclassified_file)
-        check_file_exists(ncbi_genbank_assembly_file)
+        check_files_exist(ncbi_genbank_assembly_file)
         check_file_exists(untrustworthy_type_file)
         check_file_exists(synonym_file)
         check_file_exists(updated_species_reps)
@@ -1038,16 +1069,14 @@ class OptionsParser():
 
         gtdb_clusters_file = os.path.join(
             params['root_dir'], params['output_dirs']['u_cluster_de_novo'], 'gtdb_clusters_de_novo.tsv')
-        prev_gtdb_metadata_file = os.path.join(
-            params['root_dir'], params['data_files']['prev_gtdb_metadata_file'])
+        prev_gtdb_metadata_file = prev_gtdb_metadata_files(params)
         cur_gtdb_metadata_file = os.path.join(
             params['root_dir'], params['data_files']['cur_gtdb_metadata_file'])
         qc_passed_file = os.path.join(
             params['root_dir'], params['output_dirs']['u_qc_genomes'], 'qc_passed.tsv')
         ncbi_misclassified_file = os.path.join(
             params['root_dir'], params['output_dirs']['u_ncbi_erroneous'], 'ncbi_misclassified_sp.gtdb_clustering.tsv')
-        ncbi_genbank_assembly_file = os.path.join(
-            params['root_dir'], params['data_files']['ncbi_assembly_summary_genbank_file'])
+        ncbi_genbank_assembly_file = ncbi_assembly_summary_genbank_files(params)
         untrustworthy_type_file = os.path.join(
             params['root_dir'], params['output_dirs']['u_resolve_types'], 'untrustworthy_type_material.tsv')
         synonym_file = os.path.join(
@@ -1083,11 +1112,11 @@ class OptionsParser():
             check_file_exists(args.pmc_custom_species)
 
         check_file_exists(gtdb_clusters_file)
-        check_file_exists(prev_gtdb_metadata_file)
+        check_files_exist(prev_gtdb_metadata_file)
         check_file_exists(cur_gtdb_metadata_file)
         check_file_exists(qc_passed_file)
         check_file_exists(ncbi_misclassified_file)
-        check_file_exists(ncbi_genbank_assembly_file)
+        check_files_exist(ncbi_genbank_assembly_file)
         check_file_exists(untrustworthy_type_file)
         check_file_exists(synonym_file)
         check_file_exists(updated_species_reps)

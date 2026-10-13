@@ -18,9 +18,11 @@
 import os
 import sys
 import logging
-from typing import Dict
+from typing import Dict, List
 
 from gtdblib.util.bio.accession import canonical_gid
+
+from gtdb_species_clusters.genome_utils import open_file, MultiFileReader
 
 
 class NewGenomes():
@@ -65,16 +67,16 @@ class NewGenomes():
         return False
 
     def run(self,
-            prev_gtdb_metadata_file: str,
+            prev_gtdb_metadata_files: List[str],
             cur_gtdb_metadata_file: str,
             cur_genome_paths: str,
-            ncbi_assembly_summary_genbank: str) -> None:
+            ncbi_assembly_summary_genbank_files: List[str]) -> None:
         """Identify new or modified genomes.
 
-        :param prev_gtdb_metadata_file: File with genome metadata for previous GTDB release.
+        :param prev_gtdb_metadata_files: Files with genome metadata for previous GTDB release (e.g., archaeal and bacterial files).
         :param cur_gtdb_metadata_file: File with genome metadata for current GTDB release.
         :param cur_genome_paths: File with path to data files for genomes in current GTDB release.
-        :param ncbi_assembly_summary_genbank: File with NCBI assembly summary metadata.
+        :param ncbi_assembly_summary_genbank_files: Files with NCBI assembly summary metadata (e.g., archaeal and bacterial files).
         """
 
         # get data for genomes in previous GTDB release
@@ -83,7 +85,7 @@ class NewGenomes():
         gtdb_taxonomy = {}
         gtdb_rep = {}
         ncbi_genome_category = {}
-        with open(prev_gtdb_metadata_file, encoding='utf-8') as f:
+        with MultiFileReader(prev_gtdb_metadata_files) as f:
             header = f.readline().strip().split('\t')
 
             gtdb_index = header.index('gtdb_taxonomy')
@@ -105,7 +107,7 @@ class NewGenomes():
         # get genomes in current release
         self.log.info('Reading current GTDB genomes:')
         cur_accns = {}
-        with open(cur_gtdb_metadata_file, encoding='utf-8') as f:
+        with open_file(cur_gtdb_metadata_file) as f:
             f.readline()
             for line in f:
                 tokens = line.strip().split('\t')
@@ -120,7 +122,7 @@ class NewGenomes():
         self.log.info(
             'Determining identical GenBank and RefSeq accessions.')
         identical_accns = {}
-        with open(ncbi_assembly_summary_genbank, encoding='utf-8') as f:
+        with MultiFileReader(ncbi_assembly_summary_genbank_files, has_header=False) as f:
             for line in f:
                 if line.startswith('#assembly_accession') or line.startswith('# assembly_accession'):
                     header = line.strip().split('\t')
@@ -168,7 +170,7 @@ class NewGenomes():
         cur_genome_files = {}
         skipped_genomes = 0
         fout = open(os.path.join(self.output_dir, 'skipped_genomes.tsv'), 'w')
-        with open(cur_genome_paths) as f:
+        with open_file(cur_genome_paths) as f:
             for line in f:
                 tokens = line.strip().split('\t')
                 accn = tokens[0]
