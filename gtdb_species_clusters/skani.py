@@ -322,7 +322,7 @@ class Skani():
 
         # get map from genome path to genome ID
         gp_to_gid_map = {}
-        for gid, gp in qry_path_file.items():
+        for gid, gp in query_paths.items():
             gp_to_gid_map[gp] = gid
 
         for gid, gp in ref_paths.items():

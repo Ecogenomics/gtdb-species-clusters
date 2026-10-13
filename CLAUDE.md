@@ -26,7 +26,7 @@ python -m pytest gtdb_species_clusters/tests
 python -m pytest gtdb_species_clusters/tests/test_genome.py::TestGenome::test_pass_qc
 ```
 
-There is no lint/format config in the repo. The system `python` is 3.6 with no dependencies, so activate the appropriate conda env before running anything. Runtime dependencies include `gtdblib` (the shared GTDB utility library: `check_file_exists`, `canonical_gid`, `Taxonomy`, `check_dependencies`, etc.), `numpy`, `dendropy`, `python-Levenshtein`, `tqdm`, and `toml` on Python < 3.11. External binaries are `skani`, `mash`, and `gtdbtk`. `setup.py` is stale: it lists `biolib`, but the code uses `gtdblib`.
+There is no lint/format config in the repo. The system `python` is 3.6 with no dependencies, so activate the appropriate conda env before running anything. For R237 that env is `gtdb_species_clustering-r237`, which has Python 3.12, skani 0.4.0 and an editable install of this checkout (`pip install -e .`). Runtime dependencies are declared in `setup.py`. They include `gtdblib`, the shared GTDB utility library (`check_file_exists`, `canonical_gid`, `Taxonomy`, `check_dependencies`, etc.), which is available only from PyPI. They also include `numpy`, `dendropy`, `Levenshtein`, `tqdm`, and `toml` on Python < 3.11. External binaries are `skani`, `mash`, and `gtdbtk`.
 
 ## Architecture
 
