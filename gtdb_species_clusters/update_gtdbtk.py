@@ -19,6 +19,7 @@ import os
 import sys
 import logging
 import ntpath
+from typing import List
 
 from gtdblib.util.shell.execute import check_dependencies, run
 
@@ -46,10 +47,28 @@ class GTDB_Tk():
                 'Testing indicates pplacer will stale if used with more than 64 CPUs.')
             sys.exit(1)
 
+    def _summary_files(self, batch_dir: str) -> List[str]:
+        """Get GTDB-Tk summary files in batch output directory.
+
+        GTDB-Tk only writes a summary file for a domain if the batch
+        contains genomes from that domain.
+
+        :param batch_dir: GTDB-Tk output directory for a batch of genomes.
+
+        :return: Existing archaeal and bacterial summary files.
+        """
+
+        summary_files = []
+        for summary_file in ['gtdbtk.ar53.summary.tsv', 'gtdbtk.bac120.summary.tsv']:
+            summary_file = os.path.join(batch_dir, summary_file)
+            if os.path.exists(summary_file):
+                summary_files.append(summary_file)
+
+        return summary_files
+
     def run(self,
             genomes_new_updated_file: str,
             qc_passed_file: str,
-            mash_db_file: str,
             batch_size: int) -> None:
         """Perform initial classification of new and updated genomes using GTDB-Tk.
 
@@ -145,16 +164,19 @@ class GTDB_Tk():
             batch_idx = ntpath.basename(genome_batch_file).split('_')[
                 1].replace('.lst', '')
             out_dir = os.path.join(self.output_dir, f'gtdbtk_batch{batch_idx}')
-            if os.path.exists(out_dir):
+            if self._summary_files(out_dir):
                 self.log.warning(
-                    f'Skipping genome batch {batch_idx} as output directory already exists.')
+                    f'Skipping genome batch {batch_idx} as GTDB-Tk results already exist.')
                 continue
 
-            os.makedirs(out_dir)
-            cmd = 'gtdbtk classify_wf --cpus {} --pplacer_cpus {} --force --mash_db {} --mash_max_distance 0.1 --batchfile {} --out_dir {}'.format(
+            if os.path.exists(out_dir):
+                self.log.warning(
+                    f'Rerunning genome batch {batch_idx} as output directory has no GTDB-Tk summary files.')
+
+            os.makedirs(out_dir, exist_ok=True)
+            cmd = 'gtdbtk classify_wf --cpus {} --pplacer_cpus {} --force --batchfile {} --out_dir {}'.format(
                 self.cpus,
                 self.cpus,
-                mash_db_file,
                 genome_batch_file,
                 out_dir)
             self.log.info(f"Executing: {cmd}")
@@ -169,10 +191,13 @@ class GTDB_Tk():
                 continue
 
             batch_dir = os.path.join(self.output_dir, batch_dir)
-            ar_summary = os.path.join(batch_dir, 'gtdbtk.ar53.summary.tsv')
-            bac_summary = os.path.join(batch_dir, 'gtdbtk.bac120.summary.tsv')
+            summary_files = self._summary_files(batch_dir)
+            if not summary_files:
+                self.log.error(
+                    f'No GTDB-Tk summary files found in {batch_dir}. Delete this directory and rerun u_gtdbtk.')
+                sys.exit(1)
 
-            for summary_file in [ar_summary, bac_summary]:
+            for summary_file in summary_files:
                 with open(summary_file, encoding='utf-8') as f:
                     header = f.readline()
 
