@@ -1,3 +1,9 @@
+0.7.0
+- support separate archaeal and bacterial files for previous GTDB metadata and NCBI GenBank assembly summaries (prev_gtdb_{ar,bac}_metadata_file, ncbi_assembly_summary_{ar,bac}_genbank_file)
+- input metadata, genome path, NCBI assembly summary, and domain report files can be gzip compressed
+- paths in TOML file are resolved relative to root_dir for all commands
+- fixed broken taxon_utils import in pmc_checks.py
+
 0.6.0
 - added abnormal genome size and frameshift QC tests
 

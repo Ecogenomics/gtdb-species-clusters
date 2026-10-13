@@ -19,11 +19,11 @@ import os
 import logging
 from collections import defaultdict
 from dataclasses import dataclass
-from typing import Dict, Set, Tuple
+from typing import Dict, List, Set, Tuple
 
 from gtdblib.util.bio.accession import canonical_gid, is_same_accn_version
 
-from gtdb_species_clusters.genome_utils import exclude_from_refseq
+from gtdb_species_clusters.genome_utils import exclude_from_refseq, open_file
 from gtdb_species_clusters.genomes import Genomes
 
 
@@ -91,7 +91,7 @@ class QcGenomes():
         """
 
         marker_perc = {}
-        with open(gtdb_domain_report, encoding='utf-8') as f:
+        with open_file(gtdb_domain_report) as f:
             header = f.readline().rstrip().split('\t')
 
             bac_marker_perc_index = header.index('Bac120 Markers (%)')
@@ -124,7 +124,7 @@ class QcGenomes():
         :param cur_genomes: Metadata for genomes in the current GTDB release.
         """
 
-        with open(gtdb_domain_report, encoding='utf-8') as f:
+        with open_file(gtdb_domain_report) as f:
             header = f.readline().rstrip().split('\t')
 
             domain_index = header.index('Predicted domain')
@@ -520,9 +520,9 @@ class QcGenomes():
             self.log.info(f'  {test}: {failed_tests_cumulative[test]:,}')
 
     def run(self,
-            prev_gtdb_metadata_file: str,
+            prev_gtdb_metadata_file: List[str],
             cur_gtdb_metadata_file: str,
-            ncbi_genbank_assembly_file: str,
+            ncbi_genbank_assembly_file: List[str],
             gtdb_domain_report: str,
             gtdb_type_strains_ledger: str,
             qc_exception_file: str,
@@ -530,9 +530,9 @@ class QcGenomes():
             qc_criteria: QcCriteria) -> None:
         """Quality check genomes being considered for GTDB.
 
-        :param prev_gtdb_metadata_file: File with metadata for genomes in previous GTDB release.
+        :param prev_gtdb_metadata_file: Files with metadata for genomes in previous GTDB release (e.g., archaeal and bacterial files).
         :param cur_gtdb_metadata_file: File with metadata for genomes in current GTDB release.
-        :param ncbi_genbank_assembly_file: File from NCBI with metadata for GenBank assemblies.
+        :param ncbi_genbank_assembly_file: Files from NCBI with metadata for GenBank assemblies (e.g., archaeal and bacterial files).
         :param gtdb_domain_report: File indicating percent of bac120 and ar53 gene sets identified in each genome.
         :param gtdb_type_strains_ledger: File indicating genomes that should be considered the type strain of a species.
         :param qc_exception_file: File indicating genomes that should fail or pass QC irrespective of the QC criteria.

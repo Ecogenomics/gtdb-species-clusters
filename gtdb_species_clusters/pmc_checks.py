@@ -24,7 +24,7 @@ import dendropy
 from gtdblib.taxonomy.taxonomy import Taxonomy
 from gtdblib.taxonomy.taxonomy import read_taxonomy, read_taxonomy_from_tree
 
-from taxon_utils import specific_epithet
+from gtdb_species_clusters.taxon_utils import specific_epithet
 
 
 class PMC_Checks():

@@ -25,7 +25,11 @@ from gtdblib.util.bio.accession import canonical_gid
 from gtdb_species_clusters.genome import Genome
 from gtdb_species_clusters.taxa import Taxa
 from gtdb_species_clusters.species_clusters import SpeciesClusters
-from gtdb_species_clusters.genome_utils import exclude_from_refseq, parse_ncbi_bioproject, read_gtdbtk_classifications
+from gtdb_species_clusters.genome_utils import (exclude_from_refseq,
+                                                parse_ncbi_bioproject,
+                                                read_gtdbtk_classifications,
+                                                open_file,
+                                                MultiFileReader)
 from gtdb_species_clusters.taxon_utils import is_placeholder_taxon
 
 
@@ -226,17 +230,18 @@ class Genomes(object):
     def load_genomic_file_paths(self, genome_path_file):
         """Determine path to genomic FASTA file for each genome."""
 
-        for line in open(genome_path_file):
-            line_split = line.strip().split('\t')
+        with open_file(genome_path_file) as f:
+            for line in f:
+                line_split = line.strip().split('\t')
 
-            gid = line_split[0]
-            gid = canonical_gid(gid)
-            if gid in self.genomes:
-                genome_path = line_split[1]
-                accession = os.path.basename(os.path.normpath(genome_path))
-                genomic_file = os.path.join(genome_path, accession + '_genomic.fna.gz')
-                self.genomes[gid].genomic_file = genomic_file
-                self.genomic_files[gid] = genomic_file
+                gid = line_split[0]
+                gid = canonical_gid(gid)
+                if gid in self.genomes:
+                    genome_path = line_split[1]
+                    accession = os.path.basename(os.path.normpath(genome_path))
+                    genomic_file = os.path.join(genome_path, accession + '_genomic.fna.gz')
+                    self.genomes[gid].genomic_file = genomic_file
+                    self.genomic_files[gid] = genomic_file
 
     def parse_untrustworthy_type_ledger(self, untrustworth_type_ledger):
         """Determine genomes that should be considered untrustworthy as type material."""
@@ -350,7 +355,12 @@ class Genomes(object):
                                 untrustworthy_type_ledger=None,
                                 ncbi_untrustworthy_sp_ledger=None,
                                 ncbi_env_bioproject_ledger=None):
-        """Create genome set from file(s)."""
+        """Create genome set from file(s).
+
+        The metadata_file and ncbi_genbank_assembly_file arguments may each be a
+        single file or a list of files (e.g., separate archaeal and bacterial files),
+        and files may be gzip compressed.
+        """
 
         pass_qc_gids = set()
         if qc_passed_file:
@@ -409,7 +419,7 @@ class Genomes(object):
             self.log.info(
                 f' - identified {len(untrustworthy_ncbi_sp):,} genomes annotated as having untrustworthy NCBI species assignments')
 
-        with open(metadata_file, encoding='utf-8') as f:
+        with MultiFileReader(metadata_file) as f:
             headers = f.readline().strip().split('\t')
 
             genome_index = headers.index('accession')

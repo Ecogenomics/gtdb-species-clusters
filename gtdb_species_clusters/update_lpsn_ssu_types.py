@@ -20,7 +20,7 @@ import sys
 import logging
 import multiprocessing as mp
 from collections import defaultdict
-from typing import Set, Dict
+from typing import Set, Dict, List
 
 from gtdb_species_clusters.genomes import Genomes
 
@@ -231,7 +231,7 @@ class LPSN_SSU_Types():
             cur_gtdb_metadata_file: str,
             cur_genomic_path_file: str,
             qc_passed_file: str,
-            ncbi_genbank_assembly_file: str,
+            ncbi_genbank_assembly_file: List[str],
             gtdb_type_strains_ledger: str,
             untrustworthy_type_ledger: str) -> None:
         """Identify type genomes based on type 16S rRNA sequences indicated at LPSN.
@@ -240,7 +240,7 @@ class LPSN_SSU_Types():
         :param cur_gtdb_metadata_file: File with metadata for genomes in current GTDB release.
         :param cur_genomic_path_file: File with path to current genomic FASTA files for genomes.
         :param qc_passed_file: File indicating genomes that have passed QC.
-        :param ncbi_genbank_assembly_file: File from NCBI with metadata for GenBank assemblies.
+        :param ncbi_genbank_assembly_file: Files from NCBI with metadata for GenBank assemblies (e.g., archaeal and bacterial files).
         :param gtdb_type_strains_ledger: File indicating genomes that should be considered assembled from the type strain.
         :param untrustworthy_type_ledger: File listing genomes that should be considered untrustworthy as type material.
         """

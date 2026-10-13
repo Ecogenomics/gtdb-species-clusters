@@ -613,7 +613,7 @@ class ResolveTypes():
             cur_gtdb_metadata_file: str,
             cur_genomic_path_file: str,
             qc_passed_file: str,
-            ncbi_genbank_assembly_file: str,
+            ncbi_genbank_assembly_file: List[str],
             ltp_taxonomy_file: str,
             gtdb_type_strains_ledger: str,
             untrustworthy_type_ledger: str,
@@ -623,7 +623,7 @@ class ResolveTypes():
         :param cur_gtdb_metadata_file: File with metadata for genomes in current GTDB release.
         :param cur_genomic_path_file: File with path to current genomic FASTA files for genomes.
         :param qc_passed_file: File indicating genomes that have passed QC.
-        :param ncbi_genbank_assembly_file: File from NCBI with metadata for GenBank assemblies.
+        :param ncbi_genbank_assembly_file: Files from NCBI with metadata for GenBank assemblies (e.g., archaeal and bacterial files).
         :param ltp_taxonomy_file: File with LTP taxonomy strings for LTP sequences.
         :param gtdb_type_strains_ledger: File indicating genomes that should be considered assembled from the type strain.
         :param untrustworthy_type_ledger: File indicating genomes that should be considered untrustworthy as type material.
