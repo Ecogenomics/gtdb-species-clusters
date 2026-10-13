@@ -529,22 +529,24 @@ class Genomes(object):
                     # not correctly annotated at NCBI
                     ncbi_genome_cat = 'derived from environmental source'
 
-                cm1_comp = float(tokens[cm1_comp_index])
-                cm1_cont = float(tokens[cm1_cont_index])
+                # missing CheckM estimates are set to the worst possible values
+                # (0% completeness, 100% contamination) so genomes fail CheckM QC
+                cm1_comp = self._convert_float(tokens[cm1_comp_index], 0.0)
+                cm1_cont = self._convert_float(tokens[cm1_cont_index], 100.0)
                 cm1_sh_100 = 0
                 if cm1_sh_100_index:
-                    cm1_sh_100 = self._convert_float(tokens[cm1_sh_100_index])
+                    cm1_sh_100 = self._convert_float(tokens[cm1_sh_100_index], 0.0)
 
-                cm2_comp = float(tokens[cm2_comp_index])
-                cm2_cont = float(tokens[cm2_cont_index])
+                cm2_comp = self._convert_float(tokens[cm2_comp_index], 0.0)
+                cm2_cont = self._convert_float(tokens[cm2_cont_index], 100.0)
 
-                gs = int(tokens[gs_index])
+                gs = self._convert_int(tokens[gs_index], 0)
                 contig_count = int(tokens[contig_count_index])
                 n50 = int(tokens[n50_index])
                 scaffold_count = int(tokens[scaffold_count_index])
                 ambiguous_bases = int(tokens[ambiguous_bases_index])
                 total_gap_len = int(tokens[total_gap_len_index])
-                coding_density = float(tokens[coding_density_index])
+                coding_density = self._convert_float(tokens[coding_density_index], 0.0)
                 ssu_count = int(tokens[ssu_count_index])
                 ssu_length = self._convert_int(tokens[ssu_length_index])
                 ncbi_molecule_count = self._convert_int(

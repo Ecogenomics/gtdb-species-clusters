@@ -1,3 +1,7 @@
+0.7.2
+- missing ('none') CheckM completeness and contamination values are treated as 0% and 100%, respectively, so genomes fail CheckM QC instead of crashing the metadata loader
+- missing coding density and genome size values are treated as 0
+
 0.7.1
 - updated stale Genome unit tests and expanded QC tests to cover CheckM v1/v2, strain heterogeneity, genome size, and frameshift criteria
 - fixed Skani.dist() using undefined query path mapping
