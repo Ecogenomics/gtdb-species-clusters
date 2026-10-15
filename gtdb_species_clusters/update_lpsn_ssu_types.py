@@ -174,22 +174,25 @@ class LPSN_SSU_Types():
                 cur_genomes: Genomes,
                 gtdb_type_strains: Dict[str, Set[str]],
                 num_sp: int,
+                untrustworthy_type_ledger_name: str,
                 queue_writer: mp.Queue) -> None:
         """Write results of identifying types strain genomes using 16S rRNA information at LPSN.
 
         :param cur_genomes: Metadata for genomes in the current GTDB release.
         :param gtdb_type_strains: Mapping indicating genomes identified by GTDB as being type strain genomes of a species.
         :param num_sp: Number of LPSN species being processed.
+        :param untrustworthy_type_ledger_name: Path to ledger of genomes untrustworthy as type material, as reported to the user.
         :param queue_writer: Queue on which results are placed.
         """
 
         fout = open(os.path.join(self.output_dir,
                     'lpsn_ssu_type_genomes.tsv'), 'w')
         fout.write(
-            'Genome ID\tCandidatus\tSpecies\trRNA\tIs GTDB type genome\tIs NCBI type genome\tGTDB type strain genomes\n')
+            'Genome ID\tCandidatus\tSpecies\trRNA\tIs GTDB type genome\tIs NCBI type genome\tGTDB type strain genomes\tNotes\n')
 
         processed = 0
         missing_type_designation = 0
+        untrustworthy_gids = []
         while True:
             results = queue_writer.get(block=True, timeout=None)
             if results is None:
@@ -198,16 +201,23 @@ class LPSN_SSU_Types():
             (found_ssu, gid, is_candidatus, lpsn_sp, rRNA) = results
 
             if found_ssu:
-                fout.write('{}\t{}\t{}\t{}\t{}\t{}\t{}\n'.format(
+                notes = ''
+                if cur_genomes[gid].is_gtdb_untrustworthy_as_type():
+                    notes = f'Genome considered untrustworthy as type according to {untrustworthy_type_ledger_name}'
+                    untrustworthy_gids.append(gid)
+
+                fout.write('{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\n'.format(
                     gid,
                     is_candidatus,
                     lpsn_sp,
                     rRNA,
                     cur_genomes[gid].is_gtdb_type_strain(),
                     cur_genomes[gid].is_ncbi_type_strain(),
-                    ','.join(gtdb_type_strains[lpsn_sp])))
+                    ','.join(gtdb_type_strains[lpsn_sp]),
+                    notes))
 
-                if not cur_genomes[gid].is_gtdb_type_strain():
+                # genomes untrustworthy as type should not be added to the type strains ledger
+                if not cur_genomes[gid].is_gtdb_type_strain() and not cur_genomes[gid].is_gtdb_untrustworthy_as_type():
                     missing_type_designation += 1
 
             processed += 1
@@ -222,6 +232,11 @@ class LPSN_SSU_Types():
 
         fout.close()
 
+        # reported after processing so warnings are not interleaved with the progress line
+        for gid in untrustworthy_gids:
+            self.log.warning(
+                f"Genome {gid} has type 16S rRNA gene, but has been identified as untrustworthy as type material")
+
         if missing_type_designation > 0:
             self.log.warning(
                 f"[IMPORTANT]: add the {missing_type_designation:,} genomes where `Is GTDB type genome` is FALSE to the `gtdb_type_strains` ledger.")
@@ -233,7 +248,8 @@ class LPSN_SSU_Types():
             qc_passed_file: str,
             ncbi_genbank_assembly_file: List[str],
             gtdb_type_strains_ledger: str,
-            untrustworthy_type_ledger: str) -> None:
+            untrustworthy_type_ledger: str,
+            untrustworthy_type_ledger_name: str) -> None:
         """Identify type genomes based on type 16S rRNA sequences indicated at LPSN.
 
         :param lpsn_metadata_file: LPSN metadata file indicating 16S accessions for type strains.
@@ -243,6 +259,7 @@ class LPSN_SSU_Types():
         :param ncbi_genbank_assembly_file: Files from NCBI with metadata for GenBank assemblies (e.g., archaeal and bacterial files).
         :param gtdb_type_strains_ledger: File indicating genomes that should be considered assembled from the type strain.
         :param untrustworthy_type_ledger: File listing genomes that should be considered untrustworthy as type material.
+        :param untrustworthy_type_ledger_name: Path to untrustworthy type ledger as written in the input TOML file, used in reported notes.
         """
 
         # create current GTDB genome sets
@@ -306,6 +323,7 @@ class LPSN_SSU_Types():
             write_proc = mp.Process(target=self._writer, args=(cur_genomes,
                                                                gtdb_type_strains,
                                                                len(lpsn_sp_type_ssu),
+                                                               untrustworthy_type_ledger_name,
                                                                writer_queue))
 
             write_proc.start()
