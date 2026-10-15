@@ -26,6 +26,7 @@ from gtdb_species_clusters.genome import Genome
 from gtdb_species_clusters.taxa import Taxa
 from gtdb_species_clusters.species_clusters import SpeciesClusters
 from gtdb_species_clusters.genome_utils import (exclude_from_refseq,
+                                                parse_ncbi_env_bioproject_ledger,
                                                 parse_ncbi_bioproject,
                                                 read_gtdbtk_classifications,
                                                 open_file,
@@ -409,13 +410,12 @@ class Genomes(object):
             excluded_from_refseq_note = exclude_from_refseq(
                 ncbi_genbank_assembly_file)
 
+        # only BioProjects determined to contain environmental genomes are
+        # relevant here; BioProjects of isolates are only used by u_rep_actions
         ncbi_env_bioproject = set()
         if ncbi_env_bioproject_ledger:
-            with open(ncbi_env_bioproject_ledger) as f:
-                f.readline()
-                for line in f:
-                    tokens = line.strip().split('\t')
-                    ncbi_env_bioproject.add(tokens[0].strip())
+            ncbi_env_bioproject, _isolate_bioprojects = parse_ncbi_env_bioproject_ledger(
+                ncbi_env_bioproject_ledger)
 
         untrustworthy_ncbi_sp = set()
         if ncbi_untrustworthy_sp_ledger:

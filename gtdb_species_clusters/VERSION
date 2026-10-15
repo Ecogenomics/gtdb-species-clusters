@@ -1,3 +1,8 @@
+0.8.1
+- the ncbi_env_bioproject_ledger now has an `Assembly type` column of `Environmental` or `Isolates`; only Environmental BioProjects are treated as MAGs/SAGs when genomes are loaded
+- u_rep_actions no longer warns about BioProjects marked as Isolates replacing representatives with presumed isolates
+- processing stops if the ledger lacks the `Assembly type` column or has another assembly type
+
 0.8.0
 - u_resolve_types groups genomes in the GTDB type strains ledger with the type strain genomes of their ledger species instead of their NCBI species
 - in species with a genome in the GTDB type strains ledger, other type strain genomes are untrustworthy unless they have >=99% ANI to a ledger genome; ledger genomes are never considered untrustworthy (including for being `not used as type` at NCBI)
