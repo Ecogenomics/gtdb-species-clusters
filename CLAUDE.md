@@ -21,7 +21,7 @@ python bin/gtdb_species_clusters <command> -h     # command-specific options
 # Most commands take a TOML params file as their first positional argument
 python bin/gtdb_species_clusters u_qc_genomes params.toml
 
-# Tests (pytest; only covers the Genome class)
+# Tests (pytest; covers the Genome and Genomes classes and LTP taxonomy parsing)
 python -m pytest gtdb_species_clusters/tests
 python -m pytest gtdb_species_clusters/tests/test_genome.py::TestGenome::test_pass_qc
 ```

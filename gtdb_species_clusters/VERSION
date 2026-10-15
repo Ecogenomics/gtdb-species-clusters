@@ -1,3 +1,8 @@
+0.7.7
+- u_resolve_types lightly cleans LTP taxonomy strings: type material and strain information are split off at the last '|', and surrounding whitespace and leading or trailing '|' or '.' characters are removed from each taxon
+- this allows LTP entries such as Oxalobacter paeniformigenes (JAMKYL010000000) to be parsed and removes trailing spaces from 7 LTP species names
+- u_resolve_types writes LTP sequences without a valid taxonomy string (e.g. ';;|') to ltp_missing_taxonomy.tsv instead of logging a warning for each
+
 0.7.6
 - u_lpsn_rna_types warns when a genome with the LPSN type 16S rRNA gene is in the untrustworthy type ledger, and notes this in a new Notes column of lpsn_ssu_type_genomes.tsv
 - u_lpsn_rna_types no longer counts genomes untrustworthy as type among those to add to the gtdb_type_strains ledger
