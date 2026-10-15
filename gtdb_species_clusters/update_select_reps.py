@@ -197,7 +197,7 @@ class UpdateSelectRepresentatives():
             elif sp in gtdb_type_subsp or sp in ncbi_type_subsp:
                 gids = gtdb_type_subsp[sp].union(ncbi_type_subsp[sp])
                 fout.write('%s\t%s\t%d\t%s\t%s\t%s\n' % (sp,
-                                                         'type strain of subspecies or assembly from synonym type material',
+                                                         'type strain of subspecies or assembly from (heterotypic) synonym type material',
                                                          len(gids),
                                                          '',
                                                          '',
@@ -1126,7 +1126,7 @@ class UpdateSelectRepresentatives():
         self.log.info(' - identified {:,} species spanning {:,} genomes designated as assembled from proxytype material by NCBI'.format(
             len(ncbi_proxy),
             sum([len(gids) for gids in ncbi_proxy.values()])))
-        self.log.info(' - identified {:,} species spanning {:,} genomes designated as assembly from synonym type material by NCBI'.format(
+        self.log.info(' - identified {:,} species spanning {:,} genomes designated as assembly from (heterotypic) synonym type material by NCBI'.format(
             len(ncbi_type_subsp),
             sum([len(gids) for gids in ncbi_type_subsp.values()])))
         self.log.info(' - identified {:,} species spanning {:,} genomes designated as a reference or representative by NCBI'.format(
@@ -1146,7 +1146,7 @@ class UpdateSelectRepresentatives():
             ncbi_type_sp), sum([len(gids) for gids in ncbi_type_sp.values()])))
         fout.write('%s\t%d\t%d\n' % ('NCBI assembled from proxytype material', len(
             ncbi_proxy), sum([len(gids) for gids in ncbi_proxy.values()])))
-        fout.write('%s\t%d\t%d\n' % ('NCBI assembly from synonym type material', len(
+        fout.write('%s\t%d\t%d\n' % ('NCBI assembly from (heterotypic) synonym type material', len(
             ncbi_type_subsp), sum([len(gids) for gids in ncbi_type_subsp.values()])))
         fout.write('%s\t%d\t%d\n' % ('NCBI reference or representative', len(
             ncbi_reps), sum([len(gids) for gids in ncbi_reps.values()])))

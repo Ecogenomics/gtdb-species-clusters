@@ -30,7 +30,8 @@ NCBI_TYPE_SPECIES = set(['assembly from type material',
                          'assembly from neotype material',
                          'assembly designated as neotype'])
 NCBI_PROXYTYPE = set(['assembly from proxytype material'])
-NCBI_TYPE_SUBSP = set(['assembly from synonym type material'])
+NCBI_TYPE_SUBSP = set(['assembly from synonym type material',
+                       'assembly from heterotypic synonym type material'])
 
 GTDB_TYPE_SPECIES = set(['type strain of species', 'type strain of neotype'])
 GTDB_TYPE_SUBSPECIES = set(['type strain of subspecies',

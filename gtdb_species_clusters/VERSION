@@ -1,3 +1,7 @@
+0.7.9
+- the warning for genomes in both the GTDB type strains ledger and the untrustworthy type file now names the untrustworthy file (curated ledger or u_resolve_types output) and states that the genome will not be considered type material
+- NCBI `assembly from heterotypic synonym type material` is now recognized as synonym type material (in addition to `assembly from synonym type material`, which NCBI no longer uses), so these genomes are considered type strains of subspecies or synonyms
+
 0.7.8
 - u_resolve_types only warns that an untrustworthy type genome conflicts with high-confidence LTP 16S rRNA assignments when a retained type genome has a conflicting LTP assignment; genomes already marked untrustworthy are no longer considered
 - the warning now names the NCBI species and the retained genomes with conflicting LTP assignments
