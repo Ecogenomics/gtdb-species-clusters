@@ -169,6 +169,25 @@ class RepActions():
 
         return max_rid, max_score, max_ani, max_af
 
+    def calculate_rep_anis(self, rep_cids, cur_genomes):
+        """Calculate ANI between representatives and genomes in their species clusters.
+
+        All genome pairs are processed together, instead of one species at a time, so
+        all CPUs are used even though most species clusters contain only a few genomes.
+        Results are placed in the ANI cache so top_ani_score() does not need to run skani.
+
+        :param rep_cids: List of (representative ID, IDs of genomes in species cluster) tuples.
+        :param cur_genomes: Metadata for genomes in the current GTDB release.
+        """
+
+        gid_pairs = [(cid, rid) for rid, cids in rep_cids for cid in cids]
+        self.log.info(f' - calculating ANI between {len(rep_cids):,} representatives and '
+                      f'the {len(gid_pairs):,} genomes in their species clusters:')
+        self.skani.pairs(gid_pairs,
+                         cur_genomes.genomic_files,
+                         preset=Defaults.SKANI_PRESET,
+                         report_progress=True)
+
     def get_updated_rid(self, prev_rid):
         """Get updated representative."""
 
@@ -514,6 +533,19 @@ class RepActions():
         self.log.info(
             f' - identified {len(ncbi_problematic_rids):,} genomes')
 
+        # calculate ANI for all species before processing each species
+        rep_cids = []
+        for prev_rid in ncbi_problematic_rids:
+            if prev_rid in disbanded_rids:
+                continue
+
+            sp_cids = self.genomes_in_current_sp_cluster(prev_rid,
+                                                         prev_genomes,
+                                                         new_updated_sp_clusters,
+                                                         cur_genomes)
+            rep_cids.append((prev_rid, sp_cids))
+        self.calculate_rep_anis(rep_cids, cur_genomes)
+
         anis = []
         afs = []
         num_frameshifted_proteins = 0
@@ -620,6 +652,16 @@ class RepActions():
         num_isolate = 0
         anis = []
         afs = []
+        # calculate ANI for all species before processing each species; the updated
+        # representative of a species only depends on previous update rules so can
+        # be determined in advance
+        rep_cids = []
+        for prev_rid, cids in new_updated_sp_clusters.clusters():
+            if prev_rid not in cur_genomes or prev_rid in disbanded_rids:
+                continue
+            rep_cids.append((self.get_updated_rid(prev_rid), cids))
+        self.calculate_rep_anis(rep_cids, cur_genomes)
+
         improved_reps = {}
         ncbi_bioproject_count = defaultdict(int)
         for idx, (prev_rid, cids) in enumerate(new_updated_sp_clusters.clusters()):
