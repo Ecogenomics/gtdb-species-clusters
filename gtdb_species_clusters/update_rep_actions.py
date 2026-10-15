@@ -28,7 +28,9 @@ from gtdb_species_clusters.skani import Skani
 from gtdb_species_clusters.genomes import Genomes
 from gtdb_species_clusters.species_clusters import SpeciesClusters
 from gtdb_species_clusters.species_priority_manager import SpeciesPriorityManager
-from gtdb_species_clusters.genome_utils import select_highest_quality, parse_ncbi_bioproject
+from gtdb_species_clusters.genome_utils import (select_highest_quality,
+                                                parse_ncbi_bioproject,
+                                                parse_ncbi_env_bioproject_ledger)
 
 
 class RepActions():
@@ -601,7 +603,8 @@ class RepActions():
                             cur_genomes,
                             new_updated_sp_clusters,
                             disbanded_rids,
-                            ncbi_genbank_assembly_file):
+                            ncbi_genbank_assembly_file,
+                            ncbi_env_bioproject_ledger):
         """Check if representative should be replace with higher quality genome."""
 
         self.log.info(
@@ -749,9 +752,11 @@ class RepActions():
         self.log.info(
             f' - ANI = {np_mean(anis):.2f} +/- {np_std(anis):.2f}%; AF = {np_mean(afs):.2f} +/- {np_std(afs):.2f}%')
 
-        # report NCBI BioProject resulting in large numbers of GTDB reps being replaced with presumed isolates
+        # report NCBI BioProject resulting in large numbers of GTDB reps being replaced with presumed isolates,
+        # unless the BioProject has been verified as containing isolates
+        _env_bioprojects, isolate_bioprojects = parse_ncbi_env_bioproject_ledger(ncbi_env_bioproject_ledger)
         for bioproject, count in ncbi_bioproject_count.items():
-            if count >= 2:
+            if count >= 2 and bioproject not in isolate_bioprojects:
                 self.log.warning('BioProject {} responsible for {:,} representatives being replaced with presumed isolates. Should verify these genomes are isolates.'.format(
                     bioproject, count))
 
@@ -1053,7 +1058,8 @@ class RepActions():
             improved_reps = self.action_improved_rep(cur_genomes,
                                                      new_updated_sp_clusters,
                                                      disbanded_rids,
-                                                     ncbi_genbank_assembly_file)
+                                                     ncbi_genbank_assembly_file,
+                                                     ncbi_env_bioproject_ledger)
 
             pickle.dump(improved_reps, open(os.path.join(
                 self.output_dir, 'improved_reps.pkl'), 'wb'))

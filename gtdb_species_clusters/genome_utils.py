@@ -16,7 +16,9 @@
 ###############################################################################
 
 import os
+import sys
 import gzip
+import logging
 from collections import namedtuple
 
 from gtdblib.util.bio.accession import canonical_gid
@@ -186,6 +188,49 @@ def exclude_from_refseq(genbank_assembly_file):
                 excluded_from_refseq_note[gid] = line_split[exclude_index]
 
     return excluded_from_refseq_note
+
+
+def parse_ncbi_env_bioproject_ledger(ncbi_env_bioproject_ledger):
+    """Parse ledger indicating NCBI BioProjects determined to contain environmental genomes or isolates.
+
+    The `Assembly type` column must be `Environmental` (MAGs and/or SAGs) or `Isolates`.
+
+    :param ncbi_env_bioproject_ledger: Ledger of NCBI BioProjects with their assembly type.
+    :return: BioProjects with environmental genomes and BioProjects with isolates.
+    """
+
+    log = logging.getLogger('rich')
+
+    env_bioprojects = set()
+    isolate_bioprojects = set()
+    with open(ncbi_env_bioproject_ledger) as f:
+        header = [field.strip() for field in f.readline().strip().split('\t')]
+        for field in ['NCBI BioProject', 'Assembly type']:
+            if field not in header:
+                log.error(f"NCBI environmental BioProject ledger is missing the `{field}` column: {ncbi_env_bioproject_ledger}")
+                sys.exit(1)
+
+        bioproject_idx = header.index('NCBI BioProject')
+        asm_type_idx = header.index('Assembly type')
+
+        for line in f:
+            if not line.strip():
+                continue
+
+            tokens = line.rstrip('\r\n').split('\t')
+            bioproject = tokens[bioproject_idx].strip()
+            asm_type = tokens[asm_type_idx].strip() if len(tokens) > asm_type_idx else ''
+
+            if asm_type.lower() == 'environmental':
+                env_bioprojects.add(bioproject)
+            elif asm_type.lower() == 'isolates':
+                isolate_bioprojects.add(bioproject)
+            else:
+                log.error(f"Invalid assembly type `{asm_type}` for BioProject {bioproject} in NCBI environmental BioProject ledger "
+                          f"(must be `Environmental` or `Isolates`): {ncbi_env_bioproject_ledger}")
+                sys.exit(1)
+
+    return env_bioprojects, isolate_bioprojects
 
 
 def parse_ncbi_bioproject(genbank_assembly_file):
