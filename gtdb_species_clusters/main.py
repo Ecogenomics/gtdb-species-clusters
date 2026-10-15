@@ -312,7 +312,8 @@ class OptionsParser():
               qc_passed,
               ncbi_assembly_summary_genbank_files(params),
               params['ledgers']['gtdb_type_strains_ledger'],
-              params['ledgers']['untrustworthy_type_ledger'])
+              params['ledgers']['untrustworthy_type_ledger'],
+              params['toml_raw']['ledgers']['untrustworthy_type_ledger'])
 
     def u_resolve_types(self, args):
         """Resolve cases where a species has multiple genomes assembled from the type strain."""
