@@ -77,6 +77,9 @@ class ResolveTypes():
 
         self.skani = Skani(None, cpus)
 
+        # LTP sequences without a valid taxonomy string (accession -> taxonomy string)
+        self.ltp_missing_taxonomy: Dict[str, str] = {}
+
         self.ani_pickle_dir = os.path.join(self.output_dir, 'ani_pickles')
         if not os.path.exists(self.ani_pickle_dir):
             os.makedirs(self.ani_pickle_dir)
@@ -85,27 +88,34 @@ class ResolveTypes():
         """Parse taxa and species from LTP taxonomy string.
 
         :param ltp_taxonomy_str: LTP-style taxonomy string.
-        :return: Taxa specified in LTP taxonomy string and the LTP species assignment.
+        :return: Taxa specified in LTP taxonomy string and the LTP species assignment, or an empty list and None if the string does not specify a valid species.
         """
 
         # LTP taxonomy strings come in a variety of forms making
-        # it challenging to extract just the taxonomic information
+        # it challenging to extract just the taxonomic information.
+        # The type material and strain information follow the last '|'
+        # since a '|' can also appear within the taxonomy, e.g.:
+        #   Bacteria; Pseudomonadota; Betaproteobacteria; Burkholderiales;|Oxalobacteraceae; Oxalobacter.;Oxalobacter paeniformigenes;|
         if ';type sp.|' in ltp_taxonomy_str:
-            taxa = ltp_taxonomy_str.split(';type sp.|')[0].split(';')
+            taxa = ltp_taxonomy_str.rsplit(';type sp.|', 1)[0].split(';')
         elif ';type sp. |' in ltp_taxonomy_str:
-            taxa = ltp_taxonomy_str.split(';type sp. |')[0].split(';')
+            taxa = ltp_taxonomy_str.rsplit(';type sp. |', 1)[0].split(';')
         elif ';type sp|' in ltp_taxonomy_str:
-            taxa = ltp_taxonomy_str.split(';type sp|')[0].split(';')
+            taxa = ltp_taxonomy_str.rsplit(';type sp|', 1)[0].split(';')
         elif ';|' in ltp_taxonomy_str:
-            taxa = ltp_taxonomy_str.split(';|')[0].split(';')
+            taxa = ltp_taxonomy_str.rsplit(';|', 1)[0].split(';')
         elif 'ltp[T]|' in ltp_taxonomy_str:
-            taxa = ltp_taxonomy_str.split('|')[0].split(';')[0:-1]
+            taxa = ltp_taxonomy_str.rsplit('|', 1)[0].split(';')[0:-1]
         elif '|' in ltp_taxonomy_str:
-            taxa = ltp_taxonomy_str.split('|')[0].split(';')
+            taxa = ltp_taxonomy_str.rsplit('|', 1)[0].split(';')
         elif ltp_taxonomy_str[-1] == ';':
             taxa = ltp_taxonomy_str[0:-1].split(';')
         else:
             taxa = ltp_taxonomy_str.split(';')
+
+        # lightly clean taxa by removing surrounding whitespace and
+        # leading or trailing '|' or '.' characters (e.g., '|Oxalobacteraceae', 'Oxalobacter.')
+        taxa = [taxon.strip().strip('|.').strip() for taxon in taxa]
 
         sp = taxa[-1].replace('"', '')
         if ' subsp. ' in sp:
@@ -119,7 +129,6 @@ class ResolveTypes():
                 or sp[0].islower()
                 or any(c.isdigit() for c in sp)
                 or any(c.isupper() for c in sp[1:])):
-            self.log.warning(f'Invalid LTP taxonomy string: {ltp_taxonomy_str} -> {taxa}')
             return [], None
 
         return taxa, 's__' + sp
@@ -164,6 +173,7 @@ class ResolveTypes():
                         taxa, sp = self._parse_ltp_taxonomy_str(taxonomy)
 
                         if sp is None:
+                            self.ltp_missing_taxonomy[subject_id] = taxonomy
                             continue
 
                         metadata[gid].append(LTP_METADATA(
@@ -192,15 +202,30 @@ class ResolveTypes():
             for line in f:
                 tokens = line.strip().split('\t')
 
+                ltp_accn = tokens[0]
                 taxonomy = tokens[1]
                 _taxa, sp = self._parse_ltp_taxonomy_str(taxonomy)
 
                 if sp is None:
+                    self.ltp_missing_taxonomy[ltp_accn] = taxonomy
                     continue
 
                 ltp_species.add(sp)
 
         return ltp_species
+
+    def write_ltp_missing_taxonomy(self) -> None:
+        """Write LTP sequences without a valid taxonomy string.
+
+        Some LTP releases contain sequences without a species name or
+        taxonomy (e.g., ';;|' in the LTP taxonomy file). These sequences
+        are ignored and reported here instead of in the log.
+        """
+
+        with open(os.path.join(self.output_dir, 'ltp_missing_taxonomy.tsv'), 'w') as fout:
+            fout.write('LTP accession\tLTP taxonomy string\n')
+            for ltp_accn, taxonomy in sorted(self.ltp_missing_taxonomy.items()):
+                fout.write(f'{ltp_accn}\t{taxonomy}\n')
 
     def ltp_species(self, gid: str, ltp_metadata: SsuLtpMetadata):
         """Get high confident species assignments.
@@ -1002,6 +1027,10 @@ class ResolveTypes():
         fout_genomes.close()
         fout_untrustworthy.close()
         fout_ltp.close()
+
+        self.write_ltp_missing_taxonomy()
+        self.log.info(
+            f'Ignored {len(self.ltp_missing_taxonomy):,} LTP sequences without a valid taxonomy string (see ltp_missing_taxonomy.tsv).')
 
         self.log.info(
             f'Identified {num_divergent:,} species with 1 or more divergent type strain genomes.')
