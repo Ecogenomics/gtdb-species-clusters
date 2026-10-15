@@ -1,5 +1,7 @@
 # Test parsing of LTP taxonomy strings in ResolveTypes class
 
+from types import SimpleNamespace
+
 import pytest
 
 from gtdb_species_clusters.update_resolve_types import ResolveTypes, LTP_METADATA
@@ -98,8 +100,17 @@ def test_ltp_conflicting_genomes(resolve_types):
 
 
 class StubGenome:
-    def __init__(self, gtdb_type_designation_sources='LPSN'):
+    def __init__(self, gtdb_type_designation_sources='LPSN', ncbi_sp='s__', gtdb_sp='s__', effective_type_strain=True):
         self.gtdb_type_designation_sources = gtdb_type_designation_sources
+        self.ncbi_taxa = SimpleNamespace(species=ncbi_sp)
+        self.gtdb_taxa = SimpleNamespace(species=gtdb_sp)
+        self.effective_type_strain = effective_type_strain
+
+    def is_gtdb_type_strain_ledger(self):
+        return self.gtdb_type_designation_sources == 'GTDB curator'
+
+    def is_effective_type_strain(self):
+        return self.effective_type_strain
 
 
 def test_resolve_retained_ltp_conflicts(resolve_types):
@@ -126,3 +137,62 @@ def test_resolve_retained_ltp_conflicts(resolve_types):
     untrustworthy = resolve_types.resolve_retained_ltp_conflicts(
         ncbi_sp, type_gids, {'G1': 'reason', 'G6': 'reason'}, ltp_metadata, cur_genomes)
     assert untrustworthy == {}
+
+
+def test_sp_with_mult_type_strains_ledger(resolve_types):
+    """Verify genomes in the GTDB type strains ledger are grouped by their ledger species."""
+
+    cur_genomes = {
+        # type strains of C. michiganensis at NCBI
+        'G1': StubGenome(ncbi_sp='s__Clavibacter michiganensis', gtdb_sp='s__Clavibacter michiganensis'),
+        'G2': StubGenome(ncbi_sp='s__Clavibacter michiganensis', gtdb_sp='s__Clavibacter michiganensis'),
+        # ledger genome classified as C. michiganensis at NCBI, but type strain of C. insidiosus
+        'G3': StubGenome('GTDB curator', ncbi_sp='s__Clavibacter michiganensis', gtdb_sp='s__Clavibacter insidiosus'),
+        # other genome assembled from the type strain of C. insidiosus
+        'G4': StubGenome(ncbi_sp='s__Clavibacter insidiosus', gtdb_sp='s__Clavibacter insidiosus'),
+        # not type material
+        'G5': StubGenome(ncbi_sp='s__Clavibacter michiganensis', effective_type_strain=False)}
+
+    assert resolve_types.sp_with_mult_type_strains(cur_genomes) == {
+        's__Clavibacter michiganensis': {'G1', 'G2'},
+        's__Clavibacter insidiosus': {'G3', 'G4'}}
+
+
+def test_resolve_by_type_strains_ledger(resolve_types):
+    """Verify type strain genomes are compared to genomes in the GTDB type strains ledger."""
+
+    gid_anis = {'L1': {'G1': 99.5, 'G2': 93.5},
+                'G1': {'L1': 99.5, 'G2': 93.4},
+                'G2': {'L1': 93.5, 'G1': 93.4}}
+
+    resolved, untrustworthy = resolve_types.resolve_by_type_strains_ledger(gid_anis, {'L1', 'G1', 'G2'}, {'L1'})
+    assert resolved
+    assert untrustworthy == {'G2': '93.50% ANI to L1 in GTDB type strains ledger'}
+
+
+def test_check_ledger_conflicts(resolve_types, tmp_path, monkeypatch, caplog):
+    """Verify processing stops if a genome is in both the GTDB type strains and untrustworthy ledgers."""
+
+    monkeypatch.chdir(tmp_path)
+
+    type_strains_ledger = tmp_path / 'gtdb_type_strains.tsv'
+    type_strains_ledger.write_text('Genome ID\tProposed GTDB species name\n'
+                                   'G002240565\tClavibacter insidiosus\n')
+
+    untrustworthy_ledger = tmp_path / 'gtdb_untrustworthy_type_genomes.tsv'
+    untrustworthy_ledger.write_text('Genome ID\tNCBI species\tSubmitter\tDate\tReason for declaring untrustworthy\n'
+                                    'G000013285\ts__Clostridium perfringens\tDHP\t2026\tReason\n')
+
+    # no conflicts
+    resolve_types.check_ledger_conflicts(str(type_strains_ledger), str(untrustworthy_ledger))
+
+    # genome in both ledgers
+    with open(untrustworthy_ledger, 'a') as f:
+        f.write('GCF_002240565.1\ts__Clavibacter michiganensis\tDHP\t2026\tReason\n')
+
+    with pytest.raises(SystemExit):
+        resolve_types.check_ledger_conflicts(str(type_strains_ledger), str(untrustworthy_ledger))
+
+    assert caplog.records[-1].getMessage() == (
+        'Genomes cannot be in both the GTDB type strains ledger (gtdb_type_strains.tsv) and the untrustworthy '
+        'type ledger (gtdb_untrustworthy_type_genomes.tsv): G002240565')

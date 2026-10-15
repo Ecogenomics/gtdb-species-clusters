@@ -156,10 +156,13 @@ class RepChanges():
                     unchanged_genome.add(prev_rid)
                     fout_summary.write('\tUNCHANGED')
 
-                # check if NCBI species assignment has changed
+                # check if NCBI species assignment has changed; the species specified in the
+                # GTDB type strains ledger overrides the NCBI species assignment so is considered
+                # unchanged for genomes in this ledger
                 prev_ncbi_sp = prev_genomes[prev_rid].ncbi_taxa.species
                 cur_ncbi_sp = cur_genomes[prev_rid].ncbi_taxa.species
-                if prev_genomes[prev_rid].ncbi_taxa.specific_epithet == cur_genomes[prev_rid].ncbi_taxa.specific_epithet:
+                if (cur_genomes[prev_rid].is_gtdb_type_strain_ledger()
+                        or prev_genomes[prev_rid].ncbi_taxa.specific_epithet == cur_genomes[prev_rid].ncbi_taxa.specific_epithet):
                     unchanged_sp.add(prev_rid)
                     fout_summary.write('\tUNCHANGED')
                 else:

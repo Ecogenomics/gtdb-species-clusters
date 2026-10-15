@@ -302,7 +302,7 @@ class ResolveTypes():
             if not ltp_species or ncbi_sp in ltp_species:
                 continue
 
-            if cur_genomes[gid].gtdb_type_designation_sources == 'GTDB curator':
+            if cur_genomes[gid].is_gtdb_type_strain_ledger():
                 continue
 
             new_untrustworthy_gids[gid] = (f"Conflicting 16S rRNA hits to LTP database of {' / '.join(sorted(ltp_species))}, "
@@ -610,6 +610,50 @@ class ResolveTypes():
 
         return False, {}
 
+    def resolve_by_type_strains_ledger(self, gid_anis: AniPairs, type_gids: Set[str], ledger_gids: Set[str]) -> Resolution:
+        """Resolve conflicting type genomes using genomes specified in the GTDB type strains ledger.
+
+        Genomes in the ledger are taken to be the type strain of the species. Other
+        type strain genomes are retained only if they meet the same strain ANI criterion
+        with a genome in the ledger.
+
+        :param gid_anis: ANI between genome pairs.
+        :param type_gids: Accession for genomes assembled from the type strain of a species.
+        :param ledger_gids: Type strain genomes specified in the GTDB type strains ledger.
+        :return: True along with reason for considering genomes untrustworthy as type material.
+        """
+
+        untrustworthy_gids = {}
+        for gid in type_gids - ledger_gids:
+            ledger_gid, ani = max(((lgid, gid_anis[gid][lgid]) for lgid in sorted(ledger_gids)),
+                                  key=lambda x: x[1])
+            if ani < Defaults.ANI_SAME_STRAIN:
+                untrustworthy_gids[gid] = f'{ani:.2f}% ANI to {ledger_gid} in GTDB type strains ledger'
+
+        return True, untrustworthy_gids
+
+    def check_ledger_conflicts(self, gtdb_type_strains_ledger: str, untrustworthy_type_ledger: str) -> None:
+        """Stop if any genome is in both the GTDB type strains ledger and the untrustworthy type ledger.
+
+        :param gtdb_type_strains_ledger: File indicating genomes that should be considered assembled from the type strain.
+        :param untrustworthy_type_ledger: File listing genomes that should be considered untrustworthy as type material.
+        """
+
+        type_strain_gids = set()
+        with open(gtdb_type_strains_ledger) as f:
+            f.readline()
+            for line in f:
+                tokens = line.strip().split('\t')
+                type_strain_gids.add(canonical_gid(tokens[0].strip()))
+
+        conflicting_gids = sorted(type_strain_gids.intersection(
+            self.parse_untrustworthy_type_ledger(untrustworthy_type_ledger)))
+        if conflicting_gids:
+            self.log.error(f'Genomes cannot be in both the GTDB type strains ledger ({os.path.relpath(gtdb_type_strains_ledger)}) '
+                           f'and the untrustworthy type ledger ({os.path.relpath(untrustworthy_type_ledger)}): '
+                           f'{", ".join(conflicting_gids)}')
+            sys.exit(1)
+
     def parse_untrustworthy_type_ledger(self, untrustworthy_type_ledger: str) -> Dict[str, Tuple[str, str]]:
         """Parse file indicating genomes considered to be untrustworthy as type material.
 
@@ -636,6 +680,9 @@ class ResolveTypes():
     def sp_with_mult_type_strains(self, cur_genomes: Genomes) -> Dict[str, Set[str]]:
         """Identify NCBI species with multiple type strain of species genomes.
 
+        Genomes in the GTDB type strains ledger are assigned to the species specified
+        in the ledger instead of their NCBI species.
+
         :param cur_genomes: Metadata for genomes in the current GTDB release.
         :return: Mapping from NCBI species to type strain genome accessions.
         """
@@ -643,7 +690,12 @@ class ResolveTypes():
         sp_type_strain_genomes: DefaultDict[str, set[str]] = defaultdict(set)
         for gid in cur_genomes:
             if cur_genomes[gid].is_effective_type_strain():
-                ncbi_sp = cur_genomes[gid].ncbi_taxa.species
+                if cur_genomes[gid].is_gtdb_type_strain_ledger():
+                    # species name from ledger is set as the GTDB species when genomes are loaded
+                    ncbi_sp = cur_genomes[gid].gtdb_taxa.species
+                else:
+                    ncbi_sp = cur_genomes[gid].ncbi_taxa.species
+
                 if ncbi_sp != 's__':
                     # yes, NCBI has genomes marked as assembled from type material
                     # that do not actually have a binomial species name
@@ -718,6 +770,9 @@ class ResolveTypes():
         :param untrustworthy_type_ledger: File indicating genomes that should be considered untrustworthy as type material.
         :param ncbi_env_bioproject_ledger: File indicating NCBI BioProjects composed on MAGs or SAGs incorrectly annotated at NCBI.
         """
+
+        # genomes in the GTDB type strains ledger can never be untrustworthy as type material
+        self.check_ledger_conflicts(gtdb_type_strains_ledger, untrustworthy_type_ledger)
 
         # get species in LTP reference database
         self.log.info(
@@ -810,6 +865,7 @@ class ResolveTypes():
         intra_ani_resolved = 0
         ncbi_type_resolved = 0
         ncbi_rep_resolved = 0
+        type_strains_ledger_resolved = 0
         ltp_retained_conflicts = 0
         gtdb_family_resolved = 0
         gtdb_genus_resolved = 0
@@ -864,6 +920,7 @@ class ResolveTypes():
                     ))
 
             untrustworthy_gids = {}
+            ledger_gids = {gid for gid in type_gids if cur_genomes[gid].is_gtdb_type_strain_ledger()}
             gtdb_resolved_sp_conflict = False
             note = f'All type strain genomes have ANI >99% and AF >{Defaults.AF_SP}%.'
             if not all_similar:
@@ -896,19 +953,28 @@ class ResolveTypes():
                             cur_genomes[gid].ncbi_taxa,
                             cur_genomes[gid].gtdb_taxa))
 
+                # genomes in the GTDB type strains ledger define the type strain of the species
+                resolved = False
+                if ledger_gids:
+                    resolved, untrustworthy_gids = self.resolve_by_type_strains_ledger(
+                        gid_anis, type_gids, ledger_gids)
+                    note = 'Species resolved using genomes in GTDB type strains ledger'
+                    type_strains_ledger_resolved += 1
+
                 # filter genomes marked as `untrustworthy as type` or `not used as type` at NCBI and
                 # where the LTP assignment also suggest the asserted type material is incorrect
-                resolved, untrustworthy_gids = self.resolve_validated_untrustworthy_ncbi_genomes(gid_anis,
-                                                                                                 ncbi_sp,
-                                                                                                 type_gids,
-                                                                                                 ltp_metadata,
-                                                                                                 ltp_defined_species,
-                                                                                                 cur_genomes)
+                if not resolved:
+                    resolved, untrustworthy_gids = self.resolve_validated_untrustworthy_ncbi_genomes(gid_anis,
+                                                                                                     ncbi_sp,
+                                                                                                     type_gids,
+                                                                                                     ltp_metadata,
+                                                                                                     ltp_defined_species,
+                                                                                                     cur_genomes)
 
-                if resolved:
-                    note = "Species resolved by removing genomes considered `untrustworthy as type` or `not used as type`"
-                    note += " and with a LTP BLAST hit confirming the assembly is likely untrustworthy"
-                    ncbi_ltp_resolved += 1
+                    if resolved:
+                        note = "Species resolved by removing genomes considered `untrustworthy as type` or `not used as type`"
+                        note += " and with a LTP BLAST hit confirming the assembly is likely untrustworthy"
+                        ncbi_ltp_resolved += 1
 
                 # try to resolve by LTP 16S BLAST results
                 if not resolved:
@@ -1015,8 +1081,9 @@ class ResolveTypes():
                             cur_genomes[gid].gtdb_taxa))
 
             # remove genomes marked as untrustworthy as type at NCBI if one or more potential type strain genomes remaining
+            # (genomes in the GTDB type strains ledger are never considered untrustworthy)
             ncbi_untrustworthy_gids = set(
-                [gid for gid in type_gids if cur_genomes[gid].is_ncbi_untrustworthy_as_type()]
+                [gid for gid in type_gids - ledger_gids if cur_genomes[gid].is_ncbi_untrustworthy_as_type()]
             )
 
             if len(type_gids - set(untrustworthy_gids) - ncbi_untrustworthy_gids) >= 1:
@@ -1026,13 +1093,15 @@ class ResolveTypes():
 
             # report cases where genomes marked as untrustworthy as type at NCBI are being retained as potential type strain genomes
             num_ncbi_untrustworthy = len(ncbi_untrustworthy_gids)
-            for gid in type_gids:
+            for gid in type_gids - ledger_gids:
                 if (gid not in untrustworthy_gids and cur_genomes[gid].is_ncbi_untrustworthy_as_type()):
                     self.log.warning("Retaining genome {} from {} despite being marked as `untrustworthy as type` or `not used as type` at NCBI [{:,} of {:,} considered untrustworthy].".format(
                         gid,
                         ncbi_sp,
                         num_ncbi_untrustworthy,
                         len(type_gids)))
+
+            assert not ledger_gids.intersection(untrustworthy_gids), 'Genome in GTDB type strains ledger marked as untrustworthy'
 
             # write out genomes identified as being untrustworthy
             for gid, reason in untrustworthy_gids.items():
@@ -1109,6 +1178,8 @@ class ResolveTypes():
 
         self.log.info(
             f'Identified {num_divergent:,} species with 1 or more divergent type strain genomes.')
+        self.log.info(
+            f' - resolved {type_strains_ledger_resolved:,} species using genomes in the GTDB type strains ledger.')
         self.log.info(
             f' - resolved {ncbi_ltp_resolved:,} species by removing NCBI `untrustworthy as type` or `not used as type` genomes with a conflicting LTP 16S rRNA classifications.')
         self.log.info(
