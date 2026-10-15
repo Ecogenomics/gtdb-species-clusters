@@ -69,7 +69,8 @@ class Genome(object):
                              'assembly designated as neotype',
                              'assembly designated as reftype'])
     NCBI_PROXYTYPE = set(['assembly from proxytype material'])
-    NCBI_TYPE_SUBSP = set(['assembly from synonym type material'])
+    NCBI_TYPE_SUBSP = set(['assembly from synonym type material',
+                           'assembly from heterotypic synonym type material'])
 
     GTDB_TYPE_SPECIES = set(
         ['type strain of species', 'type strain of neotype'])
@@ -290,7 +291,7 @@ class Genome(object):
             # why the is_gtdb_type_subspecies() check is made first as this
             # also covers heterotypic synonym (i.e. effectively a subspecies
             # within a species). In theory, NCBI should annotate heterotypic
-            # synonyms as `assembly from synonym type material` and they seem
+            # synonyms as `assembly from heterotypic synonym type material` and they seem
             # to be getting better in this regard.
             return True
 

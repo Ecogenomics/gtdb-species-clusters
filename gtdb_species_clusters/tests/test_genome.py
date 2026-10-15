@@ -201,6 +201,19 @@ class TestGenome:
         assert not g.is_ncbi_type_strain()
         assert g.is_ncbi_type_subspecies()
 
+        # test type material for synonyms, which NCBI has designated as either
+        # `assembly from synonym type material` or `assembly from heterotypic synonym type material`;
+        # genome is not GTDB type material so only the NCBI designation is considered
+        g.gtdb_type_designation = 'not type material'
+        g.ncbi_unfiltered_taxa = Taxa(
+            "d__Bacteria;p__Proteobacteria;c__Gammaproteobacteria;o__Enterobacterales;f__Enterobacteriaceae;g__Escherichia;s__Escherichia flexneri;sb__Escherichia flexneri")
+        for ncbi_type_material in ['assembly from synonym type material',
+                                   'assembly from heterotypic synonym type material']:
+            g.ncbi_type_material = ncbi_type_material
+            assert not g.is_ncbi_type_strain()
+            assert g.is_ncbi_type_subspecies()
+            assert not g.is_effective_type_strain()
+
     def test_is_complete_genome(self):
         """Test identifying a genome as a complete assembly."""
 

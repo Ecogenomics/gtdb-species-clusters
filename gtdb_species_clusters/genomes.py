@@ -393,9 +393,14 @@ class Genomes(object):
             self.log.info(
                 f' - identified {len(untrustworthy_as_type):,} genomes annotated as untrustworthy as type by GTDB')
 
+            # the untrustworthy file may be a curated ledger or the output of
+            # u_resolve_types so is reported explicitly (relative to the current
+            # directory); genomes considered untrustworthy are never considered type material
+            untrustworthy_type_file = os.path.relpath(untrustworthy_type_ledger)
             for gid in gtdb_type_strains:
                 if gid in untrustworthy_as_type:
-                    self.log.warning(f"Genome in both the GTDB type strain and untrustworthy genome ledgers: {gid}")
+                    self.log.warning(f"Genome {gid} is in the GTDB type strains ledger, but is untrustworthy as type material "
+                                     f"according to {untrustworthy_type_file}; it will not be considered type material.")
 
         excluded_from_refseq_note = {}
         ncbi_bioproject = {}

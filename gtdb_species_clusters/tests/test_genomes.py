@@ -69,3 +69,36 @@ class TestGenomes:
             failed_tests = defaultdict(int)
             assert not genomes[gid].pass_qc(100, qc_criteria, failed_tests)
             assert 'cm2_comp' in failed_tests
+
+    def test_type_strain_ledger_untrustworthy(self, tmp_path, caplog, monkeypatch):
+        """Test genomes in the GTDB type strains ledger and untrustworthy file are not type material."""
+
+        # untrustworthy file is reported relative to the current directory
+        monkeypatch.chdir(tmp_path)
+        (tmp_path / '5_u_resolve_types').mkdir()
+
+        gtdb_type_strains_ledger = tmp_path / 'gtdb_type_strains.tsv'
+        gtdb_type_strains_ledger.write_text('Genome ID\tProposed GTDB species name\n'
+                                            'G003983815\tTestus ledgerensis\n')
+
+        untrustworthy_file = tmp_path / '5_u_resolve_types' / 'untrustworthy_type_material.tsv'
+        untrustworthy_file.write_text('Genome ID\tNCBI species\tGTDB species\tLTP species\tReason for declaring untrustworthy\n'
+                                      'G003983815\ts__Testus ncbiensis\ts__Testus ledgerensis\t\t93.50% ANI to other type strain genomes\n')
+
+        genomes = Genomes()
+        with caplog.at_level('WARNING'):
+            genomes.load_from_metadata_file(METADATA_FILE,
+                                            gtdb_type_strains_ledger=str(gtdb_type_strains_ledger),
+                                            create_sp_clusters=False,
+                                            untrustworthy_type_ledger=str(untrustworthy_file))
+
+        assert [r.getMessage() for r in caplog.records if r.levelname == 'WARNING'] == [
+            f'Genome G003983815 is in the GTDB type strains ledger, but is untrustworthy as type material '
+            'according to 5_u_resolve_types/untrustworthy_type_material.tsv; it will not be considered type material.']
+
+        # species name from the ledger is retained, but genome is not considered type material
+        g = genomes['G003983815']
+        assert g.gtdb_taxa.species == 's__Testus ledgerensis'
+        assert g.gtdb_type_designation == 'type strain of species'
+        assert not g.is_gtdb_type_strain()
+        assert not g.is_effective_type_strain()
