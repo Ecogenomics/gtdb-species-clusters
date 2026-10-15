@@ -18,6 +18,7 @@
 import os
 import sys
 import csv
+import copy
 import logging
 
 from gtdblib.util.shell.gtdbshutil import check_file_exists, make_sure_path_exists
@@ -82,6 +83,9 @@ def parse_toml_file(toml_file: str):
 
     params = load_toml_file(toml_file)
 
+    # keep values as written in the TOML file so they can be reported to the user
+    params['toml_raw'] = copy.deepcopy(params)
+
     if 'root_dir' in params:
         root_dir = os.path.abspath(params['root_dir'])
         params['root_dir'] = root_dir
@@ -100,18 +104,51 @@ def parse_toml_file(toml_file: str):
     return params
 
 
+PREV_GTDB_METADATA_KEYS = ['prev_gtdb_ar_metadata_file',
+                           'prev_gtdb_bac_metadata_file']
+NCBI_ASSEMBLY_SUMMARY_GENBANK_KEYS = ['ncbi_assembly_summary_ar_genbank_file',
+                                      'ncbi_assembly_summary_bac_genbank_file']
+
+
 def prev_gtdb_metadata_files(params):
     """Get GTDB metadata files for archaeal and bacterial genomes in previous GTDB release."""
 
-    return [params['data_files']['prev_gtdb_ar_metadata_file'],
-            params['data_files']['prev_gtdb_bac_metadata_file']]
+    return [params['data_files'][key] for key in PREV_GTDB_METADATA_KEYS]
 
 
 def ncbi_assembly_summary_genbank_files(params):
     """Get NCBI assembly summary files for archaeal and bacterial GenBank assemblies."""
 
-    return [params['data_files']['ncbi_assembly_summary_ar_genbank_file'],
-            params['data_files']['ncbi_assembly_summary_bac_genbank_file']]
+    return [params['data_files'][key] for key in NCBI_ASSEMBLY_SUMMARY_GENBANK_KEYS]
+
+
+def log_command_inputs(params, toml_keys, step_files=()):
+    """Report the TOML entries and earlier step outputs used by a command.
+
+    Values are reported as written in the TOML file, i.e. before being resolved
+    against root_dir. Each step file is given as (step name, filename) and is
+    reported relative to the step's output directory.
+    """
+
+    # the 'rich' logger also writes to the log file in the command's output directory
+    log = logging.getLogger('rich')
+    raw = params['toml_raw']
+
+    if toml_keys:
+        log.info('Command uses:')
+    for key in toml_keys:
+        value = '<not in TOML file>'
+        for section in ['data_files', 'ledgers', 'ltp']:
+            if key in raw.get(section, {}):
+                value = raw[section][key]
+                break
+        log.info(f' - {key} = {value}')
+
+    if step_files:
+        log.info('Command uses outputs of earlier steps:')
+        for step, filename in step_files:
+            step_dir = raw.get('output_dirs', {}).get(step, f'<{step} not in TOML file>')
+            log.info(f' - {step} = {os.path.join(step_dir, filename)}')
 
 
 def check_files_exist(input_files):
@@ -134,6 +171,12 @@ class OptionsParser():
         check_file_exists(args.input_params_file)
         params = parse_toml_file(args.input_params_file)
 
+        log_command_inputs(params,
+                           [*PREV_GTDB_METADATA_KEYS,
+                            'cur_gtdb_metadata_file',
+                            'cur_genome_path_file',
+                            *NCBI_ASSEMBLY_SUMMARY_GENBANK_KEYS])
+
         check_files_exist(prev_gtdb_metadata_files(params))
         check_file_exists(params['data_files']['cur_gtdb_metadata_file'])
         check_file_exists(params['data_files']['cur_genome_path_file'])
@@ -154,6 +197,15 @@ class OptionsParser():
 
         check_file_exists(args.input_params_file)
         params = parse_toml_file(args.input_params_file)
+
+        log_command_inputs(params,
+                           [*PREV_GTDB_METADATA_KEYS,
+                            'cur_gtdb_metadata_file',
+                            *NCBI_ASSEMBLY_SUMMARY_GENBANK_KEYS,
+                            'cur_gtdb_domain_report',
+                            'gtdb_type_strains_ledger',
+                            'qc_exception_ledger',
+                            'ncbi_env_bioproject_ledger'])
 
         check_files_exist(prev_gtdb_metadata_files(params))
         check_file_exists(params['data_files']['cur_gtdb_metadata_file'])
@@ -206,6 +258,11 @@ class OptionsParser():
         qc_passed = os.path.join(
             params['output_dirs']['u_qc_genomes'], 'qc_passed.tsv')
 
+        log_command_inputs(params,
+                           [],
+                           [('u_new_genomes', 'genomes_new_updated.tsv'),
+                            ('u_qc_genomes', 'qc_passed.tsv')])
+
         check_file_exists(genomes_new_updated)
         check_file_exists(qc_passed)
 
@@ -225,6 +282,15 @@ class OptionsParser():
 
         qc_passed = os.path.join(
             params['output_dirs']['u_qc_genomes'], 'qc_passed.tsv')
+
+        log_command_inputs(params,
+                           ['lpsn_metadata_file',
+                            'cur_gtdb_metadata_file',
+                            'cur_genome_path_file',
+                            *NCBI_ASSEMBLY_SUMMARY_GENBANK_KEYS,
+                            'gtdb_type_strains_ledger',
+                            'untrustworthy_type_ledger'],
+                           [('u_qc_genomes', 'qc_passed.tsv')])
 
         check_file_exists(params['data_files']['lpsn_metadata_file'])
         check_file_exists(params['data_files']['cur_gtdb_metadata_file'])
@@ -256,6 +322,17 @@ class OptionsParser():
 
         qc_passed = os.path.join(
             params['output_dirs']['u_qc_genomes'], 'qc_passed.tsv')
+
+        log_command_inputs(params,
+                           ['cur_gtdb_metadata_file',
+                            'cur_genome_path_file',
+                            *NCBI_ASSEMBLY_SUMMARY_GENBANK_KEYS,
+                            'ltp_taxonomy_file',
+                            'ltp_dir',
+                            'gtdb_type_strains_ledger',
+                            'untrustworthy_type_ledger',
+                            'ncbi_env_bioproject_ledger'],
+                           [('u_qc_genomes', 'qc_passed.tsv')])
 
         check_file_exists(qc_passed)
         check_file_exists(params['data_files']['cur_gtdb_metadata_file'])
@@ -295,6 +372,18 @@ class OptionsParser():
             params['output_dirs']['u_gtdbtk'], 'gtdbtk_classify.tsv')
         untrustworthy_type_file = os.path.join(
             params['output_dirs']['u_resolve_types'], 'untrustworthy_type_material.tsv')
+
+        log_command_inputs(params,
+                           [*PREV_GTDB_METADATA_KEYS,
+                            'cur_gtdb_metadata_file',
+                            *NCBI_ASSEMBLY_SUMMARY_GENBANK_KEYS,
+                            'disband_cluster_ledger',
+                            'gtdb_type_strains_ledger',
+                            'ncbi_env_bioproject_ledger'],
+                           [('u_new_genomes', 'genomes_new_updated.tsv'),
+                            ('u_qc_genomes', 'qc_passed.tsv'),
+                            ('u_gtdbtk', 'gtdbtk_classify.tsv'),
+                            ('u_resolve_types', 'untrustworthy_type_material.tsv')])
 
         check_files_exist(prev_gtdb_metadata_files(params))
         check_file_exists(params['data_files']['cur_gtdb_metadata_file'])
@@ -339,6 +428,23 @@ class OptionsParser():
             params['output_dirs']['u_resolve_types'], 'untrustworthy_type_material.tsv')
         rep_change_summary_file = os.path.join(
             params['output_dirs']['u_rep_changes'], 'rep_change_summary.tsv')
+
+        log_command_inputs(params,
+                           [*PREV_GTDB_METADATA_KEYS,
+                            'prev_genome_path_file',
+                            'cur_gtdb_metadata_file',
+                            'cur_genome_path_file',
+                            *NCBI_ASSEMBLY_SUMMARY_GENBANK_KEYS,
+                            'gtdb_type_strains_ledger',
+                            'sp_priority_ledger',
+                            'genus_priority_ledger',
+                            'ncbi_env_bioproject_ledger',
+                            'lpsn_gss_file'],
+                           [('u_rep_changes', 'rep_change_summary.tsv'),
+                            ('u_new_genomes', 'genomes_new_updated.tsv'),
+                            ('u_qc_genomes', 'qc_passed.tsv'),
+                            ('u_gtdbtk', 'gtdbtk_classify.tsv'),
+                            ('u_resolve_types', 'untrustworthy_type_material.tsv')])
 
         check_file_exists(rep_change_summary_file)
         check_file_exists(params['data_files']['prev_genome_path_file'])
@@ -388,6 +494,20 @@ class OptionsParser():
         updated_sp_cluster_file = os.path.join(
             params['output_dirs']['u_rep_actions'], 'updated_sp_clusters.tsv')
 
+        log_command_inputs(params,
+                           ['cur_gtdb_metadata_file',
+                            'cur_genome_path_file',
+                            *NCBI_ASSEMBLY_SUMMARY_GENBANK_KEYS,
+                            'gtdb_type_strains_ledger',
+                            'ncbi_untrustworthy_sp_ledger',
+                            'sp_priority_ledger',
+                            'genus_priority_ledger',
+                            'ncbi_env_bioproject_ledger',
+                            'lpsn_gss_file'],
+                           [('u_rep_actions', 'updated_sp_clusters.tsv'),
+                            ('u_qc_genomes', 'qc_passed.tsv'),
+                            ('u_resolve_types', 'untrustworthy_type_material.tsv')])
+
         check_file_exists(updated_sp_cluster_file)
         check_file_exists(params['data_files']['cur_gtdb_metadata_file'])
         check_file_exists(params['data_files']['cur_genome_path_file'])
@@ -435,6 +555,17 @@ class OptionsParser():
         rep_ani_file = os.path.join(
             params['output_dirs']['u_sel_reps'], 'gtdb_rep_pairwise_ani.tsv')
 
+        log_command_inputs(params,
+                           ['cur_gtdb_metadata_file',
+                            'cur_genome_path_file',
+                            *NCBI_ASSEMBLY_SUMMARY_GENBANK_KEYS,
+                            'gtdb_type_strains_ledger',
+                            'ncbi_env_bioproject_ledger'],
+                           [('u_sel_reps', 'gtdb_named_reps_final.tsv'),
+                            ('u_qc_genomes', 'qc_passed.tsv'),
+                            ('u_resolve_types', 'untrustworthy_type_material.tsv'),
+                            ('u_sel_reps', 'gtdb_rep_pairwise_ani.tsv')])
+
         check_file_exists(named_rep_file)
         check_file_exists(params['data_files']['cur_gtdb_metadata_file'])
         check_file_exists(params['data_files']['cur_genome_path_file'])
@@ -478,6 +609,17 @@ class OptionsParser():
         ani_af_nonrep_vs_rep = os.path.join(
             params['output_dirs']['u_cluster_named_reps'], 'ani_af_nonrep_vs_rep.pkl')
 
+        log_command_inputs(params,
+                           ['cur_gtdb_metadata_file',
+                            'cur_genome_path_file',
+                            *NCBI_ASSEMBLY_SUMMARY_GENBANK_KEYS,
+                            'gtdb_type_strains_ledger',
+                            'ncbi_env_bioproject_ledger'],
+                           [('u_cluster_named_reps', 'gtdb_named_rep_clusters.tsv'),
+                            ('u_qc_genomes', 'qc_passed.tsv'),
+                            ('u_resolve_types', 'untrustworthy_type_material.tsv'),
+                            ('u_cluster_named_reps', 'ani_af_nonrep_vs_rep.pkl')])
+
         check_file_exists(named_cluster_file)
         check_file_exists(params['data_files']['cur_gtdb_metadata_file'])
         check_file_exists(params['data_files']['cur_genome_path_file'])
@@ -519,6 +661,16 @@ class OptionsParser():
         gtdb_clusters_file = os.path.join(
             params['output_dirs']['u_cluster_de_novo'], 'gtdb_clusters_de_novo.tsv')
 
+        log_command_inputs(params,
+                           [*PREV_GTDB_METADATA_KEYS,
+                            'cur_gtdb_metadata_file',
+                            *NCBI_ASSEMBLY_SUMMARY_GENBANK_KEYS,
+                            'gtdb_type_strains_ledger',
+                            'ncbi_env_bioproject_ledger'],
+                           [('u_cluster_de_novo', 'gtdb_clusters_de_novo.tsv'),
+                            ('u_qc_genomes', 'qc_passed.tsv'),
+                            ('u_resolve_types', 'untrustworthy_type_material.tsv')])
+
         check_file_exists(gtdb_clusters_file)
         check_files_exist(prev_gtdb_metadata_files(params))
         check_file_exists(params['data_files']['cur_gtdb_metadata_file'])
@@ -554,6 +706,17 @@ class OptionsParser():
             params['output_dirs']['u_resolve_types'], 'untrustworthy_type_material.tsv')
         gtdb_clusters_file = os.path.join(
             params['output_dirs']['u_cluster_de_novo'], 'gtdb_clusters_de_novo.tsv')
+
+        log_command_inputs(params,
+                           ['cur_gtdb_metadata_file',
+                            'cur_genome_path_file',
+                            *NCBI_ASSEMBLY_SUMMARY_GENBANK_KEYS,
+                            'gtdb_type_strains_ledger',
+                            'ncbi_untrustworthy_sp_ledger',
+                            'ncbi_env_bioproject_ledger'],
+                           [('u_cluster_de_novo', 'gtdb_clusters_de_novo.tsv'),
+                            ('u_qc_genomes', 'qc_passed.tsv'),
+                            ('u_resolve_types', 'untrustworthy_type_material.tsv')])
 
         check_file_exists(gtdb_clusters_file)
         check_file_exists(params['data_files']['cur_gtdb_metadata_file'])
@@ -596,6 +759,21 @@ class OptionsParser():
             params['output_dirs']['u_ncbi_erroneous'], 'ncbi_misclassified_sp.gtdb_clustering.tsv')
         ani_af_nonrep_vs_rep = os.path.join(
             params['output_dirs']['u_cluster_named_reps'], 'ani_af_nonrep_vs_rep.pkl')
+
+        log_command_inputs(params,
+                           ['cur_gtdb_metadata_file',
+                            *NCBI_ASSEMBLY_SUMMARY_GENBANK_KEYS,
+                            'gtdb_type_strains_ledger',
+                            'sp_priority_ledger',
+                            'genus_priority_ledger',
+                            'ncbi_untrustworthy_sp_ledger',
+                            'ncbi_env_bioproject_ledger',
+                            'lpsn_gss_file'],
+                           [('u_cluster_de_novo', 'gtdb_clusters_de_novo.tsv'),
+                            ('u_qc_genomes', 'qc_passed.tsv'),
+                            ('u_ncbi_erroneous', 'ncbi_misclassified_sp.gtdb_clustering.tsv'),
+                            ('u_resolve_types', 'untrustworthy_type_material.tsv'),
+                            ('u_cluster_named_reps', 'ani_af_nonrep_vs_rep.pkl')])
 
         check_file_exists(gtdb_clusters_file)
         check_file_exists(params['data_files']['cur_gtdb_metadata_file'])
@@ -643,6 +821,17 @@ class OptionsParser():
         gtdb_clusters_file = os.path.join(
             params['output_dirs']['u_cluster_de_novo'], 'gtdb_clusters_de_novo.tsv')
 
+        log_command_inputs(params,
+                           [*PREV_GTDB_METADATA_KEYS,
+                            'cur_gtdb_metadata_file',
+                            *NCBI_ASSEMBLY_SUMMARY_GENBANK_KEYS,
+                            'gtdb_type_strains_ledger',
+                            'ncbi_untrustworthy_sp_ledger',
+                            'ncbi_env_bioproject_ledger'],
+                           [('u_cluster_de_novo', 'gtdb_clusters_de_novo.tsv'),
+                            ('u_qc_genomes', 'qc_passed.tsv'),
+                            ('u_resolve_types', 'untrustworthy_type_material.tsv')])
+
         check_file_exists(gtdb_clusters_file)
         check_files_exist(prev_gtdb_metadata_files(params))
         check_file_exists(params['data_files']['cur_gtdb_metadata_file'])
@@ -685,6 +874,22 @@ class OptionsParser():
             params['output_dirs']['u_gtdbtk'], 'gtdbtk_classify.tsv')
         synonym_file = os.path.join(
             params['output_dirs']['u_synonyms'], 'synonyms.tsv')
+
+        log_command_inputs(params,
+                           [*PREV_GTDB_METADATA_KEYS,
+                            'cur_gtdb_metadata_file',
+                            *NCBI_ASSEMBLY_SUMMARY_GENBANK_KEYS,
+                            'gtdb_type_strains_ledger',
+                            'sp_priority_ledger',
+                            'genus_priority_ledger',
+                            'ncbi_untrustworthy_sp_ledger',
+                            'ncbi_env_bioproject_ledger',
+                            'lpsn_gss_file'],
+                           [('u_cluster_de_novo', 'gtdb_clusters_de_novo.tsv'),
+                            ('u_qc_genomes', 'qc_passed.tsv'),
+                            ('u_gtdbtk', 'gtdbtk_classify.tsv'),
+                            ('u_resolve_types', 'untrustworthy_type_material.tsv'),
+                            ('u_synonyms', 'synonyms.tsv')])
 
         check_file_exists(gtdb_clusters_file)
         check_files_exist(prev_gtdb_metadata_files(params))
@@ -743,6 +948,29 @@ class OptionsParser():
             params['output_dirs']['u_species_init'], 'gtdb_ar_taxonomy.tsv')
         taxonomy_init_bac = os.path.join(
             params['output_dirs']['u_species_init'], 'gtdb_bac_taxonomy.tsv')
+
+        log_command_inputs(params,
+                           ['seqcode_file',
+                            *PREV_GTDB_METADATA_KEYS,
+                            'cur_gtdb_metadata_file',
+                            *NCBI_ASSEMBLY_SUMMARY_GENBANK_KEYS,
+                            'gtdb_type_strains_ledger',
+                            'species_classification_ledger',
+                            'sp_priority_ledger',
+                            'genus_priority_ledger',
+                            'specific_epithet_ledger_ar',
+                            'specific_epithet_ledger_bac',
+                            'ncbi_untrustworthy_sp_ledger',
+                            'ncbi_env_bioproject_ledger',
+                            'lpsn_gss_file'],
+                           [('u_species_init', 'gtdb_ar_taxonomy.tsv'),
+                            ('u_species_init', 'gtdb_bac_taxonomy.tsv'),
+                            ('u_cluster_de_novo', 'gtdb_clusters_de_novo.tsv'),
+                            ('u_qc_genomes', 'qc_passed.tsv'),
+                            ('u_ncbi_erroneous', 'ncbi_misclassified_sp.gtdb_clustering.tsv'),
+                            ('u_resolve_types', 'untrustworthy_type_material.tsv'),
+                            ('u_synonyms', 'synonyms.tsv'),
+                            ('u_rep_actions', 'updated_species_reps.tsv')])
 
         check_file_exists(taxonomy_init_ar)
         check_file_exists(taxonomy_init_bac)

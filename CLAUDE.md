@@ -30,7 +30,7 @@ There is no lint/format config in the repo. The system `python` is 3.6 with no d
 
 ## Architecture
 
-**CLI → OptionsParser → step class.** `bin/gtdb_species_clusters` defines every argparse subparser and the help menu. `gtdb_species_clusters/main.py:OptionsParser` has one method per subcommand. Each method parses the TOML file, calls `check_file_exists` on the inputs, and then creates a step class (e.g., `UpdateSelectRepresentatives`) and calls its `.run(...)`. `OptionsParser.run()` dispatches through a long `if/elif` chain. Adding a command means touching all three places: the subparser, the `OptionsParser` method, and the dispatch branch.
+**CLI → OptionsParser → step class.** `bin/gtdb_species_clusters` defines every argparse subparser and the help menu. `gtdb_species_clusters/main.py:OptionsParser` has one method per subcommand. Each method parses the TOML file, calls `check_file_exists` on the inputs, and then creates a step class (e.g., `UpdateSelectRepresentatives`) and calls its `.run(...)`. `OptionsParser.run()` dispatches through a long `if/elif` chain. Adding a command means touching all three places: the subparser, the `OptionsParser` method, and the dispatch branch. Each `u_*` method also calls `log_command_inputs` with the TOML keys and earlier-step outputs it uses. This logs them as written in the TOML, using the raw copy that `parse_toml_file` keeps in `params['toml_raw']`. When you add or remove an input of a `u_*` command, update that list too.
 
 **Release pipeline, in module-name order:**
 - `update_*.py` (`u_*` commands): identify new/updated genomes → QC → GTDB-Tk → resolve type material → representative changes/actions → select reps → cluster to named reps → de novo clusters → synonyms/erroneous NCBI → initial species names.
