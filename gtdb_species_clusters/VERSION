@@ -1,3 +1,7 @@
+0.7.5
+- u_* commands report the files they use from the input TOML (as written in the TOML) and the outputs of earlier steps they read
+- this list is written to the console and to the log file in the command's output directory
+
 0.7.4
 - u_gtdbtk can run on several servers at once: each batch is claimed with a canary.running file (host, PID, start time) and marked with a done file when complete; other instances skip claimed or done batches
 - u_gtdbtk removes the canary and terminates GTDB-Tk if interrupted or if GTDB-Tk fails, and reclaims canaries left by dead processes on the same host
