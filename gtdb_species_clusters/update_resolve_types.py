@@ -246,6 +246,70 @@ class ResolveTypes():
 
         return sp
 
+    def ltp_conflicting_genomes(self,
+                                ncbi_sp: str,
+                                type_gids: Set[str],
+                                untrustworthy_gids: Dict[str, str],
+                                ltp_metadata: SsuLtpMetadata) -> Dict[str, Set[str]]:
+        """Get retained type strain genomes with high-confidence LTP assignments that conflict with the NCBI species.
+
+        :param ncbi_sp: NCBI species of type strain genomes.
+        :param type_gids: Accessions of type strain genomes of the species.
+        :param untrustworthy_gids: Genomes considered untrustworthy as type material.
+        :param ltp_metadata: LTP metadata for 16S sequences in type strain genomes.
+        :return: Mapping from retained genomes to their LTP species assignments which do not include the NCBI species.
+        """
+
+        conflicting_gids = {}
+        for gid in type_gids:
+            if gid in untrustworthy_gids:
+                continue
+
+            ltp_species = self.ltp_species(gid, ltp_metadata)
+            if ltp_species and ncbi_sp not in ltp_species:
+                conflicting_gids[gid] = ltp_species
+
+        return conflicting_gids
+
+    def resolve_retained_ltp_conflicts(self,
+                                       ncbi_sp: str,
+                                       type_gids: Set[str],
+                                       untrustworthy_gids: Dict[str, str],
+                                       ltp_metadata: SsuLtpMetadata,
+                                       cur_genomes: Genomes) -> Dict[str, str]:
+        """Identify retained type strain genomes with conflicting LTP assignments when other retained genomes have the expected LTP assignment.
+
+        Genomes manually indicated as being the type strain in the GTDB type strains ledger are never
+        considered untrustworthy. Genomes without a high-confidence LTP assignment are not considered
+        untrustworthy as this is often due to the genome lacking a complete 16S rRNA gene.
+
+        :param ncbi_sp: NCBI species of type strain genomes.
+        :param type_gids: Accessions of type strain genomes of the species.
+        :param untrustworthy_gids: Genomes already considered untrustworthy as type material.
+        :param ltp_metadata: LTP metadata for 16S sequences in type strain genomes.
+        :param cur_genomes: Metadata for genomes in the current GTDB release.
+        :return: Mapping from additional untrustworthy genomes to the reason for considering them untrustworthy.
+        """
+
+        retained_ltp_species = {gid: self.ltp_species(gid, ltp_metadata)
+                                for gid in type_gids if gid not in untrustworthy_gids}
+
+        if not any(ncbi_sp in ltp_species for ltp_species in retained_ltp_species.values()):
+            return {}
+
+        new_untrustworthy_gids = {}
+        for gid, ltp_species in retained_ltp_species.items():
+            if not ltp_species or ncbi_sp in ltp_species:
+                continue
+
+            if cur_genomes[gid].gtdb_type_designation_sources == 'GTDB curator':
+                continue
+
+            new_untrustworthy_gids[gid] = (f"Conflicting 16S rRNA hits to LTP database of {' / '.join(sorted(ltp_species))}, "
+                                           f"while other type strain genomes have hits to {ncbi_sp}")
+
+        return new_untrustworthy_gids
+
     def check_strain_ani(self, gid_anis: AniPairs, untrustworthy_gids: Dict[str, str]) -> bool:
         """Check if genomes meet strain ANI criteria.
 
@@ -746,6 +810,7 @@ class ResolveTypes():
         intra_ani_resolved = 0
         ncbi_type_resolved = 0
         ncbi_rep_resolved = 0
+        ltp_retained_conflicts = 0
         gtdb_family_resolved = 0
         gtdb_genus_resolved = 0
         gtdb_sp_resolved = 0
@@ -903,6 +968,15 @@ class ResolveTypes():
                         ncbi_rep_resolved += 1
 
                 if resolved:
+                    # remove retained genomes with a conflicting LTP assignment if other
+                    # retained genomes have a LTP assignment to the expected species
+                    ltp_conflict_gids = self.resolve_retained_ltp_conflicts(
+                        ncbi_sp, type_gids, untrustworthy_gids, ltp_metadata, cur_genomes)
+                    if ltp_conflict_gids:
+                        untrustworthy_gids.update(ltp_conflict_gids)
+                        note += f'; removed {len(ltp_conflict_gids):,} genome(s) with conflicting LTP BLAST results'
+                        ltp_retained_conflicts += len(ltp_conflict_gids)
+
                     # check if type strain genomes marked as trusted or untrusted conflict
                     # with current GTDB species assignment
                     untrustworthy_gtdb_sp_match = False
@@ -974,19 +1048,20 @@ class ResolveTypes():
                                                                        reason))
 
                 # Sanity check that if the untrustworthy genome has an LTP to only the
-                # expected species, that all other genomes also have a hit to the
+                # expected species, that all retained genomes also have a hit to the
                 # expected species (or potentially no hit). Otherwise, more consideration
-                # should be given to the genome with the conflicting LTP hit.
+                # should be given to the retained genome with the conflicting LTP hit.
                 if len(ltp_species) == 1 and ncbi_sp in ltp_species:
-                    other_sp = set()
-                    for test_gid in type_gids:
-                        ltp_species = self.ltp_species(test_gid, ltp_metadata)
-                        if ltp_species and ncbi_sp not in ltp_species:
-                            other_sp.update(ltp_species)
+                    conflicting_gids = self.ltp_conflicting_genomes(
+                        ncbi_sp, type_gids, untrustworthy_gids, ltp_metadata)
 
-                    if other_sp:
+                    if conflicting_gids:
+                        conflicts = ', '.join(f"{conflict_gid} ({' / '.join(sorted(conflict_sp))})"
+                                              for conflict_gid, conflict_sp in sorted(conflicting_gids.items()))
                         self.log.warning(
-                            f'Genome {gid} marked as untrustworthy, but this conflicts with high confidence LTP 16S rRNA assignment.')
+                            f'Genome {gid} from {ncbi_sp} marked as untrustworthy, but this conflicts with high '
+                            f'confidence LTP 16S rRNA assignment; retained type strain genomes with conflicting '
+                            f'LTP assignments: {conflicts}.')
 
             # write out information about all type genomes
             for gid in type_gids:
@@ -1050,6 +1125,9 @@ class ResolveTypes():
             f' - resolved {ncbi_type_resolved:,} species by considering type material designations at NCBI.')
         self.log.info(
             f' - resolved {ncbi_rep_resolved:,} species by considering RefSeq reference and representative designations at NCBI.')
+        self.log.info(
+            f'Identified {ltp_retained_conflicts:,} genomes in resolved species with conflicting LTP 16S rRNA assignments '
+            'where other type strain genomes have the expected LTP assignment.')
 
         if unresolved_sp_count > 0:
             self.log.warning(

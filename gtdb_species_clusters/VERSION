@@ -1,3 +1,8 @@
+0.7.8
+- u_resolve_types only warns that an untrustworthy type genome conflicts with high-confidence LTP 16S rRNA assignments when a retained type genome has a conflicting LTP assignment; genomes already marked untrustworthy are no longer considered
+- the warning now names the NCBI species and the retained genomes with conflicting LTP assignments
+- in species resolved by u_resolve_types, retained type genomes whose high-confidence LTP 16S rRNA hits are all to other species are considered untrustworthy if another retained type genome has a hit to the expected species; genomes in the GTDB type strains ledger are exempt
+
 0.7.7
 - u_resolve_types lightly cleans LTP taxonomy strings: type material and strain information are split off at the last '|', and surrounding whitespace and leading or trailing '|' or '.' characters are removed from each taxon
 - this allows LTP entries such as Oxalobacter paeniformigenes (JAMKYL010000000) to be parsed and removes trailing spaces from 7 LTP species names
