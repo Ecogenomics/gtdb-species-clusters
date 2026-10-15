@@ -1,3 +1,9 @@
+0.8.0
+- u_resolve_types groups genomes in the GTDB type strains ledger with the type strain genomes of their ledger species instead of their NCBI species
+- in species with a genome in the GTDB type strains ledger, other type strain genomes are untrustworthy unless they have >=99% ANI to a ledger genome; ledger genomes are never considered untrustworthy (including for being `not used as type` at NCBI)
+- u_resolve_types stops with an error if a genome is in both the GTDB type strains ledger and the untrustworthy type ledger
+- u_rep_changes considers the NCBI species of genomes in the GTDB type strains ledger to be unchanged since the ledger species overrides the NCBI species
+
 0.7.9
 - the warning for genomes in both the GTDB type strains ledger and the untrustworthy type file now names the untrustworthy file (curated ledger or u_resolve_types output) and states that the genome will not be considered type material
 - NCBI `assembly from heterotypic synonym type material` is now recognized as synonym type material (in addition to `assembly from synonym type material`, which NCBI no longer uses), so these genomes are considered type strains of subspecies or synonyms

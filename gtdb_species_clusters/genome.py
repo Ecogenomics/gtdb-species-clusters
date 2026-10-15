@@ -165,6 +165,15 @@ class Genome(object):
 
         return self.gtdb_untrustworthy_as_type
 
+    def is_gtdb_type_strain_ledger(self):
+        """Check if genome is specified as a type strain in the GTDB type strains ledger.
+
+        Genomes in the ledger are assigned `GTDB curator` as the source of their
+        type designation when genomes are loaded (see Genomes.load_from_metadata_file).
+        """
+
+        return self.gtdb_type_designation_sources == 'GTDB curator'
+
     def is_gtdb_type_species(self):
         """Check if genome is a type species of genus in GTDB."""
 
