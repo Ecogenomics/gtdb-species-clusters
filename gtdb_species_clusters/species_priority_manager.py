@@ -45,6 +45,7 @@ class SpeciesPriorityManager(object):
             output_dir, 'ambiguous_sp_priority.tsv'), 'w')
         self._fout_ambiguous_priority.write(
             'NCBI species A\tNCBI species B\tPriority year\n')
+        self._reported_ambiguous_pairs = set()
 
         self._parse_sp_priority_ledger(species_priority_ledger)
         self._parse_genus_priority_ledger(genus_priority_ledger)
@@ -347,9 +348,14 @@ class SpeciesPriorityManager(object):
                 ), cur_genomes[gid1].is_effective_type_strain(),
                 gid2, ncbi_sp2, cur_genomes[gid2].is_gtdb_type_strain(), cur_genomes[gid2].is_effective_type_strain()))
 
-            self._fout_ambiguous_priority.write('{}\t{}\t{}\n'.format(
-                ncbi_sp1, ncbi_sp2,
-                self.species_priority_year(cur_genomes, gid1)))
+            # report each species pair only once, regardless of the order
+            # in which the species are compared
+            sp_pair = tuple(sorted([ncbi_sp1, ncbi_sp2]))
+            if sp_pair not in self._reported_ambiguous_pairs:
+                self._reported_ambiguous_pairs.add(sp_pair)
+                self._fout_ambiguous_priority.write('{}\t{}\t{}\n'.format(
+                    sp_pair[0], sp_pair[1],
+                    self.species_priority_year(cur_genomes, gid1)))
 
             # arbitrarily resolve naming priority based on genome quality
             hq_gid = select_highest_quality([gid1, gid2], cur_genomes)

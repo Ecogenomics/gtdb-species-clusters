@@ -1,3 +1,6 @@
+0.8.3
+- the ambiguous_sp_priority.tsv file lists each pair of species once, instead of listing a pair as both A vs B and B vs A
+
 0.8.2
 - u_rep_actions calculates ANI between representatives and the genomes in their species clusters for all species in a single parallel batch, instead of one species at a time, when identifying improved representatives and replacing NCBI anomalous assemblies; this uses all specified CPUs (~8x faster with 32 CPUs in testing)
 
