@@ -19,6 +19,7 @@ import os
 import sys
 import logging
 import pickle
+from collections import defaultdict
 
 from numpy import mean as np_mean
 
@@ -164,6 +165,16 @@ class UpdateClusterDeNovo(object):
         cluster_rep_file = os.path.join(self.output_dir, 'cluster_reps.tsv')
         clusters = set()
         if not os.path.exists(cluster_rep_file):
+            # The ANI table is sparse and stores each pair once, in one orientation.
+            # Index the genomes each genome is paired with so a genome is compared only
+            # against representatives it has a skani hit with. Any other representative
+            # has an AF of 0 and can never satisfy the AF criterion.
+            ani_neighbours = defaultdict(set)
+            for gid1, hits in unclustered_ani_af.items():
+                for gid2 in hits:
+                    ani_neighbours[gid1].add(gid2)
+                    ani_neighbours[gid2].add(gid1)
+
             clustered_genomes = 0
             for idx, (cur_gid, _score) in enumerate(q_sorted):
                 # Set closest representative to the ANI radius of the current genome,
@@ -174,7 +185,10 @@ class UpdateClusterDeNovo(object):
                 closest_rep_gid = None
                 closest_rep_ani = nonrep_radius[cur_gid].ani
                 closest_rep_af = nonrep_radius[cur_gid].af
-                for rep_gid in clusters:
+                for rep_gid in ani_neighbours.get(cur_gid, ()):
+                    if rep_gid not in clusters:
+                        continue
+
                     ani, af = Skani.symmetric_ani_af(unclustered_ani_af, cur_gid, rep_gid)
 
                     if af >= self.af_sp:
@@ -194,14 +208,15 @@ class UpdateClusterDeNovo(object):
                 else:
                     clustered_genomes += 1
 
-            statusStr = '-> clustered {:,} of {:,} ({:.2f}%) genomes [clustered genomes: {:,}; clusters: {:,}].'.format(
-                idx+1,
-                len(q_sorted),
-                float(idx+1)*100/len(q_sorted),
-                clustered_genomes,
-                len(clusters)).ljust(96)
-            sys.stdout.write('{}\r'.format(statusStr))
-            sys.stdout.flush()
+                if (idx+1) % 1000 == 0 or idx+1 == len(q_sorted):
+                    statusStr = '-> clustered {:,} of {:,} ({:.2f}%) genomes [clustered genomes: {:,}; clusters: {:,}].'.format(
+                        idx+1,
+                        len(q_sorted),
+                        float(idx+1)*100/len(q_sorted),
+                        clustered_genomes,
+                        len(clusters)).ljust(96)
+                    sys.stdout.write('{}\r'.format(statusStr))
+                    sys.stdout.flush()
 
             sys.stdout.write('\n')
 
@@ -228,7 +243,7 @@ class UpdateClusterDeNovo(object):
                         de_novo_rep_gids,
                         named_rep_gids,
                         final_cluster_radius):
-        """Cluster new representatives to representatives of named GTDB species clusters."""
+        """Cluster non-representatives to representatives of named GTDB species clusters."""
 
         all_reps = de_novo_rep_gids.union(named_rep_gids)
         nonrep_gids = set(cur_genomes.genomes.keys()) - all_reps
@@ -270,9 +285,16 @@ class UpdateClusterDeNovo(object):
                 closest_rep_gid = None
                 closest_rep_ani = 0
                 closest_rep_af = 0
-                for rep_gid in clusters:
-                    ani, af = Skani.symmetric_ani_af(ani_af, cur_gid, rep_gid)
 
+                # The ANI table is keyed by query genome and holds only the
+                # representatives with a skani hit. Any other representative has
+                # an AF of 0 and can never satisfy the AF criterion, so only the
+                # hits for this genome need to be considered.
+                for rep_gid, (ani, af_r, af_q) in ani_af.get(cur_gid, {}).items():
+                    if rep_gid not in clusters:
+                        continue
+
+                    af = max(af_r, af_q)
                     if af >= self.af_sp:
                         if ani > closest_rep_ani or (ani == closest_rep_ani and af > closest_rep_af):
                             closest_rep_gid = rep_gid
@@ -308,11 +330,12 @@ class UpdateClusterDeNovo(object):
                         self.log.warning(f'Assigning genome to {closest_rep_gid} with an ANI radius of {ani_radius:.2f}%.')
                         self.log.warning(f'ANI and AF between {cur_gid} and {closest_rep_gid} is {closest_rep_ani:.2f}% and {closest_rep_af:.2f}%, respectively.')
 
-                statusStr = '-> assigned {:,} of {:,} ({:.2f}%) genomes'.format(idx+1,
-                                                                                 len(nonrep_gids),
-                                                                                 float(idx+1)*100/len(nonrep_gids)).ljust(86)
-                sys.stdout.write('{}\r'.format(statusStr))
-                sys.stdout.flush()
+                if (idx+1) % 1000 == 0 or idx+1 == len(nonrep_gids):
+                    statusStr = '-> assigned {:,} of {:,} ({:.2f}%) genomes'.format(idx+1,
+                                                                                     len(nonrep_gids),
+                                                                                     float(idx+1)*100/len(nonrep_gids)).ljust(86)
+                    sys.stdout.write('{}\r'.format(statusStr))
+                    sys.stdout.flush()
             sys.stdout.write('\n')
 
             pickle.dump(clusters, open(os.path.join(

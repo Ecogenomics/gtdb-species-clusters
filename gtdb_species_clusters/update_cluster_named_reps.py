@@ -123,9 +123,10 @@ class UpdateClusterNamedReps(object):
             np_mean([d.ani for d in rep_radius.values()]),
             max([d.ani for d in rep_radius.values()])))
 
-        self.log.warning(' - identified {:,} genome pairs meeting ANI radius criteria, but with an AF <{:.1f}'.format(
-            af_warning_count,
-            self.af_sp))
+        if af_warning_count > 0:
+            self.log.warning(' - identified {:,} genome pairs meeting ANI radius criteria, but with an AF <{:.1f}'.format(
+                af_warning_count,
+                self.af_sp))
 
         return rep_radius
 

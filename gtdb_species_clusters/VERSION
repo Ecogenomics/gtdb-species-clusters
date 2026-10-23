@@ -1,3 +1,7 @@
+0.8.5
+- u_cluster_de_novo compares each genome only against the representatives it has a skani hit with when assigning genomes to representatives and when greedily selecting de novo representatives, instead of against every representative; results are identical and the assignment step takes seconds instead of ~20 hours on R237
+- u_cluster_de_novo progress lines are updated every 1,000 genomes
+
 0.8.4
 - fixed u_synonyms and u_species_init failing with a TypeError because NCBI_SpeciesManager was not passed the untrustworthy type material file
 - genomes considered untrustworthy as type material are now ignored when checking that all type strain genomes of an NCBI species are in a single GTDB cluster
