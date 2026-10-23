@@ -1,3 +1,8 @@
+0.8.6
+- u_rep_actions never selects a genome from a Shigella species as a replacement representative, as these species are synonyms of E. coli under the GTDB; a species cluster with no other genomes is retired
+- u_cluster_named_reps and u_cluster_de_novo log an error unless all E. coli and Shigella type strain genomes are in a single species cluster that is not represented by a Shigella genome
+- the Shigella species ignored by u_sel_reps are defined once in defaults.py
+
 0.8.5
 - u_cluster_de_novo compares each genome only against the representatives it has a skani hit with when assigning genomes to representatives and when greedily selecting de novo representatives, instead of against every representative; results are identical and the assignment step takes seconds instead of ~20 hours on R237
 - u_cluster_de_novo progress lines are updated every 1,000 genomes

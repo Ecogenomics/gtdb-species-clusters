@@ -17,13 +17,14 @@
 
 import sys
 import logging
-from collections import namedtuple
+from collections import namedtuple, defaultdict
 
 from numpy import (mean as np_mean)
 
 from gtdblib.util.bio.accession import canonical_gid
 
 from gtdb_species_clusters.genome_utils import read_gtdb_metadata
+from gtdb_species_clusters import defaults as Defaults
 
 
 NCBI_TYPE_SPECIES = set(['assembly from type material',
@@ -255,6 +256,60 @@ def write_clusters(clusters, rep_radius, genomes, out_file):
             mean_af, min_af,
             ','.join([d.gid for d in clusters[gid]])))
     fout.close()
+
+
+def check_ecoli_shigella_type_strains(clusters, genomes):
+    """Check that all E. coli and Shigella type strain genomes are in a single E. coli species cluster.
+
+    Shigella species are considered synonyms of E. coli under the GTDB, and the type strain
+    genomes of these species are all >95% ANI to the E. coli type strain genome. A species
+    cluster represented by a Shigella genome falls within E. coli and pulls E. coli genomes
+    out of the E. coli species cluster.
+
+    :param clusters: Mapping from representatives to the genomes in their species cluster.
+    :param genomes: Metadata for genomes in the current GTDB release.
+    :return: True if all type strain genomes are in a single cluster not represented by a Shigella genome.
+    """
+
+    log = logging.getLogger('rich')
+    log.info('Checking that all E. coli and Shigella type strain genomes are in a single species cluster:')
+
+    gid_to_rid = {}
+    for rid, cids in clusters.items():
+        gid_to_rid[rid] = rid
+        for cid in cids:
+            gid_to_rid[cid.gid] = rid
+
+    check_sp = Defaults.SHIGELLA_NCBI_SPECIES.union([Defaults.ECOLI_NCBI_SPECIES])
+    rid_type_gids = defaultdict(list)
+    for gid in genomes:
+        if genomes[gid].ncbi_taxa.species in check_sp and genomes[gid].is_effective_type_strain():
+            rid_type_gids[gid_to_rid.get(gid)].append(gid)
+
+    if not rid_type_gids:
+        log.warning(' - no E. coli or Shigella type strain genomes found')
+        return True
+
+    num_type_gids = sum(len(gids) for gids in rid_type_gids.values())
+    if len(rid_type_gids) == 1:
+        rid = next(iter(rid_type_gids))
+        if rid is not None and genomes[rid].ncbi_taxa.species not in Defaults.SHIGELLA_NCBI_SPECIES:
+            log.info(f' - all {num_type_gids:,} type strain genomes are in the species cluster '
+                     f'represented by {rid} ({genomes[rid].ncbi_taxa.species})')
+            return True
+
+    log.error(f'E. coli and Shigella type strain genomes must all be in a single species cluster that is not '
+              f'represented by a Shigella genome, but the {num_type_gids:,} type strain genomes are in:')
+    for rid, gids in sorted(rid_type_gids.items(), key=lambda kv: -len(kv[1])):
+        if rid is None:
+            cluster_desc = 'no species cluster'
+        else:
+            cluster_desc = (f'cluster of {rid} ({genomes[rid].ncbi_taxa.species}; '
+                            f'{len(clusters[rid]) + 1:,} genomes)')
+        type_strs = ', '.join(f'{gid} ({genomes[gid].ncbi_taxa.species[3:]})' for gid in sorted(gids))
+        log.error(f' - {cluster_desc}: {type_strs}')
+
+    return False
 
 
 def read_clusters(cluster_file):

@@ -82,12 +82,26 @@ class RepActions():
 
         return gids
 
+    def rep_candidates(self, sp_cids, cur_genomes):
+        """Get genomes that may be selected as the representative of a species cluster.
+
+        Genomes from Shigella species are never selected as representatives as these
+        species are considered synonyms of E. coli under the GTDB. A Shigella
+        representative falls within E. coli and pulls E. coli genomes out of the
+        E. coli species cluster.
+        """
+
+        return [cid for cid in sp_cids
+                if cur_genomes[cid].ncbi_taxa.species not in Defaults.SHIGELLA_NCBI_SPECIES]
+
     def top_ani_score_prev_rep(self,
                                prev_rid,
                                sp_cids,
                                prev_genomes,
                                cur_genomes):
         """Identify genome in cluster with highest balanced ANI score to genomic file of representative in previous GTDB release."""
+
+        sp_cids = self.rep_candidates(sp_cids, cur_genomes)
 
         # calculate ANI to all genomes in species
         gid_pairs = []
@@ -136,6 +150,8 @@ class RepActions():
                       sp_cids,
                       cur_genomes):
         """Identify genome in cluster with highest balanced ANI score to representative genome."""
+
+        sp_cids = self.rep_candidates(sp_cids, cur_genomes)
 
         # calculate ANI between representative and genomes in species cluster
         gid_pairs = []
@@ -269,13 +285,16 @@ class RepActions():
                                                          cur_genomes)
 
             params = {}
+            new_rid = None
             if sp_cids:
-                action = 'GENOMIC_CHANGE:LOST:REPLACED'
-
+                # no genome is returned if none can be selected as the representative
                 new_rid, _top_score, ani, af = self.top_ani_score_prev_rep(prev_rid,
                                                                            sp_cids,
                                                                            prev_genomes,
                                                                            cur_genomes)
+
+            if new_rid is not None:
+                action = 'GENOMIC_CHANGE:LOST:REPLACED'
                 assert new_rid != prev_rid
 
                 params['new_rid'] = new_rid
@@ -383,12 +402,15 @@ class RepActions():
                                                              new_updated_sp_clusters,
                                                              cur_genomes)
 
+                new_rid = None
                 if sp_cids:
+                    # no genome is returned if none can be selected as the representative
                     new_rid, _top_score, ani, af = self.top_ani_score_prev_rep(prev_rid,
                                                                                sp_cids,
                                                                                prev_genomes,
                                                                                cur_genomes)
 
+                if new_rid is not None:
                     if new_rid == prev_rid:
                         params['prev_assembly_quality'] = prev_genomes[prev_rid].score_assembly(
                         )

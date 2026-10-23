@@ -31,7 +31,8 @@ from gtdb_species_clusters.genomes import Genomes
 from gtdb_species_clusters.type_genome_utils import (ClusteredGenome,
                                                      GenomeRadius,
                                                      write_rep_radius,
-                                                     write_clusters)
+                                                     write_clusters,
+                                                     check_ecoli_shigella_type_strains)
 
 
 class UpdateClusterDeNovo(object):
@@ -434,6 +435,9 @@ class UpdateClusterDeNovo(object):
                        final_cluster_radius,
                        cur_genomes,
                        os.path.join(self.output_dir, 'gtdb_clusters_de_novo.tsv'))
+
+        # genomes may be reassigned to de novo representatives so check again after final clustering
+        check_ecoli_shigella_type_strains(final_clusters, cur_genomes)
 
         write_rep_radius(final_cluster_radius,
                          cur_genomes,
