@@ -93,3 +93,63 @@ def test_top_ani_score_prev_rep_only_shigella(tmp_path):
 
     new_rid, _top_score, _ani, _af = rep_actions.top_ani_score_prev_rep('R1', ['G1', 'G2'], prev_genomes, cur_genomes)
     assert new_rid is None
+
+
+def write_rep_change_summary(path, rows):
+    """Write a rep_change_summary.tsv file with the columns written by u_rep_changes."""
+
+    with open(path, 'w') as f:
+        f.write('Genome ID\tPrevious GTDB species\tNo. genomes in cluster\tGENOMIC_CHANGE\tNCBI_SPECIES_CHANGE')
+        f.write('\tTYPE_STRAIN_CHANGE\tDOMAIN_CHECK\tNCBI_ASSEMBLY_QUALITY\tDISBANDED_CHECK\tNew type strains\tRepresentative changed\n')
+        for row in rows:
+            f.write('\t'.join(row) + '\n')
+
+
+def test_lost_rep_of_disbanded_cluster_not_replaced(tmp_path):
+    """Verify a disbanded cluster with a lost representative is disbanded instead of being given a new representative."""
+
+    summary_file = tmp_path / 'rep_change_summary.tsv'
+    write_rep_change_summary(summary_file,
+                             [['R1', 's__Species 1', '3', 'LOST', 'N/A', 'N/A', 'N/A', 'N/A', 'TRUE', 'N/A', 'YES'],
+                              ['R2', 's__Species 2', '1', 'LOST', 'N/A', 'N/A', 'N/A', 'N/A', 'FALSE', 'N/A', 'YES']])
+
+    rep_actions = RepActions(1, str(tmp_path))
+    rep_actions.skani = StubSkani()
+    prev_genomes = SimpleNamespace(sp_clusters={'R1': {'R1', 'G1', 'G2'}, 'R2': {'R2'}})
+    cur_genomes = StubSpeciesGenomes({'G1': 's__Species 1', 'G2': 's__Species 1'}, {'G1': 60, 'G2': 70})
+
+    disbanded_rids = rep_actions.action_disband_cluster(str(summary_file))
+    rep_actions.action_genomic_lost(str(summary_file), prev_genomes, cur_genomes, {}, disbanded_rids)
+
+    assert set(disbanded_rids) == {'R1'}
+    assert rep_actions.new_reps['R1'] == (None, 'EXPLICIT_UPDATE:DISBANDED')
+    assert rep_actions.new_reps['R2'] == (None, 'GENOMIC_CHANGE:LOST:SPECIES_RETIRED')
+    assert not rep_actions.skani.calls
+
+
+class StubSpeciesPriority:
+    """Give priority to the second genome to show which genomes are compared."""
+
+    def species_priority(self, cur_genomes, gid1, gid2):
+        return gid2, 'stub priority'
+
+
+def test_naming_priority_skips_shigella(tmp_path):
+    """Verify a Shigella type strain genome with naming priority does not become the representative."""
+
+    rep_actions = RepActions(1, str(tmp_path))
+    rep_actions.skani = StubSkani()
+    rep_actions.sp_priority_mngr = StubSpeciesPriority()
+
+    prev_genomes = SimpleNamespace(sp_clusters={'EC': {'EC', 'SD', 'SB'}})
+    cur_genomes = StubSpeciesGenomes({'EC': 's__Escherichia coli',
+                                      'SD': 's__Shigella dysenteriae',
+                                      'SB': 's__Shigella boydii'},
+                                     {'EC': 1, 'SD': 1, 'SB': 1})
+    for gid in cur_genomes:
+        cur_genomes[gid].is_effective_type_strain = lambda: True
+        cur_genomes[gid].score_type_strain = lambda: 1
+
+    rep_actions.action_naming_priority(prev_genomes, cur_genomes, {}, set())
+
+    assert 'EC' not in rep_actions.new_reps

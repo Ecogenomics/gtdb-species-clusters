@@ -266,7 +266,8 @@ class RepActions():
                             rep_change_summary_file,
                             prev_genomes,
                             cur_genomes,
-                            new_updated_sp_clusters):
+                            new_updated_sp_clusters,
+                            disbanded_rids):
         """Handle species with lost representative genome."""
 
         # get genomes with specific changes
@@ -279,6 +280,10 @@ class RepActions():
 
         # calculate ANI between previous and current genomes
         for idx, (prev_rid, prev_gtdb_sp) in enumerate(genomic_lost_rids.items()):
+            if prev_rid in disbanded_rids:
+                # cluster is retired by being disbanded so no new representative is required
+                continue
+
             sp_cids = self.genomes_in_current_sp_cluster(prev_rid,
                                                          prev_genomes,
                                                          new_updated_sp_clusters,
@@ -858,6 +863,9 @@ class RepActions():
                     gid for gid in new_updated_sp_clusters[prev_rid] if cur_genomes[gid].is_effective_type_strain()]
                 type_strain_gids.extend(new_type_strain_gids)
 
+            # Shigella genomes are never selected as representatives, even if they have naming priority
+            type_strain_gids = self.rep_candidates(type_strain_gids, cur_genomes)
+
             if len(type_strain_gids) == 0:
                 continue
 
@@ -1090,13 +1098,15 @@ class RepActions():
                                                        lpsn_gss_file,
                                                        self.output_dir)
 
-        # take action required for each changed representatives
+        # take action required for each changed representatives; disbanded clusters are
+        # identified first as a cluster with a lost representative may be flagged to be disbanded
+        disbanded_rids = self.action_disband_cluster(rep_change_summary_file)
+
         self.action_genomic_lost(rep_change_summary_file,
                                  prev_genomes,
                                  cur_genomes,
-                                 new_updated_sp_clusters)
-
-        disbanded_rids = self.action_disband_cluster(rep_change_summary_file)
+                                 new_updated_sp_clusters,
+                                 disbanded_rids)
 
         self.action_genomic_update(rep_change_summary_file,
                                    prev_genomes,
