@@ -60,16 +60,38 @@ class UpdateErroneousNCBI():
         ncbi_type_anchored_species = {}
 
         ncbi_divergent_type_strains = defaultdict(lambda: defaultdict(set))
+        ledger_type_strains = []
         for rid, cids in cur_clusters.items():
             for cid in cids:
                 if cur_genomes[cid].is_effective_type_strain():
-                    ncbi_type_species = cur_genomes[cid].ncbi_taxa.species
+                    if cur_genomes[cid].is_gtdb_type_strain_ledger():
+                        # species name from ledger is set as the GTDB species when genomes are loaded,
+                        # matching how u_resolve_types groups type strain genomes
+                        ncbi_type_species = cur_genomes[cid].gtdb_taxa.species
+                        ledger_type_strains.append((rid, cid))
+                    else:
+                        ncbi_type_species = cur_genomes[cid].ncbi_taxa.species
                     ncbi_specific = specific_epithet(ncbi_type_species)
                     if ncbi_type_species == 's__' or ncbi_specific in forbidden_names:
                         continue
 
                     ncbi_divergent_type_strains[ncbi_type_species][rid].add(cid)
                     ncbi_type_anchored_species[ncbi_type_species] = rid
+
+        # genomes in the GTDB type strains ledger also anchor their NCBI species if it has
+        # no other type strain genomes, as the ledger often corrects the spelling of the
+        # NCBI species or adds a GTDB genus suffix (e.g., s__Synechococcus_D lacustris)
+        ncbi_sp_with_type_strains = set(ncbi_divergent_type_strains)
+        for rid, cid in ledger_type_strains:
+            ncbi_type_species = cur_genomes[cid].ncbi_taxa.species
+            ncbi_specific = specific_epithet(ncbi_type_species)
+            if (ncbi_type_species == 's__'
+                    or ncbi_specific in forbidden_names
+                    or ncbi_type_species in ncbi_sp_with_type_strains):
+                continue
+
+            ncbi_divergent_type_strains[ncbi_type_species][rid].add(cid)
+            ncbi_type_anchored_species[ncbi_type_species] = rid
 
         unresolved_type_strains = False
         for ncbi_sp, rids in ncbi_divergent_type_strains.items():

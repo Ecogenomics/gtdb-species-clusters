@@ -1,3 +1,8 @@
+0.8.4
+- fixed u_synonyms and u_species_init failing with a TypeError because NCBI_SpeciesManager was not passed the untrustworthy type material file
+- genomes considered untrustworthy as type material are now ignored when checking that all type strain genomes of an NCBI species are in a single GTDB cluster
+- u_ncbi_erroneous treats genomes in the GTDB type strains ledger as type strains of the ledger species, matching u_resolve_types; they anchor their NCBI species only if it has no other type strain genomes
+
 0.8.3
 - the ambiguous_sp_priority.tsv file lists each pair of species once, instead of listing a pair as both A vs B and B vs A
 

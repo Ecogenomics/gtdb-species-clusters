@@ -844,6 +844,7 @@ class UpdateSpeciesInit(object):
         ncbi_species_mngr = NCBI_SpeciesManager(cur_genomes,
                                                 cur_clusters,
                                                 {},
+                                                untrustworthy_type_file,
                                                 self.output_dir)
         synonyms = ncbi_species_mngr.parse_synonyms_table(synonym_file)
         self.log.info(' - identified {:,} synonyms from {:,} distinct species'.format(
