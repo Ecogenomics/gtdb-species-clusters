@@ -38,3 +38,12 @@ SKANI_PREFILTER_THRESHOLD = 85.0
 # skani presets selecting for different compression factors (k-mer sampling rates)
 # None = default which sets c to 125
 SKANI_PRESET = None
+
+# validly published NCBI species considered synonyms of E. coli under the GTDB;
+# genomes from these species are never selected as GTDB representatives and all
+# their type strain genomes should be in the E. coli species cluster
+ECOLI_NCBI_SPECIES = 's__Escherichia coli'
+SHIGELLA_NCBI_SPECIES = frozenset(['s__Shigella flexneri',
+                                   's__Shigella sonnei',
+                                   's__Shigella boydii',
+                                   's__Shigella dysenteriae'])

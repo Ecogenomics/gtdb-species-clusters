@@ -31,7 +31,8 @@ from gtdb_species_clusters.genomes import Genomes
 
 from gtdb_species_clusters.type_genome_utils import (GenomeRadius,
                                                      write_rep_radius,
-                                                     write_clusters)
+                                                     write_clusters,
+                                                     check_ecoli_shigella_type_strains)
 from gtdb_species_clusters import defaults as Defaults
 
 
@@ -290,3 +291,5 @@ class UpdateClusterNamedReps(object):
                        rep_radius,
                        cur_genomes,
                        os.path.join(self.output_dir, 'gtdb_named_rep_clusters.tsv'))
+
+        check_ecoli_shigella_type_strains(clusters, cur_genomes)

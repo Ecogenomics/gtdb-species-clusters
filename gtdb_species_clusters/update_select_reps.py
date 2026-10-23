@@ -50,10 +50,7 @@ class UpdateSelectRepresentatives():
         # indicating GTDB synonyms), but since this is
         # a special case for Shigella at the moment it
         # is being explicitly handled here.
-        self.invalid_ncbi_sp = set(['s__Shigella flexneri',
-                                    's__Shigella sonnei',
-                                    's__Shigella boydii',
-                                    's__Shigella dysenteriae'])
+        self.invalid_ncbi_sp = Defaults.SHIGELLA_NCBI_SPECIES
 
         check_dependencies(['skani'])
 
