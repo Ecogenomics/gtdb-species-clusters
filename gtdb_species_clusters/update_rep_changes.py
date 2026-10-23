@@ -258,10 +258,17 @@ class RepChanges():
                 fout_summary.write('\n')
             else:
                 lost_genome.add(prev_rid)
-                fout_summary.write('\t{}\t{}\t{}\t{}\t{}\t{}\n'.format(
-                    'LOST', 'N/A', 'N/A', 'N/A', 'N/A', 'YES'))
                 fout_detailed.write(
                     f'{prev_rid}\t{prev_gtdb_sp}\tGENOMIC_CHANGE:LOST\tGenome not present in current GTDB release\n')
+
+                # a cluster with a lost representative may still be flagged to be disbanded
+                disbanded = prev_rid in disbanded_rids
+                if disbanded:
+                    disbanded_count += 1
+                    fout_detailed.write(f'{prev_rid}\t{prev_gtdb_sp}\tEXPLICIT_UPDATE:DISBANDED\t\n')
+
+                fout_summary.write('\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\n'.format(
+                    'LOST', 'N/A', 'N/A', 'N/A', 'N/A', 'TRUE' if disbanded else 'FALSE', 'N/A', 'YES'))
                 num_rep_changes += 1
 
         fout_summary.close()

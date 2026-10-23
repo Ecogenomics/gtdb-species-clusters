@@ -1,3 +1,8 @@
+0.8.8
+- u_rep_changes checks whether a species cluster with a lost representative is in the disband_cluster_ledger, and writes all columns of rep_change_summary.tsv for these clusters
+- u_rep_actions disbands clusters before replacing lost representatives, so a disbanded cluster with a lost representative is not given a new representative
+- u_rep_actions does not select a Shigella genome as the representative when checking naming priority
+
 0.8.7
 - u_rep_changes, u_rep_actions, u_cluster_named_reps and u_cluster_de_novo load the ncbi_untrustworthy_sp_ledger, so genomes with an untrustworthy NCBI species assignment are not treated as type strains when representatives are selected; previously only u_sel_reps and later steps loaded this ledger
 
