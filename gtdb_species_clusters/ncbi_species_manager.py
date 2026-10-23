@@ -95,10 +95,11 @@ class NCBI_SpeciesManager():
                 rid_map[gid] = rid
 
         for ncbi_sp, type_gids in self.ncbi_sp_type_strain_genomes.items():
-            gtdb_rids = set([rid_map[gid] for gid in type_gids if gid not in untrustworthy_as_type])
-
             gtdb_rids = set()
             for gid in type_gids:
+                if gid in untrustworthy_as_type:
+                    continue
+
                 rid = rid_map[gid]
                 ncbi_specific = specific_epithet(
                     self.cur_genomes[rid].ncbi_taxa.species)

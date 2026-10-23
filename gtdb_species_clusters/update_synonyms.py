@@ -74,6 +74,7 @@ class UpdateSynonyms():
         ncbi_species_mngr = NCBI_SpeciesManager(cur_genomes,
                                                 cur_clusters,
                                                 {},  # no manually-curated GTDB species assignments at this point
+                                                untrustworthy_type_file,
                                                 self.output_dir)
         ncbi_misclassified_gids = ncbi_species_mngr.parse_ncbi_misclassified_table(
             ncbi_misclassified_file)
