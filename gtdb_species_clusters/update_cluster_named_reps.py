@@ -233,6 +233,7 @@ class UpdateClusterNamedReps(object):
             untrustworthy_type_file,
             rep_ani_file,
             gtdb_type_strains_ledger,
+            ncbi_untrustworthy_sp_ledger,
             ncbi_env_bioproject_ledger):
         """Cluster genomes to selected GTDB representatives."""
 
@@ -244,6 +245,7 @@ class UpdateClusterNamedReps(object):
                                             qc_passed_file=qc_passed_file,
                                             ncbi_genbank_assembly_file=ncbi_genbank_assembly_file,
                                             untrustworthy_type_ledger=untrustworthy_type_file,
+                                            ncbi_untrustworthy_sp_ledger=ncbi_untrustworthy_sp_ledger,
                                             ncbi_env_bioproject_ledger=ncbi_env_bioproject_ledger,
                                             create_sp_clusters=False)
 
