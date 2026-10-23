@@ -1031,6 +1031,7 @@ class RepActions():
             ncbi_genbank_assembly_file,
             untrustworthy_type_file,
             gtdb_type_strains_ledger,
+            ncbi_untrustworthy_sp_ledger,
             sp_priority_ledger,
             genus_priority_ledger,
             ncbi_env_bioproject_ledger,
@@ -1046,6 +1047,7 @@ class RepActions():
         prev_genomes.load_from_metadata_file(prev_gtdb_metadata_file,
                                              ncbi_genbank_assembly_file=ncbi_genbank_assembly_file,
                                              untrustworthy_type_ledger=untrustworthy_type_file,
+                                             ncbi_untrustworthy_sp_ledger=ncbi_untrustworthy_sp_ledger,
                                              ncbi_env_bioproject_ledger=ncbi_env_bioproject_ledger)
         self.log.info(' - previous genome set has {:,} species clusters spanning {:,} genomes'.format(
             len(prev_genomes.sp_clusters),
@@ -1059,6 +1061,7 @@ class RepActions():
                                             qc_passed_file=qc_passed_file,
                                             ncbi_genbank_assembly_file=ncbi_genbank_assembly_file,
                                             untrustworthy_type_ledger=untrustworthy_type_file,
+                                            ncbi_untrustworthy_sp_ledger=ncbi_untrustworthy_sp_ledger,
                                             ncbi_env_bioproject_ledger=ncbi_env_bioproject_ledger)
 
         # get path to previous and current genomic FASTA files

@@ -380,6 +380,7 @@ class OptionsParser():
                             *NCBI_ASSEMBLY_SUMMARY_GENBANK_KEYS,
                             'disband_cluster_ledger',
                             'gtdb_type_strains_ledger',
+                            'ncbi_untrustworthy_sp_ledger',
                             'ncbi_env_bioproject_ledger'],
                            [('u_new_genomes', 'genomes_new_updated.tsv'),
                             ('u_qc_genomes', 'qc_passed.tsv'),
@@ -395,6 +396,7 @@ class OptionsParser():
         check_file_exists(untrustworthy_type_file)
         check_file_exists(params['ledgers']['disband_cluster_ledger'])
         check_file_exists(params['ledgers']['gtdb_type_strains_ledger'])
+        check_file_exists(params['ledgers']['ncbi_untrustworthy_sp_ledger'])
         check_file_exists(params['ledgers']['ncbi_env_bioproject_ledger'])
 
         make_sure_path_exists(params['output_dirs']['u_rep_changes'])
@@ -411,6 +413,7 @@ class OptionsParser():
               untrustworthy_type_file,
               params['ledgers']['disband_cluster_ledger'],
               params['ledgers']['gtdb_type_strains_ledger'],
+              params['ledgers']['ncbi_untrustworthy_sp_ledger'],
               params['ledgers']['ncbi_env_bioproject_ledger'])
 
     def u_rep_actions(self, args):
@@ -437,6 +440,7 @@ class OptionsParser():
                             'cur_genome_path_file',
                             *NCBI_ASSEMBLY_SUMMARY_GENBANK_KEYS,
                             'gtdb_type_strains_ledger',
+                            'ncbi_untrustworthy_sp_ledger',
                             'sp_priority_ledger',
                             'genus_priority_ledger',
                             'ncbi_env_bioproject_ledger',
@@ -456,6 +460,7 @@ class OptionsParser():
         check_files_exist(ncbi_assembly_summary_genbank_files(params))
         check_file_exists(untrustworthy_type_file)
         check_file_exists(params['ledgers']['gtdb_type_strains_ledger'])
+        check_file_exists(params['ledgers']['ncbi_untrustworthy_sp_ledger'])
         check_file_exists(params['ledgers']['sp_priority_ledger'])
         check_file_exists(params['ledgers']['genus_priority_ledger'])
         check_file_exists(params['ledgers']['ncbi_env_bioproject_ledger'])
@@ -477,6 +482,7 @@ class OptionsParser():
               ncbi_assembly_summary_genbank_files(params),
               untrustworthy_type_file,
               params['ledgers']['gtdb_type_strains_ledger'],
+              params['ledgers']['ncbi_untrustworthy_sp_ledger'],
               params['ledgers']['sp_priority_ledger'],
               params['ledgers']['genus_priority_ledger'],
               params['ledgers']['ncbi_env_bioproject_ledger'],
@@ -561,6 +567,7 @@ class OptionsParser():
                             'cur_genome_path_file',
                             *NCBI_ASSEMBLY_SUMMARY_GENBANK_KEYS,
                             'gtdb_type_strains_ledger',
+                            'ncbi_untrustworthy_sp_ledger',
                             'ncbi_env_bioproject_ledger'],
                            [('u_sel_reps', 'gtdb_named_reps_final.tsv'),
                             ('u_qc_genomes', 'qc_passed.tsv'),
@@ -575,6 +582,7 @@ class OptionsParser():
         check_file_exists(untrustworthy_type_file)
         check_file_exists(rep_ani_file)
         check_file_exists(params['ledgers']['gtdb_type_strains_ledger'])
+        check_file_exists(params['ledgers']['ncbi_untrustworthy_sp_ledger'])
         check_file_exists(params['ledgers']['ncbi_env_bioproject_ledger'])
 
         make_sure_path_exists(params['output_dirs']['u_cluster_named_reps'])
@@ -593,6 +601,7 @@ class OptionsParser():
               untrustworthy_type_file,
               rep_ani_file,
               params['ledgers']['gtdb_type_strains_ledger'],
+              params['ledgers']['ncbi_untrustworthy_sp_ledger'],
               params['ledgers']['ncbi_env_bioproject_ledger'])
 
     def u_cluster_de_novo(self, args):
@@ -615,6 +624,7 @@ class OptionsParser():
                             'cur_genome_path_file',
                             *NCBI_ASSEMBLY_SUMMARY_GENBANK_KEYS,
                             'gtdb_type_strains_ledger',
+                            'ncbi_untrustworthy_sp_ledger',
                             'ncbi_env_bioproject_ledger'],
                            [('u_cluster_named_reps', 'gtdb_named_rep_clusters.tsv'),
                             ('u_qc_genomes', 'qc_passed.tsv'),
@@ -629,6 +639,7 @@ class OptionsParser():
         check_file_exists(untrustworthy_type_file)
         check_file_exists(ani_af_nonrep_vs_rep)
         check_file_exists(params['ledgers']['gtdb_type_strains_ledger'])
+        check_file_exists(params['ledgers']['ncbi_untrustworthy_sp_ledger'])
         check_file_exists(params['ledgers']['ncbi_env_bioproject_ledger'])
 
         make_sure_path_exists(params['output_dirs']['u_cluster_de_novo'])
@@ -647,6 +658,7 @@ class OptionsParser():
               untrustworthy_type_file,
               ani_af_nonrep_vs_rep,
               params['ledgers']['gtdb_type_strains_ledger'],
+              params['ledgers']['ncbi_untrustworthy_sp_ledger'],
               params['ledgers']['ncbi_env_bioproject_ledger'])
 
     def u_cluster_stats(self, args):

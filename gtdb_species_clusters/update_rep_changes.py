@@ -42,6 +42,7 @@ class RepChanges():
             untrustworthy_type_file,
             disband_cluster_ledger,
             gtdb_type_strains_ledger,
+            ncbi_untrustworthy_sp_ledger,
             ncbi_env_bioproject_ledger):
         """Identify species representatives that have changed from previous release."""
 
@@ -54,6 +55,7 @@ class RepChanges():
         prev_genomes.load_from_metadata_file(prev_gtdb_metadata_file,
                                              ncbi_genbank_assembly_file=ncbi_genbank_assembly_file,
                                              untrustworthy_type_ledger=untrustworthy_type_file,
+                                             ncbi_untrustworthy_sp_ledger=ncbi_untrustworthy_sp_ledger,
                                              ncbi_env_bioproject_ledger=ncbi_env_bioproject_ledger)
         self.log.info(
             f' - previous genome set contains {len(prev_genomes):,} genomes')
@@ -69,6 +71,7 @@ class RepChanges():
                                             qc_passed_file=qc_passed_file,
                                             ncbi_genbank_assembly_file=ncbi_genbank_assembly_file,
                                             untrustworthy_type_ledger=untrustworthy_type_file,
+                                            ncbi_untrustworthy_sp_ledger=ncbi_untrustworthy_sp_ledger,
                                             ncbi_env_bioproject_ledger=ncbi_env_bioproject_ledger)
 
         # get previous and current genomes from type strains

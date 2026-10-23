@@ -364,6 +364,7 @@ class UpdateClusterDeNovo(object):
             untrustworthy_type_file,
             ani_af_nonrep_vs_rep,
             gtdb_type_strains_ledger,
+            ncbi_untrustworthy_sp_ledger,
             ncbi_env_bioproject_ledger):
         """Infer de novo species clusters and representatives for remaining genomes."""
 
@@ -376,6 +377,7 @@ class UpdateClusterDeNovo(object):
                                             qc_passed_file=qc_passed_file,
                                             ncbi_genbank_assembly_file=ncbi_genbank_assembly_file,
                                             untrustworthy_type_ledger=untrustworthy_type_file,
+                                            ncbi_untrustworthy_sp_ledger=ncbi_untrustworthy_sp_ledger,
                                             ncbi_env_bioproject_ledger=ncbi_env_bioproject_ledger)
 
         # get path to previous and current genomic FASTA files
