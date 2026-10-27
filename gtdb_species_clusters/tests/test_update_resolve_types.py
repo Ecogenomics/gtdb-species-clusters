@@ -117,26 +117,38 @@ def test_resolve_retained_ltp_conflicts(resolve_types):
     """Verify retained genomes with conflicting LTP assignments are considered untrustworthy."""
 
     ncbi_sp = 's__Curtobacterium herbarum'
-    type_gids = {'G1', 'G2', 'G3', 'G4', 'G5', 'G6'}
+    type_gids = {'G1', 'G2', 'G3', 'G4', 'G5', 'G6', 'G7', 'G8'}
     ltp_metadata = {'G1': [ltp_hit(ncbi_sp)],                               # retained, LTP agrees
                     'G2': [ltp_hit('s__Curtobacterium flaccumfaciens')],    # retained, LTP conflicts
                     'G3': [],                                               # retained, no LTP hit
                     'G4': [ltp_hit('s__Curtobacterium oceanosedimentum')],  # already untrustworthy
                     'G5': [ltp_hit('s__Curtobacterium pusillum')],          # retained, but in GTDB type strains ledger
-                    'G6': [ltp_hit(ncbi_sp), ltp_hit('s__Other species')]}  # retained, LTP includes NCBI species
+                    'G6': [ltp_hit(ncbi_sp), ltp_hit('s__Other species')],  # retained, LTP includes NCBI species
+                    'G7': [ltp_hit('s__Curtobacterium flaccumfaciens')],    # retained, LTP conflicts, same strain as G1
+                    'G8': [ltp_hit('s__Curtobacterium flaccumfaciens')]}    # retained, LTP conflicts, same strain as G2 only
     cur_genomes = {gid: StubGenome() for gid in type_gids}
     cur_genomes['G5'] = StubGenome('GTDB curator')
 
+    gid_anis = {gid1: {gid2: 95.0 for gid2 in type_gids if gid2 != gid1} for gid1 in type_gids}
+    for gid1, gid2, ani in [('G1', 'G7', 99.99), ('G2', 'G8', 99.5)]:
+        gid_anis[gid1][gid2] = ani
+        gid_anis[gid2][gid1] = ani
+
     untrustworthy = resolve_types.resolve_retained_ltp_conflicts(
-        ncbi_sp, type_gids, {'G4': 'reason'}, ltp_metadata, cur_genomes)
-    assert list(untrustworthy) == ['G2']
+        gid_anis, ncbi_sp, type_gids, {'G4': 'reason'}, ltp_metadata, cur_genomes)
+    assert sorted(untrustworthy) == ['G2', 'G8']
     assert untrustworthy['G2'] == ('Conflicting 16S rRNA hits to LTP database of s__Curtobacterium flaccumfaciens, '
                                    'while other type strain genomes have hits to s__Curtobacterium herbarum')
 
     # no genomes considered untrustworthy unless a retained genome has the expected LTP assignment
     untrustworthy = resolve_types.resolve_retained_ltp_conflicts(
-        ncbi_sp, type_gids, {'G1': 'reason', 'G6': 'reason'}, ltp_metadata, cur_genomes)
+        gid_anis, ncbi_sp, type_gids, {'G1': 'reason', 'G6': 'reason'}, ltp_metadata, cur_genomes)
     assert untrustworthy == {}
+
+    # a genome with the strain ANI to an untrustworthy genome with the expected LTP assignment is still untrustworthy
+    untrustworthy = resolve_types.resolve_retained_ltp_conflicts(
+        gid_anis, ncbi_sp, {'G1', 'G6', 'G7'}, {'G1': 'reason'}, ltp_metadata, cur_genomes)
+    assert list(untrustworthy) == ['G7']
 
 
 def test_sp_with_mult_type_strains_ledger(resolve_types):
