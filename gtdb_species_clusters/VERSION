@@ -1,3 +1,6 @@
+0.8.9
+- u_resolve_types does not consider a type strain genome with a conflicting LTP 16S rRNA assignment untrustworthy if it meets the strain ANI criterion with a retained type strain genome that has the expected LTP assignment
+
 0.8.8
 - u_rep_changes checks whether a species cluster with a lost representative is in the disband_cluster_ledger, and writes all columns of rep_change_summary.tsv for these clusters
 - u_rep_actions disbands clusters before replacing lost representatives, so a disbanded cluster with a lost representative is not given a new representative
