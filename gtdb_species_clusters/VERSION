@@ -1,3 +1,7 @@
+0.8.10
+- u_cluster_de_novo reports the number of genomes that could not be assigned to the closest representative within its ANI radius
+- Faster loading of genome sets: NCBI assembly files are read once and cached, and taxonomy strings are parsed once
+
 0.8.9
 - u_resolve_types does not consider a type strain genome with a conflicting LTP 16S rRNA assignment untrustworthy if it meets the strain ANI criterion with a retained type strain genome that has the expected LTP assignment
 

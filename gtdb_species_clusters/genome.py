@@ -80,10 +80,11 @@ class Genome(object):
 
     NO_PRIORITY_YEAR = int(1e6)
 
+    # shared by all genomes as getLogger() is slow relative to creating a genome
+    log = logging.getLogger('rich')
+
     def __post_init__(self):
         """Post data initialization."""
-
-        self.log = logging.getLogger('rich')
 
         if self.gid.startswith('UBA'):
             self.ncbi_genome_category = 'metagenome'

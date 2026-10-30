@@ -15,9 +15,38 @@
 #                                                                             #
 ###############################################################################
 
-import logging
+from functools import lru_cache
 
 from gtdblib.taxonomy.taxonomy import Taxonomy
+
+
+RANK_INDEX = {rank_prefix: rank_idx for rank_idx, rank_prefix in enumerate(Taxonomy.RANK_PREFIXES)}
+
+
+@lru_cache(maxsize=None)
+def _parse_taxa_str(taxa_str, filtered):
+    """Convert taxonomy string to taxa and standard ranks.
+
+    Many genomes have the same taxonomy string, so results are cached. Immutable
+    tuples are returned as each Taxa object needs its own copy it can modify.
+    """
+
+    if taxa_str and taxa_str != 'none':
+        if filtered:
+            taxa_str = taxa_str.replace('Candidatus ', '')
+            taxa_str = taxa_str.replace('[', '')
+            taxa_str = taxa_str.replace(']', '')
+        taxa = tuple(t.strip() for t in taxa_str.split(';'))
+    else:
+        taxa = tuple(Taxonomy.RANK_PREFIXES)
+
+    standard_taxa = []
+    for taxon in taxa:
+        rank_idx = RANK_INDEX.get(taxon[0:3])
+        if rank_idx is not None:
+            standard_taxa.append((rank_idx, taxon))
+
+    return taxa, tuple(standard_taxa)
 
 
 class Taxa(object):
@@ -28,26 +57,12 @@ class Taxa(object):
 
         self._parse_taxa(taxa_str, filtered)
 
-        self.log = logging.getLogger('rich')
-
     def _parse_taxa(self, taxa_str, filtered):
         """Convert taxonomy string to taxa list."""
 
-        if taxa_str and taxa_str != 'none':
-            if filtered:
-                taxa_str = taxa_str.replace('Candidatus ', '')
-                taxa_str = taxa_str.replace('[', '')
-                taxa_str = taxa_str.replace(']', '')
-            self.taxa = [t.strip() for t in taxa_str.split(';')]
-        else:
-            self.taxa = list(Taxonomy.RANK_PREFIXES)
-
-        self.standard_taxa = {}
-        for taxon in self.taxa:
-            rank_prefix = taxon[0:3]
-            if rank_prefix in Taxonomy.RANK_PREFIXES:
-                rank_idx = Taxonomy.RANK_PREFIXES.index(rank_prefix)
-                self.standard_taxa[rank_idx] = taxon
+        taxa, standard_taxa = _parse_taxa_str(taxa_str, filtered)
+        self.taxa = list(taxa)
+        self.standard_taxa = dict(standard_taxa)
 
     def __str__(self):
         """User-friendly string representation."""

@@ -19,6 +19,7 @@ import os
 import sys
 import gzip
 import logging
+import functools
 from collections import namedtuple
 
 from gtdblib.util.bio.accession import canonical_gid
@@ -172,20 +173,53 @@ def read_gtdb_metadata(metadata_file, fields):
     return m
 
 
-def exclude_from_refseq(genbank_assembly_file):
-    """Parse exclude from RefSeq field from NCBI assembly files."""
+@functools.lru_cache(maxsize=1)
+def _parse_ncbi_assembly_summary(genbank_assembly_files):
+    """Parse BioProject and exclude from RefSeq fields from NCBI assembly files.
 
+    The NCBI assembly files are large and are needed when loading both the previous
+    and current genome sets, so the result for the most recent files is cached. The
+    returned dictionaries are shared between callers and must not be modified.
+
+    :param genbank_assembly_files: Tuple of NCBI assembly files.
+    :return: BioProject and exclude from RefSeq note of each genome.
+    """
+
+    bioproject = {}
     excluded_from_refseq_note = {}
-    with MultiFileReader(genbank_assembly_file, has_header=False) as f:
+    with MultiFileReader(list(genbank_assembly_files), has_header=False) as f:
         for line in f:
             if line[0] == '#':
                 if line.startswith('# assembly_accession') or line.startswith('#assembly_accession'):
                     header = line.strip().split('\t')
+                    bioproject_index = header.index('bioproject')
                     exclude_index = header.index('excluded_from_refseq')
             else:
                 line_split = line.strip('\n\r').split('\t')
                 gid = canonical_gid(line_split[0])
+                bioproject[gid] = line_split[bioproject_index]
                 excluded_from_refseq_note[gid] = line_split[exclude_index]
+
+    return bioproject, excluded_from_refseq_note
+
+
+def _assembly_file_key(genbank_assembly_file):
+    """Convert a file or list of files into a hashable key for caching."""
+
+    if isinstance(genbank_assembly_file, str):
+        return (genbank_assembly_file,)
+
+    return tuple(genbank_assembly_file)
+
+
+def exclude_from_refseq(genbank_assembly_file):
+    """Parse exclude from RefSeq field from NCBI assembly files.
+
+    The returned dictionary is shared between callers and must not be modified.
+    """
+
+    _bioproject, excluded_from_refseq_note = _parse_ncbi_assembly_summary(
+        _assembly_file_key(genbank_assembly_file))
 
     return excluded_from_refseq_note
 
@@ -234,19 +268,13 @@ def parse_ncbi_env_bioproject_ledger(ncbi_env_bioproject_ledger):
 
 
 def parse_ncbi_bioproject(genbank_assembly_file):
-    """Parse BioProject field from NCBI assembly files."""
+    """Parse BioProject field from NCBI assembly files.
 
-    bioproject = {}
-    with MultiFileReader(genbank_assembly_file, has_header=False) as f:
-        for line in f:
-            if line[0] == '#':
-                if line.startswith('# assembly_accession') or line.startswith('#assembly_accession'):
-                    header = line.strip().split('\t')
-                    bioproject_index = header.index('bioproject')
-            else:
-                line_split = line.strip('\n\r').split('\t')
-                gid = canonical_gid(line_split[0])
-                bioproject[gid] = line_split[bioproject_index]
+    The returned dictionary is shared between callers and must not be modified.
+    """
+
+    bioproject, _excluded_from_refseq_note = _parse_ncbi_assembly_summary(
+        _assembly_file_key(genbank_assembly_file))
 
     return bioproject
 

@@ -280,6 +280,7 @@ class UpdateClusterDeNovo(object):
             for gid in all_reps:
                 clusters[gid] = []
 
+            num_failed_assign = 0
             for idx, cur_gid in enumerate(nonrep_gids):
                 # find closest species representative in terms of ANI that also
                 # satisfied the AF criterion
@@ -327,6 +328,7 @@ class UpdateClusterDeNovo(object):
                         # and has no clear algorithmic resolution we still assign the genome to the
                         # closest representative even though it is outside its ANI radius.
                         ani_radius = final_cluster_radius[closest_rep_gid].ani
+                        num_failed_assign += 1
                         self.log.warning('Failed to assign genome {} to closest representative.'.format(cur_gid))
                         self.log.warning(f'Assigning genome to {closest_rep_gid} with an ANI radius of {ani_radius:.2f}%.')
                         self.log.warning(f'ANI and AF between {cur_gid} and {closest_rep_gid} is {closest_rep_ani:.2f}% and {closest_rep_af:.2f}%, respectively.')
@@ -338,6 +340,10 @@ class UpdateClusterDeNovo(object):
                     sys.stdout.write('{}\r'.format(statusStr))
                     sys.stdout.flush()
             sys.stdout.write('\n')
+
+            if num_failed_assign > 0:
+                self.log.warning(f'Failed to assign {num_failed_assign:,} genomes to the closest representative '
+                                 'within its ANI radius; these were assigned to the closest representative anyway.')
 
             pickle.dump(clusters, open(os.path.join(
                 self.output_dir, 'clusters.pkl'), 'wb'))
