@@ -1,3 +1,6 @@
+0.8.11
+- u_synonyms identifies majority vote synonyms in a single pass over NCBI species instead of comparing each NCBI species to every GTDB species cluster
+
 0.8.10
 - u_cluster_de_novo reports the number of genomes that could not be assigned to the closest representative within its ANI radius
 - Faster loading of genome sets: NCBI assembly files are read once and cached, and taxonomy strings are parsed once
