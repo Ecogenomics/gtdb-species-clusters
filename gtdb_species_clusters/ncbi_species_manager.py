@@ -185,6 +185,14 @@ class NCBI_SpeciesManager():
         # identify consensus synonyms
         consensus_synonyms = defaultdict(list)
 
+        # map genomes to the GTDB species cluster they reside in, since
+        # GTDB species clusters are disjoint
+        gid_to_rid = {}
+        for gtdb_rid, cids in self.cur_clusters.items():
+            assert gtdb_rid in cids
+            for gid in cids:
+                gid_to_rid[gid] = gtdb_rid
+
         for ncbi_species, ncbi_sp_gids in ncbi_species_gids.items():
             if ncbi_species in self.ncbi_sp_type_strain_genomes:
                 # NCBI species define by type strain genome so should
@@ -194,24 +202,21 @@ class NCBI_SpeciesManager():
 
             # determine if all genomes in NCBI species are contained
             # in a single GTDB species represented by a type strain genome
-            for gtdb_rid, cids in self.cur_clusters.items():
-                assert gtdb_rid in cids
+            gtdb_rids = set(gid_to_rid.get(gid) for gid in ncbi_sp_gids)
+            if len(gtdb_rids) != 1:
+                continue
 
-                if not self.cur_genomes[gtdb_rid].is_effective_type_strain():
-                    continue
+            gtdb_rid = gtdb_rids.pop()
+            if gtdb_rid is None or not self.cur_genomes[gtdb_rid].is_effective_type_strain():
+                continue
 
-                ncbi_cur_sp_in_cluster = cids.intersection(ncbi_sp_gids)
-                ncbi_cur_sp_in_cluster_perc = len(
-                    ncbi_cur_sp_in_cluster)*100.0/len(ncbi_sp_gids)
-                if ncbi_cur_sp_in_cluster_perc == 100:
-                    # using the best quality genome in NCBI species to establish
-                    # synonym statistics such as ANI and AF
-                    q = {gid: self.cur_genomes[gid].score_type_strain(
-                    ) for gid in ncbi_sp_gids}
-                    q_sorted = sorted(q.items(), key=lambda kv: (
-                        kv[1], kv[0]), reverse=True)
-                    consensus_synonyms[gtdb_rid].append(q_sorted[0][0])
-                    break
+            # using the best quality genome in NCBI species to establish
+            # synonym statistics such as ANI and AF
+            q = {gid: self.cur_genomes[gid].score_type_strain(
+            ) for gid in ncbi_sp_gids}
+            q_sorted = sorted(q.items(), key=lambda kv: (
+                kv[1], kv[0]), reverse=True)
+            consensus_synonyms[gtdb_rid].append(q_sorted[0][0])
 
         self.log.info(' - identified {:,} GTDB representatives resulting in {:,} majority vote synonyms'.format(
             len(consensus_synonyms),
