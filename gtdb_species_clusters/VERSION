@@ -1,3 +1,6 @@
+0.9.6
+- Ctrl-C now stops all skani pool workers: workers ignore SIGINT and the main process terminates the pool when interrupted, so no orphaned workers (and .nfs files in the output directory) are left behind
+
 0.9.5
 - The year of priority of a name validly published under both the ICNP (LPSN) and the SeqCode is the earlier of the two (SeqCode Rule 23c); SeqCode type genomes with no LPSN year use their SeqCode year
 - Species priority uses the reference (SeqCode or NCBI) species of genomes, and names validly published under the SeqCode count as valid names
