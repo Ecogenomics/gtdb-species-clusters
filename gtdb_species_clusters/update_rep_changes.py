@@ -18,6 +18,7 @@
 import os
 import logging
 
+from gtdb_species_clusters.genome import Genome
 from gtdb_species_clusters.genomes import Genomes
 from gtdb_species_clusters.species_clusters import SpeciesClusters
 from gtdb_species_clusters.type_genome_utils import parse_disbanded_cluster_ledger
@@ -118,7 +119,7 @@ class RepChanges():
             'Genome ID\tPrevious GTDB species\tNo. genomes in cluster')
         fout_summary.write(
             '\tGENOMIC_CHANGE\tNCBI_SPECIES_CHANGE\tTYPE_STRAIN_CHANGE\tDOMAIN_CHECK\tNCBI_ASSEMBLY_QUALITY\tDISBANDED_CHECK')
-        fout_summary.write('\tNew type strains\tRepresentative changed\n')
+        fout_summary.write('\tNew type strains\tRepresentative changed' + Genome.REF_TAXA_HEADER + '\n')
 
         fout_detailed = open(os.path.join(
             self.output_dir, 'rep_change_detailed.tsv'), 'w')
@@ -162,20 +163,21 @@ class RepChanges():
                     unchanged_genome.add(prev_rid)
                     fout_summary.write('\tUNCHANGED')
 
-                # check if NCBI species assignment has changed; the species specified in the
-                # GTDB type strains ledger overrides the NCBI species assignment so is considered
-                # unchanged for genomes in this ledger
-                prev_ncbi_sp = prev_genomes[prev_rid].ncbi_taxa.species
-                cur_ncbi_sp = cur_genomes[prev_rid].ncbi_taxa.species
-                if (cur_genomes[prev_rid].is_gtdb_type_strain_ledger()
-                        or prev_genomes[prev_rid].ncbi_taxa.specific_epithet == cur_genomes[prev_rid].ncbi_taxa.specific_epithet):
+                # check if the reference (SeqCode or NCBI) species assignment has changed; the species
+                # specified in the GTDB type strains ledger overrides the reference species assignment
+                # so is considered unchanged for genomes in this ledger
+                prev_genome = prev_genomes[prev_rid]
+                cur_genome = cur_genomes[prev_rid]
+                if (cur_genome.is_gtdb_type_strain_ledger()
+                        or prev_genome.ref_taxa.specific_epithet == cur_genome.ref_taxa.specific_epithet):
                     unchanged_sp.add(prev_rid)
                     fout_summary.write('\tUNCHANGED')
                 else:
                     reassigned_sp.add(prev_rid)
                     fout_summary.write('\tREASSIGNED')
-                    fout_detailed.write(
-                        f'{prev_rid}\t{prev_gtdb_sp}\tNCBI_SPECIES_CHANGE:REASSIGNED\tNCBI species reassigned from {prev_ncbi_sp} to {cur_ncbi_sp}\n')
+                    fout_detailed.write(f'{prev_rid}\t{prev_gtdb_sp}\tNCBI_SPECIES_CHANGE:REASSIGNED\t'
+                                        f'Reference species reassigned from {prev_genome.ref_taxa.species} ({prev_genome.ref_taxa_source}) '
+                                        f'to {cur_genome.ref_taxa.species} ({cur_genome.ref_taxa_source})\n')
 
                 # check if type material status has changed
                 if prev_rid in prev_type_strain_gids and prev_rid in cur_type_strain_gids:
@@ -258,7 +260,7 @@ class RepChanges():
                     fout_summary.write('\tYES')
                     num_rep_changes += 1
 
-                fout_summary.write('\n')
+                fout_summary.write('\t{}\n'.format(cur_genomes[prev_rid].ref_taxa_columns()))
             else:
                 lost_genome.add(prev_rid)
                 fout_detailed.write(
@@ -270,8 +272,9 @@ class RepChanges():
                     disbanded_count += 1
                     fout_detailed.write(f'{prev_rid}\t{prev_gtdb_sp}\tEXPLICIT_UPDATE:DISBANDED\t\n')
 
-                fout_summary.write('\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\n'.format(
-                    'LOST', 'N/A', 'N/A', 'N/A', 'N/A', 'TRUE' if disbanded else 'FALSE', 'N/A', 'YES'))
+                fout_summary.write('\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\n'.format(
+                    'LOST', 'N/A', 'N/A', 'N/A', 'N/A', 'TRUE' if disbanded else 'FALSE', 'N/A', 'YES',
+                    prev_genomes[prev_rid].ref_taxa_columns()))
                 num_rep_changes += 1
 
         fout_summary.close()
@@ -293,7 +296,7 @@ class RepChanges():
         self.log.info(
             f'  lost_genome: {len(lost_genome):,} ({lost_perc:.1f}%)')
 
-        self.log.info('NCBI species assignment changes:')
+        self.log.info('Reference (SeqCode or NCBI) species assignment changes:')
         cur_sp_count = len(unchanged_genome) + len(updated_genome)
         unchanged_sp_perc = len(unchanged_sp)*100.0 / cur_sp_count
         reassigned_sp_perc = len(reassigned_sp)*100.0 / cur_sp_count

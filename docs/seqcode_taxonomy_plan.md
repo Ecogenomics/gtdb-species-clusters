@@ -1,6 +1,6 @@
 # SeqCode taxonomy support: implementation plan
 
-Status: plan agreed 2026-11-03; PRs 1-3 merged (0.9.2); PR 4 in progress. Tick the PR checklist at the end as work lands.
+Status: plan agreed 2026-11-03; PRs 1-4 merged (0.9.3); PR 5 in progress. Tick the PR checklist at the end as work lands.
 Baselines for verification: the pre-SeqCode R237 step outputs are in `sp_cluster_update/deprecated/<N>_<step>/`.
 
 ## 1. Problem
@@ -323,7 +323,10 @@ SeqCode rows.
 
 ## 6. Open points to settle when the step is reached
 
-- Step 5: exact wording/semantics of `resolve_by_ncbi_types` once SeqCode counts as a source.
+- Step 5: decided 2026-11-03: a genome that is type material via SeqCode is treated exactly like one that is type
+  material via LPSN; neither source gets a ledger-like override, since neither is fully reliable. Conflicts between
+  SeqCode and LPSN/NCBI type genomes (e.g. *Aalborgiella aggregata*, *Planktophila lacus*) go to curation via the
+  untrustworthy type ledger.
 - Step 7: decided 2026-11-03: SeqCode names count as valid names in `species_priority`.
 - Step 15: whether the 26 Latin-name conflicts should be auto-renamed to SeqCode or always left for curation
   (plan: curation log only, no automatic rename).
@@ -333,7 +336,7 @@ SeqCode rows.
 - [x] PR 1: core (0.9.0): fields, loader, `ref_taxa`, `type_species()`, warnings, tests, this document
 - [x] PR 2: `u_qc_genomes` (0.9.1)
 - [x] PR 3: `u_lpsn_rna_types` (0.9.2)
-- [ ] PR 4: `u_resolve_types`
+- [x] PR 4: `u_resolve_types` (0.9.3)
 - [ ] PR 5: `u_rep_changes`
 - [ ] PR 6: `u_rep_actions` (+ `year_of_priority` switch, `species_priority_manager`)
 - [ ] PR 7: `u_sel_reps`
