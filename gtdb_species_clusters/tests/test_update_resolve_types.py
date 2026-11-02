@@ -100,17 +100,55 @@ def test_ltp_conflicting_genomes(resolve_types):
 
 
 class StubGenome:
-    def __init__(self, gtdb_type_designation_sources='LPSN', ncbi_sp='s__', gtdb_sp='s__', effective_type_strain=True):
+    def __init__(self, gtdb_type_designation_sources='LPSN', ncbi_sp='s__', gtdb_sp='s__', effective_type_strain=True,
+                 seqcode_sp=None, ncbi_type_strain=True):
         self.gtdb_type_designation_sources = gtdb_type_designation_sources
         self.ncbi_taxa = SimpleNamespace(species=ncbi_sp)
         self.gtdb_taxa = SimpleNamespace(species=gtdb_sp)
         self.effective_type_strain = effective_type_strain
+        self.ncbi_type_strain = ncbi_type_strain
+        # ledger genomes have their GTDB species set to the ledger species when loaded
+        self.type_strains_ledger_sp = gtdb_sp if gtdb_type_designation_sources == 'GTDB curator' else ''
+        self.seqcode_taxa = SimpleNamespace(species=seqcode_sp) if seqcode_sp else None
 
     def is_gtdb_type_strain_ledger(self):
         return self.gtdb_type_designation_sources == 'GTDB curator'
 
     def is_effective_type_strain(self):
         return self.effective_type_strain
+
+    def type_species(self):
+        # mirrors Genome.type_species: ledger species, else SeqCode species, else NCBI species
+        if self.type_strains_ledger_sp:
+            return self.type_strains_ledger_sp
+        if self.seqcode_taxa is not None:
+            return self.seqcode_taxa.species
+        return self.ncbi_taxa.species
+
+    def is_ncbi_type_strain(self):
+        return self.ncbi_type_strain
+
+    def is_seqcode_type_strain(self):
+        return self.seqcode_taxa is not None
+
+
+def test_resolve_by_ncbi_types_seqcode(resolve_types):
+    """Verify SeqCode type genomes count as type material at their source."""
+
+    # G1 is type material at NCBI, G2 only at SeqCode, G3 at neither
+    cur_genomes = {'G1': StubGenome(ncbi_sp='s__Methanocatella smithii'),
+                   'G2': StubGenome('SeqCode', seqcode_sp='s__Methanocatella smithii', ncbi_type_strain=False),
+                   'G3': StubGenome(ncbi_sp='s__Methanocatella smithii', ncbi_type_strain=False)}
+    gid_anis = {'G1': {'G2': 99.5, 'G3': 97.0}, 'G2': {'G1': 99.5, 'G3': 97.0}, 'G3': {'G1': 97.0, 'G2': 97.0}}
+
+    resolved, untrustworthy = resolve_types.resolve_by_ncbi_types(gid_anis, {'G1', 'G2', 'G3'}, cur_genomes)
+    assert resolved
+    assert list(untrustworthy) == ['G3']
+    assert untrustworthy['G3'] == 'Not classified as assembled from type material at NCBI or as a type genome at SeqCode'
+
+    # nothing to remove when the SeqCode genome is the only genome lacking NCBI type annotation
+    gid_anis = {'G1': {'G2': 99.5}, 'G2': {'G1': 99.5}}
+    assert resolve_types.resolve_by_ncbi_types(gid_anis, {'G1', 'G2'}, cur_genomes) == (False, {})
 
 
 def test_resolve_retained_ltp_conflicts(resolve_types):
@@ -152,7 +190,7 @@ def test_resolve_retained_ltp_conflicts(resolve_types):
 
 
 def test_sp_with_mult_type_strains_ledger(resolve_types):
-    """Verify genomes in the GTDB type strains ledger are grouped by their ledger species."""
+    """Verify type strain genomes are grouped by their ledger species, else SeqCode species, else NCBI species."""
 
     cur_genomes = {
         # type strains of C. michiganensis at NCBI
@@ -163,11 +201,19 @@ def test_sp_with_mult_type_strains_ledger(resolve_types):
         # other genome assembled from the type strain of C. insidiosus
         'G4': StubGenome(ncbi_sp='s__Clavibacter insidiosus', gtdb_sp='s__Clavibacter insidiosus'),
         # not type material
-        'G5': StubGenome(ncbi_sp='s__Clavibacter michiganensis', effective_type_strain=False)}
+        'G5': StubGenome(ncbi_sp='s__Clavibacter michiganensis', effective_type_strain=False),
+        # SeqCode type genome with no NCBI species, grouped with the NCBI type strain of the same name
+        'G6': StubGenome('SeqCode', ncbi_sp='s__', seqcode_sp='s__Methanocatella smithii'),
+        'G7': StubGenome(ncbi_sp='s__Methanocatella smithii'),
+        # SeqCode name takes priority over a differing NCBI species
+        'G8': StubGenome('SeqCode', ncbi_sp='s__Clavibacter michiganensis', seqcode_sp='s__Clavibacter nova'),
+        # SeqCode type genome of a species with no other type strain genome
+        'G9': StubGenome('SeqCode', ncbi_sp='s__', seqcode_sp='s__Acidiparvus lacustris')}
 
     assert resolve_types.sp_with_mult_type_strains(cur_genomes) == {
         's__Clavibacter michiganensis': {'G1', 'G2'},
-        's__Clavibacter insidiosus': {'G3', 'G4'}}
+        's__Clavibacter insidiosus': {'G3', 'G4'},
+        's__Methanocatella smithii': {'G6', 'G7'}}
 
 
 def test_resolve_by_type_strains_ledger(resolve_types):

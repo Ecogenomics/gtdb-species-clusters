@@ -1,3 +1,7 @@
+0.9.3
+- u_resolve_types groups type strain genomes by the species they are type material of (GTDB type strains ledger, then SeqCode, then NCBI), so SeqCode type genomes are checked for conflicting type material; a genome that is the type genome of a SeqCode species counts as type material at its source; tables gain SeqCode species, SeqCode genus and reference source columns
+- A GTDB type strains ledger entry is only reported as redundant when it also leaves the GTDB species unchanged
+
 0.9.2
 - u_lpsn_rna_types also matches LPSN type 16S rRNA sequences to genomes under their SeqCode species, and reports SeqCode species, SeqCode genus and reference source columns
 - Plan: the year of priority of a name validly published under both the SeqCode and LPSN will be the earlier of the two (SeqCode Rule 23c); applied from the u_rep_actions PR

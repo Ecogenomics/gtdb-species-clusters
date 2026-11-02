@@ -593,17 +593,21 @@ class Genomes(object):
                     type_strains_ledger_sp = gtdb_type_strains[gid]
 
                     # the ledger takes precedence over the SeqCode and NCBI names, so report
-                    # ledger entries that conflict with SeqCode or that change nothing
+                    # ledger entries that conflict with SeqCode or that change nothing; an entry
+                    # that sets a different GTDB species than the metadata is never redundant
+                    same_gtdb_sp = gtdb_taxonomy.species == type_strains_ledger_sp
                     if seqcode_taxonomy is not None:
-                        if seqcode_taxonomy.species == type_strains_ledger_sp:
-                            self.log.warning(f'Genome {gid} is in the GTDB type strains ledger as {type_strains_ledger_sp}, '
-                                             'which is its SeqCode species; the ledger entry is redundant.')
-                        else:
+                        if seqcode_taxonomy.species != type_strains_ledger_sp:
                             self.log.warning(f'Genome {gid} is in the GTDB type strains ledger as {type_strains_ledger_sp}, '
                                              f'but is {seqcode_taxonomy.species} in SeqCode; the ledger entry takes precedence.')
-                    elif gtdb_type in Genome.GTDB_TYPE_SPECIES and ncbi_taxonomy.species == type_strains_ledger_sp:
+                        elif same_gtdb_sp:
+                            self.log.warning(f'Genome {gid} is in the GTDB type strains ledger as {type_strains_ledger_sp}, '
+                                             'which is its SeqCode and GTDB species; the ledger entry is redundant.')
+                    elif (gtdb_type in Genome.GTDB_TYPE_SPECIES
+                            and ncbi_taxonomy.species == type_strains_ledger_sp
+                            and same_gtdb_sp):
                         self.log.warning(f'Genome {gid} is in the GTDB type strains ledger as {type_strains_ledger_sp}, '
-                                         f'which is its NCBI species and it is already a type strain in {metadata_name}; '
+                                         f'which is its NCBI and GTDB species and it is already a type strain in {metadata_name}; '
                                          'the ledger entry is redundant.')
 
                     gtdb_type = 'type strain of species'
