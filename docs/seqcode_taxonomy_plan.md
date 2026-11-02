@@ -1,6 +1,6 @@
 # SeqCode taxonomy support: implementation plan
 
-Status: plan agreed 2026-11-03; PRs 1-2 merged (0.9.1); PR 3 in progress. Tick the PR checklist at the end as work lands.
+Status: plan agreed 2026-11-03; PRs 1-3 merged (0.9.2); PR 4 in progress. Tick the PR checklist at the end as work lands.
 Baselines for verification: the pre-SeqCode R237 step outputs are in `sp_cluster_update/deprecated/<N>_<step>/`.
 
 ## 1. Problem
@@ -332,7 +332,7 @@ SeqCode rows.
 
 - [x] PR 1: core (0.9.0): fields, loader, `ref_taxa`, `type_species()`, warnings, tests, this document
 - [x] PR 2: `u_qc_genomes` (0.9.1)
-- [ ] PR 3: `u_lpsn_rna_types`
+- [x] PR 3: `u_lpsn_rna_types` (0.9.2)
 - [ ] PR 4: `u_resolve_types`
 - [ ] PR 5: `u_rep_changes`
 - [ ] PR 6: `u_rep_actions` (+ `year_of_priority` switch, `species_priority_manager`)

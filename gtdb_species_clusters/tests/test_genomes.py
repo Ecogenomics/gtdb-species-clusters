@@ -107,21 +107,22 @@ class TestGenomes:
         """Test SeqCode taxonomy is set from the SeqCode table and checked against the ledger and metadata."""
 
         # GCF accession in the table resolves to the GCA accession in the metadata;
-        # G003983815 is in the ledger with its SeqCode species (redundant),
-        # G001578415 is in the ledger with a different species (conflict)
+        # G003983815 is in the ledger with its SeqCode species, but this replaces its
+        # placeholder GTDB species so the ledger entry is not redundant; G001578415 is
+        # in the ledger with a different species (conflict)
         seqcode_file = tmp_path / 'seqcode_table.tsv'
         seqcode_file.write_text(
             'seqcode_type_material_accn\tseqcode_name\tseqcode_rank\tseqcode_species_status\tseqcode_priority_date'
             '\tseqcode_classification\tseqcode_type_species_of_genus\n'
             'GCF_001578415.1\tPseudomonas nova\tspecies\tValid (SeqCode)\t2025-03-01T00:00:00.000Z'
             '\td__Bacteria;p__Pseudomonadota;c__Gammaproteobacteria;o__Pseudomonadales;f__Pseudomonadaceae;g__Pseudomonas;s__\tTrue\n'
-            'GCA_003983815.1\tCandidatus Escherichia nova\tspecies\tValid (SeqCode)\t2024-01-01T00:00:00.000Z'
+            'GCA_003983815.1\tCandidatus Escherichia coli\tspecies\tValid (SeqCode)\t2024-01-01T00:00:00.000Z'
             '\td__Bacteria;p__Pseudomonadota;c__Gammaproteobacteria;o__Enterobacterales;f__Enterobacteriaceae;g__Escherichia;s__\tFalse\n'
             'GCA_000000001.1\tGenusia nova\tgenus\tValid (SeqCode)\t2024-01-01T00:00:00.000Z\td__Bacteria;p__;c__;o__;f__;g__Genusia;s__\tTrue\n')
 
         gtdb_type_strains_ledger = tmp_path / 'gtdb_type_strains.tsv'
         gtdb_type_strains_ledger.write_text('Genome ID\tProposed GTDB species name\n'
-                                            'G003983815\tEscherichia nova\n'
+                                            'G003983815\tEscherichia coli\n'
                                             'G001578415\tPseudomonas_A nova\n')
 
         genomes = Genomes()
@@ -134,8 +135,7 @@ class TestGenomes:
         warnings = [r.getMessage() for r in caplog.records if r.levelname == 'WARNING']
         assert warnings == [
             'Skipped 1 rows in SeqCode table that are not validly published species.',
-            'Genome G003983815 has the SeqCode name Escherichia nova in the SeqCode table, but no SeqCode name in metadata_none_values.tsv.',
-            'Genome G003983815 is in the GTDB type strains ledger as s__Escherichia nova, which is its SeqCode species; the ledger entry is redundant.',
+            'Genome G003983815 has the SeqCode name Escherichia coli in the SeqCode table, but no SeqCode name in metadata_none_values.tsv.',
             'Genome G001578415 has the SeqCode name Pseudomonas nova in the SeqCode table, but no SeqCode name in metadata_none_values.tsv.',
             'Genome G001578415 is in the GTDB type strains ledger as s__Pseudomonas_A nova, but is s__Pseudomonas nova in SeqCode; the ledger entry takes precedence.']
 
@@ -151,9 +151,10 @@ class TestGenomes:
         assert g.gtdb_taxa.species == 's__Pseudomonas_A nova'
 
         g = genomes['G003983815']
-        assert g.seqcode_taxa.species == 's__Escherichia nova'
+        assert g.seqcode_taxa.species == 's__Escherichia coli'
         assert g.seqcode_priority_year == 2024
-        assert g.type_species() == 's__Escherichia nova'
+        assert g.type_species() == 's__Escherichia coli'
+        assert g.gtdb_taxa.species == 's__Escherichia coli'  # placeholder replaced by the ledger species
 
         g = genomes['G964261755']
         assert g.seqcode_taxa is None
@@ -162,9 +163,43 @@ class TestGenomes:
         assert g.type_species() == 's__'
 
         assert genomes.named_ref_species() == {'s__Pseudomonas nova': {'G001578415'},
-                                               's__Escherichia nova': {'G003983815'}}
+                                               's__Escherichia coli': {'G003983815'}}
         assert genomes.type_strain_genomes_by_species() == {'s__Pseudomonas_A nova': {'G001578415'},
-                                                            's__Escherichia nova': {'G003983815'}}
+                                                            's__Escherichia coli': {'G003983815'}}
+
+    def test_type_strains_ledger_redundant(self, tmp_path, caplog):
+        """Test ledger entries are reported as redundant only when they change neither the type status nor the GTDB species."""
+
+        # G003983815 (not type material, GTDB placeholder species) gets its SeqCode name as GTDB species;
+        # G001578415 (not type material) has the ledger species as NCBI and GTDB species, but is not a type strain
+        metadata_file = tmp_path / 'metadata.tsv'
+        metadata_file.write_text(open(METADATA_FILE).read()
+                                 .replace('g__ECMA0423;s__ECMA0423 sp047199055', 'g__Escherichia;s__Escherichia coli')
+                                 .replace('g__;s__\t', 'g__Pseudomonas;s__Pseudomonas aeruginosa\t', 1))
+
+        seqcode_file = tmp_path / 'seqcode_table.tsv'
+        seqcode_file.write_text(
+            'seqcode_type_material_accn\tseqcode_name\tseqcode_rank\tseqcode_species_status\tseqcode_priority_date'
+            '\tseqcode_classification\tseqcode_type_species_of_genus\n'
+            'GCA_003983815.1\tEscherichia coli\tspecies\tValid (SeqCode)\t2024-01-01T00:00:00.000Z'
+            '\td__Bacteria;p__Pseudomonadota;c__Gammaproteobacteria;o__Enterobacterales;f__Enterobacteriaceae;g__Escherichia;s__\tFalse\n')
+
+        gtdb_type_strains_ledger = tmp_path / 'gtdb_type_strains.tsv'
+        gtdb_type_strains_ledger.write_text('Genome ID\tProposed GTDB species name\n'
+                                            'G003983815\tEscherichia coli\n'
+                                            'G001578415\tPseudomonas aeruginosa\n')
+
+        genomes = Genomes()
+        with caplog.at_level('WARNING'):
+            genomes.load_from_metadata_file(str(metadata_file),
+                                            gtdb_type_strains_ledger=str(gtdb_type_strains_ledger),
+                                            create_sp_clusters=False,
+                                            seqcode_file=str(seqcode_file))
+
+        assert [r.getMessage() for r in caplog.records if r.levelname == 'WARNING'] == [
+            'Genome G003983815 has the SeqCode name Escherichia coli in the SeqCode table, but no SeqCode name in metadata.tsv.',
+            'Genome G003983815 is in the GTDB type strains ledger as s__Escherichia coli, which is its SeqCode and GTDB species; the ledger entry is redundant.']
+        assert genomes['G001578415'].is_gtdb_type_strain()
 
     def test_seqcode_taxa_not_loaded(self):
         """Test genomes have no SeqCode taxonomy when no SeqCode table is given."""

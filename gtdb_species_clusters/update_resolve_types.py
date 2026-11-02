@@ -28,6 +28,7 @@ from numpy import (mean as np_mean, std as np_std)
 from gtdblib.util.bio.accession import canonical_gid
 
 from gtdb_species_clusters.skani import Skani
+from gtdb_species_clusters.genome import Genome
 from gtdb_species_clusters.genomes import Genomes
 from gtdb_species_clusters.taxon_utils import generic_name, specific_epithet, canonical_taxon
 from gtdb_species_clusters import defaults as Defaults
@@ -375,7 +376,10 @@ class ResolveTypes():
                 return False, {}
 
     def resolve_by_ncbi_types(self, gid_anis: AniPairs, type_gids: Set[str], cur_genomes: Genomes) -> Resolution:
-        """Resolve conflicting type genomes by consulting NCBI type material metadata.
+        """Resolve conflicting type genomes by consulting NCBI and SeqCode type material metadata.
+
+        A genome is type material at its source if NCBI indicates it is assembled from
+        type material or it is the type genome of a validly published SeqCode species.
 
         :param gid_anis: ANI between genome pairs.
         :param type_gids: Accession for genomes assembled from the type strain of a species.
@@ -386,8 +390,8 @@ class ResolveTypes():
         untrustworthy_gids = {}
         ncbi_type_count = 0
         for gid in type_gids:
-            if not cur_genomes[gid].is_ncbi_type_strain():
-                untrustworthy_gids[gid] = 'Not classified as assembled from type material at NCBI'
+            if not cur_genomes[gid].is_ncbi_type_strain() and not cur_genomes[gid].is_seqcode_type_strain():
+                untrustworthy_gids[gid] = 'Not classified as assembled from type material at NCBI or as a type genome at SeqCode'
             else:
                 ncbi_type_count += 1
 
@@ -688,31 +692,27 @@ class ResolveTypes():
         return manual_untrustworthy_types
 
     def sp_with_mult_type_strains(self, cur_genomes: Genomes) -> Dict[str, Set[str]]:
-        """Identify NCBI species with multiple type strain of species genomes.
+        """Identify species with multiple type strain of species genomes.
 
-        Genomes in the GTDB type strains ledger are assigned to the species specified
-        in the ledger instead of their NCBI species.
+        Genomes are grouped by the species they are type material of: the species
+        in the GTDB type strains ledger, else the SeqCode species, else the NCBI
+        species (see Genome.type_species).
 
         :param cur_genomes: Metadata for genomes in the current GTDB release.
-        :return: Mapping from NCBI species to type strain genome accessions.
+        :return: Mapping from species to type strain genome accessions.
         """
 
         sp_type_strain_genomes: DefaultDict[str, set[str]] = defaultdict(set)
         for gid in cur_genomes:
             if cur_genomes[gid].is_effective_type_strain():
-                if cur_genomes[gid].is_gtdb_type_strain_ledger():
-                    # species name from ledger is set as the GTDB species when genomes are loaded
-                    ncbi_sp = cur_genomes[gid].gtdb_taxa.species
-                else:
-                    ncbi_sp = cur_genomes[gid].ncbi_taxa.species
-
-                if ncbi_sp != 's__':
+                type_sp = cur_genomes[gid].type_species()
+                if type_sp != 's__':
                     # yes, NCBI has genomes marked as assembled from type material
                     # that do not actually have a binomial species name
-                    sp_type_strain_genomes[ncbi_sp].add(gid)
+                    sp_type_strain_genomes[type_sp].add(gid)
 
         multi_type_strains_sp = {
-            ncbi_sp: gids for ncbi_sp, gids in sp_type_strain_genomes.items() if len(gids) > 1}
+            sp: gids for sp, gids in sp_type_strain_genomes.items() if len(gids) > 1}
 
         return multi_type_strains_sp
 
@@ -820,55 +820,60 @@ class ResolveTypes():
         # process is ultimately required. Ideally, the community will eventually adopt a
         # database that indicates a single `type genome assembly` for each species instead
         # of just indicating a type strain from which many (sometimes dissimilar) assemblies exist.
+        # species are those the genomes are type material of (see Genome.type_species);
+        # they are reported under the historical 'NCBI species' column heading
         self.log.info(
-            'Determining number of type strain genomes in each NCBI species:')
+            'Determining number of type strain genomes in each species:')
         multi_type_strains_sp = self.sp_with_mult_type_strains(cur_genomes)
         self.log.info(
-            f' - identified {len(multi_type_strains_sp):,} NCBI species with multiple assemblies indicated as being type strain genomes')
+            f' - identified {len(multi_type_strains_sp):,} species with multiple assemblies indicated as being type strain genomes')
 
         # resolve species with multiple type strain genomes
         fout = open(os.path.join(self.output_dir,
                                  'multi_type_strain_species.tsv'), 'w')
         fout.write(
-            'NCBI species\tNo. type strain genomes\t>=99% ANI\tMean ANI\tStd ANI\tMean AF\tStd AF\tResolution\tGenome IDs\n')
+            'NCBI species\tNo. type strain genomes\t>=99% ANI\tMean ANI\tStd ANI\tMean AF\tStd AF\tResolution\tGenome IDs\tReference sources used\n')
 
         fout_genomes = open(os.path.join(
             self.output_dir, 'type_strain_genomes.tsv'), 'w')
         fout_genomes.write(
             'Genome ID\tUntrustworthy\tNCBI species\tGTDB genus\tGTDB species\tLTP species\tConflict with prior GTDB assignment')
         fout_genomes.write(
-            '\tMean ANI\tStd ANI\tMean AF\tStd AF\tExclude from RefSeq\tNCBI taxonomy\tGTDB taxonomy\tReason for GTDB untrustworthy as type\n')
+            '\tMean ANI\tStd ANI\tMean AF\tStd AF\tExclude from RefSeq\tNCBI taxonomy\tGTDB taxonomy\tReason for GTDB untrustworthy as type'
+            + Genome.REF_TAXA_HEADER + '\n')
 
         fout_unresolved = open(os.path.join(
             self.output_dir, 'unresolved_type_strain_genomes.tsv'), 'w')
         fout_unresolved.write(
             'Genome ID\tNCBI species\tGTDB genus\tGTDB species\tLTP species')
         fout_unresolved.write(
-            '\tMean ANI\tStd ANI\tMean AF\tStd AF\tExclude from RefSeq\tNCBI taxonomy\tGTDB taxonomy\n')
+            '\tMean ANI\tStd ANI\tMean AF\tStd AF\tExclude from RefSeq\tNCBI taxonomy\tGTDB taxonomy' + Genome.REF_TAXA_HEADER + '\n')
 
         fout_high_divergence = open(os.path.join(
             self.output_dir, 'highly_divergent_type_strain_genomes.tsv'), 'w')
         fout_high_divergence.write(
-            'Genome ID\tNCBI species\tGTDB genus\tGTDB species\tLTP species\tMean ANI\tStd ANI\tMean AF\tStd AF\tExclude from RefSeq\tNCBI taxonomy\tGTDB taxonomy\n')
+            'Genome ID\tNCBI species\tGTDB genus\tGTDB species\tLTP species\tMean ANI\tStd ANI\tMean AF\tStd AF\tExclude from RefSeq\tNCBI taxonomy\tGTDB taxonomy'
+            + Genome.REF_TAXA_HEADER + '\n')
 
         fout_untrustworthy = open(os.path.join(
             self.output_dir, 'untrustworthy_type_material.tsv'), 'w')
         fout_untrustworthy.write(
-            'Genome ID\tNCBI species\tGTDB species\tLTP species\tReason for declaring untrustworthy\n')
+            'Genome ID\tNCBI species\tGTDB species\tLTP species\tReason for declaring untrustworthy' + Genome.REF_TAXA_HEADER + '\n')
 
         fout_ltp = open(os.path.join(self.output_dir, 'ltp_blast_results.tsv'), 'w')
         fout_ltp.write('Genome ID\tNCBI species\tGTDB species\tLTP species\tAccession')
-        fout_ltp.write('\tPercent Identity\tPercent Alignment\tLength\tAlignment length\tE-value\tBitscore\tLTP taxonomy\n')
+        fout_ltp.write('\tPercent Identity\tPercent Alignment\tLength\tAlignment length\tE-value\tBitscore\tLTP taxonomy' + Genome.REF_TAXA_HEADER + '\n')
 
         for gid in manual_untrustworthy_types:
             ncbi_sp, reason = manual_untrustworthy_types[gid]
-            fout_untrustworthy.write('{}\t{}\t{}\t{}\t{}\t{}\n'.format(
+            fout_untrustworthy.write('{}\t{}\t{}\t{}\t{}\t{}\t{}\n'.format(
                 gid,
                 ncbi_sp,
                 cur_genomes[gid].gtdb_taxa.species,
                 '<not tested>',
                 'n/a',
-                'Manual curation: ' + reason))
+                'Manual curation: ' + reason,
+                cur_genomes[gid].ref_taxa_columns()))
 
         processed = 0
         num_divergent = 0
@@ -917,7 +922,7 @@ class ResolveTypes():
 
             for gid, hits in ltp_metadata.items():
                 for hit in hits:
-                    fout_ltp.write('{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\n'.format(
+                    fout_ltp.write('{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\n'.format(
                         gid,
                         cur_genomes[gid].gtdb_taxa.species,
                         ncbi_sp,
@@ -929,7 +934,8 @@ class ResolveTypes():
                         hit.aln_len,
                         hit.evalue,
                         hit.bitscore,
-                        hit.taxonomy
+                        hit.taxonomy,
+                        cur_genomes[gid].ref_taxa_columns()
                     ))
 
             untrustworthy_gids = {}
@@ -948,7 +954,7 @@ class ResolveTypes():
                     for gid in type_gids:
                         ltp_species = self.ltp_species(gid, ltp_metadata)
 
-                        fout_high_divergence.write('{}\t{}\t{}\t{}\t{}\t{:.2f}\t{:.3f}\t{:.3f}\t{:.4f}\t{}\t{}\t{}\n'.format(
+                        fout_high_divergence.write('{}\t{}\t{}\t{}\t{}\t{:.2f}\t{:.3f}\t{:.3f}\t{:.4f}\t{}\t{}\t{}\t{}\n'.format(
                             gid,
                             ncbi_sp,
                             cur_genomes[gid].gtdb_taxa.genus,
@@ -964,7 +970,8 @@ class ResolveTypes():
                                 list(gid_afs[gid].values())),
                             cur_genomes[gid].excluded_from_refseq_note,
                             cur_genomes[gid].ncbi_taxa,
-                            cur_genomes[gid].gtdb_taxa))
+                            cur_genomes[gid].gtdb_taxa,
+                            cur_genomes[gid].ref_taxa_columns()))
 
                 # genomes in the GTDB type strains ledger define the type strain of the species
                 resolved = False
@@ -1035,7 +1042,7 @@ class ResolveTypes():
                     resolved, untrustworthy_gids = self.resolve_by_ncbi_types(
                         gid_anis, type_gids, cur_genomes)
                     if resolved:
-                        note = 'Species resolved by consulting NCBI assembled from type metadata'
+                        note = 'Species resolved by consulting NCBI assembled from type and SeqCode type genome metadata'
                         ncbi_type_resolved += 1
 
                 # try to resovle by considering genomes annotated as representative genomes at NCBI
@@ -1079,7 +1086,7 @@ class ResolveTypes():
                     for gid in type_gids:
                         ltp_species = self.ltp_species(gid, ltp_metadata)
 
-                        fout_unresolved.write('{}\t{}\t{}\t{}\t{}\t{:.2f}\t{:.3f}\t{:.3f}\t{:.4f}\t{}\t{}\t{}\n'.format(
+                        fout_unresolved.write('{}\t{}\t{}\t{}\t{}\t{:.2f}\t{:.3f}\t{:.3f}\t{:.4f}\t{}\t{}\t{}\t{}\n'.format(
                             gid,
                             ncbi_sp,
                             cur_genomes[gid].gtdb_taxa.genus,
@@ -1091,7 +1098,8 @@ class ResolveTypes():
                             np_std(list(gid_afs[gid].values())),
                             cur_genomes[gid].excluded_from_refseq_note,
                             cur_genomes[gid].ncbi_taxa,
-                            cur_genomes[gid].gtdb_taxa))
+                            cur_genomes[gid].gtdb_taxa,
+                            cur_genomes[gid].ref_taxa_columns()))
 
             # remove genomes marked as untrustworthy as type at NCBI if one or more potential type strain genomes remaining
             # (genomes in the GTDB type strains ledger are never considered untrustworthy)
@@ -1122,12 +1130,13 @@ class ResolveTypes():
 
                 if cur_genomes[gid].is_ncbi_untrustworthy_as_type():
                     reason += "; considered `untrustworthy as type` or `not used as type` at NCBI"
-                fout_untrustworthy.write('{}\t{}\t{}\t{}\t{}\n'.format(gid,
-                                                                       ncbi_sp,
-                                                                       cur_genomes[gid].gtdb_taxa.species,
-                                                                       ' / '.join(
-                                                                           ltp_species),
-                                                                       reason))
+                fout_untrustworthy.write('{}\t{}\t{}\t{}\t{}\t{}\n'.format(gid,
+                                                                           ncbi_sp,
+                                                                           cur_genomes[gid].gtdb_taxa.species,
+                                                                           ' / '.join(
+                                                                               ltp_species),
+                                                                           reason,
+                                                                           cur_genomes[gid].ref_taxa_columns()))
 
                 # Sanity check that if the untrustworthy genome has an LTP to only the
                 # expected species, that all retained genomes also have a hit to the
@@ -1149,7 +1158,7 @@ class ResolveTypes():
             for gid in type_gids:
                 ltp_species = self.ltp_species(gid, ltp_metadata)
 
-                fout_genomes.write('{}\t{}\t{}\t{}\t{}\t{}\t{}\t{:.2f}\t{:.3f}\t{:.3f}\t{:.4f}\t{}\t{}\t{}\t{}\n'.format(
+                fout_genomes.write('{}\t{}\t{}\t{}\t{}\t{}\t{}\t{:.2f}\t{:.3f}\t{:.3f}\t{:.4f}\t{}\t{}\t{}\t{}\t{}\n'.format(
                     gid,
                     gid in untrustworthy_gids,
                     ncbi_sp,
@@ -1164,9 +1173,10 @@ class ResolveTypes():
                     cur_genomes[gid].excluded_from_refseq_note,
                     cur_genomes[gid].ncbi_taxa,
                     cur_genomes[gid].gtdb_taxa,
-                    untrustworthy_gids.get(gid, '')))
+                    untrustworthy_gids.get(gid, ''),
+                    cur_genomes[gid].ref_taxa_columns()))
 
-            fout.write('{}\t{}\t{}\t{:.2f}\t{:.3f}\t{:.3f}\t{:.4f}\t{}\t{}\n'.format(
+            fout.write('{}\t{}\t{}\t{:.2f}\t{:.3f}\t{:.3f}\t{:.4f}\t{}\t{}\t{}\n'.format(
                 ncbi_sp,
                 len(type_gids),
                 all_similar,
@@ -1175,7 +1185,8 @@ class ResolveTypes():
                 np_mean(afs),
                 np_std(afs),
                 note,
-                ', '.join(type_gids)))
+                ', '.join(type_gids),
+                ', '.join(sorted({cur_genomes[gid].ref_taxa_source for gid in type_gids}))))
 
         sys.stdout.write('\n')
         fout.close()
