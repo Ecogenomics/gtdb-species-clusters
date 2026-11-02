@@ -1,3 +1,6 @@
+0.9.4
+- u_rep_changes compares the reference (SeqCode or NCBI) species of previous representatives between releases, so a representative whose SeqCode name is unchanged is not reported as reassigned when its NCBI species changes; rep_change_summary.tsv gains SeqCode species, SeqCode genus and reference source columns
+
 0.9.3
 - u_resolve_types groups type strain genomes by the species they are type material of (GTDB type strains ledger, then SeqCode, then NCBI), so SeqCode type genomes are checked for conflicting type material; a genome that is the type genome of a SeqCode species counts as type material at its source; tables gain SeqCode species, SeqCode genus and reference source columns
 - A GTDB type strains ledger entry is only reported as redundant when it also leaves the GTDB species unchanged
