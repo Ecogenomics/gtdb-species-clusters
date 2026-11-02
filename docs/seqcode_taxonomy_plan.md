@@ -1,6 +1,6 @@
 # SeqCode taxonomy support: implementation plan
 
-Status: plan agreed 2026-11-03; PRs 1-6 merged (0.9.5); PR 7 pending the user's run of u_rep_actions. Tick the PR checklist at the end as work lands.
+Status: plan agreed 2026-11-03; PRs 1-7 merged (0.9.7); PR 8 in progress. Tick the PR checklist at the end as work lands.
 Baselines for verification: the pre-SeqCode R237 step outputs are in `sp_cluster_update/deprecated/<N>_<step>/`.
 
 ## 1. Problem
@@ -340,7 +340,7 @@ SeqCode rows.
 - [x] PR 4: `u_resolve_types` (0.9.3)
 - [x] PR 5: `u_rep_changes` (0.9.4)
 - [x] PR 6: `u_rep_actions` (0.9.5; `year_of_priority`, `species_priority_manager`)
-- [ ] PR 7: `u_sel_reps`
+- [x] PR 7: `u_sel_reps` (0.9.7)
 - [ ] PR 8: `u_cluster_named_reps`, `u_cluster_de_novo`, `u_cluster_stats`
 - [ ] PR 9: `u_ncbi_erroneous`
 - [ ] PR 10: `u_synonyms`

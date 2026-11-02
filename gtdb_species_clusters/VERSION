@@ -1,3 +1,6 @@
+0.9.8
+- u_cluster_named_reps, u_cluster_de_novo and u_cluster_stats report the reference (SeqCode or NCBI) species of representatives: cluster and ANI radius tables gain SeqCode species, SeqCode genus and reference source columns, and the E. coli/Shigella type strain check uses the reference species
+
 0.9.7
 - u_sel_reps identifies named species and their type material by the reference (SeqCode or NCBI) species of genomes, so SeqCode species without an NCBI name get a representative selected under their SeqCode name; names validly published under the SeqCode count as valid names when resolving close ANI neighbours; tables gain SeqCode species, SeqCode genus and reference source columns
 

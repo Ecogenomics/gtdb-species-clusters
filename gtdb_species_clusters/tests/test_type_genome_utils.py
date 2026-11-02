@@ -7,9 +7,10 @@ from gtdb_species_clusters.type_genome_utils import ClusteredGenome, check_ecoli
 
 
 def stub_genomes(genome_info):
-    """Create genomes with an NCBI species and type strain status."""
+    """Create genomes with a reference (NCBI) species and type strain status."""
 
     return {gid: SimpleNamespace(ncbi_taxa=SimpleNamespace(species=species),
+                                 ref_taxa=SimpleNamespace(species=species),
                                  is_effective_type_strain=lambda is_type=is_type: is_type)
             for gid, (species, is_type) in genome_info.items()}
 
