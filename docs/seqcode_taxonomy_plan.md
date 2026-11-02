@@ -1,6 +1,6 @@
 # SeqCode taxonomy support: implementation plan
 
-Status: plan agreed 2026-11-03; PRs 1-5 merged (0.9.4); PR 6 in progress. Tick the PR checklist at the end as work lands.
+Status: plan agreed 2026-11-03; PRs 1-6 merged (0.9.5); PR 7 pending the user's run of u_rep_actions. Tick the PR checklist at the end as work lands.
 Baselines for verification: the pre-SeqCode R237 step outputs are in `sp_cluster_update/deprecated/<N>_<step>/`.
 
 ## 1. Problem
@@ -150,8 +150,9 @@ Conventions for every step PR:
   (`read_clusters`, `parse_synonyms_table`, `load_from_metadata_file` for `qc_passed.tsv`) are unaffected; grep
   the readers of any file whose columns change before changing it.
 - Bump `VERSION`; PR body states the step, the behaviour change and the verification done.
-- Verification = re-run the step on R237 into a scratch output dir and diff against the existing step output;
-  every difference must be explained by the behaviour change listed below.
+- Verification = the step is run on R237 and its output diffed against the `deprecated/` baseline; every difference
+  must be explained by the behaviour change listed below. From PR 8 on the user runs the step after the PR is
+  merged and the comparison is done on that output (decided 2026-11-03).
 
 ### Step 1: `u_new_genomes` (no PR)
 
@@ -338,7 +339,7 @@ SeqCode rows.
 - [x] PR 3: `u_lpsn_rna_types` (0.9.2)
 - [x] PR 4: `u_resolve_types` (0.9.3)
 - [x] PR 5: `u_rep_changes` (0.9.4)
-- [ ] PR 6: `u_rep_actions` (+ `year_of_priority` switch, `species_priority_manager`)
+- [x] PR 6: `u_rep_actions` (0.9.5; `year_of_priority`, `species_priority_manager`)
 - [ ] PR 7: `u_sel_reps`
 - [ ] PR 8: `u_cluster_named_reps`, `u_cluster_de_novo`, `u_cluster_stats`
 - [ ] PR 9: `u_ncbi_erroneous`

@@ -28,6 +28,7 @@ from numpy import (mean as np_mean,
 from gtdblib.util.shell.execute import check_dependencies
 
 from gtdb_species_clusters.skani import Skani
+from gtdb_species_clusters.genome import Genome
 from gtdb_species_clusters.genomes import Genomes
 from gtdb_species_clusters.species_clusters import SpeciesClusters
 from gtdb_species_clusters.genome_utils import select_highest_quality
@@ -137,8 +138,9 @@ class UpdateSelectRepresentatives():
                                    ncbi_reps):
         """Produce files indicating potentially missing type material."""
 
-        # determine all binomial NCBI species names
-        ncbi_species = cur_genomes.named_ncbi_species()
+        # determine all binomial species names (reference species of genomes, i.e.
+        # SeqCode or NCBI), reported under the historical 'NCBI species' heading
+        ncbi_species = cur_genomes.named_ref_species()
 
         # identify species without a type strain
         fout = open(os.path.join(self.output_dir,
@@ -212,7 +214,7 @@ class UpdateSelectRepresentatives():
         fout.close()
 
         self.log.info(
-            'Identified {:,} NCBI species.'.format(len(ncbi_species)))
+            'Identified {:,} named SeqCode or NCBI species.'.format(len(ncbi_species)))
         self.log.info('Identified {:,} species without a type strain of species, type strain of subspecies, or representative genome.'.format(
             missing_type_strain))
         self.log.info('Identified {:,} species without a GTDB designated type strain of species that have genome(s) designated as assembled from type material at NCBI.'.format(
@@ -238,7 +240,8 @@ class UpdateSelectRepresentatives():
         fout.write('NCBI species\tRepresentative\tStrain IDs\tType status\tType sources\tNCBI assembly types\tNCBI representative\tNCBI assembly level')
         fout.write('\tNCBI genome category\tGenome size (bp)\tQuality score\tCM1 completeness (%)\tCM1 contamination (%)\tNo. scaffolds\tNo. contigs\tN50 contigs\tAmbiguous bases\tSSU count\tSSU length (bp)')
         fout.write(
-            '\tNo. type genomes\tNo. species genomes\tMean ANI\tMean AF\tMin ANI\tMin AF\tNCBI exclude from RefSeq\tSelection note\n')
+            '\tNo. type genomes\tNo. species genomes\tMean ANI\tMean AF\tMin ANI\tMin AF\tNCBI exclude from RefSeq\tSelection note'
+            + Genome.REF_TAXA_HEADER + '\n')
 
         fout_manual = open(os.path.join(
             self.output_dir, 'gtdb_rep_genomes.manual.tsv'), 'w')
@@ -247,7 +250,8 @@ class UpdateSelectRepresentatives():
         fout_manual.write(
             '\tNCBI genome category\tGenome size (bp)\tQuality score\tCM1 completeness (%)\tCM1 contamination (%)\tNo. scaffolds\tNo. contigs\tN50 contigs\tAmbiguous bases\tSSU count\tSSU length (bp)')
         fout_manual.write(
-            '\tNo. type genomes\tNo. species genomes\tMean ANI\tMean AF\tMin ANI\tMin AF\tNCBI exclude from RefSeq\tType accessions\tSpecies accessions\n')
+            '\tNo. type genomes\tNo. species genomes\tMean ANI\tMean AF\tMin ANI\tMin AF\tNCBI exclude from RefSeq\tType accessions\tSpecies accessions'
+            + Genome.REF_TAXA_HEADER + '\n')
 
         num_type_strain_of_species = 0
         num_type_strain_of_subspecies = 0
@@ -265,7 +269,7 @@ class UpdateSelectRepresentatives():
         rep_genomes = {}
         multi_gids = 0
 
-        ncbi_species = cur_genomes.named_ncbi_species()
+        ncbi_species = cur_genomes.named_ref_species()
         for idx, ncbi_sp in enumerate(unrepresented_ncbi_sp):
             species_gids = ncbi_species[ncbi_sp]
 
@@ -528,14 +532,15 @@ class UpdateSelectRepresentatives():
                                 cur_genomes[cur_gid].ssu_count,
                                 cur_genomes[cur_gid].ssu_length))
 
-                            fout_manual.write('\t%d\t%d\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' % (
+                            fout_manual.write('\t%d\t%d\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' % (
                                 len(gids),
                                 len(species_gids),
                                 mean_ani, mean_af,
                                 min_ani, min_af,
                                 cur_genomes[cur_gid].excluded_from_refseq_note,
                                 ','.join(gids),
-                                ','.join(species_gids)))
+                                ','.join(species_gids),
+                                cur_genomes[cur_gid].ref_taxa_columns()))
 
         # report selection
         type_sources, strain_ids = self.type_sources(cur_genomes, [rep_gid])
@@ -565,12 +570,13 @@ class UpdateSelectRepresentatives():
             cur_genomes[rep_gid].ssu_count,
             cur_genomes[rep_gid].ssu_length))
 
-        fout.write('\t%d\t%d\t%s\t%s\t%s\t%s\t%s\t%s\n' % (len(gids),
-                                                           len(species_gids),
-                                                           mean_ani, mean_af,
-                                                           min_ani, min_af,
-                                                           cur_genomes[rep_gid].excluded_from_refseq_note,
-                                                           note))
+        fout.write('\t%d\t%d\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' % (len(gids),
+                                                               len(species_gids),
+                                                               mean_ani, mean_af,
+                                                               min_ani, min_af,
+                                                               cur_genomes[rep_gid].excluded_from_refseq_note,
+                                                               note,
+                                                               cur_genomes[rep_gid].ref_taxa_columns()))
 
         return rep_gid, require_manual_inspection
 
@@ -611,9 +617,10 @@ class UpdateSelectRepresentatives():
                                  'gtdb_rep_pairwise_ani.tsv'), 'w')
         fout.write(
             'NCBI species 1\tRepresentative 1\tNCBI species 2\tRepresentative 2\tANI\tAF12\tAF21\n')
-        
+
         fout_n = open(os.path.join(self.output_dir, 'ani_neighbour_table.init.tsv'), 'w')
-        fout_n.write('Genome ID 1\tGTDB species\tNCBI species\tGenome ID 2\tGTDB species\tNCBI species\tANI\tAF\n')
+        fout_n.write('Genome ID 1\tGTDB species\tNCBI species\tGenome ID 2\tGTDB species\tNCBI species\tANI\tAF'
+                     + Genome.REF_TAXA_HEADER.replace('\t', '\tGenome 1 ') + Genome.REF_TAXA_HEADER.replace('\t', '\tGenome 2 ') + '\n')
 
         for gid1 in ani_af:
             for gid2 in ani_af.get(gid1, []):
@@ -668,7 +675,7 @@ class UpdateSelectRepresentatives():
                     ani_neighbours[gid1].add(gid2)
                     ani_neighbours[gid2].add(gid1)
 
-                    fout_n.write('{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\n'.format(
+                    fout_n.write('{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\n'.format(
                         gid1,
                         cur_genomes[gid1].gtdb_taxa.species,
                         cur_genomes[gid1].ncbi_taxa.species,
@@ -676,7 +683,9 @@ class UpdateSelectRepresentatives():
                         cur_genomes[gid2].gtdb_taxa.species,
                         cur_genomes[gid2].ncbi_taxa.species,
                         ani,
-                        af
+                        af,
+                        cur_genomes[gid1].ref_taxa_columns(),
+                        cur_genomes[gid2].ref_taxa_columns()
                     ))
 
         fout.close()
@@ -696,7 +705,8 @@ class UpdateSelectRepresentatives():
                                      ncbi_reps,
                                      sp_priority_ledger,
                                      genus_priority_ledger,
-                                     lpsn_gss_file):
+                                     lpsn_gss_file,
+                                     seqcode_file):
         """Resolve representatives that have ANI neighbours deemed to be too close."""
 
         self.log.info('Resolving {:,} representatives with neighbours within a {:.1f}% ANI radius and >= {:.1f}% AF.'.format(
@@ -713,7 +723,7 @@ class UpdateSelectRepresentatives():
         type_status = defaultdict(lambda: [])
         gid_type_status = {}
         for gid in ani_neighbours:
-            sp = cur_genomes[gid].ncbi_taxa.species
+            sp = cur_genomes[gid].ref_taxa.species
 
             if gid in gtdb_type_sp[sp]:
                 type_status['TS'].append(gid)
@@ -755,7 +765,8 @@ class UpdateSelectRepresentatives():
                 sp_priority_mngr = SpeciesPriorityManager(sp_priority_ledger,
                                                           genus_priority_ledger,
                                                           lpsn_gss_file,
-                                                          self.output_dir)
+                                                          self.output_dir,
+                                                          seqcode_file=seqcode_file)
                 sorted_gids = sp_priority_mngr.sort_by_sp_priority(cur_genomes,
                                                                    type_status[cur_type_status],
                                                                    reverse=True)
@@ -794,11 +805,12 @@ class UpdateSelectRepresentatives():
         fout.write(
             'Species\tRepresentative\tStatus\tGenome quality')
         fout.write(
-            '\tPriority year\tNo. ANI neighbours\tNeighbour species\tNeighbour status\tNeighbour priority years\tNeighbour accessions\n')
+            '\tPriority year\tNo. ANI neighbours\tNeighbour species\tNeighbour status\tNeighbour priority years\tNeighbour accessions'
+            + Genome.REF_TAXA_HEADER + '\n')
 
         for gid in final_excluded_gids:
-            sp = cur_genomes[gid].ncbi_taxa.species
-            fout.write('{}\t{}\t{}\t{:.1f}\t{}\t{}\t{}\t{}\t{}\t{}\n'.format(
+            sp = cur_genomes[gid].ref_taxa.species
+            fout.write('{}\t{}\t{}\t{:.1f}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\n'.format(
                 sp,
                 gid,
                 gid_type_status[gid],
@@ -806,11 +818,12 @@ class UpdateSelectRepresentatives():
                 str(cur_genomes[gid].year_of_priority()),
                 len(ani_neighbours[gid]),
                 ', '.join(
-                    [cur_genomes[gid].ncbi_taxa.species for gid in ani_neighbours[gid]]),
-                ', '.join([gid_type_status[gid] for gid in ani_neighbours[gid]]),
-                ', '.join([str(cur_genomes[gid].year_of_priority())
-                           for gid in ani_neighbours[gid]]),
-                ', '.join([gid for gid in ani_neighbours[gid]])))
+                    [cur_genomes[n_gid].ref_taxa.species for n_gid in ani_neighbours[gid]]),
+                ', '.join([gid_type_status[n_gid] for n_gid in ani_neighbours[gid]]),
+                ', '.join([str(cur_genomes[n_gid].year_of_priority())
+                           for n_gid in ani_neighbours[gid]]),
+                ', '.join([n_gid for n_gid in ani_neighbours[gid]]),
+                cur_genomes[gid].ref_taxa_columns()))
 
         fout.close()
 
@@ -838,7 +851,7 @@ class UpdateSelectRepresentatives():
         fout = open(out_file, 'w')
         fout.write('Representative\tProposed species\tNCBI species\tGTDB species\tStrain IDs\tGTDB type designation\tType sources\tNCBI type strain\tNCBI representative\tNCBI assembly level')
         fout.write('\tNCBI genome category\tGenome size (bp)\tQuality score\tCM1 completeness (%)\tCM1 contamination (%)\tNo. scaffolds\tNo. contigs\tN50 contigs\tAmbiguous bases\tSSU count\tSSU length (bp)')
-        fout.write('\tNCBI exclude from RefSeq\n')
+        fout.write('\tNCBI exclude from RefSeq' + Genome.REF_TAXA_HEADER + '\n')
 
         num_reps = 0
         for rid, proposed_species in all_rep_genomes.items():
@@ -860,7 +873,7 @@ class UpdateSelectRepresentatives():
                 cur_genomes[rid].is_ncbi_representative(),
                 cur_genomes[rid].ncbi_assembly_level))
 
-            fout.write('\t{}\t{}\t{:.2f}\t{:.2f}\t{:.2f}\t{}\t{}\t{:.1f}\t{}\t{}\t{}\t{}\n'.format(
+            fout.write('\t{}\t{}\t{:.2f}\t{:.2f}\t{:.2f}\t{}\t{}\t{:.1f}\t{}\t{}\t{}\t{}\t{}\n'.format(
                 cur_genomes[rid].ncbi_genome_category,
                 cur_genomes[rid].length,
                 cur_genomes[rid].score_assembly(),
@@ -872,7 +885,8 @@ class UpdateSelectRepresentatives():
                 cur_genomes[rid].ambiguous_bases,
                 cur_genomes[rid].ssu_count,
                 cur_genomes[rid].ssu_length,
-                cur_genomes[rid].excluded_from_refseq_note))
+                cur_genomes[rid].excluded_from_refseq_note,
+                cur_genomes[rid].ref_taxa_columns()))
 
         fout.close()
 
@@ -892,7 +906,8 @@ class UpdateSelectRepresentatives():
         fout = open(out_file, 'w')
         fout.write('NCBI species\tGTDB species\tRepresentative\tStrain IDs\tRepresentative type sources\tPriority year\tGTDB type species\tGTDB type strain\tNCBI assembly type')
         fout.write('\tNCBI synonym\tGTDB synonym\tSynonym genome\tSynonym strain IDs\tSynonym type sources\tPriority year\tSynonym GTDB type species\tSynonym GTDB type strain\tSynonym NCBI assembly type')
-        fout.write('\tANI\tAF\tAction\n')
+        fout.write('\tANI\tAF\tAction')
+        fout.write(Genome.REF_TAXA_HEADER + Genome.REF_TAXA_HEADER.replace('\t', '\tSynonym ').replace('Synonym Reference', 'Synonym reference') + '\n')
 
         # find closest neighbour for each excluded genome ID and
         # report this as a synonym
@@ -941,19 +956,22 @@ class UpdateSelectRepresentatives():
             else:
                 action = 'ANI_NEIGHBOURS:MERGED:NEW_AND_PREVIOUS_REPRESENTATIVES'
 
-            fout.write('\t{}\n'.format(action))
+            fout.write('\t{}\t{}\t{}\n'.format(action,
+                                               cur_genomes[closest_gid].ref_taxa_columns(),
+                                               cur_genomes[ex_gid].ref_taxa_columns()))
 
     def unrepresented_ncbi_sp(self, updated_sp_clusters, cur_genomes):
         """Determining NCBI species unrepresented by GTDB species clusters."""
 
-        ncbi_species = cur_genomes.named_ncbi_species()
-        type_strain_genomes = cur_genomes.get_ncbi_type_strain_genomes()
+        # species are the reference (SeqCode or NCBI) species of genomes
+        ncbi_species = cur_genomes.named_ref_species()
+        type_strain_genomes = cur_genomes.get_ref_type_strain_genomes()
         ncbi_sp_with_type_strains = len(
             set(ncbi_species).intersection(type_strain_genomes))
         self.log.info(
-            f' - identified {len(ncbi_species):,} named NCBI species')
+            f' - identified {len(ncbi_species):,} named SeqCode or NCBI species')
         self.log.info(
-            f' - identified {ncbi_sp_with_type_strains:,} named NCBI species with type strain genomes')
+            f' - identified {ncbi_sp_with_type_strains:,} named SeqCode or NCBI species with type strain genomes')
 
         # count number of genomes assigned to each named NCBI species
         # and number of these genomes already in GTDB species clusters
@@ -964,7 +982,7 @@ class UpdateSelectRepresentatives():
             if cur_genomes[gid].ncbi_untrustworthy_sp:
                 continue
 
-            ncbi_sp = cur_genomes[gid].ncbi_taxa.species
+            ncbi_sp = cur_genomes[gid].ref_taxa.species
             sp_genome_count[ncbi_sp] += 1
             sp_gids[ncbi_sp].add(gid)
 
@@ -1066,7 +1084,7 @@ class UpdateSelectRepresentatives():
 
         # determine new NCBI species requiring a GTDB representative to be selected
         self.log.info(
-            'Determining NCBI species unrepresented by GTDB species clusters:')
+            'Determining named SeqCode or NCBI species unrepresented by GTDB species clusters:')
         unrepresented_ncbi_sp = self.unrepresented_ncbi_sp(
             updated_sp_clusters, cur_genomes)
 
@@ -1080,7 +1098,8 @@ class UpdateSelectRepresentatives():
         ncbi_type_subsp = defaultdict(set)
         ncbi_reps = defaultdict(set)
         for gid in cur_genomes:
-            ncbi_sp = cur_genomes[gid].ncbi_taxa.species
+            # type material is tabulated by the reference (SeqCode or NCBI) species of genomes
+            ncbi_sp = cur_genomes[gid].ref_taxa.species
             if cur_genomes[gid].gtdb_type_species_of_genus:
                 gtdb_type_genus[ncbi_sp].add(gid)
 
@@ -1160,7 +1179,7 @@ class UpdateSelectRepresentatives():
                                         ncbi_reps)
 
         # select representative for new named NCBI species
-        self.log.info('Selecting representative for each of the {:,} unrepresentative named NCBI species:'.format(
+        self.log.info('Selecting representative for each of the {:,} unrepresented named SeqCode or NCBI species:'.format(
             len(unrepresented_ncbi_sp)))
 
         if True:  # ***
@@ -1227,7 +1246,8 @@ class UpdateSelectRepresentatives():
                                                           ncbi_reps,
                                                           sp_priority_ledger,
                                                           genus_priority_ledger,
-                                                          lpsn_gss_file)
+                                                          lpsn_gss_file,
+                                                          seqcode_file)
 
         self.write_final_reps(cur_genomes,
                               all_rep_genomes,
