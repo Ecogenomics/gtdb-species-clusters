@@ -25,6 +25,7 @@ import sqlite3
 import time
 import datetime
 import multiprocessing as mp
+import signal
 from itertools import combinations
 from collections import defaultdict
 from typing import Dict
@@ -36,6 +37,18 @@ from gtdblib.util.bio.accession import canonical_gid
 class ANIError(Exception):
     """Exception for failed execution of ANI/AF."""
     pass
+
+
+def _ignore_sigint():
+    """Make a pool worker ignore Ctrl-C so only the main process handles it.
+
+    Workers that receive SIGINT while holding one of the pool's internal locks
+    can leave the other workers blocked forever after the main process exits,
+    which leaves orphaned workers (and their open files) behind. The main
+    process terminates the pool when it is interrupted (see Skani.pairs).
+    """
+
+    signal.signal(signal.SIGINT, signal.SIG_IGN)
 
 
 def skani(qid: str, rid: str, q_gf: str, r_gf: str, preset: str):
@@ -144,7 +157,7 @@ class Skani():
             self.ani_af_cache = self._read_cache()
             self.log.info(' - done')
 
-        self.pool = mp.Pool(self.cpus)
+        self.pool = mp.Pool(self.cpus, initializer=_ignore_sigint)
 
         self.log.info('Using skani v{}.'.format(self.get_version()))
 
@@ -152,11 +165,17 @@ class Skani():
         """Destructor."""
 
         self._write_cache()
-        
+
         if self.db_conn is not None:
             self.db_conn.close()
 
-        self.pool.close()
+        self.stop_pool()
+
+    def stop_pool(self):
+        """Stop the processing pool, killing any workers still running."""
+
+        self.pool.terminate()
+        self.pool.join()
 
     def get_version(self):
         """Returns the version of skani on the system path.
@@ -590,40 +609,46 @@ class Skani():
         db_ani_af = []
         processed_pairs = 0
         start_time = time.time()
-        for qid, rid, ani, af_r, af_q in self.pool.imap_unordered(skani_worker, items, chunksize=1):
-            ani_af[qid][rid] = (ani, af_r, af_q)
+        try:
+            for qid, rid, ani, af_r, af_q in self.pool.imap_unordered(skani_worker, items, chunksize=1):
+                ani_af[qid][rid] = (ani, af_r, af_q)
 
-            # since skani is symmetric add ANI / AF results to cache in both
-            # directions to avoid unnecessary calculation in the future
-            self.ani_af_cache[qid][rid] = (ani, af_r, af_q)
-            self.ani_af_cache[rid][qid] = (ani, af_q, af_r)
+                # since skani is symmetric add ANI / AF results to cache in both
+                # directions to avoid unnecessary calculation in the future
+                self.ani_af_cache[qid][rid] = (ani, af_r, af_q)
+                self.ani_af_cache[rid][qid] = (ani, af_q, af_r)
 
-            if self.db_conn:
-                # place results into database in batches to keep the number of transactions sensible
-                db_ani_af.append((qid, rid, ani, af_r, af_q))
-                db_ani_af.append((rid, qid, ani, af_q, af_r))
-                if len(db_ani_af) == self.DB_BATCH_SIZE:
-                    self.db_cur.executemany('INSERT INTO ani_table (query_id, ref_id, ani, af_r, af_q) VALUES (?, ?, ?, ?, ?)',
-                                            db_ani_af)
-                    self.db_conn.commit()
-                    db_ani_af = []
+                if self.db_conn:
+                    # place results into database in batches to keep the number of transactions sensible
+                    db_ani_af.append((qid, rid, ani, af_r, af_q))
+                    db_ani_af.append((rid, qid, ani, af_q, af_r))
+                    if len(db_ani_af) == self.DB_BATCH_SIZE:
+                        self.db_cur.executemany('INSERT INTO ani_table (query_id, ref_id, ani, af_r, af_q) VALUES (?, ?, ?, ?, ?)',
+                                                db_ani_af)
+                        self.db_conn.commit()
+                        db_ani_af = []
 
-            if report_progress:
-                processed_pairs += 1
-                elapsed_time = time.time() - start_time
-                remaining_time = (elapsed_time/processed_pairs) * \
-                    float(len(items) - processed_pairs)
+                if report_progress:
+                    processed_pairs += 1
+                    elapsed_time = time.time() - start_time
+                    remaining_time = (elapsed_time/processed_pairs) * \
+                        float(len(items) - processed_pairs)
 
-                status = '- processing {:,} of {:,} ({:.2f}%) genome pairs [elapsed: {}, remaining: {}; pairs/min: {:,}]'.format(
-                    processed_pairs,
-                    len(items),
-                    float(processed_pairs*100)/len(items),
-                    str(datetime.timedelta(seconds=round(elapsed_time))),
-                    datetime.timedelta(seconds=round(remaining_time)),
-                    int(processed_pairs/(elapsed_time/60.0)))
-                sys.stdout.write('\r\033[K')  # clear line
-                sys.stdout.write(f'{status}')
-                sys.stdout.flush()
+                    status = '- processing {:,} of {:,} ({:.2f}%) genome pairs [elapsed: {}, remaining: {}; pairs/min: {:,}]'.format(
+                        processed_pairs,
+                        len(items),
+                        float(processed_pairs*100)/len(items),
+                        str(datetime.timedelta(seconds=round(elapsed_time))),
+                        datetime.timedelta(seconds=round(remaining_time)),
+                        int(processed_pairs/(elapsed_time/60.0)))
+                    sys.stdout.write('\r\033[K')  # clear line
+                    sys.stdout.write(f'{status}')
+                    sys.stdout.flush()
+        except BaseException:
+            # stop the workers if processing is interrupted (e.g., Ctrl-C) or fails,
+            # since otherwise they can be left running after this process exits
+            self.stop_pool()
+            raise
 
         if report_progress:
             sys.stdout.write('\n')
