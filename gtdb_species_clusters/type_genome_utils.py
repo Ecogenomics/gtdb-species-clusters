@@ -23,6 +23,7 @@ from numpy import (mean as np_mean)
 
 from gtdblib.util.bio.accession import canonical_gid
 
+from gtdb_species_clusters.genome import Genome
 from gtdb_species_clusters.genome_utils import read_gtdb_metadata
 from gtdb_species_clusters import defaults as Defaults
 
@@ -68,10 +69,10 @@ def parse_gtdb_type_strain_ledger(gtdb_type_strains_ledger, cur_genomes):
                 logging.getLogger('rich').warning('Genome in GTDB type strain ledger not found in current genome set (Accession; GTDB species): {}; {}'.format(
                     gid, gtdb_sp_name))
             else:
-                ncbi_sp = cur_genomes[gid].ncbi_taxa.species
-                if ncbi_sp != 's__' and ncbi_sp != gtdb_sp_name:
-                    logging.getLogger('rich').warning('GTDB type strain ledger disagrees with NCBI species assignment (Accession; GTDB species; NCBI species): {}; {}; {}'.format(
-                        gid, gtdb_sp_name, ncbi_sp))
+                ref_sp = cur_genomes[gid].ref_taxa.species
+                if ref_sp != 's__' and ref_sp != gtdb_sp_name:
+                    logging.getLogger('rich').warning('GTDB type strain ledger disagrees with {} species assignment (Accession; GTDB species; {} species): {}; {}; {}'.format(
+                        cur_genomes[gid].ref_taxa_source, cur_genomes[gid].ref_taxa_source, gid, gtdb_sp_name, ref_sp))
 
     return gtdb_type_strain_ledger
 
@@ -222,7 +223,7 @@ def write_clusters(clusters, rep_radius, genomes, out_file):
     fout.write(
         '\tClosest GTDB species\tClosest representative\tANI radius\tAF closest')
     fout.write(
-        '\tNo. clustered genomes\tMean ANI\tMin ANI\tMean AF\tMin AF\tClustered genomes\n')
+        '\tNo. clustered genomes\tMean ANI\tMin ANI\tMean AF\tMin AF\tClustered genomes' + Genome.REF_TAXA_HEADER + '\n')
     for gid in sorted(clusters, key=lambda x: len(clusters[x]), reverse=True):
         if clusters[gid]:
             mean_ani = '%.2f' % np_mean([d.ani for d in clusters[gid]])
@@ -250,11 +251,12 @@ def write_clusters(clusters, rep_radius, genomes, out_file):
                                          ani,
                                          af))
 
-        fout.write('\t%d\t%s\t%s\t%s\t%s\t%s\n' % (
+        fout.write('\t%d\t%s\t%s\t%s\t%s\t%s\t%s\n' % (
             len(clusters[gid]),
             mean_ani, min_ani,
             mean_af, min_af,
-            ','.join([d.gid for d in clusters[gid]])))
+            ','.join([d.gid for d in clusters[gid]]),
+            genomes[gid].ref_taxa_columns()))
     fout.close()
 
 
@@ -283,7 +285,7 @@ def check_ecoli_shigella_type_strains(clusters, genomes):
     check_sp = Defaults.SHIGELLA_NCBI_SPECIES.union([Defaults.ECOLI_NCBI_SPECIES])
     rid_type_gids = defaultdict(list)
     for gid in genomes:
-        if genomes[gid].ncbi_taxa.species in check_sp and genomes[gid].is_effective_type_strain():
+        if genomes[gid].ref_taxa.species in check_sp and genomes[gid].is_effective_type_strain():
             rid_type_gids[gid_to_rid.get(gid)].append(gid)
 
     if not rid_type_gids:
@@ -293,9 +295,9 @@ def check_ecoli_shigella_type_strains(clusters, genomes):
     num_type_gids = sum(len(gids) for gids in rid_type_gids.values())
     if len(rid_type_gids) == 1:
         rid = next(iter(rid_type_gids))
-        if rid is not None and genomes[rid].ncbi_taxa.species not in Defaults.SHIGELLA_NCBI_SPECIES:
+        if rid is not None and genomes[rid].ref_taxa.species not in Defaults.SHIGELLA_NCBI_SPECIES:
             log.info(f' - all {num_type_gids:,} type strain genomes are in the species cluster '
-                     f'represented by {rid} ({genomes[rid].ncbi_taxa.species})')
+                     f'represented by {rid} ({genomes[rid].ref_taxa.species})')
             return True
 
     log.error(f'E. coli and Shigella type strain genomes must all be in a single species cluster that is not '
@@ -304,9 +306,9 @@ def check_ecoli_shigella_type_strains(clusters, genomes):
         if rid is None:
             cluster_desc = 'no species cluster'
         else:
-            cluster_desc = (f'cluster of {rid} ({genomes[rid].ncbi_taxa.species}; '
+            cluster_desc = (f'cluster of {rid} ({genomes[rid].ref_taxa.species}; '
                             f'{len(clusters[rid]) + 1:,} genomes)')
-        type_strs = ', '.join(f'{gid} ({genomes[gid].ncbi_taxa.species[3:]})' for gid in sorted(gids))
+        type_strs = ', '.join(f'{gid} ({genomes[gid].ref_taxa.species[3:]})' for gid in sorted(gids))
         log.error(f' - {cluster_desc}: {type_strs}')
 
     return False
@@ -354,7 +356,8 @@ def write_rep_radius(rep_radius, genomes, out_file):
 
     fout = open(out_file, 'w')
     fout.write(
-        'Representative\tGTDB species\tNCBI species\tANI\tAF\tClosest species\tClosest representative\n')
+        'Representative\tGTDB species\tNCBI species\tANI\tAF\tClosest species\tClosest representative'
+        + Genome.REF_TAXA_HEADER + '\n')
 
     for gid in rep_radius:
         ani, af, neighbour_gid = rep_radius[gid]
@@ -367,13 +370,14 @@ def write_rep_radius(rep_radius, genomes, out_file):
         else:
             neighbour_sp = genomes[neighbour_gid].gtdb_taxa.species
 
-        fout.write('{}\t{}\t{}\t{}\t{}\t{}\t{}\n'.format(gid,
-                                                         genomes[gid].gtdb_taxa.species,
-                                                         genomes[gid].ncbi_taxa.species,
-                                                         ani,
-                                                         af,
-                                                         neighbour_sp,
-                                                         neighbour_gid))
+        fout.write('{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\n'.format(gid,
+                                                             genomes[gid].gtdb_taxa.species,
+                                                             genomes[gid].ncbi_taxa.species,
+                                                             ani,
+                                                             af,
+                                                             neighbour_sp,
+                                                             neighbour_gid,
+                                                             genomes[gid].ref_taxa_columns()))
     fout.close()
 
 
