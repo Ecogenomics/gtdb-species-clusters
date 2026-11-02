@@ -97,6 +97,9 @@ class Genome(object):
     REF_TAXA_SEQCODE = 'SeqCode'
     REF_TAXA_NCBI = 'NCBI'
 
+    # columns appended to output tables by ref_taxa_columns()
+    REF_TAXA_HEADER = '\tSeqCode species\tSeqCode genus\tReference source used'
+
     # shared by all genomes as getLogger() is slow relative to creating a genome
     log = logging.getLogger('rich')
 

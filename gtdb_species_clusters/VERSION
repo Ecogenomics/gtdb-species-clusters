@@ -1,3 +1,6 @@
+0.9.1
+- u_qc_genomes groups genomes by their reference (SeqCode or NCBI) species when checking that each named species retains a type genome, and its tables gain SeqCode species, SeqCode genus and reference source columns
+
 0.9.0
 - Genomes carry their SeqCode taxonomy (Genome.seqcode_taxa) read from the SeqCode table; Genome.ref_taxa resolves to the SeqCode taxonomy when present and the NCBI taxonomy otherwise, and Genome.type_species() gives the species a type genome is type material of (GTDB type strains ledger, then ref_taxa)
 - All u_* commands load the SeqCode table for the previous and current genome sets; loading warns when the table and metadata disagree and when a type strains ledger entry conflicts with SeqCode or is redundant

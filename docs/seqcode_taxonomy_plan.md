@@ -1,6 +1,6 @@
 # SeqCode taxonomy support: implementation plan
 
-Status: plan agreed 2026-11-03; PR 1 in progress. Tick the PR checklist at the end as work lands.
+Status: plan agreed 2026-11-03; PR 1 merged (0.9.0); PR 2 in progress. Tick the PR checklist at the end as work lands.
 
 ## 1. Problem
 
@@ -327,7 +327,7 @@ SeqCode rows.
 
 ## 7. PR checklist
 
-- [ ] PR 1: core (0.9.0): fields, loader, `ref_taxa`, `type_species()`, warnings, tests, this document
+- [x] PR 1: core (0.9.0): fields, loader, `ref_taxa`, `type_species()`, warnings, tests, this document
 - [ ] PR 2: `u_qc_genomes`
 - [ ] PR 3: `u_lpsn_rna_types`
 - [ ] PR 4: `u_resolve_types`
