@@ -46,7 +46,8 @@ class UpdateSynonyms():
             genus_priority_ledger,
             ncbi_untrustworthy_sp_ledger,
             ncbi_env_bioproject_ledger,
-            lpsn_gss_file):
+            lpsn_gss_file,
+            seqcode_file):
         """Cluster genomes to selected GTDB representatives."""
 
         # create current GTDB genome sets
@@ -59,7 +60,8 @@ class UpdateSynonyms():
                                             ncbi_genbank_assembly_file=ncbi_genbank_assembly_file,
                                             untrustworthy_type_ledger=untrustworthy_type_file,
                                             ncbi_untrustworthy_sp_ledger=ncbi_untrustworthy_sp_ledger,
-                                            ncbi_env_bioproject_ledger=ncbi_env_bioproject_ledger)
+                                            ncbi_env_bioproject_ledger=ncbi_env_bioproject_ledger,
+                                            seqcode_file=seqcode_file)
 
         # read named GTDB species clusters
         self.log.info('Reading GTDB species clusters.')

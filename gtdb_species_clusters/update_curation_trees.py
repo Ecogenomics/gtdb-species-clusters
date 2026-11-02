@@ -118,7 +118,8 @@ class UpdateCurationTrees():
             untrustworthy_type_file,
             gtdb_type_strains_ledger,
             ncbi_untrustworthy_sp_ledger,
-            ncbi_env_bioproject_ledger):
+            ncbi_env_bioproject_ledger,
+            seqcode_file):
         """Perform initial actions required for changed representatives."""
 
         # create previous and current GTDB genome sets
@@ -129,7 +130,8 @@ class UpdateCurationTrees():
                                              ncbi_genbank_assembly_file=ncbi_genbank_assembly_file,
                                              untrustworthy_type_ledger=untrustworthy_type_file,
                                              ncbi_untrustworthy_sp_ledger=ncbi_untrustworthy_sp_ledger,
-                                             ncbi_env_bioproject_ledger=ncbi_env_bioproject_ledger)
+                                             ncbi_env_bioproject_ledger=ncbi_env_bioproject_ledger,
+                                             seqcode_file=seqcode_file)
         self.log.info(' - previous genome set has {:,} species clusters spanning {:,} genomes'.format(
             len(prev_genomes.sp_clusters),
             prev_genomes.sp_clusters.total_num_genomes()))
@@ -143,7 +145,8 @@ class UpdateCurationTrees():
                                             ncbi_genbank_assembly_file=ncbi_genbank_assembly_file,
                                             untrustworthy_type_ledger=untrustworthy_type_file,
                                             ncbi_untrustworthy_sp_ledger=ncbi_untrustworthy_sp_ledger,
-                                            ncbi_env_bioproject_ledger=ncbi_env_bioproject_ledger)
+                                            ncbi_env_bioproject_ledger=ncbi_env_bioproject_ledger,
+                                            seqcode_file=seqcode_file)
 
         # read named GTDB species clusters
         self.log.info('Reading GTDB species clusters.')

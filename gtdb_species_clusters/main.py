@@ -199,7 +199,8 @@ class OptionsParser():
         params = parse_toml_file(args.input_params_file)
 
         log_command_inputs(params,
-                           [*PREV_GTDB_METADATA_KEYS,
+                           ['seqcode_file',
+                            *PREV_GTDB_METADATA_KEYS,
                             'cur_gtdb_metadata_file',
                             *NCBI_ASSEMBLY_SUMMARY_GENBANK_KEYS,
                             'cur_gtdb_domain_report',
@@ -209,6 +210,7 @@ class OptionsParser():
 
         check_files_exist(prev_gtdb_metadata_files(params))
         check_file_exists(params['data_files']['cur_gtdb_metadata_file'])
+        check_file_exists(params['data_files']['seqcode_file'])
         check_files_exist(ncbi_assembly_summary_genbank_files(params))
         check_file_exists(params['data_files']['cur_gtdb_domain_report'])
         check_file_exists(params['ledgers']['gtdb_type_strains_ledger'])
@@ -245,7 +247,8 @@ class OptionsParser():
               params['ledgers']['gtdb_type_strains_ledger'],
               params['ledgers']['qc_exception_ledger'],
               params['ledgers']['ncbi_env_bioproject_ledger'],
-              qc_criteria)
+              qc_criteria,
+              params['data_files']['seqcode_file'])
 
     def u_gtdbtk(self, args):
         """Perform initial classification of new and updated genomes using GTDB-Tk."""
@@ -284,7 +287,8 @@ class OptionsParser():
             params['output_dirs']['u_qc_genomes'], 'qc_passed.tsv')
 
         log_command_inputs(params,
-                           ['lpsn_metadata_file',
+                           ['seqcode_file',
+                            'lpsn_metadata_file',
                             'cur_gtdb_metadata_file',
                             'cur_genome_path_file',
                             *NCBI_ASSEMBLY_SUMMARY_GENBANK_KEYS,
@@ -293,6 +297,7 @@ class OptionsParser():
                            [('u_qc_genomes', 'qc_passed.tsv')])
 
         check_file_exists(params['data_files']['lpsn_metadata_file'])
+        check_file_exists(params['data_files']['seqcode_file'])
         check_file_exists(params['data_files']['cur_gtdb_metadata_file'])
         check_file_exists(params['data_files']['cur_genome_path_file'])
         check_file_exists(qc_passed)
@@ -313,7 +318,8 @@ class OptionsParser():
               ncbi_assembly_summary_genbank_files(params),
               params['ledgers']['gtdb_type_strains_ledger'],
               params['ledgers']['untrustworthy_type_ledger'],
-              params['toml_raw']['ledgers']['untrustworthy_type_ledger'])
+              params['toml_raw']['ledgers']['untrustworthy_type_ledger'],
+              params['data_files']['seqcode_file'])
 
     def u_resolve_types(self, args):
         """Resolve cases where a species has multiple genomes assembled from the type strain."""
@@ -325,7 +331,8 @@ class OptionsParser():
             params['output_dirs']['u_qc_genomes'], 'qc_passed.tsv')
 
         log_command_inputs(params,
-                           ['cur_gtdb_metadata_file',
+                           ['seqcode_file',
+                            'cur_gtdb_metadata_file',
                             'cur_genome_path_file',
                             *NCBI_ASSEMBLY_SUMMARY_GENBANK_KEYS,
                             'ltp_taxonomy_file',
@@ -337,6 +344,7 @@ class OptionsParser():
 
         check_file_exists(qc_passed)
         check_file_exists(params['data_files']['cur_gtdb_metadata_file'])
+        check_file_exists(params['data_files']['seqcode_file'])
         check_file_exists(params['data_files']['cur_genome_path_file'])
         check_files_exist(ncbi_assembly_summary_genbank_files(params))
         check_file_exists(params['ltp']['ltp_taxonomy_file'])
@@ -357,7 +365,8 @@ class OptionsParser():
               params['ltp']['ltp_taxonomy_file'],
               params['ledgers']['gtdb_type_strains_ledger'],
               params['ledgers']['untrustworthy_type_ledger'],
-              params['ledgers']['ncbi_env_bioproject_ledger'])
+              params['ledgers']['ncbi_env_bioproject_ledger'],
+              params['data_files']['seqcode_file'])
 
     def u_rep_changes(self, args):
         """Identify species representatives that have changed from previous release."""
@@ -375,7 +384,8 @@ class OptionsParser():
             params['output_dirs']['u_resolve_types'], 'untrustworthy_type_material.tsv')
 
         log_command_inputs(params,
-                           [*PREV_GTDB_METADATA_KEYS,
+                           ['seqcode_file',
+                            *PREV_GTDB_METADATA_KEYS,
                             'cur_gtdb_metadata_file',
                             *NCBI_ASSEMBLY_SUMMARY_GENBANK_KEYS,
                             'disband_cluster_ledger',
@@ -389,6 +399,7 @@ class OptionsParser():
 
         check_files_exist(prev_gtdb_metadata_files(params))
         check_file_exists(params['data_files']['cur_gtdb_metadata_file'])
+        check_file_exists(params['data_files']['seqcode_file'])
         check_file_exists(genomes_new_updated)
         check_file_exists(qc_passed)
         check_file_exists(gtdbtk_classify_file)
@@ -414,7 +425,8 @@ class OptionsParser():
               params['ledgers']['disband_cluster_ledger'],
               params['ledgers']['gtdb_type_strains_ledger'],
               params['ledgers']['ncbi_untrustworthy_sp_ledger'],
-              params['ledgers']['ncbi_env_bioproject_ledger'])
+              params['ledgers']['ncbi_env_bioproject_ledger'],
+              params['data_files']['seqcode_file'])
 
     def u_rep_actions(self, args):
         """Perform initial actions required for changed representatives."""
@@ -434,7 +446,8 @@ class OptionsParser():
             params['output_dirs']['u_rep_changes'], 'rep_change_summary.tsv')
 
         log_command_inputs(params,
-                           [*PREV_GTDB_METADATA_KEYS,
+                           ['seqcode_file',
+                            *PREV_GTDB_METADATA_KEYS,
                             'prev_genome_path_file',
                             'cur_gtdb_metadata_file',
                             'cur_genome_path_file',
@@ -453,6 +466,7 @@ class OptionsParser():
 
         check_file_exists(rep_change_summary_file)
         check_file_exists(params['data_files']['prev_genome_path_file'])
+        check_file_exists(params['data_files']['seqcode_file'])
         check_file_exists(params['data_files']['cur_genome_path_file'])
         check_file_exists(genomes_new_updated)
         check_file_exists(qc_passed)
@@ -486,7 +500,8 @@ class OptionsParser():
               params['ledgers']['sp_priority_ledger'],
               params['ledgers']['genus_priority_ledger'],
               params['ledgers']['ncbi_env_bioproject_ledger'],
-              params['data_files']['lpsn_gss_file'])
+              params['data_files']['lpsn_gss_file'],
+              params['data_files']['seqcode_file'])
 
     def u_sel_reps(self, args):
         """Select representatives for all named species at NCBI."""
@@ -502,7 +517,8 @@ class OptionsParser():
             params['output_dirs']['u_rep_actions'], 'updated_sp_clusters.tsv')
 
         log_command_inputs(params,
-                           ['cur_gtdb_metadata_file',
+                           ['seqcode_file',
+                            'cur_gtdb_metadata_file',
                             'cur_genome_path_file',
                             *NCBI_ASSEMBLY_SUMMARY_GENBANK_KEYS,
                             'gtdb_type_strains_ledger',
@@ -517,6 +533,7 @@ class OptionsParser():
 
         check_file_exists(updated_sp_cluster_file)
         check_file_exists(params['data_files']['cur_gtdb_metadata_file'])
+        check_file_exists(params['data_files']['seqcode_file'])
         check_file_exists(params['data_files']['cur_genome_path_file'])
         check_file_exists(qc_passed)
         check_files_exist(ncbi_assembly_summary_genbank_files(params))
@@ -545,7 +562,8 @@ class OptionsParser():
               params['ledgers']['sp_priority_ledger'],
               params['ledgers']['genus_priority_ledger'],
               params['ledgers']['ncbi_env_bioproject_ledger'],
-              params['data_files']['lpsn_gss_file'])
+              params['data_files']['lpsn_gss_file'],
+              params['data_files']['seqcode_file'])
 
     def u_cluster_named_reps(self, args):
         """Cluster genomes to selected GTDB representatives."""
@@ -563,7 +581,8 @@ class OptionsParser():
             params['output_dirs']['u_sel_reps'], 'gtdb_rep_pairwise_ani.tsv')
 
         log_command_inputs(params,
-                           ['cur_gtdb_metadata_file',
+                           ['seqcode_file',
+                            'cur_gtdb_metadata_file',
                             'cur_genome_path_file',
                             *NCBI_ASSEMBLY_SUMMARY_GENBANK_KEYS,
                             'gtdb_type_strains_ledger',
@@ -576,6 +595,7 @@ class OptionsParser():
 
         check_file_exists(named_rep_file)
         check_file_exists(params['data_files']['cur_gtdb_metadata_file'])
+        check_file_exists(params['data_files']['seqcode_file'])
         check_file_exists(params['data_files']['cur_genome_path_file'])
         check_file_exists(qc_passed)
         check_files_exist(ncbi_assembly_summary_genbank_files(params))
@@ -602,7 +622,8 @@ class OptionsParser():
               rep_ani_file,
               params['ledgers']['gtdb_type_strains_ledger'],
               params['ledgers']['ncbi_untrustworthy_sp_ledger'],
-              params['ledgers']['ncbi_env_bioproject_ledger'])
+              params['ledgers']['ncbi_env_bioproject_ledger'],
+              params['data_files']['seqcode_file'])
 
     def u_cluster_de_novo(self, args):
         """Infer de novo species clusters and representatives for remaining genomes."""
@@ -620,7 +641,8 @@ class OptionsParser():
             params['output_dirs']['u_cluster_named_reps'], 'ani_af_nonrep_vs_rep.pkl')
 
         log_command_inputs(params,
-                           ['cur_gtdb_metadata_file',
+                           ['seqcode_file',
+                            'cur_gtdb_metadata_file',
                             'cur_genome_path_file',
                             *NCBI_ASSEMBLY_SUMMARY_GENBANK_KEYS,
                             'gtdb_type_strains_ledger',
@@ -633,6 +655,7 @@ class OptionsParser():
 
         check_file_exists(named_cluster_file)
         check_file_exists(params['data_files']['cur_gtdb_metadata_file'])
+        check_file_exists(params['data_files']['seqcode_file'])
         check_file_exists(params['data_files']['cur_genome_path_file'])
         check_file_exists(qc_passed)
         check_files_exist(ncbi_assembly_summary_genbank_files(params))
@@ -659,7 +682,8 @@ class OptionsParser():
               ani_af_nonrep_vs_rep,
               params['ledgers']['gtdb_type_strains_ledger'],
               params['ledgers']['ncbi_untrustworthy_sp_ledger'],
-              params['ledgers']['ncbi_env_bioproject_ledger'])
+              params['ledgers']['ncbi_env_bioproject_ledger'],
+              params['data_files']['seqcode_file'])
 
     def u_cluster_stats(self, args):
         """Summary statistics indicating changes to GTDB species cluster membership."""
@@ -675,7 +699,8 @@ class OptionsParser():
             params['output_dirs']['u_cluster_de_novo'], 'gtdb_clusters_de_novo.tsv')
 
         log_command_inputs(params,
-                           [*PREV_GTDB_METADATA_KEYS,
+                           ['seqcode_file',
+                            *PREV_GTDB_METADATA_KEYS,
                             'cur_gtdb_metadata_file',
                             *NCBI_ASSEMBLY_SUMMARY_GENBANK_KEYS,
                             'gtdb_type_strains_ledger',
@@ -687,6 +712,7 @@ class OptionsParser():
         check_file_exists(gtdb_clusters_file)
         check_files_exist(prev_gtdb_metadata_files(params))
         check_file_exists(params['data_files']['cur_gtdb_metadata_file'])
+        check_file_exists(params['data_files']['seqcode_file'])
         check_file_exists(qc_passed)
         check_files_exist(ncbi_assembly_summary_genbank_files(params))
         check_file_exists(untrustworthy_type_file)
@@ -705,7 +731,8 @@ class OptionsParser():
               ncbi_assembly_summary_genbank_files(params),
               untrustworthy_type_file,
               params['ledgers']['gtdb_type_strains_ledger'],
-              params['ledgers']['ncbi_env_bioproject_ledger'])
+              params['ledgers']['ncbi_env_bioproject_ledger'],
+              params['data_files']['seqcode_file'])
 
     def u_ncbi_erroneous(self, args):
         """Identify genomes with erroneous NCBI species assignments."""
@@ -721,7 +748,8 @@ class OptionsParser():
             params['output_dirs']['u_cluster_de_novo'], 'gtdb_clusters_de_novo.tsv')
 
         log_command_inputs(params,
-                           ['cur_gtdb_metadata_file',
+                           ['seqcode_file',
+                            'cur_gtdb_metadata_file',
                             'cur_genome_path_file',
                             *NCBI_ASSEMBLY_SUMMARY_GENBANK_KEYS,
                             'gtdb_type_strains_ledger',
@@ -733,6 +761,7 @@ class OptionsParser():
 
         check_file_exists(gtdb_clusters_file)
         check_file_exists(params['data_files']['cur_gtdb_metadata_file'])
+        check_file_exists(params['data_files']['seqcode_file'])
         check_file_exists(params['data_files']['cur_genome_path_file'])
         check_file_exists(qc_passed)
         check_files_exist(ncbi_assembly_summary_genbank_files(params))
@@ -754,7 +783,8 @@ class OptionsParser():
               untrustworthy_type_file,
               params['ledgers']['gtdb_type_strains_ledger'],
               params['ledgers']['ncbi_untrustworthy_sp_ledger'],
-              params['ledgers']['ncbi_env_bioproject_ledger'])
+              params['ledgers']['ncbi_env_bioproject_ledger'],
+              params['data_files']['seqcode_file'])
 
     def u_synonyms(self, args):
         """Determine synonyms for validly or effectively published species."""
@@ -774,7 +804,8 @@ class OptionsParser():
             params['output_dirs']['u_cluster_named_reps'], 'ani_af_nonrep_vs_rep.pkl')
 
         log_command_inputs(params,
-                           ['cur_gtdb_metadata_file',
+                           ['seqcode_file',
+                            'cur_gtdb_metadata_file',
                             *NCBI_ASSEMBLY_SUMMARY_GENBANK_KEYS,
                             'gtdb_type_strains_ledger',
                             'sp_priority_ledger',
@@ -790,6 +821,7 @@ class OptionsParser():
 
         check_file_exists(gtdb_clusters_file)
         check_file_exists(params['data_files']['cur_gtdb_metadata_file'])
+        check_file_exists(params['data_files']['seqcode_file'])
         check_file_exists(qc_passed)
         check_file_exists(ncbi_misclassified_file)
         check_files_exist(ncbi_assembly_summary_genbank_files(params))
@@ -819,7 +851,8 @@ class OptionsParser():
               params['ledgers']['genus_priority_ledger'],
               params['ledgers']['ncbi_untrustworthy_sp_ledger'],
               params['ledgers']['ncbi_env_bioproject_ledger'],
-              params['data_files']['lpsn_gss_file'])
+              params['data_files']['lpsn_gss_file'],
+              params['data_files']['seqcode_file'])
 
     def u_curation_trees(self, args):
         """Produce curation trees highlighting new NCBI taxa."""
@@ -835,7 +868,8 @@ class OptionsParser():
             params['output_dirs']['u_cluster_de_novo'], 'gtdb_clusters_de_novo.tsv')
 
         log_command_inputs(params,
-                           [*PREV_GTDB_METADATA_KEYS,
+                           ['seqcode_file',
+                            *PREV_GTDB_METADATA_KEYS,
                             'cur_gtdb_metadata_file',
                             *NCBI_ASSEMBLY_SUMMARY_GENBANK_KEYS,
                             'gtdb_type_strains_ledger',
@@ -848,6 +882,7 @@ class OptionsParser():
         check_file_exists(gtdb_clusters_file)
         check_files_exist(prev_gtdb_metadata_files(params))
         check_file_exists(params['data_files']['cur_gtdb_metadata_file'])
+        check_file_exists(params['data_files']['seqcode_file'])
         check_file_exists(qc_passed)
         check_files_exist(ncbi_assembly_summary_genbank_files(params))
         check_file_exists(untrustworthy_type_file)
@@ -869,7 +904,8 @@ class OptionsParser():
               untrustworthy_type_file,
               params['ledgers']['gtdb_type_strains_ledger'],
               params['ledgers']['ncbi_untrustworthy_sp_ledger'],
-              params['ledgers']['ncbi_env_bioproject_ledger'])
+              params['ledgers']['ncbi_env_bioproject_ledger'],
+              params['data_files']['seqcode_file'])
 
     def u_species_init(self, args):
         """Produce initial best guess at GTDB species clusters."""
@@ -889,7 +925,8 @@ class OptionsParser():
             params['output_dirs']['u_synonyms'], 'synonyms.tsv')
 
         log_command_inputs(params,
-                           [*PREV_GTDB_METADATA_KEYS,
+                           ['seqcode_file',
+                            *PREV_GTDB_METADATA_KEYS,
                             'cur_gtdb_metadata_file',
                             *NCBI_ASSEMBLY_SUMMARY_GENBANK_KEYS,
                             'gtdb_type_strains_ledger',
@@ -907,6 +944,7 @@ class OptionsParser():
         check_file_exists(gtdb_clusters_file)
         check_files_exist(prev_gtdb_metadata_files(params))
         check_file_exists(params['data_files']['cur_gtdb_metadata_file'])
+        check_file_exists(params['data_files']['seqcode_file'])
         check_file_exists(qc_passed)
         check_file_exists(gtdbtk_classify_file)
         check_files_exist(ncbi_assembly_summary_genbank_files(params))
@@ -937,7 +975,8 @@ class OptionsParser():
               params['ledgers']['genus_priority_ledger'],
               params['ledgers']['ncbi_untrustworthy_sp_ledger'],
               params['ledgers']['ncbi_env_bioproject_ledger'],
-              params['data_files']['lpsn_gss_file'])
+              params['data_files']['lpsn_gss_file'],
+              params['data_files']['seqcode_file'])
 
     def u_pmc_species_names(self, args):
         """Refine species names using post-manual curation rules."""

@@ -43,7 +43,8 @@ class RepChanges():
             disband_cluster_ledger,
             gtdb_type_strains_ledger,
             ncbi_untrustworthy_sp_ledger,
-            ncbi_env_bioproject_ledger):
+            ncbi_env_bioproject_ledger,
+            seqcode_file):
         """Identify species representatives that have changed from previous release."""
 
         # create previous and current GTDB genome sets; the gtdb_type_strains_ledger is not
@@ -56,7 +57,8 @@ class RepChanges():
                                              ncbi_genbank_assembly_file=ncbi_genbank_assembly_file,
                                              untrustworthy_type_ledger=untrustworthy_type_file,
                                              ncbi_untrustworthy_sp_ledger=ncbi_untrustworthy_sp_ledger,
-                                             ncbi_env_bioproject_ledger=ncbi_env_bioproject_ledger)
+                                             ncbi_env_bioproject_ledger=ncbi_env_bioproject_ledger,
+                                             seqcode_file=seqcode_file)
         self.log.info(
             f' - previous genome set contains {len(prev_genomes):,} genomes')
         self.log.info(' - previous genome set has {:,} species clusters spanning {:,} genomes'.format(
@@ -72,7 +74,8 @@ class RepChanges():
                                             ncbi_genbank_assembly_file=ncbi_genbank_assembly_file,
                                             untrustworthy_type_ledger=untrustworthy_type_file,
                                             ncbi_untrustworthy_sp_ledger=ncbi_untrustworthy_sp_ledger,
-                                            ncbi_env_bioproject_ledger=ncbi_env_bioproject_ledger)
+                                            ncbi_env_bioproject_ledger=ncbi_env_bioproject_ledger,
+                                            seqcode_file=seqcode_file)
 
         # get previous and current genomes from type strains
         self.log.info(

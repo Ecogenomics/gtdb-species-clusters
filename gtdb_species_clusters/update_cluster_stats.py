@@ -72,7 +72,8 @@ class UpdateClusterStats(object):
             ncbi_genbank_assembly_file,
             untrustworthy_type_file,
             gtdb_type_strains_ledger,
-            ncbi_env_bioproject_ledger):
+            ncbi_env_bioproject_ledger,
+            seqcode_file):
         """Summary statistics indicating changes to GTDB species cluster membership."""
 
         # create previous and current GTDB genome sets
@@ -82,7 +83,8 @@ class UpdateClusterStats(object):
                                              gtdb_type_strains_ledger=gtdb_type_strains_ledger,
                                              ncbi_genbank_assembly_file=ncbi_genbank_assembly_file,
                                              untrustworthy_type_ledger=untrustworthy_type_file,
-                                             ncbi_env_bioproject_ledger=ncbi_env_bioproject_ledger)
+                                             ncbi_env_bioproject_ledger=ncbi_env_bioproject_ledger,
+                                             seqcode_file=seqcode_file)
         self.log.info(' - previous genome set has {:,} species clusters spanning {:,} genomes.'.format(
             len(prev_genomes.sp_clusters),
             prev_genomes.sp_clusters.total_num_genomes()))
@@ -95,7 +97,8 @@ class UpdateClusterStats(object):
                                             qc_passed_file=qc_passed_file,
                                             ncbi_genbank_assembly_file=ncbi_genbank_assembly_file,
                                             untrustworthy_type_ledger=untrustworthy_type_file,
-                                            ncbi_env_bioproject_ledger=ncbi_env_bioproject_ledger)
+                                            ncbi_env_bioproject_ledger=ncbi_env_bioproject_ledger,
+                                            seqcode_file=seqcode_file)
 
         # report changes in genome sets
         self.log.info('Comparing previous and current genome sets:')

@@ -527,7 +527,8 @@ class QcGenomes():
             gtdb_type_strains_ledger: str,
             qc_exception_file: str,
             ncbi_env_bioproject_ledger: str,
-            qc_criteria: QcCriteria) -> None:
+            qc_criteria: QcCriteria,
+            seqcode_file: str) -> None:
         """Quality check genomes being considered for GTDB.
 
         :param prev_gtdb_metadata_file: Files with metadata for genomes in previous GTDB release (e.g., archaeal and bacterial files).
@@ -537,6 +538,7 @@ class QcGenomes():
         :param gtdb_type_strains_ledger: File indicating genomes that should be considered the type strain of a species.
         :param qc_exception_file: File indicating genomes that should fail or pass QC irrespective of the QC criteria.
         :param ncbi_env_bioproject_ledger: File indicating genome that should be considered MAGs.
+        :param seqcode_file: SeqCode table giving the type genome of each validly published SeqCode species.
         :param qc_criteria: Criteria for passing QC.
         """
 
@@ -546,7 +548,8 @@ class QcGenomes():
         prev_genomes.load_from_metadata_file(prev_gtdb_metadata_file,
                                              gtdb_type_strains_ledger=gtdb_type_strains_ledger,
                                              ncbi_genbank_assembly_file=ncbi_genbank_assembly_file,
-                                             ncbi_env_bioproject_ledger=ncbi_env_bioproject_ledger)
+                                             ncbi_env_bioproject_ledger=ncbi_env_bioproject_ledger,
+                                             seqcode_file=seqcode_file)
         self.log.info(
             f' - previous genome set contains {len(prev_genomes):,} genomes')
         self.log.info(' - previous genome set has {:,} species clusters spanning {:,} genomes'.format(
@@ -559,7 +562,8 @@ class QcGenomes():
                                             gtdb_type_strains_ledger=gtdb_type_strains_ledger,
                                             create_sp_clusters=False,
                                             ncbi_genbank_assembly_file=ncbi_genbank_assembly_file,
-                                            ncbi_env_bioproject_ledger=ncbi_env_bioproject_ledger)
+                                            ncbi_env_bioproject_ledger=ncbi_env_bioproject_ledger,
+                                            seqcode_file=seqcode_file)
 
         # parse genomes flagged as exceptions from QC
         self.log.info('Parsing QC ledger:')

@@ -24,6 +24,8 @@ from collections import namedtuple
 
 from gtdblib.util.bio.accession import canonical_gid
 
+from gtdb_species_clusters.genome import NO_PRIORITY_YEAR
+
 
 def open_file(input_file):
     """Open plain text or gzip compressed file for reading."""
@@ -345,3 +347,58 @@ def read_gtdbtk_classifications(gtdbtk_classify_file):
             classification[gid] = taxa
 
     return classification
+
+
+# SeqCode name, classification (d__ to g__), year of priority and type species of genus
+# status of a genome that is the type genome of a validly published SeqCode species
+SeqCodeRecord = namedtuple('SeqCodeRecord', ['name', 'classification', 'priority_year', 'type_species_of_genus'])
+
+
+@functools.lru_cache(maxsize=1)
+def parse_seqcode_table(seqcode_file):
+    """Parse the type genome of each validly published SeqCode species from the SeqCode table.
+
+    The table is needed when loading both the previous and current genome sets, so
+    the result for the most recent file is cached. The returned dictionary is shared
+    between callers and must not be modified. The species name is given by the
+    seqcode_name field; the seqcode_classification field only gives the ranks above species.
+
+    :param seqcode_file: SeqCode table (seqcode_table.tsv) with one row per SeqCode name.
+    :return: SeqCodeRecord for each type genome, keyed by canonical genome ID.
+    """
+
+    seqcode = {}
+    skipped = 0
+    with open_file(seqcode_file) as f:
+        header = f.readline().strip().split('\t')
+        gid_index = header.index('seqcode_type_material_accn')
+        name_index = header.index('seqcode_name')
+        rank_index = header.index('seqcode_rank')
+        status_index = header.index('seqcode_species_status')
+        priority_index = header.index('seqcode_priority_date')
+        classification_index = header.index('seqcode_classification')
+        type_species_index = header.index('seqcode_type_species_of_genus')
+
+        for line in f:
+            tokens = line.strip('\n\r').split('\t')
+
+            if tokens[rank_index] != 'species' or not tokens[status_index].startswith('Valid'):
+                skipped += 1
+                continue
+
+            gid = canonical_gid(tokens[gid_index])
+            name = tokens[name_index].replace('Candidatus ', '').strip()
+            priority_year = NO_PRIORITY_YEAR
+            if tokens[priority_index][:4].isdigit():
+                priority_year = int(tokens[priority_index][:4])
+
+            seqcode[gid] = SeqCodeRecord(name,
+                                         tokens[classification_index],
+                                         priority_year,
+                                         tokens[type_species_index] == 'True')
+
+    if skipped:
+        logging.getLogger('rich').warning(
+            f'Skipped {skipped:,} rows in SeqCode table that are not validly published species.')
+
+    return seqcode

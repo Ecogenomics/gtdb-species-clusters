@@ -1043,7 +1043,8 @@ class RepActions():
             sp_priority_ledger,
             genus_priority_ledger,
             ncbi_env_bioproject_ledger,
-            lpsn_gss_file):
+            lpsn_gss_file,
+            seqcode_file):
         """Perform initial actions required for changed representatives."""
 
         # create previous and current GTDB genome sets; the gtdb_type_strains_ledger is not
@@ -1056,7 +1057,8 @@ class RepActions():
                                              ncbi_genbank_assembly_file=ncbi_genbank_assembly_file,
                                              untrustworthy_type_ledger=untrustworthy_type_file,
                                              ncbi_untrustworthy_sp_ledger=ncbi_untrustworthy_sp_ledger,
-                                             ncbi_env_bioproject_ledger=ncbi_env_bioproject_ledger)
+                                             ncbi_env_bioproject_ledger=ncbi_env_bioproject_ledger,
+                                             seqcode_file=seqcode_file)
         self.log.info(' - previous genome set has {:,} species clusters spanning {:,} genomes'.format(
             len(prev_genomes.sp_clusters),
             prev_genomes.sp_clusters.total_num_genomes()))
@@ -1070,7 +1072,8 @@ class RepActions():
                                             ncbi_genbank_assembly_file=ncbi_genbank_assembly_file,
                                             untrustworthy_type_ledger=untrustworthy_type_file,
                                             ncbi_untrustworthy_sp_ledger=ncbi_untrustworthy_sp_ledger,
-                                            ncbi_env_bioproject_ledger=ncbi_env_bioproject_ledger)
+                                            ncbi_env_bioproject_ledger=ncbi_env_bioproject_ledger,
+                                            seqcode_file=seqcode_file)
 
         # get path to previous and current genomic FASTA files
         self.log.info(

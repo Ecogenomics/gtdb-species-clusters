@@ -768,7 +768,8 @@ class ResolveTypes():
             ltp_taxonomy_file: str,
             gtdb_type_strains_ledger: str,
             untrustworthy_type_ledger: str,
-            ncbi_env_bioproject_ledger: str) -> None:
+            ncbi_env_bioproject_ledger: str,
+            seqcode_file: str) -> None:
         """Resolve cases where a species has multiple genomes assembled from the type strain.
 
         :param cur_gtdb_metadata_file: File with metadata for genomes in current GTDB release.
@@ -779,6 +780,7 @@ class ResolveTypes():
         :param gtdb_type_strains_ledger: File indicating genomes that should be considered assembled from the type strain.
         :param untrustworthy_type_ledger: File indicating genomes that should be considered untrustworthy as type material.
         :param ncbi_env_bioproject_ledger: File indicating NCBI BioProjects composed on MAGs or SAGs incorrectly annotated at NCBI.
+        :param seqcode_file: SeqCode table giving the type genome of each validly published SeqCode species.
         """
 
         # genomes in the GTDB type strains ledger can never be untrustworthy as type material
@@ -800,7 +802,8 @@ class ResolveTypes():
                                             qc_passed_file=qc_passed_file,
                                             ncbi_genbank_assembly_file=ncbi_genbank_assembly_file,
                                             untrustworthy_type_ledger=untrustworthy_type_ledger,
-                                            ncbi_env_bioproject_ledger=ncbi_env_bioproject_ledger)
+                                            ncbi_env_bioproject_ledger=ncbi_env_bioproject_ledger,
+                                            seqcode_file=seqcode_file)
         cur_genomes.load_genomic_file_paths(cur_genomic_path_file)
 
         # parsing genomes manually established to be untrustworthy as type
