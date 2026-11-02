@@ -216,6 +216,16 @@ class Genomes(object):
 
         return type_strain_genomes
 
+    def get_ref_type_strain_genomes(self):
+        """Get type strain genomes for each reference (SeqCode or NCBI) species."""
+
+        type_strain_genomes = defaultdict(set)
+        for gid, genome in self.genomes.items():
+            if genome.is_effective_type_strain():
+                type_strain_genomes[genome.ref_taxa.species].add(gid)
+
+        return type_strain_genomes
+
     def named_ncbi_species(self):
         """Get genomes with valid or effectively published, including Candidatus, trusted species names in NCBI taxonomy."""
 

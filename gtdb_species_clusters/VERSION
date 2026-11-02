@@ -1,3 +1,6 @@
+0.9.7
+- u_sel_reps identifies named species and their type material by the reference (SeqCode or NCBI) species of genomes, so SeqCode species without an NCBI name get a representative selected under their SeqCode name; names validly published under the SeqCode count as valid names when resolving close ANI neighbours; tables gain SeqCode species, SeqCode genus and reference source columns
+
 0.9.6
 - Ctrl-C now stops all skani pool workers: workers ignore SIGINT and the main process terminates the pool when interrupted, so no orphaned workers (and .nfs files in the output directory) are left behind
 
