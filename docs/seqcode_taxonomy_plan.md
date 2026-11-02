@@ -1,6 +1,7 @@
 # SeqCode taxonomy support: implementation plan
 
-Status: plan agreed 2026-11-03; PR 1 merged (0.9.0); PR 2 in progress. Tick the PR checklist at the end as work lands.
+Status: plan agreed 2026-11-03; PRs 1-2 merged (0.9.1); PR 3 in progress. Tick the PR checklist at the end as work lands.
+Baselines for verification: the pre-SeqCode R237 step outputs are in `sp_cluster_update/deprecated/<N>_<step>/`.
 
 ## 1. Problem
 
@@ -30,7 +31,7 @@ differs from the SeqCode name. Consequences seen in R237:
 | Resolved accessor | `Genome.ref_taxa` returns `seqcode_taxa` when present, else `ncbi_taxa`. `Genome.ref_taxa_source` is `'SeqCode'` or `'NCBI'`. `ncbi_taxa` stays for code that must mean NCBI specifically. |
 | Type strains ledger | Ledger wins over SeqCode. `ref_taxa` stays SeqCode > NCBI; a new `Genome.type_species()` returns the ledger species for ledger genomes, else `ref_taxa.species`, and replaces the per-step special cases. Loading warns on each ledger/SeqCode conflict and on each ledger row that is redundant (changes nothing). |
 | `ncbi_untrustworthy_sp` ledger | Unchanged: a genome in it is never an effective type strain, whatever its SeqCode name. |
-| Priority year | `year_of_priority()` returns the SeqCode year when the genome is SeqCode type material, else the LPSN year. (SeqCode dates are validation dates: later than the LPSN year for 181 of the 380 genomes that have both.) |
+| Priority year | `year_of_priority()` returns the earliest of the LPSN and SeqCode years when the name is validly published under both codes (SeqCode Rule 23c: priority dates from the earliest valid publication under either code), else whichever year exists. Decided 2026-11-03, replacing the earlier "SeqCode year first" rule. (SeqCode dates are validation dates: later than the LPSN year for 181 of the 380 genomes that have both, so for those the LPSN year is used.) |
 | Output tables | Keep existing `NCBI species`/`NCBI genus` headers. Append `SeqCode species`, `SeqCode genus` and `Reference source used` (`NCBI` or `SeqCode`) columns at the end of the row. |
 | Curation trees | `u_curation_trees` uses `ref_taxa` for prev and cur, so taxa new to SeqCode since the last release are highlighted. |
 | Packaging | PR 1 is the core: data model, loading, accessors, warnings, tests; no step reads the new accessors, so outputs are unchanged. Then one PR per pipeline step, in pipeline order, so each step can be re-run and verified before the next is switched. |
@@ -84,7 +85,7 @@ def ref_taxa(self) -> Taxa:            # seqcode_taxa if not None else ncbi_taxa
 def ref_taxa_source(self) -> str:      # 'SeqCode' or 'NCBI'
 def is_seqcode_type_strain(self):      # seqcode_taxa is not None and not gtdb_untrustworthy_as_type
 def type_species(self) -> str:         # ledger species if is_gtdb_type_strain_ledger() else ref_taxa.species
-def year_of_priority(self):            # seqcode_priority_year if is_seqcode_type_strain() else lpsn_priority_year
+def year_of_priority(self):            # min(lpsn_priority_year, seqcode_priority_year if is_seqcode_type_strain())
 def ref_taxa_columns(self) -> str:     # '\t'.join([seqcode species or '', seqcode genus or '', ref_taxa_source])
 ```
 
@@ -172,13 +173,15 @@ No taxonomy is used. No change.
 
 ### Step 4: `u_lpsn_rna_types` (PR 3)
 
-Changes: `update_lpsn_ssu_types.py:289` groups genomes by `ref_taxa.species` when matching LPSN type 16S
-sequences; `gtdb_type_strains[...]` grouped by `type_species()`; output table gains the columns.
+Changes: genomes are grouped under both their reference species and their NCBI species (when different) when
+matching LPSN type 16S sequences, so a SeqCode genome is still found under the LPSN basonym (e.g.
+*Methanobrevibacter smithii* for the SeqCode name *Methanocatella smithii*); `gtdb_type_strains[...]` is
+grouped the same way using `type_species()`; output table gains the columns.
 
 Behaviour: the 62 genomes whose SeqCode name differs from NCBI, and the 1,193 with no NCBI species, are now
-searched under their SeqCode species. They only match if LPSN lists that name with a type 16S sequence, so
-expect few new rows. The "add N genomes to the type strains ledger" warning is unaffected (SeqCode genomes are
-already GTDB type strains).
+also searched under their SeqCode species. They only match if LPSN lists that name with a type 16S sequence, so
+expect only additional rows, never removed ones. The "add N genomes to the type strains ledger" warning is
+unaffected (SeqCode genomes are already GTDB type strains).
 
 ### Step 5: `u_resolve_types` (PR 4)
 
@@ -216,7 +219,7 @@ UNCHANGED (both sides resolve to SeqCode). Expect `rep_change_summary.tsv` to di
 
 Changes:
 
-- `year_of_priority()` switches to SeqCode-first (§4.2). This is the first step that uses it.
+- `year_of_priority()` switches to the earliest of the LPSN and SeqCode years (§2, §4.2). This is the first step that uses it.
 - `action_naming_priority` (lines 834-975): group type strains by `type_species()`, compare with
   `cur_genomes[updated_rid].type_species()`; `violates_naming_priority` compares `ref_taxa.specific_epithet`.
 - `rep_candidates` Shigella check uses `ref_taxa` (identical result).
@@ -230,8 +233,8 @@ Changes:
 Behaviour: SeqCode type genomes take part in naming priority under their SeqCode name and year. Where a
 cluster's representative is not type material and a SeqCode type genome is a member, the representative is
 replaced (`NOMENCLATURE_PRIORITY:REPLACED`). 1,717 SeqCode genomes are already representatives, so this mostly
-affects the 66 non-representatives. Contests between two type strains now use the SeqCode year for SeqCode
-genomes, which can flip outcomes where the LPSN year was earlier (181 genomes with both). Review every
+affects the 66 non-representatives. Contests involving the 1,403 SeqCode genomes with no LPSN year now use
+the SeqCode year instead of no year; the 380 with both keep the earlier (usually LPSN) year. Review every
 `NOMENCLATURE_PRIORITY` row that differs.
 
 ### Step 8: `u_sel_reps` (PR 7)
@@ -328,7 +331,7 @@ SeqCode rows.
 ## 7. PR checklist
 
 - [x] PR 1: core (0.9.0): fields, loader, `ref_taxa`, `type_species()`, warnings, tests, this document
-- [ ] PR 2: `u_qc_genomes`
+- [x] PR 2: `u_qc_genomes` (0.9.1)
 - [ ] PR 3: `u_lpsn_rna_types`
 - [ ] PR 4: `u_resolve_types`
 - [ ] PR 5: `u_rep_changes`

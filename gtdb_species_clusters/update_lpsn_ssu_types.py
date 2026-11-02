@@ -22,6 +22,7 @@ import multiprocessing as mp
 from collections import defaultdict
 from typing import Set, Dict, List
 
+from gtdb_species_clusters.genome import Genome
 from gtdb_species_clusters.genomes import Genomes
 
 
@@ -121,10 +122,10 @@ class LPSN_SSU_Types():
                 ncbi_assem_report: Dict[str, str],
                 queue_in: mp.Queue,
                 queue_out: mp.Queue) -> None:
-        """Match LPSN species with type rRNA sequences to genomes with the same NCBI species classification.
+        """Match LPSN species with type rRNA sequences to genomes with the same reference or NCBI species classification.
 
         :param cur_genomes: Metadata for genomes in the current GTDB release.
-        :param ncbi_sp_gids: Mapping indicating genomes with a NCBI species classification.
+        :param ncbi_sp_gids: Mapping indicating genomes with a reference (SeqCode or NCBI) or NCBI species classification.
         :param ncbi_candidatus: Genomes annotated as `Candidatus` at NCBI.
         :param ncbi_assem_report: Mapping indicating NCBI assembly report file for a genome.
         :param queue_in: Input queue of LPSN species to process in parallel.
@@ -188,7 +189,8 @@ class LPSN_SSU_Types():
         fout = open(os.path.join(self.output_dir,
                     'lpsn_ssu_type_genomes.tsv'), 'w')
         fout.write(
-            'Genome ID\tCandidatus\tSpecies\trRNA\tIs GTDB type genome\tIs NCBI type genome\tGTDB type strain genomes\tNotes\n')
+            'Genome ID\tCandidatus\tSpecies\trRNA\tIs GTDB type genome\tIs NCBI type genome\tGTDB type strain genomes\tNotes'
+            + Genome.REF_TAXA_HEADER + '\n')
 
         processed = 0
         missing_type_designation = 0
@@ -206,7 +208,7 @@ class LPSN_SSU_Types():
                     notes = f'Genome considered untrustworthy as type according to {untrustworthy_type_ledger_name}'
                     untrustworthy_gids.append(gid)
 
-                fout.write('{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\n'.format(
+                fout.write('{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\n'.format(
                     gid,
                     is_candidatus,
                     lpsn_sp,
@@ -214,7 +216,8 @@ class LPSN_SSU_Types():
                     cur_genomes[gid].is_gtdb_type_strain(),
                     cur_genomes[gid].is_ncbi_type_strain(),
                     ','.join(gtdb_type_strains[lpsn_sp]),
-                    notes))
+                    notes,
+                    cur_genomes[gid].ref_taxa_columns()))
 
                 # genomes untrustworthy as type should not be added to the type strains ledger
                 if not cur_genomes[gid].is_gtdb_type_strain() and not cur_genomes[gid].is_gtdb_untrustworthy_as_type():
@@ -282,21 +285,25 @@ class LPSN_SSU_Types():
         self.log.info(
             f' - identified {len(lpsn_sp_type_ssu):,} species with type 16S rRNA sequence.')
 
-        # get NCBI species assignments for genomes and genomes marked as being
-        # type strain genomes
+        # get species assignments for genomes and genomes marked as being
+        # type strain genomes; genomes are indexed by both their reference
+        # (SeqCode or NCBI) species and their NCBI species so a SeqCode type
+        # genome is still matched to the LPSN basonym of its SeqCode name
         ncbi_candidatus = set()
         ncbi_sp_gids = defaultdict(set)
         ncbi_assem_report = {}
         gtdb_type_strains = defaultdict(set)
         for gid in cur_genomes:
             ncbi_sp = cur_genomes[gid].ncbi_taxa.species
-            ncbi_sp_gids[ncbi_sp].add(gid)
+            for sp in {cur_genomes[gid].ref_taxa.species, ncbi_sp}:
+                ncbi_sp_gids[sp].add(gid)
 
             if 'Candidatus' in cur_genomes[gid].ncbi_unfiltered_taxa.species:
                 ncbi_candidatus.add(gid)
 
             if cur_genomes[gid].is_gtdb_type_strain():
-                gtdb_type_strains[ncbi_sp].add(gid)
+                for sp in {cur_genomes[gid].type_species(), ncbi_sp}:
+                    gtdb_type_strains[sp].add(gid)
 
             gf = cur_genomes.genomic_files[gid]
             assem_report = gf.replace('_genomic.fna.gz', '_assembly_report.txt')
