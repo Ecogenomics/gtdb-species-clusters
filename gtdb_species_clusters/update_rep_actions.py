@@ -25,12 +25,14 @@ from numpy import (mean as np_mean, std as np_std)
 
 from gtdb_species_clusters import defaults as Defaults
 from gtdb_species_clusters.skani import Skani
+from gtdb_species_clusters.genome import Genome
 from gtdb_species_clusters.genomes import Genomes
 from gtdb_species_clusters.species_clusters import SpeciesClusters
 from gtdb_species_clusters.species_priority_manager import SpeciesPriorityManager
 from gtdb_species_clusters.genome_utils import (select_highest_quality,
                                                 parse_ncbi_bioproject,
                                                 parse_ncbi_env_bioproject_ledger)
+from gtdb_species_clusters.taxon_utils import canonical_species
 
 
 class RepActions():
@@ -92,7 +94,7 @@ class RepActions():
         """
 
         return [cid for cid in sp_cids
-                if cur_genomes[cid].ncbi_taxa.species not in Defaults.SHIGELLA_NCBI_SPECIES]
+                if cur_genomes[cid].ref_taxa.species not in Defaults.SHIGELLA_NCBI_SPECIES]
 
     def top_ani_score_prev_rep(self,
                                prev_rid,
@@ -244,7 +246,7 @@ class RepActions():
         """Check if proposed change in GTDB representative conflicts with naming priority."""
 
         if (cur_genomes[prev_rid].is_gtdb_type_strain()
-                and cur_genomes[prev_rid].ncbi_taxa.specific_epithet != cur_genomes[new_rid].ncbi_taxa.specific_epithet
+                and cur_genomes[prev_rid].ref_taxa.specific_epithet != cur_genomes[new_rid].ref_taxa.specific_epithet
                 and self.sp_priority_mngr.test_species_priority(cur_genomes, prev_rid, new_rid)):
             # Previous representative has naming priority over proposed new representative
             # which is a violations
@@ -252,10 +254,10 @@ class RepActions():
             if False:  # *** DEBUGGING
                 self.log.warning('Reassignments to type strain genome with lower naming priority is not allowed: {}/{}/{}, {}/{}/{}'.format(
                     prev_rid,
-                    cur_genomes[prev_rid].ncbi_taxa.species,
+                    cur_genomes[prev_rid].ref_taxa.species,
                     cur_genomes[prev_rid].year_of_priority(),
                     new_rid,
-                    cur_genomes[new_rid].ncbi_taxa.species,
+                    cur_genomes[new_rid].ref_taxa.species,
                     cur_genomes[new_rid].year_of_priority()))
 
             return True
@@ -843,9 +845,12 @@ class RepActions():
 
         out_file = os.path.join(self.output_dir, 'updated_naming_priority.tsv')
         fout = open(out_file, 'w')
+        # species are those the type strain genomes are type material of (see Genome.type_species),
+        # reported under the historical 'NCBI species' and 'NCBI synonym' column headings
         fout.write('NCBI species\tGTDB species\tRepresentative\tStrain IDs\tRepresentative type sources\tPriority year\tGTDB type species\tGTDB type strain\tNCBI assembly type')
         fout.write('\tNCBI synonym\tGTDB synonym\tSynonym genome\tSynonym strain IDs\tSynonym type sources\tPriority year\tGTDB type species\tGTDB type strain\tSynonym NCBI assembly type')
-        fout.write('\tANI\tAF\tPriority note\n')
+        fout.write('\tANI\tAF\tPriority note')
+        fout.write(Genome.REF_TAXA_HEADER + Genome.REF_TAXA_HEADER.replace('\t', '\tSynonym ').replace('Synonym Reference', 'Synonym reference') + '\n')
 
         num_higher_priority = 0
         assembly_score_change = []
@@ -875,19 +880,25 @@ class RepActions():
                 # indicates genome has explicitly been flagged to be disbanded
                 continue
 
-            type_strain_sp = set(
-                [cur_genomes[gid].ncbi_taxa.species for gid in type_strain_gids])
+            # type strain genomes are grouped by the species they are type material of,
+            # ignoring GTDB suffixes so a genome in the GTDB type strains ledger as
+            # s__Alpha_A beta is grouped with the type strain genomes of s__Alpha beta
+            def type_sp(gid):
+                sp = cur_genomes[gid].type_species()
+                return canonical_species(sp) if ' ' in sp else sp
+
+            type_strain_sp = set([type_sp(gid) for gid in type_strain_gids])
             if len(type_strain_sp) == 1 and updated_rid in type_strain_gids:
                 continue
 
-            updated_sp = cur_genomes[updated_rid].ncbi_taxa.species
+            updated_sp = type_sp(updated_rid)
             highest_priority_gid = updated_rid
 
             if updated_rid not in type_strain_gids:
                 highest_priority_gid = None
                 if updated_sp in type_strain_sp:
                     sp_gids = [gid for gid in type_strain_gids
-                               if cur_genomes[gid].ncbi_taxa.species == updated_sp]
+                               if type_sp(gid) == updated_sp]
                     hq_gid = select_highest_quality(sp_gids, cur_genomes)
                     highest_priority_gid = hq_gid
 
@@ -903,7 +914,7 @@ class RepActions():
 
                 # get highest quality genome from species
                 sp_gids = [gid for gid in type_strain_gids
-                           if cur_genomes[gid].ncbi_taxa.species == sp]
+                           if type_sp(gid) == sp]
                 hq_gid = select_highest_quality(sp_gids, cur_genomes)
 
                 if highest_priority_gid is None:
@@ -932,9 +943,11 @@ class RepActions():
 
                 action = 'NOMENCLATURE_PRIORITY:REPLACED'
                 params = {}
-                params['prev_ncbi_species'] = cur_genomes[updated_rid].ncbi_taxa.species
+                params['prev_ncbi_species'] = cur_genomes[updated_rid].type_species()
+                params['prev_species_source'] = cur_genomes[updated_rid].ref_taxa_source
                 params['prev_year_of_priority'] = cur_genomes[updated_rid].year_of_priority()
-                params['new_ncbi_species'] = cur_genomes[highest_priority_gid].ncbi_taxa.species
+                params['new_ncbi_species'] = cur_genomes[highest_priority_gid].type_species()
+                params['new_species_source'] = cur_genomes[highest_priority_gid].ref_taxa_source
                 params['new_year_of_priority'] = cur_genomes[highest_priority_gid].year_of_priority()
                 params['new_rid'] = highest_priority_gid
                 params['ani'] = ani
@@ -949,7 +962,7 @@ class RepActions():
                     params))
 
                 fout.write('{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}'.format(
-                    cur_genomes[highest_priority_gid].ncbi_taxa.species,
+                    cur_genomes[highest_priority_gid].type_species(),
                     cur_genomes[highest_priority_gid].gtdb_taxa.species,
                     highest_priority_gid,
                     ','.join(
@@ -961,7 +974,7 @@ class RepActions():
                     cur_genomes[highest_priority_gid].is_gtdb_type_strain(),
                     cur_genomes[highest_priority_gid].ncbi_type_material))
                 fout.write('\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}'.format(
-                    cur_genomes[updated_rid].ncbi_taxa.species,
+                    cur_genomes[updated_rid].type_species(),
                     cur_genomes[updated_rid].gtdb_taxa.species,
                     updated_rid,
                     ','.join(sorted(cur_genomes[updated_rid].strain_ids())),
@@ -971,7 +984,10 @@ class RepActions():
                     cur_genomes[updated_rid].is_gtdb_type_species(),
                     cur_genomes[updated_rid].is_gtdb_type_strain(),
                     cur_genomes[updated_rid].ncbi_type_material))
-                fout.write('\t{:.3f}\t{:.4f}\t{}\n'.format(ani, af, note))
+                fout.write('\t{:.3f}\t{:.4f}\t{}\t{}\t{}\n'.format(
+                    ani, af, note,
+                    cur_genomes[highest_priority_gid].ref_taxa_columns(),
+                    cur_genomes[updated_rid].ref_taxa_columns()))
 
         fout.close()
 
@@ -1099,7 +1115,8 @@ class RepActions():
         self.sp_priority_mngr = SpeciesPriorityManager(sp_priority_ledger,
                                                        genus_priority_ledger,
                                                        lpsn_gss_file,
-                                                       self.output_dir)
+                                                       self.output_dir,
+                                                       seqcode_file=seqcode_file)
 
         # take action required for each changed representatives; disbanded clusters are
         # identified first as a cluster with a lost representative may be flagged to be disbanded
@@ -1169,7 +1186,8 @@ class RepActions():
         fout = open(os.path.join(self.output_dir,
                                  'gtdb_type_sp_untrustworthy_at_ncbi.tsv'), 'w')
         fout.write(
-            'Genome ID\tGTDB species\tNCBI species\tSame species\tSame genus\tSame family\tGTDB taxonomy\tNCBI taxonomy\n')
+            'Genome ID\tGTDB species\tNCBI species\tSame species\tSame genus\tSame family\tGTDB taxonomy\tNCBI taxonomy'
+            + Genome.REF_TAXA_HEADER + '\n')
         num_gtdb_type_sp_untrustworthy_at_ncbi = 0
         num_diff_sp = 0
         for prev_rid in prev_genomes.sp_clusters:
@@ -1177,19 +1195,21 @@ class RepActions():
             if new_rid is None:
                 continue
 
+            # comparisons are with the reference (SeqCode or NCBI) taxonomy of the genome
             if cur_genomes[new_rid].is_gtdb_type_strain() and cur_genomes[new_rid].is_ncbi_untrustworthy_as_type():
                 num_gtdb_type_sp_untrustworthy_at_ncbi += 1
-                fout.write('{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\n'.format(
+                fout.write('{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\n'.format(
                     new_rid,
                     cur_genomes[new_rid].gtdb_taxa.species,
                     cur_genomes[new_rid].ncbi_taxa.species,
-                    cur_genomes[new_rid].gtdb_taxa.species == cur_genomes[new_rid].ncbi_taxa.species,
-                    cur_genomes[new_rid].gtdb_taxa.genus == cur_genomes[new_rid].ncbi_taxa.genus,
-                    cur_genomes[new_rid].gtdb_taxa.family == cur_genomes[new_rid].ncbi_taxa.family,
+                    cur_genomes[new_rid].gtdb_taxa.species == cur_genomes[new_rid].ref_taxa.species,
+                    cur_genomes[new_rid].gtdb_taxa.genus == cur_genomes[new_rid].ref_taxa.genus,
+                    cur_genomes[new_rid].gtdb_taxa.family == cur_genomes[new_rid].ref_taxa.family,
                     cur_genomes[new_rid].gtdb_taxa,
-                    cur_genomes[new_rid].ncbi_taxa))
+                    cur_genomes[new_rid].ncbi_taxa,
+                    cur_genomes[new_rid].ref_taxa_columns()))
 
-                if cur_genomes[new_rid].gtdb_taxa.species != cur_genomes[new_rid].ncbi_taxa.species:
+                if cur_genomes[new_rid].gtdb_taxa.species != cur_genomes[new_rid].ref_taxa.species:
                     num_diff_sp += 1
 
         fout.close()

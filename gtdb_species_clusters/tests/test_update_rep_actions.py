@@ -46,6 +46,10 @@ class StubSpeciesGenomes(dict):
         for gid, species in genome_species.items():
             self.genomic_files[gid] = f'{gid}.fna'
             self[gid] = SimpleNamespace(ncbi_taxa=SimpleNamespace(species=species),
+                                        ref_taxa=SimpleNamespace(species=species),
+                                        ref_taxa_source='NCBI',
+                                        type_species=lambda species=species: species,
+                                        ref_taxa_columns=lambda: '\t\tNCBI',
                                         genomic_file=f'{gid}.fna',
                                         score_ani=lambda _ani, score=genome_scores[gid]: score,
                                         is_gtdb_type_strain=lambda: False)

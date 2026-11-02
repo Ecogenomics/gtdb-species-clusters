@@ -23,7 +23,7 @@ import functools
 from collections import defaultdict
 
 from gtdb_species_clusters.genome import Genome
-from gtdb_species_clusters.genome_utils import select_highest_quality
+from gtdb_species_clusters.genome_utils import select_highest_quality, parse_seqcode_table
 from gtdb_species_clusters.lpsn import LPSN
 
 
@@ -34,8 +34,15 @@ class SpeciesPriorityManager(object):
                  species_priority_ledger,
                  genus_priority_ledger,
                  lpsn_gss_file,
-                 output_dir):
-        """Initialization."""
+                 output_dir,
+                 seqcode_file=None):
+        """Initialization.
+
+        Species names are the reference (SeqCode or NCBI) species of genomes
+        (see Genome.ref_taxa). Names validly published under the SeqCode, read
+        from the SeqCode table when given, are valid names alongside those
+        validly published under the ICNP according to LPSN.
+        """
 
         self.log = logging.getLogger('rich')
 
@@ -50,6 +57,12 @@ class SpeciesPriorityManager(object):
         self._parse_sp_priority_ledger(species_priority_ledger)
         self._parse_genus_priority_ledger(genus_priority_ledger)
         self._parse_lpsn_gss(lpsn_gss_file)
+
+        self.valid_names = set(self.lpsn_valid_names)
+        if seqcode_file:
+            seqcode_species = {'s__' + r.name for r in parse_seqcode_table(seqcode_file).values()}
+            self.valid_names.update(seqcode_species)
+            self.log.info(f' - identified {len(seqcode_species):,} species with validly published names in SeqCode')
 
     def __del__(self):
         """Destructor."""
@@ -241,10 +254,10 @@ class SpeciesPriorityManager(object):
     def species_priority_year(self, cur_genomes, gid):
         """Get year of priority for genome."""
 
-        ncbi_sp = cur_genomes[gid].ncbi_taxa.species
+        ref_sp = cur_genomes[gid].ref_taxa.species
         if (cur_genomes[gid].is_effective_type_strain()
-                and ncbi_sp in self.manual_species_priority_year):
-            return self.manual_species_priority_year[ncbi_sp]
+                and ref_sp in self.manual_species_priority_year):
+            return self.manual_species_priority_year[ref_sp]
 
         return cur_genomes[gid].year_of_priority()
 
@@ -265,11 +278,12 @@ class SpeciesPriorityManager(object):
     def species_priority(self, cur_genomes, gid1, gid2):
         """Resolve species priority of genomes."""
 
-        ncbi_sp1 = cur_genomes[gid1].ncbi_taxa.species
-        ncbi_sp2 = cur_genomes[gid2].ncbi_taxa.species
+        # species and genera are the reference (SeqCode or NCBI) names of the genomes
+        ncbi_sp1 = cur_genomes[gid1].ref_taxa.species
+        ncbi_sp2 = cur_genomes[gid2].ref_taxa.species
 
-        ncbi_genus1 = cur_genomes[gid1].ncbi_taxa.genus
-        ncbi_genus2 = cur_genomes[gid2].ncbi_taxa.genus
+        ncbi_genus1 = cur_genomes[gid1].ref_taxa.genus
+        ncbi_genus2 = cur_genomes[gid2].ref_taxa.genus
 
         # give priority to genomes assembled from the
         # type strain of the species
@@ -280,12 +294,12 @@ class SpeciesPriorityManager(object):
                 and cur_genomes[gid2].is_effective_type_strain()):
             return gid2, 'effective type strain'
 
-        # give priority to valid species names
-        if (ncbi_sp1 in self.lpsn_valid_names
-                and ncbi_sp2 not in self.lpsn_valid_names):
+        # give priority to valid species names (validly published under the ICNP or SeqCode)
+        if (ncbi_sp1 in self.valid_names
+                and ncbi_sp2 not in self.valid_names):
             return gid1, 'selected valid species name'
-        if (ncbi_sp1 not in self.lpsn_valid_names
-                and ncbi_sp2 in self.lpsn_valid_names):
+        if (ncbi_sp1 not in self.valid_names
+                and ncbi_sp2 in self.valid_names):
             return gid2, 'selected valid species name'
 
         # give priority to type species of genus first
