@@ -444,7 +444,15 @@ class Genome(object):
         return sources
 
     def year_of_priority(self):
-        """Get year of priority for type strains of species."""
+        """Get year of priority for type strains of species.
+
+        A name validly published under both the ICNP (LPSN) and the SeqCode takes
+        priority from the earliest valid publication under either code (SeqCode
+        Rule 23c), so the earlier of the two years is used when both are known.
+        """
+
+        if self.is_seqcode_type_strain():
+            return min(self.lpsn_priority_year, self.seqcode_priority_year)
 
         return self.lpsn_priority_year
 

@@ -343,8 +343,27 @@ class TestGenome:
         assert g.ref_taxa.species == 's__Seqcodia nova'
 
     def test_year_of_priority(self):
-        """Test year of priority is the LPSN year (SeqCode year is not used until step 7 of the SeqCode plan)."""
+        """Test year of priority is the earliest of the LPSN and SeqCode years (SeqCode Rule 23c)."""
 
         g = copy.deepcopy(test_genome)
         assert g.seqcode_priority_year == Genome.NO_PRIORITY_YEAR
         assert g.year_of_priority() == 1900
+
+        # SeqCode year is only used for SeqCode type material
+        g.seqcode_priority_year = 1850
+        assert g.year_of_priority() == 1900
+        g.seqcode_taxa = Taxa('d__Bacteria;p__;c__;o__;f__;g__Seqcodia;s__Seqcodia nova')
+        assert g.year_of_priority() == 1850
+
+        # the earlier of the two years is used when both are known
+        g.seqcode_priority_year = 2025
+        assert g.year_of_priority() == 1900
+        g.lpsn_priority_year = Genome.NO_PRIORITY_YEAR
+        assert g.year_of_priority() == 2025
+        g.seqcode_priority_year = Genome.NO_PRIORITY_YEAR
+        assert g.year_of_priority() == Genome.NO_PRIORITY_YEAR
+
+        # a genome untrustworthy as type is not SeqCode type material
+        g.seqcode_priority_year = 2025
+        g.gtdb_untrustworthy_as_type = True
+        assert g.year_of_priority() == Genome.NO_PRIORITY_YEAR

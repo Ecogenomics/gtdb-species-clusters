@@ -1,3 +1,8 @@
+0.9.5
+- The year of priority of a name validly published under both the ICNP (LPSN) and the SeqCode is the earlier of the two (SeqCode Rule 23c); SeqCode type genomes with no LPSN year use their SeqCode year
+- Species priority uses the reference (SeqCode or NCBI) species of genomes, and names validly published under the SeqCode count as valid names
+- u_rep_actions groups type strain genomes by the species they are type material of when checking naming priority, and its tables gain SeqCode species, SeqCode genus and reference source columns
+
 0.9.4
 - u_rep_changes compares the reference (SeqCode or NCBI) species of previous representatives between releases, so a representative whose SeqCode name is unchanged is not reported as reassigned when its NCBI species changes; rep_change_summary.tsv gains SeqCode species, SeqCode genus and reference source columns
 
