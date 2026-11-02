@@ -18,8 +18,12 @@
 import sys
 import logging
 from dataclasses import dataclass
+from typing import Optional
 
 from gtdb_species_clusters.taxa import Taxa
+
+# year of priority for genomes that are not type material or have no known year
+NO_PRIORITY_YEAR = int(1e6)
 
 
 @dataclass
@@ -64,6 +68,15 @@ class Genome(object):
     ncbi_spanned_gaps: int
     lpsn_priority_year: int
 
+    # SeqCode classification of genomes that are the type genome of a validly
+    # published SeqCode species (None otherwise), with the year of priority of
+    # the SeqCode name; see docs/seqcode_taxonomy_plan.md
+    seqcode_taxa: Optional[Taxa] = None
+    seqcode_priority_year: int = NO_PRIORITY_YEAR
+
+    # species name from the GTDB type strains ledger ('' if genome is not in the ledger)
+    type_strains_ledger_sp: str = ''
+
     NCBI_TYPE_SPECIES = set(['assembly from type material',
                              'assembly from neotype material',
                              'assembly designated as neotype',
@@ -78,7 +91,11 @@ class Genome(object):
         ['type strain of subspecies', 'type strain of heterotypic synonym'])
     GTDB_NOT_TYPE_MATERIAL = set(['not type material'])
 
-    NO_PRIORITY_YEAR = int(1e6)
+    NO_PRIORITY_YEAR = NO_PRIORITY_YEAR
+
+    # sources of the reference taxonomy (see ref_taxa)
+    REF_TAXA_SEQCODE = 'SeqCode'
+    REF_TAXA_NCBI = 'NCBI'
 
     # shared by all genomes as getLogger() is slow relative to creating a genome
     log = logging.getLogger('rich')
@@ -97,8 +114,57 @@ class Genome(object):
         return (
             f'{{gid:{self.gid}, '
             f'gtdb_sp:{self.gtdb_taxa.species}, '
-            f'ncbi_sp:{self.ncbi_taxa.species}}}'
+            f'ncbi_sp:{self.ncbi_taxa.species}, '
+            f'ref_sp:{self.ref_taxa.species} ({self.ref_taxa_source})}}'
         )
+
+    @property
+    def ref_taxa(self):
+        """Reference classification of genome: SeqCode taxonomy if the genome is SeqCode type material, else NCBI taxonomy.
+
+        The SeqCode name takes priority over the NCBI name as it is the validly published name
+        of the species represented by the genome. Use ncbi_taxa only when the NCBI assignment is
+        specifically required (e.g., NCBI subspecies or reporting the NCBI name alongside the reference name).
+        """
+
+        if self.seqcode_taxa is not None:
+            return self.seqcode_taxa
+
+        return self.ncbi_taxa
+
+    @property
+    def ref_taxa_source(self):
+        """Source of the reference classification: 'SeqCode' or 'NCBI'."""
+
+        if self.seqcode_taxa is not None:
+            return Genome.REF_TAXA_SEQCODE
+
+        return Genome.REF_TAXA_NCBI
+
+    def ref_taxa_columns(self):
+        """Tab-separated SeqCode species, SeqCode genus and reference source for output tables.
+
+        Intended to be appended to tables that report the NCBI species or genus of a genome.
+        """
+
+        seqcode_sp = seqcode_genus = ''
+        if self.seqcode_taxa is not None:
+            seqcode_sp = self.seqcode_taxa.species
+            seqcode_genus = self.seqcode_taxa.genus
+
+        return f'{seqcode_sp}\t{seqcode_genus}\t{self.ref_taxa_source}'
+
+    def type_species(self):
+        """Species the genome is asserted to be the type material of.
+
+        The species in the GTDB type strains ledger takes precedence over
+        the SeqCode and NCBI species (see ref_taxa).
+        """
+
+        if self.type_strains_ledger_sp:
+            return self.type_strains_ledger_sp
+
+        return self.ref_taxa.species
 
     def is_gtdb_sp_rep(self):
         """Check if genome is representative of species."""
@@ -174,6 +240,14 @@ class Genome(object):
         """
 
         return self.gtdb_type_designation_sources == 'GTDB curator'
+
+    def is_seqcode_type_strain(self):
+        """Check if genome is the type genome of a validly published SeqCode species."""
+
+        if self.gtdb_untrustworthy_as_type:
+            return False
+
+        return self.seqcode_taxa is not None
 
     def is_gtdb_type_species(self):
         """Check if genome is a type species of genus in GTDB."""

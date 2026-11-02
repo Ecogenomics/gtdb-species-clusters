@@ -1035,7 +1035,8 @@ class UpdateSelectRepresentatives():
             sp_priority_ledger,
             genus_priority_ledger,
             ncbi_env_bioproject_ledger,
-            lpsn_gss_file):
+            lpsn_gss_file,
+            seqcode_file):
         """Select GTDB type genomes for named species."""
 
         # read updated GTDB species clusters
@@ -1056,7 +1057,8 @@ class UpdateSelectRepresentatives():
                                             ncbi_genbank_assembly_file=ncbi_genbank_assembly_file,
                                             untrustworthy_type_ledger=untrustworthy_type_file,
                                             ncbi_untrustworthy_sp_ledger=ncbi_untrustworthy_sp_ledger,
-                                            ncbi_env_bioproject_ledger=ncbi_env_bioproject_ledger)
+                                            ncbi_env_bioproject_ledger=ncbi_env_bioproject_ledger,
+                                            seqcode_file=seqcode_file)
 
         # get path to previous and current genomic FASTA files
         self.log.info('Reading path to current genomic FASTA files.')

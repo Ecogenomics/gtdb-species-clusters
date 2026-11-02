@@ -249,7 +249,8 @@ class LPSN_SSU_Types():
             ncbi_genbank_assembly_file: List[str],
             gtdb_type_strains_ledger: str,
             untrustworthy_type_ledger: str,
-            untrustworthy_type_ledger_name: str) -> None:
+            untrustworthy_type_ledger_name: str,
+            seqcode_file: str) -> None:
         """Identify type genomes based on type 16S rRNA sequences indicated at LPSN.
 
         :param lpsn_metadata_file: LPSN metadata file indicating 16S accessions for type strains.
@@ -260,6 +261,7 @@ class LPSN_SSU_Types():
         :param gtdb_type_strains_ledger: File indicating genomes that should be considered assembled from the type strain.
         :param untrustworthy_type_ledger: File listing genomes that should be considered untrustworthy as type material.
         :param untrustworthy_type_ledger_name: Path to untrustworthy type ledger as written in the input TOML file, used in reported notes.
+        :param seqcode_file: SeqCode table giving the type genome of each validly published SeqCode species.
         """
 
         # create current GTDB genome sets
@@ -270,7 +272,8 @@ class LPSN_SSU_Types():
                                             create_sp_clusters=False,
                                             qc_passed_file=qc_passed_file,
                                             ncbi_genbank_assembly_file=ncbi_genbank_assembly_file,
-                                            untrustworthy_type_ledger=untrustworthy_type_ledger)
+                                            untrustworthy_type_ledger=untrustworthy_type_ledger,
+                                            seqcode_file=seqcode_file)
         cur_genomes.load_genomic_file_paths(cur_genomic_path_file)
 
         # get LPSN species names with specified sequence type material

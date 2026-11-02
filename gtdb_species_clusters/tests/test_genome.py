@@ -301,3 +301,50 @@ class TestGenome:
                       cm2_comp=79, coding_density=79) == (False, {'ncbi_frameshift'})
         assert run_qc(excluded_from_refseq_note='many frameshifted proteins',
                       cm2_comp=80, coding_density=79) == (True, set())
+
+    def test_ref_taxa(self):
+        """Test reference taxonomy resolves to SeqCode when present and NCBI otherwise."""
+
+        g = copy.deepcopy(test_genome)
+        assert g.seqcode_taxa is None
+        assert g.ref_taxa is g.ncbi_taxa
+        assert g.ref_taxa_source == 'NCBI'
+        assert not g.is_seqcode_type_strain()
+        assert g.ref_taxa_columns() == '\t\tNCBI'
+
+        g.seqcode_taxa = Taxa(
+            'd__Bacteria;p__Pseudomonadota;c__Gammaproteobacteria;o__Enterobacterales;f__Enterobacteriaceae;g__Seqcodia;s__Seqcodia nova')
+        assert g.ref_taxa is g.seqcode_taxa
+        assert g.ref_taxa_source == 'SeqCode'
+        assert g.ref_taxa.species == 's__Seqcodia nova'
+        assert g.ref_taxa.genus == 'g__Seqcodia'
+        assert g.ref_taxa.family == 'f__Enterobacteriaceae'
+        assert g.ncbi_taxa.species == 's__Escherichia flexneri'
+        assert g.is_seqcode_type_strain()
+        assert g.ref_taxa_columns() == 's__Seqcodia nova\tg__Seqcodia\tSeqCode'
+        assert 'ref_sp:s__Seqcodia nova (SeqCode)' in str(g)
+
+        # genomes untrustworthy as type are not SeqCode type material
+        g.gtdb_untrustworthy_as_type = True
+        assert not g.is_seqcode_type_strain()
+        assert g.ref_taxa is g.seqcode_taxa
+
+    def test_type_species(self):
+        """Test species a genome is type material of: ledger, then SeqCode, then NCBI."""
+
+        g = copy.deepcopy(test_genome)
+        assert g.type_species() == 's__Escherichia flexneri'
+
+        g.seqcode_taxa = Taxa('d__Bacteria;p__;c__;o__;f__;g__Seqcodia;s__Seqcodia nova')
+        assert g.type_species() == 's__Seqcodia nova'
+
+        g.type_strains_ledger_sp = 's__Escherichia_A flexneri'
+        assert g.type_species() == 's__Escherichia_A flexneri'
+        assert g.ref_taxa.species == 's__Seqcodia nova'
+
+    def test_year_of_priority(self):
+        """Test year of priority is the LPSN year (SeqCode year is not used until step 7 of the SeqCode plan)."""
+
+        g = copy.deepcopy(test_genome)
+        assert g.seqcode_priority_year == Genome.NO_PRIORITY_YEAR
+        assert g.year_of_priority() == 1900

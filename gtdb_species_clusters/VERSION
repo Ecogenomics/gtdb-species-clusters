@@ -1,3 +1,8 @@
+0.9.0
+- Genomes carry their SeqCode taxonomy (Genome.seqcode_taxa) read from the SeqCode table; Genome.ref_taxa resolves to the SeqCode taxonomy when present and the NCBI taxonomy otherwise, and Genome.type_species() gives the species a type genome is type material of (GTDB type strains ledger, then ref_taxa)
+- All u_* commands load the SeqCode table for the previous and current genome sets; loading warns when the table and metadata disagree and when a type strains ledger entry conflicts with SeqCode or is redundant
+- No command reads the new fields yet, so outputs are unchanged (see docs/seqcode_taxonomy_plan.md)
+
 0.8.11
 - u_synonyms identifies majority vote synonyms in a single pass over NCBI species instead of comparing each NCBI species to every GTDB species cluster
 

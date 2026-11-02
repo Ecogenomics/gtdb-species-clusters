@@ -163,7 +163,8 @@ class UpdateErroneousNCBI():
             untrustworthy_type_file,
             gtdb_type_strains_ledger,
             ncbi_untrustworthy_sp_ledger,
-            ncbi_env_bioproject_ledger):
+            ncbi_env_bioproject_ledger,
+            seqcode_file):
         """Cluster genomes to selected GTDB representatives."""
 
         # create current GTDB genome sets
@@ -176,7 +177,8 @@ class UpdateErroneousNCBI():
                                             ncbi_genbank_assembly_file=ncbi_genbank_assembly_file,
                                             untrustworthy_type_ledger=untrustworthy_type_file,
                                             ncbi_untrustworthy_sp_ledger=ncbi_untrustworthy_sp_ledger,
-                                            ncbi_env_bioproject_ledger=ncbi_env_bioproject_ledger)
+                                            ncbi_env_bioproject_ledger=ncbi_env_bioproject_ledger,
+                                            seqcode_file=seqcode_file)
 
         # get path to previous and current genomic FASTA files
         self.log.info('Reading path to current genomic FASTA files.')

@@ -28,6 +28,7 @@ from gtdb_species_clusters.species_clusters import SpeciesClusters
 from gtdb_species_clusters.genome_utils import (exclude_from_refseq,
                                                 parse_ncbi_env_bioproject_ledger,
                                                 parse_ncbi_bioproject,
+                                                parse_seqcode_table,
                                                 read_gtdbtk_classifications,
                                                 open_file,
                                                 MultiFileReader)
@@ -228,6 +229,31 @@ class Genomes(object):
 
         return named_ncbi_sp
 
+    def named_ref_species(self):
+        """Get genomes with valid or effectively published, including Candidatus, trusted species names in the reference (SeqCode or NCBI) taxonomy."""
+
+        named_ref_sp = defaultdict(set)
+        for gid in self.genomes:
+            if self.genomes[gid].ncbi_untrustworthy_sp:
+                continue
+
+            if not is_placeholder_taxon(self.genomes[gid].ref_taxa.species):
+                named_ref_sp[self.genomes[gid].ref_taxa.species].add(gid)
+
+        return named_ref_sp
+
+    def type_strain_genomes_by_species(self):
+        """Get effective type strain genomes grouped by the species they are type material of (see Genome.type_species)."""
+
+        type_strain_genomes = defaultdict(set)
+        for gid, genome in self.genomes.items():
+            if genome.is_effective_type_strain():
+                type_sp = genome.type_species()
+                if type_sp != 's__':
+                    type_strain_genomes[type_sp].add(gid)
+
+        return type_strain_genomes
+
     def load_genomic_file_paths(self, genome_path_file):
         """Determine path to genomic FASTA file for each genome."""
 
@@ -355,13 +381,28 @@ class Genomes(object):
                                 ncbi_genbank_assembly_file=None,
                                 untrustworthy_type_ledger=None,
                                 ncbi_untrustworthy_sp_ledger=None,
-                                ncbi_env_bioproject_ledger=None):
+                                ncbi_env_bioproject_ledger=None,
+                                seqcode_file=None):
         """Create genome set from file(s).
 
         The metadata_file and ncbi_genbank_assembly_file arguments may each be a
         single file or a list of files (e.g., separate archaeal and bacterial files),
         and files may be gzip compressed.
+
+        The seqcode_file gives the type genome of each validly published SeqCode species.
+        It sets the SeqCode taxonomy (Genome.seqcode_taxa) of these genomes, which takes
+        priority over the NCBI taxonomy (see Genome.ref_taxa). The same file is used for
+        the previous and current genome sets so names are comparable between releases;
+        only the reference taxonomy of previous genomes is affected, never their GTDB taxonomy.
         """
+
+        metadata_name = os.path.basename(metadata_file if isinstance(metadata_file, str) else metadata_file[0])
+
+        seqcode = {}
+        if seqcode_file:
+            seqcode = parse_seqcode_table(seqcode_file)
+            self.log.info(
+                f' - identified {len(seqcode):,} type genomes of validly published SeqCode species')
 
         pass_qc_gids = set()
         if qc_passed_file:
@@ -495,6 +536,15 @@ class Genomes(object):
                 # concerns over republishing this information
                 lpsn_priority_index = headers.index('lpsn_priority_year')
 
+            seqcode_name_index = None
+            if seqcode and 'seqcode_name' in headers:
+                # the SeqCode table is the source of SeqCode names, but should
+                # agree with the SeqCode fields in the current GTDB metadata
+                seqcode_name_index = headers.index('seqcode_name')
+
+            num_seqcode = 0
+            num_seqcode_ncbi_sp = 0
+            num_seqcode_ncbi_sp_diff = 0
             for line in f:
                 tokens = line.strip().split('\t')
 
@@ -510,9 +560,52 @@ class Genomes(object):
                 ncbi_taxonomy_unfiltered = Taxa(
                     tokens[ncbi_taxonomy_unfiltered_index], filtered=False)
 
+                seqcode_taxonomy = None
+                seqcode_priority_year = Genome.NO_PRIORITY_YEAR
+                if gid in seqcode:
+                    seqcode_taxonomy = Taxa(seqcode[gid].classification)
+                    seqcode_taxonomy.species = 's__' + seqcode[gid].name
+                    seqcode_priority_year = seqcode[gid].priority_year
+
+                    num_seqcode += 1
+                    if ncbi_taxonomy.species != 's__':
+                        num_seqcode_ncbi_sp += 1
+                        if ncbi_taxonomy.species != seqcode_taxonomy.species:
+                            num_seqcode_ncbi_sp_diff += 1
+
+                if seqcode_name_index is not None:
+                    metadata_seqcode_name = tokens[seqcode_name_index]
+                    if metadata_seqcode_name not in ['', 'none']:
+                        if gid not in seqcode:
+                            self.log.warning(f'Genome {gid} has the SeqCode name {metadata_seqcode_name} in {metadata_name}, '
+                                             'but is not in the SeqCode table.')
+                        elif metadata_seqcode_name.replace('Candidatus ', '') != seqcode[gid].name:
+                            self.log.warning(f'Genome {gid} has the SeqCode name {metadata_seqcode_name} in {metadata_name}, '
+                                             f'but {seqcode[gid].name} in the SeqCode table.')
+                    elif gid in seqcode:
+                        self.log.warning(f'Genome {gid} has the SeqCode name {seqcode[gid].name} in the SeqCode table, '
+                                         f'but no SeqCode name in {metadata_name}.')
+
                 gtdb_type = tokens[gtdb_type_index]
                 gtdb_type_sources = tokens[gtdb_type_sources_index]
+                type_strains_ledger_sp = ''
                 if gid in gtdb_type_strains:
+                    type_strains_ledger_sp = gtdb_type_strains[gid]
+
+                    # the ledger takes precedence over the SeqCode and NCBI names, so report
+                    # ledger entries that conflict with SeqCode or that change nothing
+                    if seqcode_taxonomy is not None:
+                        if seqcode_taxonomy.species == type_strains_ledger_sp:
+                            self.log.warning(f'Genome {gid} is in the GTDB type strains ledger as {type_strains_ledger_sp}, '
+                                             'which is its SeqCode species; the ledger entry is redundant.')
+                        else:
+                            self.log.warning(f'Genome {gid} is in the GTDB type strains ledger as {type_strains_ledger_sp}, '
+                                             f'but is {seqcode_taxonomy.species} in SeqCode; the ledger entry takes precedence.')
+                    elif gtdb_type in Genome.GTDB_TYPE_SPECIES and ncbi_taxonomy.species == type_strains_ledger_sp:
+                        self.log.warning(f'Genome {gid} is in the GTDB type strains ledger as {type_strains_ledger_sp}, '
+                                         f'which is its NCBI species and it is already a type strain in {metadata_name}; '
+                                         'the ledger entry is redundant.')
+
                     gtdb_type = 'type strain of species'
                     gtdb_type_sources = 'GTDB curator'
 
@@ -608,7 +701,14 @@ class Genomes(object):
                                            ncbi_molecule_count,
                                            ncbi_unspanned_gaps,
                                            ncbi_spanned_gaps,
-                                           lpsn_priority_year)
+                                           lpsn_priority_year,
+                                           seqcode_taxa=seqcode_taxonomy,
+                                           seqcode_priority_year=seqcode_priority_year,
+                                           type_strains_ledger_sp=type_strains_ledger_sp)
+
+        if seqcode:
+            self.log.info(f' - identified {num_seqcode:,} genomes with a SeqCode taxonomy, of which {num_seqcode_ncbi_sp:,} '
+                          f'also have an NCBI species and {num_seqcode_ncbi_sp_diff:,} have an NCBI species that differs')
 
         self._apply_ncbi_taxonomy_ledgers(species_exception_file,
                                           genus_exception_file)
