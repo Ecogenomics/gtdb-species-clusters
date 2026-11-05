@@ -36,7 +36,11 @@ class UpdateErroneousNCBI():
         self.log = logging.getLogger('rich')
 
     def identify_misclassified_genomes_cluster(self, cur_genomes, cur_clusters, ncbi_untrustworthy_sp_ledger):
-        """Identify genomes with erroneous NCBI species assignments, based on GTDB clustering of type strain genomes."""
+        """Identify genomes with erroneous species assignments, based on GTDB clustering of type strain genomes.
+
+        Genomes are grouped by their reference species (SeqCode or NCBI; see Genome.ref_taxa)
+        and type strain genomes anchor the species they are type material of (see Genome.type_species).
+        """
 
         # Note: ideally such species should have been excluded upfront
         forbidden_names = set(['cyanobacterium'])
@@ -47,90 +51,88 @@ class UpdateErroneousNCBI():
             for cid in cids:
                 gid_to_rid[cid] = rid
 
-        # get genomes with NCBI species assignment
-        ncbi_sp_gids = defaultdict(list)
+        # get genomes with a SeqCode or NCBI species assignment
+        ref_sp_gids = defaultdict(list)
         for gid in cur_genomes:
-            ncbi_species = cur_genomes[gid].ncbi_taxa.species
-            ncbi_specific = specific_epithet(ncbi_species)
+            ref_species = cur_genomes[gid].ref_taxa.species
+            ref_specific = specific_epithet(ref_species)
 
-            if ncbi_species != 's__' and ncbi_specific not in forbidden_names:
-                ncbi_sp_gids[ncbi_species].append(gid)
+            if ref_species != 's__' and ref_specific not in forbidden_names:
+                ref_sp_gids[ref_species].append(gid)
 
-        # get NCBI species anchored by a type strain genome
-        ncbi_type_anchored_species = {}
+        # get species anchored by a type strain genome
+        type_anchored_species = {}
 
-        ncbi_divergent_type_strains = defaultdict(lambda: defaultdict(set))
+        divergent_type_strains = defaultdict(lambda: defaultdict(set))
         ledger_type_strains = []
         for rid, cids in cur_clusters.items():
             for cid in cids:
                 if cur_genomes[cid].is_effective_type_strain():
                     if cur_genomes[cid].is_gtdb_type_strain_ledger():
-                        # species name from ledger is set as the GTDB species when genomes are loaded,
-                        # matching how u_resolve_types groups type strain genomes
-                        ncbi_type_species = cur_genomes[cid].gtdb_taxa.species
                         ledger_type_strains.append((rid, cid))
-                    else:
-                        ncbi_type_species = cur_genomes[cid].ncbi_taxa.species
-                    ncbi_specific = specific_epithet(ncbi_type_species)
-                    if ncbi_type_species == 's__' or ncbi_specific in forbidden_names:
+
+                    type_species = cur_genomes[cid].type_species()
+                    type_specific = specific_epithet(type_species)
+                    if type_species == 's__' or type_specific in forbidden_names:
                         continue
 
-                    ncbi_divergent_type_strains[ncbi_type_species][rid].add(cid)
-                    ncbi_type_anchored_species[ncbi_type_species] = rid
+                    divergent_type_strains[type_species][rid].add(cid)
+                    type_anchored_species[type_species] = rid
 
-        # genomes in the GTDB type strains ledger also anchor their NCBI species if it has
+        # genomes in the GTDB type strains ledger also anchor their reference species if it has
         # no other type strain genomes, as the ledger often corrects the spelling of the
         # NCBI species or adds a GTDB genus suffix (e.g., s__Synechococcus_D lacustris)
-        ncbi_sp_with_type_strains = set(ncbi_divergent_type_strains)
+        sp_with_type_strains = set(divergent_type_strains)
         for rid, cid in ledger_type_strains:
-            ncbi_type_species = cur_genomes[cid].ncbi_taxa.species
-            ncbi_specific = specific_epithet(ncbi_type_species)
-            if (ncbi_type_species == 's__'
-                    or ncbi_specific in forbidden_names
-                    or ncbi_type_species in ncbi_sp_with_type_strains):
+            ref_species = cur_genomes[cid].ref_taxa.species
+            ref_specific = specific_epithet(ref_species)
+            if (ref_species == 's__'
+                    or ref_specific in forbidden_names
+                    or ref_species in sp_with_type_strains):
                 continue
 
-            ncbi_divergent_type_strains[ncbi_type_species][rid].add(cid)
-            ncbi_type_anchored_species[ncbi_type_species] = rid
+            divergent_type_strains[ref_species][rid].add(cid)
+            type_anchored_species[ref_species] = rid
 
         unresolved_type_strains = False
-        for ncbi_sp, rids in ncbi_divergent_type_strains.items():
+        for sp, rids in divergent_type_strains.items():
             if len(rids) > 1:
                 type_gids = []
                 for rid in rids:
-                    type_gids.append(ncbi_divergent_type_strains[ncbi_sp][rid])
-                self.log.error(f'NCBI species {ncbi_sp} has multiple type strain genomes in different clusters: {type_gids}')
+                    type_gids.append(divergent_type_strains[sp][rid])
+                self.log.error(f'Species {sp} has multiple type strain genomes in different clusters: {type_gids}')
                 unresolved_type_strains = True
 
         if unresolved_type_strains:
             self.log.error('The unresolved type strains listed above must be resolved.')
 
-        self.log.info(' - identified {:,} NCBI species anchored by a type strain genome'.format(
-            len(ncbi_type_anchored_species)))
+        self.log.info(' - identified {:,} SeqCode or NCBI species anchored by a type strain genome'.format(
+            len(type_anchored_species)))
 
-        # identify genomes with erroneous NCBI species assignments
+        # identify genomes with erroneous species assignments
         fout = open(os.path.join(self.output_dir,
                                  'ncbi_misclassified_sp.gtdb_clustering.tsv'), 'w')
         fout.write(
-            'Genome ID\tNCBI species\tGenome cluster\tType species cluster\n')
+            'Genome ID\tNCBI species\tGenome cluster\tType species cluster\tSeqCode species\tSeqCode genus\tReference source used\n')
 
         misclassified_gids = set()
-        for ncbi_species, species_gids in ncbi_sp_gids.items():
-            if ncbi_species not in ncbi_type_anchored_species:
+        for ref_species, species_gids in ref_sp_gids.items():
+            if ref_species not in type_anchored_species:
                 continue
 
-            # find genomes with NCBI species assignments that are in a
+            # find genomes with species assignments that are in a
             # different cluster than the type strain genome
-            type_rid = ncbi_type_anchored_species[ncbi_species]
+            type_rid = type_anchored_species[ref_species]
             for gid in species_gids:
                 cur_rid = gid_to_rid[gid]
                 if type_rid != cur_rid:
                     misclassified_gids.add(gid)
-                    fout.write('{}\t{}\t{}\t{}\t\n'.format(
+                    fout.write('{}\t{}\t{}\t{}\t{}\n'.format(
                         gid,
-                        ncbi_species,
+                        cur_genomes[gid].ncbi_taxa.species,
                         cur_rid,
-                        type_rid))
+                        type_rid,
+                        cur_genomes[gid].ref_taxa_columns()))
 
         # add in genomes manually indicated as having erroneous NCBI species assignments
         with open(ncbi_untrustworthy_sp_ledger) as f:
@@ -138,17 +140,18 @@ class UpdateErroneousNCBI():
             for line in f:
                 tokens = line.strip().split('\t')
                 gid = canonical_gid(tokens[0])
-                fout.write('{}\t{}\t{}\t{}\t\n'.format(
+                fout.write('{}\t{}\t{}\t{}\t{}\n'.format(
                     gid,
                     cur_genomes[gid].ncbi_taxa.species,
                     gid_to_rid[gid],
-                    "Manually marked as being erroneous"))
+                    "Manually marked as being erroneous",
+                    cur_genomes[gid].ref_taxa_columns()))
 
         fout.close()
 
         misclassified_species = {
-            cur_genomes[gid].ncbi_taxa.species for gid in misclassified_gids}
-        self.log.info(' - identified {:,} genomes from {:,} species as having misclassified NCBI species assignments'.format(
+            cur_genomes[gid].ref_taxa.species for gid in misclassified_gids}
+        self.log.info(' - identified {:,} genomes from {:,} species as having misclassified SeqCode or NCBI species assignments'.format(
             len(misclassified_gids),
             len(misclassified_species)))
 
@@ -194,6 +197,6 @@ class UpdateErroneousNCBI():
 
         # identify genomes with erroneous NCBI species assignments
         self.log.info(
-            'Identifying genomes with erroneous NCBI species assignments as established by GTDB cluster of type strain genomes.')
+            'Identifying genomes with erroneous SeqCode or NCBI species assignments as established by GTDB cluster of type strain genomes.')
         self.identify_misclassified_genomes_cluster(
             cur_genomes, cur_clusters, ncbi_untrustworthy_sp_ledger)

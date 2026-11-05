@@ -406,7 +406,8 @@ class Genomes(object):
         only the reference taxonomy of previous genomes is affected, never their GTDB taxonomy.
         """
 
-        metadata_name = os.path.basename(metadata_file if isinstance(metadata_file, str) else metadata_file[0])
+        metadata_files = [metadata_file] if isinstance(metadata_file, str) else metadata_file
+        metadata_name = ' or '.join(os.path.basename(f) for f in metadata_files)
 
         seqcode = {}
         if seqcode_file:

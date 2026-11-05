@@ -1,3 +1,6 @@
+0.9.9
+- u_ncbi_erroneous groups genomes by their reference (SeqCode or NCBI) species and anchors each species by the type strain genomes of that species (GTDB type strains ledger, else SeqCode, else NCBI), so SeqCode type genomes anchor their SeqCode name; the misclassified genomes table gains SeqCode species, SeqCode genus and reference source columns; ledger warnings name every metadata file when the metadata is split by domain
+
 0.9.8
 - u_cluster_named_reps, u_cluster_de_novo and u_cluster_stats report the reference (SeqCode or NCBI) species of representatives: cluster and ANI radius tables gain SeqCode species, SeqCode genus and reference source columns, and the E. coli/Shigella type strain check uses the reference species
 
