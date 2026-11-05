@@ -72,7 +72,7 @@ class UpdateSynonyms():
 
         # identified genomes with misclassified species assignments at NCBI
         self.log.info(
-            'Identify genomes with misclassified NCBI species assignments.')
+            'Identify genomes with misclassified SeqCode or NCBI species assignments.')
         ncbi_species_mngr = NCBI_SpeciesManager(cur_genomes,
                                                 cur_clusters,
                                                 {},  # no manually-curated GTDB species assignments at this point
@@ -80,10 +80,10 @@ class UpdateSynonyms():
                                                 self.output_dir)
         ncbi_misclassified_gids = ncbi_species_mngr.parse_ncbi_misclassified_table(
             ncbi_misclassified_file)
-        self.log.info(' - identified {:,} genomes with erroneous NCBI species assignments'.format(
+        self.log.info(' - identified {:,} genomes with erroneous SeqCode or NCBI species assignments'.format(
             len(ncbi_misclassified_gids)))
 
-        # identify NCBI species considered to be synonyms under the GTDB
+        # identify SeqCode or NCBI species considered to be synonyms under the GTDB
         type_strain_synonyms = ncbi_species_mngr.identify_type_strain_synonyms(
             ncbi_misclassified_gids)
         consensus_synonyms = ncbi_species_mngr.identify_consensus_synonyms(
