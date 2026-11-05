@@ -1,6 +1,6 @@
 # SeqCode taxonomy support: implementation plan
 
-Status: plan agreed 2026-11-03; PRs 1-10 merged (0.9.11), steps 9-12 verified on the R237 run; PR 10 follow-up (0.9.12) in review. Tick the PR checklist at the end as work lands.
+Status: plan agreed 2026-11-03; PRs 1-10 merged (0.9.12), steps 9-13 verified on the R237 run; PR 11 (0.9.13) in review. Tick the PR checklist at the end as work lands.
 Baselines for verification: the pre-SeqCode R237 step outputs are in `sp_cluster_update/deprecated/<N>_<step>/`.
 
 ## 1. Problem
@@ -305,7 +305,8 @@ commands also create `SpeciesPriorityManager` without `seqcode_file`; their PRs 
 ### Step 14: `u_curation_trees` (PR 11)
 
 Changes: `new_ncbi_taxa` uses `ref_taxa` for prev and cur at every rank; output files keep their names, the
-table gains a `Reference source used` column.
+table gains a `Reference source used` column (`NCBI`, `SeqCode`, or `NCBI; SeqCode` when genomes with the taxon
+take it from both). Table rows and tree leaves are now sorted, so reruns give identical files.
 
 Behaviour: SeqCode taxa (genus and above) that were not in the previous release's reference taxa are listed
 and placed in the curation trees. Since prev genomes also get SeqCode taxa from the same table, only taxa
@@ -366,6 +367,6 @@ SeqCode rows.
 - [x] PR 8: `u_cluster_named_reps`, `u_cluster_de_novo`, `u_cluster_stats` (0.9.8)
 - [x] PR 9: `u_ncbi_erroneous` (0.9.9; NCBI-name fallback for all type strain genomes in 0.9.10)
 - [x] PR 10: `u_synonyms` (0.9.11; SeqCode names valid in the synonym priority check in 0.9.12)
-- [ ] PR 11: `u_curation_trees`
+- [x] PR 11: `u_curation_trees` (0.9.13)
 - [ ] PR 12: `u_species_init`
 - [ ] PR 13+: `pmc_*`

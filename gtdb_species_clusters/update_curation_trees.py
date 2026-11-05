@@ -26,7 +26,7 @@ from gtdb_species_clusters.type_genome_utils import read_clusters
 
 
 class UpdateCurationTrees():
-    """Produce curation trees highlighting new NCBI taxa."""
+    """Produce curation trees highlighting new SeqCode or NCBI taxa."""
 
     def __init__(self, output_dir, output_prefix):
         """Initialization."""
@@ -37,76 +37,83 @@ class UpdateCurationTrees():
         self.log = logging.getLogger('rich')
 
     def new_ncbi_taxa(self, prev_genomes, cur_genomes, cur_clusters):
-        """Determine new NCBI taxa as these should be considered by curators."""
+        """Determine new SeqCode or NCBI taxa as these should be considered by curators.
+
+        Taxa are from the reference (SeqCode or NCBI) classification of genomes (see Genome.ref_taxa)
+        in both the previous and current GTDB release.
+        """
 
         for rank_index in range(1, 7):
             rank_label = Taxonomy.RANK_LABELS[rank_index]
             self.log.info(
-                f'Determining new NCBI taxa at rank of {rank_label}.')
+                f'Determining new SeqCode or NCBI taxa at rank of {rank_label}.')
 
-            # get NCBI taxa in previous GTDB release
-            prev_ncbi_taxa = set()
+            # get SeqCode or NCBI taxa in previous GTDB release
+            prev_ref_taxa = set()
             for rid in prev_genomes:
-                ncbi_taxa = prev_genomes[rid].ncbi_taxa.get_taxa(rank_index)
-                prev_ncbi_taxa.add(ncbi_taxa)
+                ref_taxa = prev_genomes[rid].ref_taxa.get_taxa(rank_index)
+                prev_ref_taxa.add(ref_taxa)
 
                 for cid in prev_genomes.sp_clusters[rid]:
-                    ncbi_taxa = prev_genomes[cid].ncbi_taxa.get_taxa(
+                    ref_taxa = prev_genomes[cid].ref_taxa.get_taxa(
                         rank_index)
-                    prev_ncbi_taxa.add(ncbi_taxa)
+                    prev_ref_taxa.add(ref_taxa)
 
-            self.log.info(' - identified {:,} NCBI taxa in previous GTDB release'.format(
-                len(prev_ncbi_taxa)))
+            self.log.info(' - identified {:,} SeqCode or NCBI taxa in previous GTDB release'.format(
+                len(prev_ref_taxa)))
 
-            # get NCBI taxa in current GTDB release
-            cur_ncbi_taxa = set()
+            # get SeqCode or NCBI taxa in current GTDB release
+            cur_ref_taxa = set()
             taxon_domain = {}
+            taxon_sources = defaultdict(set)
             for rid, cluster in cur_clusters.items():
                 assert rid in cluster
 
                 for cid in cluster:
-                    ncbi_taxa = cur_genomes[cid].ncbi_taxa.get_taxa(rank_index)
-                    cur_ncbi_taxa.add(ncbi_taxa)
-                    taxon_domain[ncbi_taxa] = cur_genomes[cid].ncbi_taxa.domain
+                    ref_taxa = cur_genomes[cid].ref_taxa.get_taxa(rank_index)
+                    cur_ref_taxa.add(ref_taxa)
+                    taxon_domain[ref_taxa] = cur_genomes[cid].ref_taxa.domain
+                    taxon_sources[ref_taxa].add(cur_genomes[cid].ref_taxa_source)
 
-            self.log.info(' - identified {:,} NCBI taxa in current GTDB release'.format(
-                len(cur_ncbi_taxa)))
+            self.log.info(' - identified {:,} SeqCode or NCBI taxa in current GTDB release'.format(
+                len(cur_ref_taxa)))
 
-            # determine new NCBI taxa
-            new_ncbi_taxa = cur_ncbi_taxa - prev_ncbi_taxa
-            self.log.info(' - identified {:,} NCBI taxa that are new to the current GTDB release'.format(
-                len(new_ncbi_taxa)))
+            # determine new SeqCode or NCBI taxa
+            new_ref_taxa = cur_ref_taxa - prev_ref_taxa
+            self.log.info(' - identified {:,} SeqCode or NCBI taxa that are new to the current GTDB release'.format(
+                len(new_ref_taxa)))
 
-            # determine species clusters with 1 or more genomes from a new NCBI taxa
+            # determine species clusters with 1 or more genomes from a new SeqCode or NCBI taxa
             new_taxa_rids = defaultdict(list)
             for rid, cluster in cur_clusters.items():
                 assert rid in cluster
 
                 for cid in cluster:
-                    ncbi_taxa = cur_genomes[cid].ncbi_taxa.get_taxa(rank_index)
-                    if ncbi_taxa in new_ncbi_taxa:
-                        new_taxa_rids[ncbi_taxa].append(rid)
+                    ref_taxa = cur_genomes[cid].ref_taxa.get_taxa(rank_index)
+                    if ref_taxa in new_ref_taxa:
+                        new_taxa_rids[ref_taxa].append(rid)
 
-            # report each new NCBI taxa
+            # report each new SeqCode or NCBI taxa
             out_table = os.path.join(
                 self.output_dir, f'{self.output_prefix}_new_ncbi_{rank_label}.tsv')
             fout = open(out_table, 'w')
             fout.write(
-                'NCBI domain\tNCBI taxa\tNo. representatives\tRepresentative ID(s)\n')
+                'NCBI domain\tNCBI taxa\tNo. representatives\tRepresentative ID(s)\tReference source used\n')
             new_rids = set()
-            for new_taxa in new_ncbi_taxa:
+            for new_taxa in sorted(new_ref_taxa):
                 new_rids.update(new_taxa_rids[new_taxa])
-                fout.write('{}\t{}\t{}\t{}\n'.format(
+                fout.write('{}\t{}\t{}\t{}\t{}\n'.format(
                     taxon_domain[new_taxa],
                     new_taxa,
                     len(new_taxa_rids[new_taxa]),
-                    ', '.join(new_taxa_rids[new_taxa])))
+                    ', '.join(new_taxa_rids[new_taxa]),
+                    '; '.join(sorted(taxon_sources[new_taxa]))))
             fout.close()
 
             out_tree = os.path.join(
                 self.output_dir, f'{self.output_prefix}_new_ncbi_{rank_label}.tree')
             fout_tree = open(out_tree, 'w')
-            fout_tree.write('({});\n'.format(','.join(new_rids)))
+            fout_tree.write('({});\n'.format(','.join(sorted(new_rids))))
             fout_tree.close()
 
     def run(self,

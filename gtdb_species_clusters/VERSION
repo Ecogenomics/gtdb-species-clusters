@@ -1,3 +1,6 @@
+0.9.13
+- u_curation_trees identifies new taxa from the reference (SeqCode or NCBI) classification of genomes in the previous and current release, so new SeqCode taxa are placed in the curation trees; tables gain a reference source column and tables and trees are written in sorted order
+
 0.9.12
 - u_synonyms counts names validly published under the SeqCode as valid names when checking the priority of synonyms, so SeqCode-named representatives are no longer reported as having incorrect priority
 

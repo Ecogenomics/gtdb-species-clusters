@@ -59,7 +59,7 @@ def print_help():
       u_cluster_stats      -> Summary statistics indicating changes to GTDB species cluster membership
       u_ncbi_erroneous     -> Identify genomes with erroneous NCBI species assignments under the GTDB
       u_synonyms           -> Determine synonyms for validly or effectively published species
-      u_curation_trees     -> Produce curation trees highlighting new NCBI taxa
+      u_curation_trees     -> Produce curation trees highlighting new SeqCode or NCBI taxa
       u_species_init       -> Produce initial best guess at names for GTDB species clusters
       u_pmc_species_names  -> Refine species names using post-manual curation rules
       ( ... u_pmc_species_names must be run for Bacteria and Archaea ...)
@@ -278,10 +278,10 @@ if __name__ == '__main__':
     u_synonyms_parser.add_argument(
         '--silent', help="suppress output", action='store_true')
 
-    # produce curation trees highlighting new NCBI taxa
+    # produce curation trees highlighting new SeqCode or NCBI taxa
     u_curation_tree_parser = subparsers.add_parser('u_curation_trees',
                                                    formatter_class=argparse.ArgumentDefaultsHelpFormatter,
-                                                   description='Produce curation trees highlighting new NCBI taxa.')
+                                                   description='Produce curation trees highlighting new SeqCode or NCBI taxa.')
     u_curation_tree_parser.add_argument('input_params_file', help='TOML file indicating input parameters')
 
     u_curation_tree_parser.add_argument(
