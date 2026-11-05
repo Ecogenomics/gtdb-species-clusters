@@ -1,6 +1,6 @@
 # SeqCode taxonomy support: implementation plan
 
-Status: plan agreed 2026-11-03; PRs 1-7 merged (0.9.7); PR 8 in progress. Tick the PR checklist at the end as work lands.
+Status: plan agreed 2026-11-03; PRs 1-8 merged (0.9.8), steps 9-11 verified on the R237 run; PR 9 (0.9.9) in review. Tick the PR checklist at the end as work lands.
 Baselines for verification: the pre-SeqCode R237 step outputs are in `sp_cluster_update/deprecated/<N>_<step>/`.
 
 ## 1. Problem
@@ -260,8 +260,11 @@ Behaviour: clustering unchanged. `gtdb_clusters_de_novo.tsv` and `gtdb_named_rep
 
 ### Step 12: `u_ncbi_erroneous` (PR 9)
 
-Changes: species of every genome from `ref_taxa`; anchoring type strains by `type_species()` (drop the local
-ledger block at lines 66-95); table gains the columns.
+Changes: species of every genome from `ref_taxa`; anchoring type strains by `type_species()` (replaces the
+local ledger species look-up); table gains the columns. The fallback that lets a ledger genome also anchor its
+NCBI species when no other type strain does (added in 4a22c6d for ledger rows that correct spelling or add a
+genus suffix) is kept and uses the genome's `ref_taxa` species. The `NCBI species` column keeps the NCBI name;
+the appended columns give the SeqCode name the genome was grouped by.
 
 Behaviour: SeqCode type genomes anchor their SeqCode species. Any genome whose reference species equals that
 name but sits in another cluster is now reported as misclassified (previously these species had no anchor).
@@ -341,8 +344,8 @@ SeqCode rows.
 - [x] PR 5: `u_rep_changes` (0.9.4)
 - [x] PR 6: `u_rep_actions` (0.9.5; `year_of_priority`, `species_priority_manager`)
 - [x] PR 7: `u_sel_reps` (0.9.7)
-- [ ] PR 8: `u_cluster_named_reps`, `u_cluster_de_novo`, `u_cluster_stats`
-- [ ] PR 9: `u_ncbi_erroneous`
+- [x] PR 8: `u_cluster_named_reps`, `u_cluster_de_novo`, `u_cluster_stats` (0.9.8)
+- [x] PR 9: `u_ncbi_erroneous` (0.9.9)
 - [ ] PR 10: `u_synonyms`
 - [ ] PR 11: `u_curation_trees`
 - [ ] PR 12: `u_species_init`
