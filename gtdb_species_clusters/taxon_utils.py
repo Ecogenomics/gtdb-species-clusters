@@ -303,13 +303,17 @@ def sort_by_naming_priority(rids_of_interest,
                             sp_clusters,
                             prev_genomes,
                             cur_genomes,
-                            seqcode_species,
                             mc_species):
-    """Sort representatives by naming priority."""
+    """Sort representatives by naming priority.
+
+    Type material is identified by the species it is type material of (see Genome.type_species),
+    so SeqCode type genomes are type species of genus or type strain of species genomes like those
+    validly published under the ICNP. Other genomes are binomial if their reference (SeqCode or NCBI)
+    or GTDB species is a Latin name.
+    """
 
     # group by naming priority
     manual_curation = []
-    cur_seqcode_species = []
     type_species = []
     type_strains = []
     binomial = []
@@ -318,39 +322,36 @@ def sort_by_naming_priority(rids_of_interest,
         if rid not in rids_of_interest:
             continue
 
-        ncbi_genus = cur_genomes[rid].ncbi_taxa.genus
-        ncbi_sp = cur_genomes[rid].ncbi_taxa.species
+        type_sp = cur_genomes[rid].type_species()
+        type_genus = 'g__' + generic_name(type_sp)
+        ref_sp = cur_genomes[rid].ref_taxa.species
         gtdb_genus = cur_genomes[rid].gtdb_taxa.genus
         gtdb_sp = cur_genomes[rid].gtdb_taxa.species
 
         if rid in mc_species:
             manual_curation.append(rid)
-        elif rid in seqcode_species:
-            cur_seqcode_species.append(rid)
         elif (cur_genomes[rid].is_gtdb_type_species()
-              and gtdb_genus == ncbi_genus):
+              and type_sp != 's__'
+              and gtdb_genus == type_genus):
             type_species.append(rid)
         elif cur_genomes[rid].is_effective_type_strain():
             type_strains.append(rid)
-        elif not is_placeholder_taxon(ncbi_sp) or not is_placeholder_taxon(gtdb_sp):
+        elif not is_placeholder_taxon(ref_sp) or not is_placeholder_taxon(gtdb_sp):
             binomial.append(rid)
         else:
             placeholder.append(rid)
 
     assert len(rids_of_interest) == len(manual_curation) + \
-        len(cur_seqcode_species) + \
         len(type_species) + len(type_strains) + \
         len(binomial) + len(placeholder)
 
     # sort groups so previous GTDB representatives are processed first
     manual_curation_sorted = []
-    cur_seqcode_species_sorted = []
     type_species_sorted = []
     type_strains_sorted = []
     binomial_sorted = []
     placeholder_sorted = []
     for d, d_sorted in [(manual_curation, manual_curation_sorted),
-                        (cur_seqcode_species, cur_seqcode_species_sorted),
                         (type_species, type_species_sorted),
                         (type_strains, type_strains_sorted),
                         (binomial, binomial_sorted),
@@ -366,7 +367,7 @@ def sort_by_naming_priority(rids_of_interest,
         d_sorted.extend(prev_reps)
         d_sorted.extend(new_reps)
 
-    return manual_curation_sorted, cur_seqcode_species_sorted, type_species_sorted, type_strains_sorted, binomial_sorted, placeholder_sorted
+    return manual_curation_sorted, type_species_sorted, type_strains_sorted, binomial_sorted, placeholder_sorted
 
 
 def generic_specific_names(species_name):

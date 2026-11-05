@@ -1,6 +1,6 @@
 # SeqCode taxonomy support: implementation plan
 
-Status: plan agreed 2026-11-03; PRs 1-11 merged (0.9.13), steps 9-14 verified on the R237 run; PR 12 (0.9.14) in review. Tick the PR checklist at the end as work lands.
+Status: plan agreed 2026-11-03; PRs 1-12 merged (0.9.14), steps 9-15 verified on the R237 run; PR 13 (0.9.15) in review. Tick the PR checklist at the end as work lands.
 Baselines for verification: the pre-SeqCode R237 step outputs are in `sp_cluster_update/deprecated/<N>_<step>/`.
 
 ## 1. Problem
@@ -335,15 +335,30 @@ Behaviour: this is the largest change. Clusters represented by SeqCode type spec
 from the SeqCode name at initialisation instead of after manual curation: in R237, ~576 placeholder clusters
 get their SeqCode names, 4 suffixed names are checked against the SeqCode name, and the 26 clusters whose
 current Latin name differs from SeqCode are written to `conflicting_type_species_of_genus.tsv` /
-the curation log for a decision. Genus names for the 563 placeholder-genus clusters come from
-`seqcode_classification`. The `species_classification_ledger` is not read here, so no conflict with its 41
+the curation log for a decision. The `species_classification_ledger` is not read here, so no conflict with its 41
 SeqCode rows.
+
+R237 result (0.9.14): all 1,768 clusters represented by a SeqCode type genome have a Latin specific name (1,245
+the SeqCode name). As for NCBI type material, a type species of genus genome takes the genus of its name when
+the GTDB genus is a placeholder, but a type strain only when the GTDB genus is empty, so 403 type strain
+clusters are named with a placeholder genus and the SeqCode epithet (e.g. `s__DAHUXN01 vicinus`; the R232 run
+gave 896 such names from NCBI type strains). Decided 2026-11-06 to keep this; the genus is set by curation.
+The two new "Assigning synonym" errors (*Velamenicoccus*, *Dormiibacter*) are GTDB genera with the NCBI spelling
+of a genus whose spelling the SeqCode corrected; both are listed in `conflicting_type_species_of_genus.tsv`.
 
 ### Post-curation commands (PR 13+, after the `u_*` pipeline is verified)
 
-- `pmc_species_names`: keep the existing `parse_seqcode_classification`; `set_type_species`/`set_type_strain`
-  and the NCBI classification use `ref_taxa`/`type_species()`. The "final taxonomy does not reflect SeqCode
-  specific name" warning stays.
+- `pmc_species_names` and `u_pmc_species_names` (PR 13, both run `PMC_SpeciesNames`): genomes are loaded with
+  the SeqCode table. Decided 2026-11-06 to remove the separate `SEQCODE` naming group, which named every
+  representative in the SeqCode table first (GTDB generic name plus SeqCode epithet) without the ledger,
+  untrustworthy-as-type, gender-agreement or type species genus checks. SeqCode type genomes are now named by
+  the type species and type strain rules using `type_species()`, like ICNP type material.
+  `sort_by_naming_priority` compares the GTDB genus with the genus of `type_species()` and uses `ref_taxa` for
+  binomial names. `classify_ncbi_species` and `ncbi_sp_gtdb_cluster_table` (also used by `pmc_validation`)
+  classify type strain genomes by `type_species()` and other genomes by `ref_taxa`
+  (`NCBI_SpeciesManager.classification_species`). `SpecificEpithetManager.infer_epithet_map` uses `ref_taxa`.
+  `SpeciesPriorityManager` gets `seqcode_file`. `parse_seqcode_classification` is kept for the checks against
+  the species classification ledger and the final "does not reflect SeqCode specific name" warning.
 - `pmc_validation` (56 `ncbi_taxa` uses): genus/family/domain consistency checks and type-material checks
   use `ref_taxa`; the three `seqcode_species.get(rid, '')` comparisons use `seqcode_taxa.species`.
 - `pmc_check_type_species`: compare GTDB genus with `ref_taxa.genus`; genomes whose reference genus is empty
@@ -359,8 +374,8 @@ SeqCode rows.
   SeqCode and LPSN/NCBI type genomes (e.g. *Aalborgiella aggregata*, *Planktophila lacus*) go to curation via the
   untrustworthy type ledger.
 - Step 7: decided 2026-11-03: SeqCode names count as valid names in `species_priority`.
-- Step 15: whether the 26 Latin-name conflicts should be auto-renamed to SeqCode or always left for curation
-  (plan: curation log only, no automatic rename).
+- Step 15: decided: the Latin-name conflicts (28 in R237) are left for curation (curation log and
+  `conflicting_type_species_of_genus.tsv`), no automatic rename.
 
 ## 7. PR checklist
 
@@ -376,4 +391,5 @@ SeqCode rows.
 - [x] PR 10: `u_synonyms` (0.9.11; SeqCode names valid in the synonym priority check in 0.9.12)
 - [x] PR 11: `u_curation_trees` (0.9.13; R237 transition gap: 26 SeqCode taxa already in R232 but not in the R232 GTDB taxonomy are not flagged, reviewed from a separate table)
 - [x] PR 12: `u_species_init` (0.9.14)
-- [ ] PR 13+: `pmc_*`
+- [x] PR 13: `pmc_species_names` / `u_pmc_species_names` (0.9.15)
+- [ ] PR 14+: remaining `pmc_*`

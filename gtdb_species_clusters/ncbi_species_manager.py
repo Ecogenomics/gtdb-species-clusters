@@ -249,6 +249,15 @@ class NCBI_SpeciesManager():
 
         return genome.ref_taxa.species, genome.ref_taxa_source
 
+    def classification_species(self, gid):
+        """Get species name used for genome when classifying species as unambiguous, ambiguous, or synonym.
+
+        Type strain genomes are classified by the species they are type material of (see Genome.type_species)
+        and other genomes by their reference (SeqCode or NCBI) species, as when identifying synonyms.
+        """
+
+        return self.synonym_species(gid)[0]
+
     def write_synonym_table(self,
                             type_strain_synonyms,
                             consensus_synonyms,
@@ -388,7 +397,7 @@ class NCBI_SpeciesManager():
         return misclassified_gids
 
     def ncbi_sp_gtdb_cluster_table(self, final_taxonomy):
-        """Create table indicating GTDB species clusters for each NCBI species."""
+        """Create table indicating GTDB species clusters for each SeqCode or NCBI species (see classification_species)."""
 
         # get map between genomes and representatives
         gid_to_rid = {}
@@ -403,7 +412,7 @@ class NCBI_SpeciesManager():
                 continue  # other domain
 
             for cid in cids:
-                ncbi_species = self.cur_genomes[cid].ncbi_taxa.species
+                ncbi_species = self.classification_species(cid)
                 ncbi_specific = specific_epithet(ncbi_species)
                 if ncbi_species != 's__' and ncbi_specific not in self.forbidden_specific_names:
                     ncbi_species_gids[ncbi_species].append(cid)
@@ -438,7 +447,11 @@ class NCBI_SpeciesManager():
         fout.close()
 
     def classify_ncbi_species(self, ncbi_synonyms, misclassified_gids):
-        """Classify each NCBI species as either unambiguously, ambiguously, or synonym."""
+        """Classify each SeqCode or NCBI species as either unambiguously, ambiguously, or synonym.
+
+        Genomes are assigned to the species given by classification_species, so type strain genomes
+        are assigned to the species they are type material of.
+        """
 
         # get genomes with NCBI species assignment
         ncbi_all_species = set()
@@ -448,7 +461,7 @@ class NCBI_SpeciesManager():
             if gid in misclassified_gids:
                 continue
 
-            ncbi_species = self.cur_genomes[gid].ncbi_taxa.species
+            ncbi_species = self.classification_species(gid)
             ncbi_specific = specific_epithet(ncbi_species)
             if ncbi_species != 's__' and ncbi_specific not in self.forbidden_specific_names:
                 ncbi_all_species.add(ncbi_species)
@@ -470,7 +483,7 @@ class NCBI_SpeciesManager():
                 ncbi_type_strain_species.append(ncbi_species)
             else:
                 ncbi_nontype_species.append(ncbi_species)
-        self.log.info(' - identified {:,} NCBI species with effective type strain genome and {:,} NCBI species without a type strain genome'.format(
+        self.log.info(' - identified {:,} SeqCode or NCBI species with effective type strain genome and {:,} species without a type strain genome'.format(
             len(ncbi_type_strain_species), len(ncbi_nontype_species)))
 
         # establish if NCBI species can be unambiguously assigned to a GTDB species cluster
@@ -526,7 +539,7 @@ class NCBI_SpeciesManager():
                     ambiguous_ncbi_sp.add(ncbi_species)
 
                 ncbi_sp_str = []
-                for sp, count in Counter([self.cur_genomes[gid].ncbi_taxa.species for gid in self.cur_clusters[highest_gtdb_rid]]).most_common():
+                for sp, count in Counter([self.classification_species(gid) for gid in self.cur_clusters[highest_gtdb_rid]]).most_common():
                     ncbi_sp_str.append('{} ({:,})'.format(sp, count))
                 ncbi_sp_str = '; '.join(ncbi_sp_str)
 
@@ -556,7 +569,7 @@ class NCBI_SpeciesManager():
                     100.0/len(ncbi_any_sp_in_cluster)
 
                 ncbi_sp_str = []
-                for sp, count in Counter([self.cur_genomes[gid].ncbi_taxa.species for gid in self.cur_clusters[gtdb_rid]]).most_common():
+                for sp, count in Counter([self.classification_species(gid) for gid in self.cur_clusters[gtdb_rid]]).most_common():
                     ncbi_sp_str.append('{} ({:,})'.format(sp, count))
                 ncbi_sp_str = '; '.join(ncbi_sp_str)
 
