@@ -291,18 +291,21 @@ class Genomes(object):
         return untrustworthy_ncbi_sp
 
     def set_gtdbtk_classification(self, gtdbtk_classify_file, prev_genomes):
-        """Update classification of genomes based on GTDB-Tk results."""
+        """Update classification of genomes based on GTDB-Tk results.
+
+        Species names are the reference (SeqCode or NCBI) species of genomes (see Genome.ref_taxa).
+        """
 
         # get species names in previous GTDB release
-        prev_ncbi_sp = set()
+        prev_ref_sp = set()
         prev_gtdb_sp = set()
         for gid in prev_genomes:
-            prev_ncbi_sp.add(prev_genomes[gid].ncbi_taxa.species)
+            prev_ref_sp.add(prev_genomes[gid].ref_taxa.species)
             prev_gtdb_sp.add(prev_genomes[gid].gtdb_taxa.species)
 
         # set new genomes to the predicted GTDB-Tk classification, but
         # change genus and species classifications of a genome if it has
-        # a previously unseen NCBI species assignment. This is a problematic
+        # a previously unseen SeqCode or NCBI species assignment. This is a problematic
         # case for curation as GTDB-Tk is unaware of these assignments.
         # A common example is a new genome being the most basal
         # member of a genus, this genome being classified to this genus by
@@ -323,15 +326,15 @@ class Genomes(object):
                 gtdbtk_taxa = Taxa(';'.join(gtdbtk_classifications[gid]))
                 self.genomes[gid].gtdb_taxa.update_taxa(gtdbtk_taxa)
 
-                ncbi_sp = self.genomes[gid].ncbi_taxa.species
-                if (ncbi_sp == 's__'
-                    or ncbi_sp in prev_ncbi_sp
-                        or ncbi_sp in prev_gtdb_sp):
+                ref_sp = self.genomes[gid].ref_taxa.species
+                if (ref_sp == 's__'
+                    or ref_sp in prev_ref_sp
+                        or ref_sp in prev_gtdb_sp):
                     continue
 
                 self.genomes[gid].gtdb_taxa.set_taxa(
-                    5, self.genomes[gid].ncbi_taxa.genus)
-                self.genomes[gid].gtdb_taxa.set_taxa(6, ncbi_sp)
+                    5, self.genomes[gid].ref_taxa.genus)
+                self.genomes[gid].gtdb_taxa.set_taxa(6, ref_sp)
                 num_ncbi_sp += 1
 
         return num_updated, num_ncbi_sp

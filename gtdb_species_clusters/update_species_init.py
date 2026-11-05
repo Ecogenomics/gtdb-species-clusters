@@ -16,7 +16,6 @@
 ###############################################################################
 
 import os
-import sys
 import logging
 from collections import defaultdict
 
@@ -47,7 +46,8 @@ class UpdateSpeciesInit(object):
         self.sp_name_log = open(os.path.join(
             self.output_dir, 'sp_name_log.tsv'), 'w')
         self.sp_name_log.write(
-            'GTDB domain\tGenome ID\tPrevious GTDB species\tNew GTDB species\tAction\n')
+            'GTDB domain\tGenome ID\tPrevious GTDB species\tNew GTDB species\tAction'
+            '\tSeqCode species\tSeqCode genus\tReference source used\n')
 
         self.sp_curation_log = open(os.path.join(
             self.output_dir, 'sp_curation_log.tsv'), 'w')
@@ -56,7 +56,9 @@ class UpdateSpeciesInit(object):
         self.sp_curation_log.write(
             '\tPrevious GTDB genus\tPrevious GTDB species\tProposed GTDB species')
         self.sp_curation_log.write(
-            '\tModified generic name\tMandatory fix\tGTDB type strain ledger\tCase\tIssue\n')
+            '\tModified generic name\tMandatory fix\tGTDB type strain ledger\tCase\tIssue')
+        self.sp_curation_log.write(
+            '\tSeqCode species\tSeqCode genus\tReference source used\n')
 
     def update_log(self, gid, cur_genomes, prev_genomes, sp, action):
         """Add entry to update log."""
@@ -65,12 +67,13 @@ class UpdateSpeciesInit(object):
         if gid in prev_genomes:
             prev_gtdb_sp = prev_genomes[gid].gtdb_taxa.species
 
-        self.sp_name_log.write('{}\t{}\t{}\t{}\t{}\n'.format(
+        self.sp_name_log.write('{}\t{}\t{}\t{}\t{}\t{}\n'.format(
             cur_genomes[gid].gtdb_taxa.domain,
             gid,
             prev_gtdb_sp,
             sp,
-            action))
+            action,
+            cur_genomes[gid].ref_taxa_columns()))
 
     def curation_log(self,
                      gid,
@@ -95,7 +98,7 @@ class UpdateSpeciesInit(object):
 
         cur_ncbi_sp = cur_genomes[gid].ncbi_taxa.species
 
-        self.sp_curation_log.write('{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\n'.format(
+        self.sp_curation_log.write('{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\n'.format(
             cur_genomes[gid].gtdb_taxa.domain,
             gid,
             prev_ncbi_sp,
@@ -107,7 +110,17 @@ class UpdateSpeciesInit(object):
             mandatory,
             in_gtdb_type_strain_ledger,
             case,
-            issue))
+            issue,
+            cur_genomes[gid].ref_taxa_columns()))
+
+    @staticmethod
+    def _type_species_source(genome):
+        """Source of the species a genome is type material of (see Genome.type_species)."""
+
+        if genome.type_species() != genome.ref_taxa.species:
+            return 'GTDB curator'
+
+        return genome.ref_taxa_source
 
     def _test_same_epithet(self, epithet1, epithet2):
         """Test if species epithet are the same, except for changes due to difference in the gender of the genus."""
@@ -126,12 +139,13 @@ class UpdateSpeciesInit(object):
     def _determine_sp_epithet(self, rid, cur_genomes, synonyms):
         """Determine most appropriate epithet for species name.
 
-        This method assumes the epithet of the NCBI species name
-        should be favoured; presumable because the genome is
-        assembled from the type strain of the species.
+        This method assumes the epithet of the species the genome is type
+        material of (SeqCode or NCBI species; see Genome.type_species) should be
+        favoured; presumable because the genome is assembled from the type
+        strain of the species.
         """
 
-        ncbi_sp = cur_genomes[rid].ncbi_taxa.species
+        ncbi_sp = cur_genomes[rid].type_species()
         if ncbi_sp in synonyms:
             ncbi_sp = synonyms[ncbi_sp]
         ncbi_genus = 'g__' + generic_name(ncbi_sp)
@@ -182,15 +196,18 @@ class UpdateSpeciesInit(object):
 
         num_updates = 0
         conflicting_type_sp = defaultdict(set)
+        conflicting_type_sp_sources = defaultdict(set)
         for rid in rids_by_naming_priority:
             if not cur_genomes[rid].is_gtdb_type_species():
                 continue
 
-            ncbi_sp = cur_genomes[rid].ncbi_taxa.species
+            # species the genome is type material of: GTDB type strain ledger,
+            # SeqCode or NCBI species (see Genome.type_species)
+            ncbi_sp = cur_genomes[rid].type_species()
             if ncbi_sp == 's__':
-                self.log.error(
-                    'Type species of genus genome has no NCBI species assignment: {}'.format(rid))
-                sys.exit(-1)
+                self.log.warning(
+                    'Type species of genus genome has no SeqCode or NCBI species assignment: {}'.format(rid))
+                continue
 
             if ncbi_sp in synonyms:
                 ncbi_sp = synonyms[ncbi_sp]
@@ -220,6 +237,8 @@ class UpdateSpeciesInit(object):
             proposed_gtdb_genus = 'g__' + generic_name(proposed_gtdb_sp)
             if proposed_gtdb_genus != ncbi_genus:
                 conflicting_type_sp[ncbi_genus].add(proposed_gtdb_genus)
+                conflicting_type_sp_sources[ncbi_genus].add(
+                    self._type_species_source(cur_genomes[rid]))
 
                 ncbi_year = self.sp_priority_mngr.genus_priority_year(
                     ncbi_genus)
@@ -256,7 +275,7 @@ class UpdateSpeciesInit(object):
                     cur_genomes[cid].gtdb_taxa.species = proposed_gtdb_sp
 
             if proposed_gtdb_sp in used_sp_names:
-                self.log.warning('NCBI species name of type species representative already in use: {}: {}, {}'.format(
+                self.log.warning('Species name of type species representative already in use: {}: {}, {}'.format(
                     ncbi_sp, rid, used_sp_names[proposed_gtdb_sp]))
 
             if proposed_gtdb_sp in synonyms:
@@ -273,9 +292,12 @@ class UpdateSpeciesInit(object):
 
         fout = open(os.path.join(self.output_dir,
                                  'conflicting_type_species_of_genus.tsv'), 'w')
-        fout.write('NCBI genus\tProposed GTDB genera\n')
-        for ncbi_genus, gtdb_genera in conflicting_type_sp.items():
-            fout.write('{}\t{}\n'.format(ncbi_genus, ', '.join(gtdb_genera)))
+        fout.write('NCBI genus\tProposed GTDB genera\tReference source used\n')
+        for ncbi_genus, gtdb_genera in sorted(conflicting_type_sp.items()):
+            fout.write('{}\t{}\t{}\n'.format(
+                ncbi_genus,
+                ', '.join(sorted(gtdb_genera)),
+                '; '.join(sorted(conflicting_type_sp_sources[ncbi_genus]))))
         fout.close()
 
     def name_type_strain_clusters(self,
@@ -300,7 +322,9 @@ class UpdateSpeciesInit(object):
             if not cur_genomes[rid].is_effective_type_strain():
                 continue
 
-            ncbi_sp = cur_genomes[rid].ncbi_taxa.species
+            # species the genome is type material of: GTDB type strain ledger,
+            # SeqCode or NCBI species (see Genome.type_species)
+            ncbi_sp = cur_genomes[rid].type_species()
             if ncbi_sp == 's__':
                 # NCBI does define type material that lacks a binomial species name
                 continue
@@ -348,8 +372,8 @@ class UpdateSpeciesInit(object):
             if generic_name(proposed_gtdb_sp) != generic_name(ncbi_sp):
                 mandatory = False
                 issue = "GTDB generic name does not reflect type strain of species"
-                if rid in prev_genomes and generic_name(prev_genomes[rid].ncbi_taxa.species) != generic_name(ncbi_sp):
-                    issue += '; NCBI generic name has been updated'
+                if rid in prev_genomes and generic_name(prev_genomes[rid].type_species()) != generic_name(ncbi_sp):
+                    issue += '; SeqCode or NCBI generic name has been updated'
                     mandatory = True
                     num_conflicting_generic += 1
                     self.curation_log(rid,
@@ -382,7 +406,7 @@ class UpdateSpeciesInit(object):
                                       rid, used_sp_names[proposed_gtdb_sp]),
                                   rid in gtdb_type_strain_ledger)
 
-                self.log.warning('NCBI species name of type strain representative already in use: {}: {}, {}'.format(
+                self.log.warning('Species name of type strain representative already in use: {}: {}, {}'.format(
                     proposed_gtdb_sp, rid, used_sp_names[proposed_gtdb_sp]))
 
             if proposed_gtdb_sp in synonyms:
@@ -415,7 +439,10 @@ class UpdateSpeciesInit(object):
                                prev_genomes,
                                cur_genomes,
                                synonyms):
-        """Assign names to clusters with suitable binomial Latin names which lack type strain genomes."""
+        """Assign names to clusters with suitable binomial Latin names which lack type strain genomes.
+
+        Binomial names are the reference (SeqCode or NCBI) species of the representative (see Genome.ref_taxa).
+        """
 
         # get species assignment of previous GTDB species clusters
         gtdb_canonical_sp_epithets = defaultdict(set)
@@ -431,7 +458,7 @@ class UpdateSpeciesInit(object):
             if rid in cluster_sp_names:
                 continue
 
-            ncbi_sp = cur_genomes[rid].ncbi_taxa.species
+            ncbi_sp = cur_genomes[rid].ref_taxa.species
             if is_placeholder_taxon(ncbi_sp):
                 continue
 
@@ -485,7 +512,7 @@ class UpdateSpeciesInit(object):
                 if rid in prev_genomes:
                     num_updates += 1
                     self.update_log(rid, cur_genomes, prev_genomes, proposed_gtdb_sp,
-                                    "Updated to reflect bionomial NCBI species name.")
+                                    "Updated to reflect bionomial SeqCode or NCBI species name.")
                 for cid in clusters[rid]:
                     # ***cur_genomes[cid].gtdb_taxa.genus = 'g__' + generic_name(proposed_gtdb_sp)
                     cur_genomes[cid].gtdb_taxa.species = proposed_gtdb_sp
@@ -498,10 +525,10 @@ class UpdateSpeciesInit(object):
                                   proposed_gtdb_sp,
                                   True,
                                   "ALREADY_USED_SPECIES_NAME",
-                                  "Assigned species name supported by NCBI binomial species name: {} {}".format(
+                                  "Assigned species name supported by SeqCode or NCBI binomial species name: {} {}".format(
                                       rid, used_sp_names[proposed_gtdb_sp]),
                                   False)
-                self.log.warning('NCBI binomial species name already in use: {}: {}, {}'.format(
+                self.log.warning('SeqCode or NCBI binomial species name already in use: {}: {}, {}'.format(
                     proposed_gtdb_sp, rid, used_sp_names[proposed_gtdb_sp]))
 
             if proposed_gtdb_sp in synonyms:
@@ -593,7 +620,7 @@ class UpdateSpeciesInit(object):
         binomial = []
         placeholder = []
         for rid in clusters:
-            ncbi_sp = cur_genomes[rid].ncbi_taxa.species
+            ncbi_sp = cur_genomes[rid].ref_taxa.species
             if ncbi_sp in synonyms:
                 ncbi_sp = synonyms[ncbi_sp]
 
@@ -640,23 +667,15 @@ class UpdateSpeciesInit(object):
                              synonyms):
         """Determine most suitable name for each GTDB species cluster."""
 
-        # identify NCBI species with multiple genomes assembled from type strain of species
+        # identify species with multiple genomes assembled from type strain of species,
+        # where the species is the GTDB type strain ledger, SeqCode or NCBI species
+        # (see Genome.type_species); genomes marked as assembled from type material
+        # that do not have a binomial species name are ignored
         self.log.info(
-            'Determining type species genomes in each NCBI species.')
-        ncbi_sp_type_strain_genomes = defaultdict(set)
-        for gid in cur_genomes:
-            if cur_genomes[gid].is_effective_type_strain():
-                if gid in gtdb_type_strain_ledger:
-                    ncbi_sp = gtdb_type_strain_ledger[gid]
-                else:
-                    ncbi_sp = cur_genomes[gid].ncbi_taxa.species
+            'Determining type strain genomes of each SeqCode or NCBI species.')
+        ncbi_sp_type_strain_genomes = cur_genomes.type_strain_genomes_by_species()
 
-                if ncbi_sp != 's__':
-                    # yes, NCBI has genomes marked as assembled from type material
-                    # that do not actually have a binomial species name
-                    ncbi_sp_type_strain_genomes[ncbi_sp].add(gid)
-
-        self.log.info(' - identified effective type strain genomes for {:,} NCBI species'.format(
+        self.log.info(' - identified effective type strain genomes for {:,} SeqCode or NCBI species'.format(
             len(ncbi_sp_type_strain_genomes)))
 
         # verify that type genomes for a species are contained in a
@@ -670,11 +689,11 @@ class UpdateSpeciesInit(object):
         for ncbi_sp, type_gids in ncbi_sp_type_strain_genomes.items():
             gtdb_rids = set([rid_map[gid] for gid in type_gids])
             if len(gtdb_rids) > 1:
-                self.log.warning('Type strain genomes from NCBI species {} were assigned to {:,} GTDB species clusters: {} {}.'.format(
+                self.log.warning('Type strain genomes from species {} were assigned to {:,} GTDB species clusters: {} {}.'.format(
                     ncbi_sp,
                     len(gtdb_rids),
                     [(gid, rid_map[gid]) for gid in type_gids],
-                    [(rid, cur_genomes[rid].gtdb_taxa.species, cur_genomes[rid].ncbi_taxa.species) for rid in gtdb_rids]))
+                    [(rid, cur_genomes[rid].gtdb_taxa.species, cur_genomes[rid].ref_taxa.species) for rid in gtdb_rids]))
 
         # order representatives by naming priority
         rids_by_naming_priority = self._sort_by_naming_priority(clusters,
@@ -722,7 +741,7 @@ class UpdateSpeciesInit(object):
         # binomial latin name exists, but there is no designated type strain
         # (e.g., Candidatus species)
         self.log.info(
-            'Assigning names to clusters with binomial NCBI species names:')
+            'Assigning names to clusters with binomial SeqCode or NCBI species names:')
         self.name_binomial_clusters(rids_by_naming_priority,
                                     cluster_sp_names,
                                     used_sp_names,
@@ -738,7 +757,7 @@ class UpdateSpeciesInit(object):
         # determine names for remaining clusters which should all have a
         # placeholder name
         self.log.info(
-            'Assigning names to clusters without NCBI species names:')
+            'Assigning names to clusters without SeqCode or NCBI species names:')
         self.name_placeholder_clusters(rids_by_naming_priority,
                                        cluster_sp_names,
                                        used_sp_names,
@@ -809,7 +828,7 @@ class UpdateSpeciesInit(object):
         num_updated, num_ncbi_sp = cur_genomes.set_gtdbtk_classification(
             gtdbtk_classify_file, prev_genomes)
         self.log.info(
-            f' - set GTDB taxa for {num_updated:,} genomes with {num_ncbi_sp:,} genomes using NCBI genus and species name')
+            f' - set GTDB taxa for {num_updated:,} genomes with {num_ncbi_sp:,} genomes using SeqCode or NCBI genus and species name')
 
         # read named GTDB species clusters
         self.log.info('Reading GTDB species clusters.')
@@ -862,7 +881,8 @@ class UpdateSpeciesInit(object):
         self.sp_priority_mngr = SpeciesPriorityManager(sp_priority_ledger,
                                                        genus_priority_ledger,
                                                        lpsn_gss_file,
-                                                       self.output_dir)
+                                                       self.output_dir,
+                                                       seqcode_file=seqcode_file)
 
         # establish appropriate species names for GTDB clusters with new representatives
         self.update_species_names(cur_clusters,
