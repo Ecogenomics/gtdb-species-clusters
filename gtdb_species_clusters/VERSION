@@ -1,3 +1,6 @@
+0.9.12
+- u_synonyms counts names validly published under the SeqCode as valid names when checking the priority of synonyms, so SeqCode-named representatives are no longer reported as having incorrect priority
+
 0.9.11
 - u_synonyms identifies type strain synonyms by the species genomes are type material of (GTDB type strains ledger, else SeqCode, else NCBI) and majority vote synonyms by the reference (SeqCode or NCBI) species, so SeqCode type genomes take part under their SeqCode name; synonyms.tsv gains reference species and source columns for the representative and synonym, which are read in preference to the NCBI species columns, and rows without a species name are skipped when read
 

@@ -1,6 +1,6 @@
 # SeqCode taxonomy support: implementation plan
 
-Status: plan agreed 2026-11-03; PRs 1-9 merged (0.9.10), steps 9-12 verified on the R237 run; PR 10 (0.9.11) in review. Tick the PR checklist at the end as work lands.
+Status: plan agreed 2026-11-03; PRs 1-10 merged (0.9.11), steps 9-12 verified on the R237 run; PR 10 follow-up (0.9.12) in review. Tick the PR checklist at the end as work lands.
 Baselines for verification: the pre-SeqCode R237 step outputs are in `sp_cluster_update/deprecated/<N>_<step>/`.
 
 ## 1. Problem
@@ -297,7 +297,10 @@ representative). SeqCode type genomes in another type genome's cluster become `T
 their SeqCode name, with the SeqCode year in the priority check. The NCBI species of a type genome renamed
 under the SeqCode (e.g. *Pelagibacter communis*) is no longer a type strain species, so it can become a
 `MAJORITY_VOTE_SYNONYM` of the SeqCode name when all its correctly classified genomes are in that cluster.
-The two "incorrect priority" warnings may change.
+The two "incorrect priority" warnings may change. `write_synonym_table` passes `seqcode_file` to
+`SpeciesPriorityManager` so SeqCode names are valid names in the priority check (missed in 0.9.11, which
+reported 5 SeqCode-named representatives as having incorrect priority). `u_species_init` and the `pmc_*`
+commands also create `SpeciesPriorityManager` without `seqcode_file`; their PRs pass it.
 
 ### Step 14: `u_curation_trees` (PR 11)
 
@@ -362,7 +365,7 @@ SeqCode rows.
 - [x] PR 7: `u_sel_reps` (0.9.7)
 - [x] PR 8: `u_cluster_named_reps`, `u_cluster_de_novo`, `u_cluster_stats` (0.9.8)
 - [x] PR 9: `u_ncbi_erroneous` (0.9.9; NCBI-name fallback for all type strain genomes in 0.9.10)
-- [x] PR 10: `u_synonyms` (0.9.11)
+- [x] PR 10: `u_synonyms` (0.9.11; SeqCode names valid in the synonym priority check in 0.9.12)
 - [ ] PR 11: `u_curation_trees`
 - [ ] PR 12: `u_species_init`
 - [ ] PR 13+: `pmc_*`

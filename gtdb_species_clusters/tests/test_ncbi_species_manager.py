@@ -122,3 +122,22 @@ def test_parse_synonyms_table(ncbi_species_mngr, tmp_path):
                             'TYPE_STRAIN_SYNONYM\ts__Escherichia coli\ts__Shigella flexneri\t\n')
     assert ncbi_species_mngr.parse_synonyms_table(str(synonym_file)) == {
         's__Shigella flexneri': 's__Escherichia coli'}
+
+
+def test_write_synonym_table_seqcode_valid_names(ncbi_species_mngr, tmp_path, monkeypatch):
+    """Verify names validly published under the SeqCode are valid names when checking synonym priority."""
+
+    created = {}
+
+    class StubSpeciesPriorityManager:
+        def __init__(self, *args, seqcode_file=None):
+            created['seqcode_file'] = seqcode_file
+
+    monkeypatch.setattr('gtdb_species_clusters.ncbi_species_manager.SpeciesPriorityManager',
+                        StubSpeciesPriorityManager)
+
+    ncbi_species_mngr.write_synonym_table({}, {}, {},
+                                          'sp_priority.tsv', 'genus_priority.tsv', 'lpsn_gss.csv',
+                                          'seqcode_table.tsv')
+    assert created['seqcode_file'] == 'seqcode_table.tsv'
+    assert (tmp_path / 'synonyms.tsv').read_text().startswith('Synonym type\tNCBI species')
