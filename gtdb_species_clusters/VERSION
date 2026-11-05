@@ -1,3 +1,8 @@
+0.9.15
+- pmc_species_names and u_pmc_species_names name SeqCode type genomes by the type species and type strain rules, using the species genomes are type material of (GTDB type strains ledger, else SeqCode, else NCBI), instead of a separate SeqCode step that ignored the ledgers, untrustworthy type material, gender agreement and the type species genus check
+- species are classified as unambiguous, ambiguous or synonym by the species type strain genomes are type material of and the reference (SeqCode or NCBI) species of other genomes; SeqCode names are valid names in priority checks; final_taxonomy_metadata.tsv, gtdb_sp_clusters.ncbi_sp.tsv and species_classification_ledger_updates.tsv gain SeqCode columns
+- gtdb_synonyms_final.tsv has a header for the reference species columns of synonyms.tsv
+
 0.9.14
 - u_species_init names species clusters from the species their type material is type material of (GTDB type strains ledger, else SeqCode, else NCBI) and other clusters from their reference (SeqCode or NCBI) binomial, so SeqCode-named clusters are named at initialisation; type species of genus genomes without a species name are logged as warnings instead of stopping the step
 - new genomes with a previously unseen SeqCode or NCBI species take that genus and species instead of the GTDB-Tk classification

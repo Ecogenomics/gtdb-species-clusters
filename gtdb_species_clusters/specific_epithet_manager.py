@@ -96,7 +96,10 @@ class SpecificEpithetManager():
                           cur_taxonomy,
                           mc_species,
                           cur_genomes):
-        """Infer mapping of NCBI epithet to GTDB epithet which may be different due to gender of genus."""
+        """Infer mapping of NCBI epithet to GTDB epithet which may be different due to gender of genus.
+
+        NCBI epithets are from the reference (SeqCode or NCBI) species of representatives (see Genome.ref_taxa).
+        """
 
         # **************************************
         # This should be updated so it only includes valid transfers, and not
@@ -120,7 +123,7 @@ class SpecificEpithetManager():
         for gtdb_generic, rids in generic_rids.items():
             ncbi_sp_epithet_list = defaultdict(list)
             for rid in rids:
-                ncbi_species = cur_genomes[rid].ncbi_taxa.species
+                ncbi_species = cur_genomes[rid].ref_taxa.species
                 if ncbi_species == 's__':
                     continue
 

@@ -82,6 +82,16 @@ def ncbi_species_mngr(cur_genomes, tmp_path):
     return NCBI_SpeciesManager(cur_genomes, cur_clusters, {}, str(untrustworthy_type_file), str(tmp_path))
 
 
+def test_classify_ncbi_species(ncbi_species_mngr):
+    """Verify species are classified by the species type strain genomes are type material of and the reference species of other genomes."""
+
+    _all_species, unambiguous, ambiguous = ncbi_species_mngr.classify_ncbi_species({}, {'M1'})
+
+    assert unambiguous == {'s__Pelagibacter ubiqueversans': ('R1', NCBI_SpeciesManager.TYPE_STRAIN_GENOME),
+                           's__Synechococcus_D lacustris': ('L1', NCBI_SpeciesManager.TYPE_STRAIN_GENOME)}
+    assert ambiguous == {'s__Pelagibacter bermudensis', 's__Pelagibacter communis', 's__Synechococcus lacustris'}
+
+
 def test_identify_type_strain_synonyms(ncbi_species_mngr):
     """Verify type strain synonyms are identified by the species genomes are type material of."""
 
