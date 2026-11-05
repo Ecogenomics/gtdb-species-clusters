@@ -61,10 +61,19 @@ class NCBI_SpeciesManager():
         # taxonomy so this only includes last minute additions.
         self.forbidden_specific_names = set(['cyanobacterium', 'Family'])
 
-        # identify NCBI species with genomes assembled from type strain of species
-        self.ncbi_sp_type_strain_genomes = cur_genomes.ncbi_sp_effective_type_genomes()
-        self.log.info(' - identified effective type strain genomes for {:,} NCBI species'.format(
-            len(self.ncbi_sp_type_strain_genomes)))
+        # identify species with genomes assembled from type strain of species, using the
+        # species each genome is type material of (see Genome.type_species)
+        self.sp_type_strain_genomes = cur_genomes.type_strain_genomes_by_species()
+        self.log.info(' - identified effective type strain genomes for {:,} SeqCode or NCBI species'.format(
+            len(self.sp_type_strain_genomes)))
+
+        # reference (SeqCode or NCBI) species of type strain genomes, which differs from the species
+        # they are type material of when the GTDB type strains ledger corrects the spelling of the
+        # species or adds a GTDB genus suffix (e.g., s__Synechococcus_D lacustris)
+        self.type_strain_ref_species = set()
+        for type_gids in self.sp_type_strain_genomes.values():
+            for gid in type_gids:
+                self.type_strain_ref_species.add(cur_genomes[gid].ref_taxa.species)
 
         self.validate_type_strain_clustering(mc_species, untrustworthy_type_file)
 
@@ -81,9 +90,9 @@ class NCBI_SpeciesManager():
         return untrustworthy_as_type
 
     def validate_type_strain_clustering(self, mc_species, untrustworthy_type_file):
-        """Validate that all type strain genomes for an NCBI species occur in a single GTDB cluster."""
+        """Validate that all type strain genomes for a SeqCode or NCBI species occur in a single GTDB cluster."""
 
-        self.log.info('Verifying that all type strain genomes for a NCBI species occur in a single GTDB cluster:')
+        self.log.info('Verifying that all type strain genomes for a SeqCode or NCBI species occur in a single GTDB cluster:')
 
         untrustworthy_as_type = self.parse_untrustworthy_type_ledger(untrustworthy_type_file)
         self.log.info(f' - identified {len(untrustworthy_as_type):,} genomes as untrustworthy as type material')
@@ -94,17 +103,17 @@ class NCBI_SpeciesManager():
             for gid in gids:
                 rid_map[gid] = rid
 
-        for ncbi_sp, type_gids in self.ncbi_sp_type_strain_genomes.items():
+        for type_sp, type_gids in self.sp_type_strain_genomes.items():
             gtdb_rids = set()
             for gid in type_gids:
                 if gid in untrustworthy_as_type:
                     continue
 
                 rid = rid_map[gid]
-                ncbi_specific = specific_epithet(
-                    self.cur_genomes[rid].ncbi_taxa.species)
+                ref_specific = specific_epithet(
+                    self.cur_genomes[rid].ref_taxa.species)
 
-                if (rid in mc_species and specific_epithet(mc_species[rid]) != ncbi_specific):
+                if (rid in mc_species and specific_epithet(mc_species[rid]) != ref_specific):
                     # skip this genome as it has been manually changed, likely
                     # to resolve this NCBI species having multiple type strain genomes
                     continue
@@ -112,16 +121,17 @@ class NCBI_SpeciesManager():
                 gtdb_rids.add(rid)
 
             if len(gtdb_rids) > 1:
-                self.log.warning('Type strain genomes from NCBI species {} were assigned to {:,} GTDB species clusters: {}.'.format(
-                    ncbi_sp,
+                self.log.warning('Type strain genomes from species {} were assigned to {:,} GTDB species clusters: {}.'.format(
+                    type_sp,
                     len(gtdb_rids),
                     [(rid, self.cur_genomes[rid].gtdb_taxa.species) for rid in gtdb_rids]))
 
     def identify_type_strain_synonyms(self, ncbi_misclassified_gids):
         """Identify synonyms arising from multiple type strain genomes residing in the same GTDB cluster.
 
-        A type strain genome residing in a GTDB species cluster with a different NCBI assignment is considered
-        a type strain synonym.
+        A type strain genome residing in a GTDB species cluster whose representative is the type strain of a
+        different species is considered a type strain synonym. Type strain genomes are identified by the species
+        they are type material of (see Genome.type_species).
         """
 
         # identify type strain synonyms
@@ -131,8 +141,6 @@ class NCBI_SpeciesManager():
         for rid, gids in self.cur_clusters.items():
             if not self.cur_genomes[rid].is_effective_type_strain():
                 continue
-
-            rep_ncbi_sp = self.cur_genomes[rid].ncbi_taxa.species
 
             # find species that are a type strain synonym to the current representative,
             # using the best quality genome for each species to establish
@@ -144,15 +152,20 @@ class NCBI_SpeciesManager():
                  for gid in type_gids}
             q_sorted = sorted(q.items(), key=lambda kv: (
                 kv[1], kv[0]), reverse=True)
-            processed_sp = set([rep_ncbi_sp])
-            for gid, _quality in q_sorted:
-                cur_ncbi_sp = self.cur_genomes[gid].ncbi_taxa.species
 
-                if cur_ncbi_sp in processed_sp:
+            # the reference species of the representative is not a synonym of the species it is
+            # type material of, and type strain genomes without a species name are never synonyms
+            processed_sp = set([self.cur_genomes[rid].type_species(),
+                                self.cur_genomes[rid].ref_taxa.species,
+                                's__'])
+            for gid, _quality in q_sorted:
+                cur_type_sp = self.cur_genomes[gid].type_species()
+
+                if cur_type_sp in processed_sp:
                     continue
 
                 type_strain_synonyms[rid].append(gid)
-                processed_sp.add(cur_ncbi_sp)
+                processed_sp.add(cur_type_sp)
 
         self.log.info(' - identified {:,} GTDB representatives resulting in {:,} type strain synonyms'.format(
             len(type_strain_synonyms),
@@ -165,22 +178,20 @@ class NCBI_SpeciesManager():
         return type_strain_synonyms
 
     def identify_consensus_synonyms(self, ncbi_misclassified_gids):
-        """Identify synonyms arising from all genomes with an NCBI species classification
+        """Identify synonyms arising from all genomes with a SeqCode or NCBI species classification
             which lack a type strain genome being contained in a GTDB cluster defined by
             a type strain genome."""
 
-        # get genomes with NCBI species assignment
-        ncbi_species_gids = defaultdict(list)
-        ncbi_all_sp_gids = set()
+        # get genomes with SeqCode or NCBI species assignment
+        ref_species_gids = defaultdict(list)
         for gid in self.cur_genomes:
             if gid in ncbi_misclassified_gids:
                 continue
 
-            ncbi_species = self.cur_genomes[gid].ncbi_taxa.species
-            ncbi_specific = specific_epithet(ncbi_species)
-            if ncbi_species != 's__' and ncbi_specific not in self.forbidden_specific_names:
-                ncbi_species_gids[ncbi_species].append(gid)
-                ncbi_all_sp_gids.add(gid)
+            ref_species = self.cur_genomes[gid].ref_taxa.species
+            ref_specific = specific_epithet(ref_species)
+            if ref_species != 's__' and ref_specific not in self.forbidden_specific_names:
+                ref_species_gids[ref_species].append(gid)
 
         # identify consensus synonyms
         consensus_synonyms = defaultdict(list)
@@ -193,16 +204,16 @@ class NCBI_SpeciesManager():
             for gid in cids:
                 gid_to_rid[gid] = gtdb_rid
 
-        for ncbi_species, ncbi_sp_gids in ncbi_species_gids.items():
-            if ncbi_species in self.ncbi_sp_type_strain_genomes:
-                # NCBI species define by type strain genome so should
+        for ref_species, ref_sp_gids in ref_species_gids.items():
+            if ref_species in self.sp_type_strain_genomes or ref_species in self.type_strain_ref_species:
+                # species defined by type strain genome so should
                 # be either the representative of a GTDB species cluster
                 # or a type strain synonym
                 continue
 
-            # determine if all genomes in NCBI species are contained
+            # determine if all genomes in species are contained
             # in a single GTDB species represented by a type strain genome
-            gtdb_rids = set(gid_to_rid.get(gid) for gid in ncbi_sp_gids)
+            gtdb_rids = set(gid_to_rid.get(gid) for gid in ref_sp_gids)
             if len(gtdb_rids) != 1:
                 continue
 
@@ -210,10 +221,10 @@ class NCBI_SpeciesManager():
             if gtdb_rid is None or not self.cur_genomes[gtdb_rid].is_effective_type_strain():
                 continue
 
-            # using the best quality genome in NCBI species to establish
+            # using the best quality genome in species to establish
             # synonym statistics such as ANI and AF
             q = {gid: self.cur_genomes[gid].score_type_strain(
-            ) for gid in ncbi_sp_gids}
+            ) for gid in ref_sp_gids}
             q_sorted = sorted(q.items(), key=lambda kv: (
                 kv[1], kv[0]), reverse=True)
             consensus_synonyms[gtdb_rid].append(q_sorted[0][0])
@@ -223,6 +234,20 @@ class NCBI_SpeciesManager():
             sum([len(gids) for gids in consensus_synonyms.values()])))
 
         return consensus_synonyms
+
+    def synonym_species(self, gid):
+        """Get species name used for genome when identifying synonyms, and the source of this name.
+
+        Type strain genomes are identified by the species they are type material of (see Genome.type_species)
+        and other genomes by their reference (SeqCode or NCBI) species.
+        """
+
+        genome = self.cur_genomes[gid]
+        if genome.is_effective_type_strain() and genome.type_species() != genome.ref_taxa.species:
+            # species is from the GTDB type strains ledger
+            return genome.type_species(), 'GTDB curator'
+
+        return genome.ref_taxa.species, genome.ref_taxa_source
 
     def write_synonym_table(self,
                             type_strain_synonyms,
@@ -247,7 +272,8 @@ class NCBI_SpeciesManager():
             '\tNCBI synonym\tHighest-quality synonym genome\tSynonym strain IDs\tSynonym type sources\tSynonym priority year')
         fout.write(
             '\tSynonym GTDB type species\tSynonym GTDB type strain\tSynonym NCBI assembly type')
-        fout.write('\tANI\tAF\tWarnings\n')
+        fout.write('\tANI\tAF\tWarnings')
+        fout.write('\tReference species\tReference source used\tSynonym reference species\tSynonym reference source used\n')
 
         incorrect_priority = 0
         failed_type_strain_priority = 0
@@ -287,18 +313,23 @@ class NCBI_SpeciesManager():
                         self.cur_genomes[gid].ncbi_type_material))
                     fout.write('\t{:.3f}\t{:.4f}'.format(ani, af))
 
+                    warning = ''
                     if self.cur_genomes[rid].is_effective_type_strain() and self.cur_genomes[gid].is_effective_type_strain():
                         priority_gid, note = sp_priority_mngr.species_priority(
                             self.cur_genomes, rid, gid)
                         if priority_gid != rid:
                             incorrect_priority += 1
-                            fout.write('\tIncorrect priority: {}'.format(note))
+                            warning = 'Incorrect priority: {}'.format(note)
                     elif not self.cur_genomes[rid].is_gtdb_type_strain() and self.cur_genomes[gid].is_gtdb_type_strain():
                         failed_type_strain_priority += 1
-                        fout.write(
-                            '\tFailed to prioritize type strain of species')
+                        warning = 'Failed to prioritize type strain of species'
 
-                    fout.write('\n')
+                    fout.write('\t{}\t{}\t{}\t{}\t{}\n'.format(
+                        warning,
+                        *self.synonym_species(rid),
+                        *self.synonym_species(gid)))
+
+        fout.close()
 
         if incorrect_priority:
             self.log.warning(
@@ -309,21 +340,35 @@ class NCBI_SpeciesManager():
                 f' - identified {failed_type_strain_priority:,} synonyms that failed to priotize the type strain of the species')
 
     def parse_synonyms_table(self, synonym_file):
-        """Parse synonyms."""
+        """Parse synonyms.
+
+        Species are read from the reference species columns, or from the NCBI
+        species columns of tables written before these columns were added.
+        Rows where either species has no name are skipped.
+        """
 
         synonyms = {}
         with open(synonym_file) as f:
-            headers = f.readline().strip().split('\t')
+            headers = f.readline().rstrip('\n').split('\t')
 
-            ncbi_sp_index = headers.index('NCBI species')
-            ncbi_synonym_index = headers.index('NCBI synonym')
+            if 'Reference species' in headers:
+                sp_index = headers.index('Reference species')
+                synonym_index = headers.index('Synonym reference species')
+            else:
+                sp_index = headers.index('NCBI species')
+                synonym_index = headers.index('NCBI synonym')
 
             for line in f:
-                line_split = line.strip().split('\t')
+                line_split = line.rstrip('\n').split('\t')
 
-                ncbi_sp = line_split[ncbi_sp_index]
-                ncbi_synonym = line_split[ncbi_synonym_index]
-                synonyms[ncbi_synonym] = ncbi_sp
+                sp = line_split[sp_index]
+                synonym = line_split[synonym_index]
+                if sp == 's__' or synonym == 's__':
+                    self.log.warning('Skipping synonym without a species name: {} is a synonym of {}'.format(
+                        synonym, sp))
+                    continue
+
+                synonyms[synonym] = sp
 
         return synonyms
 

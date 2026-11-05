@@ -1,6 +1,6 @@
 # SeqCode taxonomy support: implementation plan
 
-Status: plan agreed 2026-11-03; PRs 1-9 merged (0.9.9), steps 9-12 verified on the R237 run; PR 9 follow-up (0.9.10) in review. Tick the PR checklist at the end as work lands.
+Status: plan agreed 2026-11-03; PRs 1-9 merged (0.9.10), steps 9-12 verified on the R237 run; PR 10 (0.9.11) in review. Tick the PR checklist at the end as work lands.
 Baselines for verification: the pre-SeqCode R237 step outputs are in `sp_cluster_update/deprecated/<N>_<step>/`.
 
 ## 1. Problem
@@ -277,16 +277,27 @@ other clusters must still be excluded from NCBI-name votes in `u_synonyms` and `
 
 ### Step 13: `u_synonyms` (PR 10)
 
-Changes in `ncbi_species_manager.py`: `ncbi_sp_effective_type_genomes()` groups by `type_species()`;
-`identify_type_strain_synonyms`, `identify_consensus_synonyms`, `write_synonym_table`,
-`classify_ncbi_species` use `ref_taxa`/`type_species()`; `write_synonym_table` appends the columns for both
-representative and synonym; `parse_synonyms_table` skips rows where either name is `s__` and logs them.
+Changes in `ncbi_species_manager.py`: type strain genomes are grouped by `type_species()`
+(`Genomes.type_strain_genomes_by_species()`, replacing `ncbi_sp_effective_type_genomes()`, which is removed);
+`identify_type_strain_synonyms` names type strain genomes by `type_species()`, and the representative's
+`ref_taxa` species is never a synonym of its `type_species()`; `identify_consensus_synonyms` groups genomes by
+`ref_taxa` and skips species that are the `type_species()` or `ref_taxa` species of a type strain genome.
+`write_synonym_table` keeps the NCBI species columns and appends `Reference species`, `Reference source used`,
+`Synonym reference species` and `Synonym reference source used`, where the reference species is the
+`type_species()` of type strain genomes (source `GTDB curator` when it is the ledger species) and the `ref_taxa`
+species otherwise; the `Warnings` field is now always written. `parse_synonyms_table` reads the reference
+species columns (NCBI columns for older tables) and skips, with a warning, rows where either name is `s__`.
+`classify_ncbi_species` and `ncbi_sp_gtdb_cluster_table` are only used by the `pmc_*` commands and are switched
+with them.
 
-Behaviour: the four R237 rows with `s__` disappear or get real names (Palauibacter and Kariarchaeum rows
-vanish because representative and synonym resolve to the same species; Gammaporibacter and Caproiciproducens
-rows show their SeqCode names). SeqCode type genomes in another type genome's cluster become
-`TYPE_STRAIN_SYNONYM`s under their SeqCode name, with the SeqCode year in the priority check. The two
-"incorrect priority" warnings may change.
+Behaviour: the four R237 rows with `s__` disappear or get real names (the Palauibacter row vanishes because
+representative and synonym are type material of the same species; Gammaporibacter and Caproiciproducens rows
+show their SeqCode names; the Kariarchaeum row names the ledger species *Kariarchaeum pelagium* of the
+representative). SeqCode type genomes in another type genome's cluster become `TYPE_STRAIN_SYNONYM`s under
+their SeqCode name, with the SeqCode year in the priority check. The NCBI species of a type genome renamed
+under the SeqCode (e.g. *Pelagibacter communis*) is no longer a type strain species, so it can become a
+`MAJORITY_VOTE_SYNONYM` of the SeqCode name when all its correctly classified genomes are in that cluster.
+The two "incorrect priority" warnings may change.
 
 ### Step 14: `u_curation_trees` (PR 11)
 
@@ -351,7 +362,7 @@ SeqCode rows.
 - [x] PR 7: `u_sel_reps` (0.9.7)
 - [x] PR 8: `u_cluster_named_reps`, `u_cluster_de_novo`, `u_cluster_stats` (0.9.8)
 - [x] PR 9: `u_ncbi_erroneous` (0.9.9; NCBI-name fallback for all type strain genomes in 0.9.10)
-- [ ] PR 10: `u_synonyms`
+- [x] PR 10: `u_synonyms` (0.9.11)
 - [ ] PR 11: `u_curation_trees`
 - [ ] PR 12: `u_species_init`
 - [ ] PR 13+: `pmc_*`
