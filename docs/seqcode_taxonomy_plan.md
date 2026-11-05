@@ -1,6 +1,6 @@
 # SeqCode taxonomy support: implementation plan
 
-Status: plan agreed 2026-11-03; PRs 1-10 merged (0.9.12), steps 9-13 verified on the R237 run; PR 11 (0.9.13) in review. Tick the PR checklist at the end as work lands.
+Status: plan agreed 2026-11-03; PRs 1-11 merged (0.9.13), steps 9-14 verified on the R237 run; PR 12 (0.9.14) in review. Tick the PR checklist at the end as work lands.
 Baselines for verification: the pre-SeqCode R237 step outputs are in `sp_cluster_update/deprecated/<N>_<step>/`.
 
 ## 1. Problem
@@ -318,11 +318,18 @@ Changes:
 
 - `_sort_by_naming_priority`, `name_type_species_clusters`, `name_type_strain_clusters`,
   `name_binomial_clusters`, `_determine_sp_epithet` and `update_species_names` use `type_species()` for type
-  material and `ref_taxa` elsewhere. The `sys.exit` at line 189 becomes a warning for genomes that are type
-  species of a genus but still resolve to `s__` (none expected in R237).
-- `species_priority_manager.genus_priority_year` falls back to the SeqCode year of the genus's type species
-  when LPSN has no entry for the genus.
-- Curation and update logs record the source of the proposed name.
+  material and `ref_taxa` elsewhere (`update_species_names` uses `Genomes.type_strain_genomes_by_species()`).
+  The `sys.exit` for a type species of genus genome without a species name becomes a warning, and the genome
+  is named by the later steps (none expected in R237).
+- `Genomes.set_gtdbtk_classification` (only used here) gives a new genome the `ref_taxa` genus and species when
+  its `ref_taxa` species is in neither the previous release's `ref_taxa` nor its GTDB species.
+- `SpeciesPriorityManager` is created with `seqcode_file`, so SeqCode names are valid names, and
+  `genus_priority_year` falls back to the SeqCode year of the genus's type species when LPSN has no entry for
+  the genus.
+- `sp_name_log.tsv` and `sp_curation_log.tsv` append `SeqCode species`, `SeqCode genus` and
+  `Reference source used`. `conflicting_type_species_of_genus.tsv` keeps its `NCBI genus` header, which now holds
+  the genus of the species the type genome is type material of, appends `Reference source used` (`NCBI`,
+  `SeqCode` or `GTDB curator`), and is sorted.
 
 Behaviour: this is the largest change. Clusters represented by SeqCode type species/type strains are named
 from the SeqCode name at initialisation instead of after manual curation: in R237, ~576 placeholder clusters
@@ -367,6 +374,6 @@ SeqCode rows.
 - [x] PR 8: `u_cluster_named_reps`, `u_cluster_de_novo`, `u_cluster_stats` (0.9.8)
 - [x] PR 9: `u_ncbi_erroneous` (0.9.9; NCBI-name fallback for all type strain genomes in 0.9.10)
 - [x] PR 10: `u_synonyms` (0.9.11; SeqCode names valid in the synonym priority check in 0.9.12)
-- [x] PR 11: `u_curation_trees` (0.9.13)
-- [ ] PR 12: `u_species_init`
+- [x] PR 11: `u_curation_trees` (0.9.13; R237 transition gap: 26 SeqCode taxa already in R232 but not in the R232 GTDB taxonomy are not flagged, reviewed from a separate table)
+- [x] PR 12: `u_species_init` (0.9.14)
 - [ ] PR 13+: `pmc_*`

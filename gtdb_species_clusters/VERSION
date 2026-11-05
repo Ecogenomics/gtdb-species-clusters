@@ -1,3 +1,8 @@
+0.9.14
+- u_species_init names species clusters from the species their type material is type material of (GTDB type strains ledger, else SeqCode, else NCBI) and other clusters from their reference (SeqCode or NCBI) binomial, so SeqCode-named clusters are named at initialisation; type species of genus genomes without a species name are logged as warnings instead of stopping the step
+- new genomes with a previously unseen SeqCode or NCBI species take that genus and species instead of the GTDB-Tk classification
+- SeqCode names are valid names and the SeqCode year of the type species is the year of priority of genera without an LPSN entry; name and curation logs gain SeqCode species, genus and reference source columns, and conflicting_type_species_of_genus.tsv gains a reference source column and is sorted
+
 0.9.13
 - u_curation_trees identifies new taxa from the reference (SeqCode or NCBI) classification of genomes in the previous and current release, so new SeqCode taxa are placed in the curation trees; tables gain a reference source column and tables and trees are written in sorted order
 

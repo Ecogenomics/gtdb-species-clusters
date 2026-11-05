@@ -41,7 +41,9 @@ class SpeciesPriorityManager(object):
         Species names are the reference (SeqCode or NCBI) species of genomes
         (see Genome.ref_taxa). Names validly published under the SeqCode, read
         from the SeqCode table when given, are valid names alongside those
-        validly published under the ICNP according to LPSN.
+        validly published under the ICNP according to LPSN. The year of priority
+        of a genus without an entry in LPSN is the SeqCode year of priority of
+        its type species, when the SeqCode table gives one.
         """
 
         self.log = logging.getLogger('rich')
@@ -59,10 +61,16 @@ class SpeciesPriorityManager(object):
         self._parse_lpsn_gss(lpsn_gss_file)
 
         self.valid_names = set(self.lpsn_valid_names)
+        self.seqcode_genus_priority = {}
         if seqcode_file:
-            seqcode_species = {'s__' + r.name for r in parse_seqcode_table(seqcode_file).values()}
+            seqcode_records = parse_seqcode_table(seqcode_file).values()
+            seqcode_species = {'s__' + r.name for r in seqcode_records}
             self.valid_names.update(seqcode_species)
             self.log.info(f' - identified {len(seqcode_species):,} species with validly published names in SeqCode')
+
+            self.seqcode_genus_priority = self._seqcode_genus_priority(seqcode_records)
+            self.log.info(' - established genus priority for {:,} genera using SeqCode type species'.format(
+                len(self.seqcode_genus_priority)))
 
     def __del__(self):
         """Destructor."""
@@ -228,11 +236,33 @@ class SpeciesPriorityManager(object):
             valid_species_count,
             valid_subsp_count))
 
+    @staticmethod
+    def _seqcode_genus_priority(seqcode_records):
+        """Year of priority of each genus from the SeqCode year of priority of its type species."""
+
+        genus_priority = {}
+        for r in seqcode_records:
+            if not r.type_species_of_genus or r.priority_year == Genome.NO_PRIORITY_YEAR:
+                continue
+
+            genus = 'g__' + r.name.split()[0]
+            genus_priority[genus] = min(r.priority_year,
+                                        genus_priority.get(genus, Genome.NO_PRIORITY_YEAR))
+
+        return genus_priority
+
     def genus_priority_year(self, genus):
-        """Determine year of priority for genus."""
+        """Determine year of priority for genus.
+
+        The LPSN year is used when LPSN has an entry for the genus, else
+        the SeqCode year of priority of its type species.
+        """
 
         if genus in self.lpsn_genus_priority:
             return self.lpsn_genus_priority[genus]
+
+        if genus in self.seqcode_genus_priority:
+            return self.seqcode_genus_priority[genus]
 
         return Genome.NO_PRIORITY_YEAR
 
