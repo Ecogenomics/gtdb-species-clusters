@@ -255,13 +255,16 @@ class NCBI_SpeciesManager():
                             ani_af,
                             sp_priority_ledger,
                             genus_priority_ledger,
-                            lpsn_gss_file):
+                            lpsn_gss_file,
+                            seqcode_file):
         """Create table indicating species names that should be considered synonyms."""
 
+        # names validly published under the SeqCode are valid names when resolving priority
         sp_priority_mngr = SpeciesPriorityManager(sp_priority_ledger,
                                                   genus_priority_ledger,
                                                   lpsn_gss_file,
-                                                  self.output_dir)
+                                                  self.output_dir,
+                                                  seqcode_file=seqcode_file)
 
         out_file = os.path.join(self.output_dir, 'synonyms.tsv')
         fout = open(out_file, 'w')

@@ -100,4 +100,5 @@ class UpdateSynonyms():
                                               ani_af,
                                               sp_priority_ledger,
                                               genus_priority_ledger,
-                                              lpsn_gss_file)
+                                              lpsn_gss_file,
+                                              seqcode_file)
