@@ -1,6 +1,6 @@
 # SeqCode taxonomy support: implementation plan
 
-Status: plan agreed 2026-11-03; PRs 1-8 merged (0.9.8), steps 9-11 verified on the R237 run; PR 9 (0.9.9) in review. Tick the PR checklist at the end as work lands.
+Status: plan agreed 2026-11-03; PRs 1-9 merged (0.9.9), steps 9-12 verified on the R237 run; PR 9 follow-up (0.9.10) in review. Tick the PR checklist at the end as work lands.
 Baselines for verification: the pre-SeqCode R237 step outputs are in `sp_cluster_update/deprecated/<N>_<step>/`.
 
 ## 1. Problem
@@ -263,12 +263,17 @@ Behaviour: clustering unchanged. `gtdb_clusters_de_novo.tsv` and `gtdb_named_rep
 Changes: species of every genome from `ref_taxa`; anchoring type strains by `type_species()` (replaces the
 local ledger species look-up); table gains the columns. The fallback that lets a ledger genome also anchor its
 NCBI species when no other type strain does (added in 4a22c6d for ledger rows that correct spelling or add a
-genus suffix) is kept and uses the genome's `ref_taxa` species. The `NCBI species` column keeps the NCBI name;
+genus suffix) is kept and, from 0.9.10, applies to every type strain genome: its `ref_taxa` and NCBI species
+also anchor to its cluster when they differ from `type_species()` and have no other type strain genome. The `NCBI species` column keeps the NCBI name;
 the appended columns give the SeqCode name the genome was grouped by.
 
 Behaviour: SeqCode type genomes anchor their SeqCode species. Any genome whose reference species equals that
 name but sits in another cluster is now reported as misclassified (previously these species had no anchor).
 Genomes whose NCBI species was wrong but whose SeqCode name is right stop being flagged for that name.
+In 0.9.9 the R237 run dropped 76 rows because SeqCode type genomes with a different SeqCode name (e.g.
+*Methanobrevibacter arboriphilus* → *Methanobinarius arboriphilus*, *Pelagibacter communis* → *P. ubiqueversans*)
+no longer anchored their NCBI name; the 0.9.10 fallback restores them, since genomes keeping that NCBI name in
+other clusters must still be excluded from NCBI-name votes in `u_synonyms` and `u_species_init`.
 
 ### Step 13: `u_synonyms` (PR 10)
 
@@ -345,7 +350,7 @@ SeqCode rows.
 - [x] PR 6: `u_rep_actions` (0.9.5; `year_of_priority`, `species_priority_manager`)
 - [x] PR 7: `u_sel_reps` (0.9.7)
 - [x] PR 8: `u_cluster_named_reps`, `u_cluster_de_novo`, `u_cluster_stats` (0.9.8)
-- [x] PR 9: `u_ncbi_erroneous` (0.9.9)
+- [x] PR 9: `u_ncbi_erroneous` (0.9.9; NCBI-name fallback for all type strain genomes in 0.9.10)
 - [ ] PR 10: `u_synonyms`
 - [ ] PR 11: `u_curation_trees`
 - [ ] PR 12: `u_species_init`

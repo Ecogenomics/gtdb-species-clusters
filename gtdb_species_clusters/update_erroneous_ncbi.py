@@ -64,14 +64,14 @@ class UpdateErroneousNCBI():
         type_anchored_species = {}
 
         divergent_type_strains = defaultdict(lambda: defaultdict(set))
-        ledger_type_strains = []
+        other_type_strain_species = []
         for rid, cids in cur_clusters.items():
             for cid in cids:
                 if cur_genomes[cid].is_effective_type_strain():
-                    if cur_genomes[cid].is_gtdb_type_strain_ledger():
-                        ledger_type_strains.append((rid, cid))
-
                     type_species = cur_genomes[cid].type_species()
+                    for sp in {cur_genomes[cid].ref_taxa.species, cur_genomes[cid].ncbi_taxa.species} - {type_species}:
+                        other_type_strain_species.append((sp, rid, cid))
+
                     type_specific = specific_epithet(type_species)
                     if type_species == 's__' or type_specific in forbidden_names:
                         continue
@@ -79,20 +79,22 @@ class UpdateErroneousNCBI():
                     divergent_type_strains[type_species][rid].add(cid)
                     type_anchored_species[type_species] = rid
 
-        # genomes in the GTDB type strains ledger also anchor their reference species if it has
-        # no other type strain genomes, as the ledger often corrects the spelling of the
-        # NCBI species or adds a GTDB genus suffix (e.g., s__Synechococcus_D lacustris)
+        # type strain genomes also anchor their reference and NCBI species if these differ from
+        # the species they are type material of and have no other type strain genomes, as the
+        # GTDB type strains ledger often corrects the spelling of the NCBI species or adds a
+        # GTDB genus suffix (e.g., s__Synechococcus_D lacustris) and the SeqCode name of a type
+        # genome may differ from its NCBI species (e.g., s__Methanobrevibacter arboriphilus is
+        # s__Methanobinarius arboriphilus); genomes assigned to the NCBI species in other
+        # clusters remain misclassified
         sp_with_type_strains = set(divergent_type_strains)
-        for rid, cid in ledger_type_strains:
-            ref_species = cur_genomes[cid].ref_taxa.species
-            ref_specific = specific_epithet(ref_species)
-            if (ref_species == 's__'
-                    or ref_specific in forbidden_names
-                    or ref_species in sp_with_type_strains):
+        for sp, rid, cid in other_type_strain_species:
+            if (sp == 's__'
+                    or specific_epithet(sp) in forbidden_names
+                    or sp in sp_with_type_strains):
                 continue
 
-            divergent_type_strains[ref_species][rid].add(cid)
-            type_anchored_species[ref_species] = rid
+            divergent_type_strains[sp][rid].add(cid)
+            type_anchored_species[sp] = rid
 
         unresolved_type_strains = False
         for sp, rids in divergent_type_strains.items():
