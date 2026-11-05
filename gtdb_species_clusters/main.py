@@ -855,7 +855,7 @@ class OptionsParser():
               params['data_files']['seqcode_file'])
 
     def u_curation_trees(self, args):
-        """Produce curation trees highlighting new NCBI taxa."""
+        """Produce curation trees highlighting new SeqCode or NCBI taxa."""
 
         check_file_exists(args.input_params_file)
         params = parse_toml_file(args.input_params_file)
