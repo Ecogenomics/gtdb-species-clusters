@@ -49,10 +49,16 @@ def test_identify_misclassified_genomes_cluster(erroneous_ncbi, tmp_path):
         'S1': StubGenome(seqcode_sp='s__Acidiparvus lacustris', type_strain=True),
         'G1': StubGenome(ncbi_sp='s__Acidiparvus lacustris'),
         'G2': StubGenome(ncbi_sp='s__Acidiparvus lacustris'),
-        # SeqCode type genome whose differing NCBI species is no longer anchored in cluster R3
-        'S2': StubGenome(ncbi_sp='s__Methanobrevibacter arboriphilicus',
+        # SeqCode type genome also anchors its differing NCBI species, which has no other type strain genome
+        'S2': StubGenome(ncbi_sp='s__Methanobrevibacter arboriphilus',
                          seqcode_sp='s__Methanobinarius arboriphilus', type_strain=True),
-        'G3': StubGenome(ncbi_sp='s__Methanobrevibacter arboriphilicus'),
+        'G3': StubGenome(ncbi_sp='s__Methanobrevibacter arboriphilus'),
+        # SeqCode type genome does not anchor its differing NCBI species when that species has its own
+        # type strain genome, and is not misclassified as it is grouped by its SeqCode species
+        'N2': StubGenome(ncbi_sp='s__Halarcobacter ebronensis', type_strain=True),
+        'S3': StubGenome(ncbi_sp='s__Halarcobacter ebronensis',
+                         seqcode_sp='s__Halarcobacter ibericensis', type_strain=True),
+        'G7': StubGenome(ncbi_sp='s__Halarcobacter ebronensis'),
         # ledger genome anchors its ledger species and its NCBI species, which has no other type strain genome
         'L1': StubGenome(ncbi_sp='s__Synechococcus lacustris', ledger_sp='s__Synechococcus_D lacustris'),
         'G4': StubGenome(ncbi_sp='s__Synechococcus lacustris'),
@@ -64,6 +70,8 @@ def test_identify_misclassified_genomes_cluster(erroneous_ncbi, tmp_path):
     cur_clusters = {'S1': {'S1', 'G1'},
                     'G2': {'G2', 'G3'},
                     'S2': {'S2'},
+                    'N2': {'N2', 'G7'},
+                    'S3': {'S3'},
                     'L1': {'L1'},
                     'G4': {'G4'},
                     'N1': {'N1', 'G5'},
@@ -75,12 +83,13 @@ def test_identify_misclassified_genomes_cluster(erroneous_ncbi, tmp_path):
 
     misclassified = erroneous_ncbi.identify_misclassified_genomes_cluster(
         cur_genomes, cur_clusters, str(untrustworthy_sp_ledger))
-    assert misclassified == {'G2', 'G4', 'G6'}
+    assert misclassified == {'G2', 'G3', 'G4', 'G6'}
 
     lines = (tmp_path / 'ncbi_misclassified_sp.gtdb_clustering.tsv').read_text().splitlines()
     assert lines[0] == ('Genome ID\tNCBI species\tGenome cluster\tType species cluster\t'
                         'SeqCode species\tSeqCode genus\tReference source used')
     assert sorted(lines[1:]) == ['G2\ts__Acidiparvus lacustris\tG2\tS1\t\t\tNCBI',
+                                 'G3\ts__Methanobrevibacter arboriphilus\tG2\tS2\t\t\tNCBI',
                                  'G4\ts__Synechococcus lacustris\tG4\tL1\t\t\tNCBI',
                                  'G5\ts__Escherichia coli\tN1\tManually marked as being erroneous\t\t\tNCBI',
                                  'G6\ts__Escherichia coli\tG6\tN1\t\t\tNCBI']

@@ -1,3 +1,6 @@
+0.9.10
+- u_ncbi_erroneous: type strain genomes also anchor their NCBI species when it differs from the species they are type material of and has no other type strain genome, so genomes assigned to an NCBI species whose type genome was renamed under the SeqCode are still reported as misclassified
+
 0.9.9
 - u_ncbi_erroneous groups genomes by their reference (SeqCode or NCBI) species and anchors each species by the type strain genomes of that species (GTDB type strains ledger, else SeqCode, else NCBI), so SeqCode type genomes anchor their SeqCode name; the misclassified genomes table gains SeqCode species, SeqCode genus and reference source columns; ledger warnings name every metadata file when the metadata is split by domain
 
