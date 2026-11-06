@@ -1,3 +1,10 @@
+0.9.17
+- when classifying species as unambiguous, ambiguous or synonym, a type strain representative also anchors its reference and NCBI species if these differ from the species it is type material of and no type strain genome of these species is a representative (e.g. s__Mycobacteroides abscessus for G000069185, in the type strains ledger as s__Mycobacterium abscessus)
+- no error is logged when the species names of a type strain representative are all assigned to its cluster
+
+0.9.16
+- species names that keep the previous placeholder specific name (RETAIN_PREVIOUS_PLACEHOLDER_NAME) separate the generic and specific names with a space instead of an underscore
+
 0.9.15
 - pmc_species_names and u_pmc_species_names name SeqCode type genomes by the type species and type strain rules, using the species genomes are type material of (GTDB type strains ledger, else SeqCode, else NCBI), instead of a separate SeqCode step that ignored the ledgers, untrustworthy type material, gender agreement and the type species genus check
 - species are classified as unambiguous, ambiguous or synonym by the species type strain genomes are type material of and the reference (SeqCode or NCBI) species of other genomes; SeqCode names are valid names in priority checks; final_taxonomy_metadata.tsv, gtdb_sp_clusters.ncbi_sp.tsv and species_classification_ledger_updates.tsv gain SeqCode columns

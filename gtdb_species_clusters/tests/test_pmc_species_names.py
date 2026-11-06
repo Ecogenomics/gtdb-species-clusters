@@ -151,6 +151,33 @@ def test_resolve_duplicate_type_strain_species(pmc):
     assert final_taxonomy['T2'][-1] == 's__Allorhodoferax lacus_A'
 
 
+def test_resolve_placeholder_specific_epthets(pmc, tmp_path):
+    """Verify a previous placeholder specific name is retained as a well-formed binomial."""
+
+    cur_genomes = {
+        # different placeholder epithet in the same genus reverts to the previous epithet
+        'G1': StubGenome('s__Methanobinarius arboriphilicus_A'),
+        # previous placeholder in a different genus is not retained
+        'G2': StubGenome('s__Enorma sp000002'),
+        # Latin epithet is not replaced by a previous placeholder
+        'G3': StubGenome('s__Rhodoferax lacus')}
+    prev_genomes = {'P1': StubGenome('s__Methanobinarius arboriphilus_A'),
+                    'P2': StubGenome('s__Collinsella sp000002'),
+                    'P3': StubGenome('s__Rhodoferax sp000003')}
+    new_to_prev_rid = {'G1': 'P1', 'G2': 'P2', 'G3': 'P3'}
+    final_taxonomy = taxonomy(cur_genomes)
+    cur_gtdb_sp = {}
+    pmc.final_name_log = open(tmp_path / 'final_sp_name.log', 'w')
+
+    pmc.resolve_placeholder_specific_epthets(final_taxonomy, prev_genomes, new_to_prev_rid, set(), cur_gtdb_sp)
+    pmc.final_name_log.close()
+
+    assert final_taxonomy['G1'][-1] == 's__Methanobinarius arboriphilus_A'
+    assert final_taxonomy['G2'][-1] == 's__Enorma sp000002'
+    assert final_taxonomy['G3'][-1] == 's__Rhodoferax lacus'
+    assert cur_gtdb_sp == {'s__Methanobinarius arboriphilus_A': ('G1', 'RETAIN_PREVIOUS_PLACEHOLDER_NAME')}
+
+
 def test_write_gtdb_synonym_table(pmc, tmp_path):
     """Verify the reference species columns of the synonyms table are written with a header."""
 
