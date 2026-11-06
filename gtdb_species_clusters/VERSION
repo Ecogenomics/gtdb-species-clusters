@@ -1,3 +1,7 @@
+0.9.17
+- when classifying species as unambiguous, ambiguous or synonym, a type strain representative also anchors its reference and NCBI species if these differ from the species it is type material of and no type strain genome of these species is a representative (e.g. s__Mycobacteroides abscessus for G000069185, in the type strains ledger as s__Mycobacterium abscessus)
+- no error is logged when the species names of a type strain representative are all assigned to its cluster
+
 0.9.16
 - species names that keep the previous placeholder specific name (RETAIN_PREVIOUS_PLACEHOLDER_NAME) separate the generic and specific names with a space instead of an underscore
 

@@ -446,11 +446,55 @@ class NCBI_SpeciesManager():
 
         fout.close()
 
+    def species_names(self, gid):
+        """Get species names of genome: the species used to classify it (see classification_species)
+        and its reference and NCBI species."""
+
+        genome = self.cur_genomes[gid]
+        return {self.classification_species(gid), genome.ref_taxa.species, genome.ncbi_taxa.species}
+
+    def type_strain_fallback_species(self, ncbi_species_gids):
+        """Get species anchored by a type strain representative in addition to the species it is type material of.
+
+        A type strain representative also anchors its reference and NCBI species when these differ
+        from the species it is type material of, have assigned genomes, and no type strain genome of
+        these species is a representative. The GTDB type strains ledger often corrects the spelling of
+        the NCBI species or adds a GTDB genus suffix, and the SeqCode name of a type genome may differ
+        from its NCBI species, so other type strain genomes of the NCBI species in the same cluster
+        would otherwise only give a majority vote, or an ambiguous species, depending on processing
+        order. A species offered by type strain representatives of different clusters is not anchored.
+        As in u_ncbi_erroneous.
+
+        Returns
+        -------
+        dict
+            Representative anchoring each species.
+        """
+
+        rep_type_species = set()
+        fallback_rids = defaultdict(set)
+        for rid in self.cur_clusters:
+            genome = self.cur_genomes[rid]
+            if not genome.is_effective_type_strain():
+                continue
+
+            type_species = self.classification_species(rid)
+            rep_type_species.add(type_species)
+            for sp in {genome.ref_taxa.species, genome.ncbi_taxa.species} - {type_species}:
+                if sp != 's__' and sp in ncbi_species_gids:
+                    fallback_rids[sp].add(rid)
+
+        return {sp: next(iter(rids)) for sp, rids in fallback_rids.items()
+                if sp not in rep_type_species and len(rids) == 1}
+
     def classify_ncbi_species(self, ncbi_synonyms, misclassified_gids):
         """Classify each SeqCode or NCBI species as either unambiguously, ambiguously, or synonym.
 
         Genomes are assigned to the species given by classification_species, so type strain genomes
-        are assigned to the species they are type material of.
+        are assigned to the species they are type material of. A type strain representative also
+        anchors its reference and NCBI species when these differ from the species it is type material
+        of and no type strain genome of these species is a representative (see
+        type_strain_fallback_species).
         """
 
         # get genomes with NCBI species assignment
@@ -486,6 +530,12 @@ class NCBI_SpeciesManager():
         self.log.info(' - identified {:,} SeqCode or NCBI species with effective type strain genome and {:,} species without a type strain genome'.format(
             len(ncbi_type_strain_species), len(ncbi_nontype_species)))
 
+        fallback_type_strain_rid = self.type_strain_fallback_species(ncbi_species_gids)
+        for ncbi_species in fallback_type_strain_rid:
+            if ncbi_species in ncbi_nontype_species:
+                ncbi_nontype_species.remove(ncbi_species)
+                ncbi_type_strain_species.append(ncbi_species)
+
         # establish if NCBI species can be unambiguously assigned to a GTDB species cluster
         fout = open(os.path.join(self.output_dir,
                                  'ncbi_sp_classification.tsv'), 'w')
@@ -502,6 +552,8 @@ class NCBI_SpeciesManager():
             # get type strains for NCBI species that are GTDB species representatives
             type_strain_rids = [gid for gid in ncbi_sp_gids
                                 if (self.cur_genomes[gid].is_effective_type_strain() and gid in self.cur_clusters)]
+            if len(type_strain_rids) == 0 and ncbi_species in fallback_type_strain_rid:
+                type_strain_rids = [fallback_type_strain_rid[ncbi_species]]
 
             if len(type_strain_rids) == 0:
                 highest_sp_in_cluster_perc = 0
@@ -614,7 +666,10 @@ class NCBI_SpeciesManager():
 
         gtdb_rep_ncbi_sp_assignments = {}
         for ncbi_species, (gtdb_rid, _classification) in unambiguous_ncbi_sp.items():
-            if gtdb_rid in gtdb_rep_ncbi_sp_assignments:
+            if (gtdb_rid in gtdb_rep_ncbi_sp_assignments
+                    and not {gtdb_rep_ncbi_sp_assignments[gtdb_rid], ncbi_species}.issubset(self.species_names(gtdb_rid))):
+                # species names of a type strain representative (e.g., GTDB type strains ledger
+                # and NCBI species) may both be assigned to its cluster
                 self.log.error('GTDB representative {} assigned to multiple unambiguous NCBI species: {} {}'.format(
                     gtdb_rid,
                     gtdb_rep_ncbi_sp_assignments[gtdb_rid],

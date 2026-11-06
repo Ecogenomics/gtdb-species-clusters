@@ -1,5 +1,6 @@
 # Test identification of synonyms in NCBI_SpeciesManager class
 
+import logging
 from collections import defaultdict
 from types import SimpleNamespace
 
@@ -82,14 +83,48 @@ def ncbi_species_mngr(cur_genomes, tmp_path):
     return NCBI_SpeciesManager(cur_genomes, cur_clusters, {}, str(untrustworthy_type_file), str(tmp_path))
 
 
-def test_classify_ncbi_species(ncbi_species_mngr):
-    """Verify species are classified by the species type strain genomes are type material of and the reference species of other genomes."""
+def test_classify_ncbi_species(ncbi_species_mngr, caplog):
+    """Verify species are classified by the species type strain genomes are type material of and the reference species of other genomes.
 
-    _all_species, unambiguous, ambiguous = ncbi_species_mngr.classify_ncbi_species({}, {'M1'})
+    A type strain representative also anchors its reference and NCBI species when no type strain genome
+    of these species is a representative (e.g., the NCBI species of a ledger genome whose other type strain
+    genomes are in its cluster), and both names of the representative being assigned to its cluster is not an error.
+    """
+
+    with caplog.at_level(logging.ERROR, logger='rich'):
+        _all_species, unambiguous, ambiguous = ncbi_species_mngr.classify_ncbi_species({}, {'M1'})
 
     assert unambiguous == {'s__Pelagibacter ubiqueversans': ('R1', NCBI_SpeciesManager.TYPE_STRAIN_GENOME),
-                           's__Synechococcus_D lacustris': ('L1', NCBI_SpeciesManager.TYPE_STRAIN_GENOME)}
-    assert ambiguous == {'s__Pelagibacter bermudensis', 's__Pelagibacter communis', 's__Synechococcus lacustris'}
+                           's__Pelagibacter communis': ('R1', NCBI_SpeciesManager.TYPE_STRAIN_GENOME),
+                           's__Synechococcus_D lacustris': ('L1', NCBI_SpeciesManager.TYPE_STRAIN_GENOME),
+                           's__Synechococcus lacustris': ('L1', NCBI_SpeciesManager.TYPE_STRAIN_GENOME)}
+    assert ambiguous == {'s__Pelagibacter bermudensis'}
+    assert 'assigned to multiple unambiguous' not in caplog.text
+
+
+def test_type_strain_fallback_species(tmp_path):
+    """Verify a species is not anchored by type strain representatives of different clusters or when it has a type strain representative."""
+
+    cur_genomes = StubGenomes({
+        # two ledger genomes in different clusters with the same NCBI species
+        'L1': StubGenome(ncbi_sp='s__Thioglobus perditus', ledger_sp='s__Thioglobus_B perditus'),
+        'L2': StubGenome(ncbi_sp='s__Thioglobus perditus', ledger_sp='s__Thioglobus_C perditus'),
+        'G1': StubGenome(ncbi_sp='s__Thioglobus perditus'),
+        # ledger genome whose NCBI species has its own type strain representative
+        'L3': StubGenome(ncbi_sp='s__Solincola tengchongensis', ledger_sp='s__Solincola_A tengchongensis'),
+        'T3': StubGenome(ncbi_sp='s__Solincola tengchongensis', type_strain=True),
+        # ledger genome whose NCBI species has no other genomes
+        'L4': StubGenome(ncbi_sp='s__Aquicultor secundus', ledger_sp='s__Aquicultor_A secundus')})
+    cur_clusters = {'L1': {'L1', 'G1'}, 'L2': {'L2'}, 'L3': {'L3'}, 'T3': {'T3'}, 'L4': {'L4'}}
+    untrustworthy_type_file = tmp_path / 'untrustworthy_type_material.tsv'
+    untrustworthy_type_file.write_text('Genome ID\n')
+    mngr = NCBI_SpeciesManager(cur_genomes, cur_clusters, {}, str(untrustworthy_type_file), str(tmp_path))
+
+    ncbi_species_gids = defaultdict(list)
+    for gid in cur_genomes:
+        ncbi_species_gids[mngr.classification_species(gid)].append(gid)
+
+    assert mngr.type_strain_fallback_species(ncbi_species_gids) == {}
 
 
 def test_identify_type_strain_synonyms(ncbi_species_mngr):
