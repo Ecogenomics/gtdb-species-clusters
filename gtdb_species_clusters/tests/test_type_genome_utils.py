@@ -3,7 +3,8 @@
 import logging
 from types import SimpleNamespace
 
-from gtdb_species_clusters.type_genome_utils import ClusteredGenome, check_ecoli_shigella_type_strains
+from gtdb_species_clusters.type_genome_utils import (ClusteredGenome, check_ecoli_shigella_type_strains,
+                                                      resolve_merged_prev_representatives)
 
 
 def stub_genomes(genome_info):
@@ -62,3 +63,14 @@ def test_ecoli_shigella_shigella_representative():
 
     clusters = {'SF_T': clustered('EC_T', 'SD_T')}
     assert not check_ecoli_shigella_type_strains(clusters, GENOMES)
+
+
+def test_resolve_merged_prev_representatives_highest_score():
+    """Verify the previous representative with the highest assembly score is selected for a new representative,
+    with ties broken by the highest genome ID and negative scores considered."""
+
+    prev_genomes = {gid: SimpleNamespace(score_assembly=lambda score=score: score)
+                    for gid, score in {'P1': -5, 'P2': -1, 'P3': -1}.items()}
+
+    for prev_rids in (['P1', 'P2', 'P3'], ['P3', 'P2', 'P1'], {'P2', 'P1', 'P3'}):
+        assert resolve_merged_prev_representatives('N1', prev_genomes, {}, prev_rids) == 'P3'

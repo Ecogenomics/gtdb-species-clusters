@@ -171,11 +171,12 @@ def resolve_merged_prev_representatives(cur_rid, prev_genomes, updated_gtdb_rids
     else:
         # the current representative of the cluster is a new genome which doesn't
         # provide any guidance on which of the previous representatives to select
-        # so just pick the genome with the highest assembly score
+        # so just pick the genome with the highest assembly score, processing genomes by decreasing
+        # genome ID so ties are broken in a deterministic fashion between runs (see select_highest_quality)
         highest_prev_gid = None
         highest_score = 0
-        for prev_rid in prev_rids_in_cluster:
-            if prev_genomes[prev_rid].score_assembly() > highest_score:
+        for prev_rid in sorted(prev_rids_in_cluster, reverse=True):
+            if highest_prev_gid is None or prev_genomes[prev_rid].score_assembly() > highest_score:
                 highest_score = prev_genomes[prev_rid].score_assembly()
                 highest_prev_gid = prev_rid
 

@@ -85,6 +85,26 @@ def test_top_ani_score_skips_shigella(tmp_path):
     assert gid_pairs == [('G1', 'R1')]
 
 
+def test_top_ani_score_ties_by_genome_id(tmp_path):
+    """Verify ties in ANI score are broken by selecting the genome with the highest genome ID, whatever the order of genomes."""
+
+    rep_actions = RepActions(1, str(tmp_path))
+    rep_actions.skani = StubSkani()
+    cur_genomes = StubSpeciesGenomes({'R1': 's__Escherichia coli',
+                                      'G1': 's__Escherichia coli',
+                                      'G2': 's__Escherichia coli',
+                                      'G3': 's__Escherichia coli'},
+                                     {'R1': 50, 'G1': 60, 'G2': 60, 'G3': 40})
+    prev_genomes = StubSpeciesGenomes({'R1': 's__Escherichia coli'}, {'R1': 50})
+
+    for sp_cids in (['G1', 'G2', 'G3'], ['G2', 'G1', 'G3'], ['G3', 'G2', 'G1']):
+        new_rid, top_score, _ani, _af = rep_actions.top_ani_score('R1', sp_cids, cur_genomes)
+        assert (new_rid, top_score) == ('G2', 60)
+
+        new_rid, top_score, _ani, _af = rep_actions.top_ani_score_prev_rep('R1', sp_cids, prev_genomes, cur_genomes)
+        assert (new_rid, top_score) == ('G2', 60)
+
+
 def test_top_ani_score_prev_rep_only_shigella(tmp_path):
     """Verify no representative is returned when a species cluster only contains Shigella genomes."""
 

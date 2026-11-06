@@ -1,3 +1,7 @@
+0.9.20
+- a type strains ledger species that moves the genome's validly published, trusted reference epithet into another genus is a valid name when resolving species priority (e.g., s__Globicatella yangjingiae for s__Tuanshanicoccus yangjingiae)
+- ties in selecting a new representative by ANI score (u_rep_actions), and in resolving merged previous representatives, are broken by genome ID so results do not change between runs
+
 0.9.19
 - genomes in both the GTDB type strains ledger and the NCBI untrustworthy species ledger are effective type strains of their ledger species (e.g., G900100765 s__Mooreia alkaloidigena, G002240565 s__Clavibacter insidiosus)
 - an untrustworthy NCBI species is never anchored by its genome, and misclassified genomes named by the type strains ledger are not skipped when classifying species or identifying type strain synonyms

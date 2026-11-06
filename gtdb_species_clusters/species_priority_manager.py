@@ -25,7 +25,7 @@ from collections import defaultdict
 from gtdb_species_clusters.genome import Genome
 from gtdb_species_clusters.genome_utils import select_highest_quality, parse_seqcode_table
 from gtdb_species_clusters.lpsn import LPSN
-from gtdb_species_clusters.taxon_utils import generic_name, canonical_species
+from gtdb_species_clusters.taxon_utils import generic_name, canonical_species, specific_epithet, test_same_epithet
 
 
 class SpeciesPriorityManager(object):
@@ -285,24 +285,46 @@ class SpeciesPriorityManager(object):
 
     @staticmethod
     def priority_names(genome):
-        """Get species, genus, and valid name lookup key used to establish the naming priority of a genome.
+        """Get species and genus used to establish the naming priority of a genome.
 
         Genomes are identified by the species they are type material of (see Genome.type_species), which is
         their reference (SeqCode or NCBI) species unless they are in the GTDB type strains ledger. The genus of a
-        ledger species keeps any GTDB suffix so it can match the GTDB genus (e.g., g__Ruminococcus_D), while
-        validly published names are looked up without suffixes (e.g., s__Ruminococcus bicirculans).
+        ledger species keeps any GTDB suffix so it can match the GTDB genus (e.g., g__Ruminococcus_D).
         """
 
         species = genome.type_species()
         if species == genome.ref_taxa.species:
-            return species, genome.ref_taxa.genus, species
+            return species, genome.ref_taxa.genus
 
-        return species, 'g__' + generic_name(species), canonical_species(species)
+        return species, 'g__' + generic_name(species)
+
+    def has_valid_name(self, genome):
+        """Check if the species a genome is type material of has a validly published name (ICNP or SeqCode).
+
+        A GTDB type strains ledger species is looked up without suffixes (e.g., s__Ruminococcus_D bicirculans
+        as s__Ruminococcus bicirculans). A ledger species that places the validly published, trusted reference
+        species of the genome in another genus is a new combination of that name, so is also considered valid
+        (e.g., s__Globicatella yangjingiae for s__Tuanshanicoccus yangjingiae); the specific epithet may differ
+        in gender (see test_same_epithet).
+        """
+
+        species = genome.type_species()
+        ref_species = genome.ref_taxa.species
+        if species == ref_species:
+            return species in self.valid_names
+
+        species = canonical_species(species)
+        if species in self.valid_names:
+            return True
+
+        return (genome.is_ref_species_trusted()
+                and ref_species in self.valid_names
+                and test_same_epithet(specific_epithet(species), specific_epithet(ref_species)))
 
     def species_priority_year(self, cur_genomes, gid):
         """Get year of priority for genome."""
 
-        species, _genus, _valid_name = self.priority_names(cur_genomes[gid])
+        species, _genus = self.priority_names(cur_genomes[gid])
         if (cur_genomes[gid].is_effective_type_strain()
                 and species in self.manual_species_priority_year):
             return self.manual_species_priority_year[species]
@@ -329,8 +351,10 @@ class SpeciesPriorityManager(object):
         # species and genera are the names of the species the genomes are type material of,
         # which are their reference (SeqCode or NCBI) names unless they are in the GTDB type
         # strains ledger (see priority_names)
-        ncbi_sp1, ncbi_genus1, valid_name1 = self.priority_names(cur_genomes[gid1])
-        ncbi_sp2, ncbi_genus2, valid_name2 = self.priority_names(cur_genomes[gid2])
+        ncbi_sp1, ncbi_genus1 = self.priority_names(cur_genomes[gid1])
+        ncbi_sp2, ncbi_genus2 = self.priority_names(cur_genomes[gid2])
+        valid_name1 = self.has_valid_name(cur_genomes[gid1])
+        valid_name2 = self.has_valid_name(cur_genomes[gid2])
 
         # give priority to genomes assembled from the
         # type strain of the species
@@ -342,11 +366,9 @@ class SpeciesPriorityManager(object):
             return gid2, 'effective type strain'
 
         # give priority to valid species names (validly published under the ICNP or SeqCode)
-        if (valid_name1 in self.valid_names
-                and valid_name2 not in self.valid_names):
+        if valid_name1 and not valid_name2:
             return gid1, 'selected valid species name'
-        if (valid_name1 not in self.valid_names
-                and valid_name2 in self.valid_names):
+        if not valid_name1 and valid_name2:
             return gid2, 'selected valid species name'
 
         # give priority to type species of genus first
