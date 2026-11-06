@@ -69,11 +69,13 @@ class NCBI_SpeciesManager():
 
         # reference (SeqCode or NCBI) species of type strain genomes, which differs from the species
         # they are type material of when the GTDB type strains ledger corrects the spelling of the
-        # species or adds a GTDB genus suffix (e.g., s__Synechococcus_D lacustris)
+        # species or adds a GTDB genus suffix (e.g., s__Synechococcus_D lacustris); untrustworthy
+        # NCBI species are ignored (see Genome.is_ref_species_trusted)
         self.type_strain_ref_species = set()
         for type_gids in self.sp_type_strain_genomes.values():
             for gid in type_gids:
-                self.type_strain_ref_species.add(cur_genomes[gid].ref_taxa.species)
+                if cur_genomes[gid].is_ref_species_trusted():
+                    self.type_strain_ref_species.add(cur_genomes[gid].ref_taxa.species)
 
         self.validate_type_strain_clustering(mc_species, untrustworthy_type_file)
 
@@ -145,7 +147,7 @@ class NCBI_SpeciesManager():
             # find species that are a type strain synonym to the current representative,
             # using the best quality genome for each species to establish
             # synonym statistics such as ANI and AF
-            ncbi_sp_gids = set(gids) - ncbi_misclassified_gids
+            ncbi_sp_gids = [gid for gid in gids if not self.is_misclassified(gid, ncbi_misclassified_gids)]
             type_gids = [
                 gid for gid in ncbi_sp_gids if self.cur_genomes[gid].is_effective_type_strain()]
             q = {gid: self.cur_genomes[gid].score_type_strain()
@@ -154,10 +156,11 @@ class NCBI_SpeciesManager():
                 kv[1], kv[0]), reverse=True)
 
             # the reference species of the representative is not a synonym of the species it is
-            # type material of, and type strain genomes without a species name are never synonyms
-            processed_sp = set([self.cur_genomes[rid].type_species(),
-                                self.cur_genomes[rid].ref_taxa.species,
-                                's__'])
+            # type material of, unless it is untrustworthy, and type strain genomes without a species
+            # name are never synonyms
+            processed_sp = set([self.cur_genomes[rid].type_species(), 's__'])
+            if self.cur_genomes[rid].is_ref_species_trusted():
+                processed_sp.add(self.cur_genomes[rid].ref_taxa.species)
             for gid, _quality in q_sorted:
                 cur_type_sp = self.cur_genomes[gid].type_species()
 
@@ -248,6 +251,17 @@ class NCBI_SpeciesManager():
             return genome.type_species(), 'GTDB curator'
 
         return genome.ref_taxa.species, genome.ref_taxa_source
+
+    def is_misclassified(self, gid, misclassified_gids):
+        """Check if genome is considered to have a misclassified species assignment.
+
+        Misclassified genomes are identified by their reference (SeqCode or NCBI) species (see u_ncbi_erroneous),
+        so a type strain genome identified by the species it is type material of in the GTDB type strains ledger
+        is not misclassified (e.g., G900100765 is the type strain of s__Mooreia alkaloidigena, which NCBI
+        assigns to s__Catalinimonas alkaloidigena).
+        """
+
+        return gid in misclassified_gids and self.synonym_species(gid)[1] != 'GTDB curator'
 
     def classification_species(self, gid):
         """Get species name used for genome when classifying species as unambiguous, ambiguous, or synonym.
@@ -462,7 +476,8 @@ class NCBI_SpeciesManager():
         the NCBI species or adds a GTDB genus suffix, and the SeqCode name of a type genome may differ
         from its NCBI species, so other type strain genomes of the NCBI species in the same cluster
         would otherwise only give a majority vote, or an ambiguous species, depending on processing
-        order. A species offered by type strain representatives of different clusters is not anchored.
+        order. A species offered by type strain representatives of different clusters is not anchored, and an
+        untrustworthy NCBI species is never offered (see Genome.trusted_species_names).
         As in u_ncbi_erroneous.
 
         Returns
@@ -480,7 +495,7 @@ class NCBI_SpeciesManager():
 
             type_species = self.classification_species(rid)
             rep_type_species.add(type_species)
-            for sp in {genome.ref_taxa.species, genome.ncbi_taxa.species} - {type_species}:
+            for sp in genome.trusted_species_names() - {type_species}:
                 if sp != 's__' and sp in ncbi_species_gids:
                     fallback_rids[sp].add(rid)
 
@@ -502,7 +517,7 @@ class NCBI_SpeciesManager():
         ncbi_species_gids = defaultdict(list)
         ncbi_all_species_gids = set()
         for gid in self.cur_genomes:
-            if gid in misclassified_gids:
+            if self.is_misclassified(gid, misclassified_gids):
                 continue
 
             ncbi_species = self.classification_species(gid)

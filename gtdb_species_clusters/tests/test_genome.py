@@ -342,6 +342,31 @@ class TestGenome:
         assert g.type_species() == 's__Escherichia_A flexneri'
         assert g.ref_taxa.species == 's__Seqcodia nova'
 
+    def test_untrustworthy_ncbi_species(self):
+        """Test genomes with an untrustworthy NCBI species are only type strains if in the GTDB type strains ledger."""
+
+        g = copy.deepcopy(test_genome)
+        assert g.is_effective_type_strain()
+        assert g.is_ref_species_trusted()
+        assert g.trusted_species_names() == {'s__Escherichia flexneri'}
+
+        g.ncbi_untrustworthy_sp = True
+        assert not g.is_effective_type_strain()
+        assert not g.is_ref_species_trusted()
+        assert g.trusted_species_names() == set()
+
+        # GTDB type strains ledger takes precedence over the untrustworthy NCBI species
+        g.gtdb_type_designation_sources = 'GTDB curator'
+        g.type_strains_ledger_sp = 's__Mooreia flexneri'
+        assert g.is_effective_type_strain()
+        assert g.type_species() == 's__Mooreia flexneri'
+        assert g.trusted_species_names() == set()
+
+        # SeqCode species are trusted
+        g.seqcode_taxa = Taxa('d__Bacteria;p__;c__;o__;f__;g__Seqcodia;s__Seqcodia nova')
+        assert g.is_ref_species_trusted()
+        assert g.trusted_species_names() == {'s__Seqcodia nova'}
+
     def test_year_of_priority(self):
         """Test year of priority is the earliest of the LPSN and SeqCode years (SeqCode Rule 23c)."""
 

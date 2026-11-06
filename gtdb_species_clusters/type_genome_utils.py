@@ -285,7 +285,9 @@ def check_ecoli_shigella_type_strains(clusters, genomes):
     check_sp = Defaults.SHIGELLA_NCBI_SPECIES.union([Defaults.ECOLI_NCBI_SPECIES])
     rid_type_gids = defaultdict(list)
     for gid in genomes:
-        if genomes[gid].ref_taxa.species in check_sp and genomes[gid].is_effective_type_strain():
+        if (genomes[gid].ref_taxa.species in check_sp
+                and genomes[gid].is_ref_species_trusted()
+                and genomes[gid].is_effective_type_strain()):
             rid_type_gids[gid_to_rid.get(gid)].append(gid)
 
     if not rid_type_gids:

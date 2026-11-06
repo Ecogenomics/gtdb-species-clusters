@@ -13,8 +13,9 @@ def erroneous_ncbi(tmp_path):
 
 
 class StubGenome:
-    def __init__(self, ncbi_sp='s__', seqcode_sp=None, ledger_sp='', type_strain=False):
+    def __init__(self, ncbi_sp='s__', seqcode_sp=None, ledger_sp='', type_strain=False, untrustworthy_sp=False):
         self.ncbi_taxa = SimpleNamespace(species=ncbi_sp)
+        self.ncbi_untrustworthy_sp = untrustworthy_sp
         self.seqcode_taxa = SimpleNamespace(species=seqcode_sp, genus='g__' + seqcode_sp[3:].split()[0]) if seqcode_sp else None
         self.type_strains_ledger_sp = ledger_sp
         self.type_strain = type_strain
@@ -38,7 +39,19 @@ class StubGenome:
         return bool(self.type_strains_ledger_sp)
 
     def is_effective_type_strain(self):
+        # mirrors Genome.is_effective_type_strain: the type strains ledger takes precedence over an untrustworthy NCBI species
+        if self.ncbi_untrustworthy_sp and not self.is_gtdb_type_strain_ledger():
+            return False
         return self.type_strain or self.is_gtdb_type_strain_ledger()
+
+    def trusted_species_names(self):
+        # mirrors Genome.trusted_species_names
+        names = set()
+        if self.seqcode_taxa is not None or not self.ncbi_untrustworthy_sp:
+            names.add(self.ref_taxa.species)
+        if not self.ncbi_untrustworthy_sp:
+            names.add(self.ncbi_taxa.species)
+        return names
 
 
 def test_identify_misclassified_genomes_cluster(erroneous_ncbi, tmp_path):
@@ -112,3 +125,25 @@ def test_seqcode_type_strains_in_different_clusters(erroneous_ncbi, tmp_path, ca
     assert len(misclassified) == 1
     assert any(r.getMessage().startswith('Species s__Planktophila lacus has multiple type strain genomes in different clusters')
                for r in caplog.records)
+
+
+def test_untrustworthy_ncbi_species_not_anchored(erroneous_ncbi, tmp_path):
+    """Verify a type strains ledger genome does not anchor its untrustworthy NCBI species (e.g., G900100765 is the
+    type strain of s__Mooreia alkaloidigena, which NCBI assigns to s__Catalinimonas alkaloidigena)."""
+
+    cur_genomes = {
+        'L1': StubGenome(ncbi_sp='s__Catalinimonas alkaloidigena', ledger_sp='s__Mooreia alkaloidigena',
+                         untrustworthy_sp=True),
+        'G1': StubGenome(ncbi_sp='s__Catalinimonas alkaloidigena')}
+    cur_clusters = {'L1': {'L1'}, 'G1': {'G1'}}
+
+    untrustworthy_sp_ledger = tmp_path / 'ncbi_untrustworthy_sp.tsv'
+    untrustworthy_sp_ledger.write_text('Genome ID\tNCBI species\n'
+                                       'L1\ts__Catalinimonas alkaloidigena\n')
+
+    misclassified = erroneous_ncbi.identify_misclassified_genomes_cluster(
+        cur_genomes, cur_clusters, str(untrustworthy_sp_ledger))
+    assert misclassified == set()
+
+    lines = (tmp_path / 'ncbi_misclassified_sp.gtdb_clustering.tsv').read_text().splitlines()
+    assert lines[1:] == ['L1\ts__Catalinimonas alkaloidigena\tL1\tManually marked as being erroneous\t\t\tNCBI']

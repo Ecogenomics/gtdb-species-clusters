@@ -1,3 +1,8 @@
+0.9.19
+- genomes in both the GTDB type strains ledger and the NCBI untrustworthy species ledger are effective type strains of their ledger species (e.g., G900100765 s__Mooreia alkaloidigena, G002240565 s__Clavibacter insidiosus)
+- an untrustworthy NCBI species is never anchored by its genome, and misclassified genomes named by the type strains ledger are not skipped when classifying species or identifying type strain synonyms
+- species naming priority uses the species a genome is type material of, so type strains ledger genomes are compared by their ledger species (genus with GTDB suffix; valid names without suffix)
+
 0.9.18
 - RETAIN_PREVIOUS_PLACEHOLDER_NAME no longer reverts a correction of the Latin part of a suffixed specific name made to account for a genus transfer (e.g. s__Aequitasia blattaphila_A, s__Methanobinarius arboriphilicus_A)
 

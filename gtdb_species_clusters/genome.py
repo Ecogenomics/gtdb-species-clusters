@@ -144,6 +144,25 @@ class Genome(object):
 
         return Genome.REF_TAXA_NCBI
 
+    def is_ref_species_trusted(self):
+        """Check if the reference species of genome is trusted.
+
+        The NCBI species of a genome in the NCBI untrustworthy species ledger is not trusted, while a SeqCode species is.
+        """
+
+        return self.ref_taxa_source != Genome.REF_TAXA_NCBI or not self.ncbi_untrustworthy_sp
+
+    def trusted_species_names(self):
+        """Get trusted reference (SeqCode or NCBI) and NCBI species of genome (see is_ref_species_trusted)."""
+
+        names = set()
+        if self.is_ref_species_trusted():
+            names.add(self.ref_taxa.species)
+        if not self.ncbi_untrustworthy_sp:
+            names.add(self.ncbi_taxa.species)
+
+        return names
+
     def ref_taxa_columns(self):
         """Tab-separated SeqCode species, SeqCode genus and reference source for output tables.
 
@@ -357,9 +376,13 @@ class Genome(object):
         return False
 
     def is_effective_type_strain(self):
-        """Check if genome is a valid or effectively published type strain of species."""
+        """Check if genome is a valid or effectively published type strain of species.
 
-        if self.ncbi_untrustworthy_sp:
+        A genome with an untrustworthy NCBI species assignment is not a type strain unless it is in the
+        GTDB type strains ledger, as the ledger gives the species it is type material of (see type_species).
+        """
+
+        if self.ncbi_untrustworthy_sp and not self.is_gtdb_type_strain_ledger():
             return False
 
         if self.is_gtdb_type_strain():
