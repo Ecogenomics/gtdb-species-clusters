@@ -11,6 +11,7 @@ def stub_genomes(genome_info):
 
     return {gid: SimpleNamespace(ncbi_taxa=SimpleNamespace(species=species),
                                  ref_taxa=SimpleNamespace(species=species),
+                                 is_ref_species_trusted=lambda: True,
                                  is_effective_type_strain=lambda is_type=is_type: is_type)
             for gid, (species, is_type) in genome_info.items()}
 

@@ -286,6 +286,7 @@ class SpeciesPriorityManager(object):
 
         ref_sp = cur_genomes[gid].ref_taxa.species
         if (cur_genomes[gid].is_effective_type_strain()
+                and cur_genomes[gid].is_ref_species_trusted()
                 and ref_sp in self.manual_species_priority_year):
             return self.manual_species_priority_year[ref_sp]
 

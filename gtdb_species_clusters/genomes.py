@@ -193,21 +193,27 @@ class Genomes(object):
         return type_strain_gids
 
     def get_ncbi_type_strain_genomes(self):
-        """Get type strain genomes for NCBI species."""
+        """Get type strain genomes for NCBI species.
+
+        Untrustworthy NCBI species assignments are ignored (see Genome.trusted_species_names).
+        """
 
         type_strain_genomes = defaultdict(set)
         for gid, genome in self.genomes.items():
-            if genome.is_effective_type_strain():
+            if genome.is_effective_type_strain() and not genome.ncbi_untrustworthy_sp:
                 type_strain_genomes[genome.ncbi_taxa.species].add(gid)
 
         return type_strain_genomes
 
     def get_ref_type_strain_genomes(self):
-        """Get type strain genomes for each reference (SeqCode or NCBI) species."""
+        """Get type strain genomes for each reference (SeqCode or NCBI) species.
+
+        Untrustworthy NCBI species assignments are ignored (see Genome.is_ref_species_trusted).
+        """
 
         type_strain_genomes = defaultdict(set)
         for gid, genome in self.genomes.items():
-            if genome.is_effective_type_strain():
+            if genome.is_effective_type_strain() and genome.is_ref_species_trusted():
                 type_strain_genomes[genome.ref_taxa.species].add(gid)
 
         return type_strain_genomes

@@ -10,8 +10,9 @@ from gtdb_species_clusters.ncbi_species_manager import NCBI_SpeciesManager
 
 
 class StubGenome:
-    def __init__(self, ncbi_sp='s__', seqcode_sp=None, ledger_sp='', type_strain=False, score=0):
+    def __init__(self, ncbi_sp='s__', seqcode_sp=None, ledger_sp='', type_strain=False, score=0, untrustworthy_sp=False):
         self.ncbi_taxa = SimpleNamespace(species=ncbi_sp)
+        self.ncbi_untrustworthy_sp = untrustworthy_sp
         self.seqcode_taxa = SimpleNamespace(species=seqcode_sp) if seqcode_sp else None
         self.gtdb_taxa = SimpleNamespace(species='s__')
         self.type_strains_ledger_sp = ledger_sp
@@ -36,7 +37,19 @@ class StubGenome:
         return bool(self.type_strains_ledger_sp)
 
     def is_effective_type_strain(self):
+        # mirrors Genome.is_effective_type_strain: the type strains ledger takes precedence over an untrustworthy NCBI species
+        if self.ncbi_untrustworthy_sp and not self.is_gtdb_type_strain_ledger():
+            return False
         return self.type_strain or self.is_gtdb_type_strain_ledger()
+
+    def is_ref_species_trusted(self):
+        return self.ref_taxa_source != 'NCBI' or not self.ncbi_untrustworthy_sp
+
+    def trusted_species_names(self):
+        names = {self.ref_taxa.species} if self.is_ref_species_trusted() else set()
+        if not self.ncbi_untrustworthy_sp:
+            names.add(self.ncbi_taxa.species)
+        return names
 
     def score_type_strain(self):
         return self.score
@@ -125,6 +138,52 @@ def test_type_strain_fallback_species(tmp_path):
         ncbi_species_gids[mngr.classification_species(gid)].append(gid)
 
     assert mngr.type_strain_fallback_species(ncbi_species_gids) == {}
+
+
+def untrustworthy_ncbi_sp_mngr(tmp_path):
+    """Type strains ledger genomes whose NCBI species are in the NCBI untrustworthy species ledger, and so
+    are misclassified genomes (see u_ncbi_erroneous), e.g. G900100765 is the type strain of s__Mooreia alkaloidigena
+    and G002240565 is the type strain of s__Clavibacter insidiosus."""
+
+    cur_genomes = StubGenomes({
+        'L1': StubGenome(ncbi_sp='s__Catalinimonas alkaloidigena', ledger_sp='s__Mooreia alkaloidigena',
+                         untrustworthy_sp=True, score=3),
+        'T1': StubGenome(ncbi_sp='s__Catalinimonas alkaloidigena', type_strain=True, score=2),
+        'G1': StubGenome(ncbi_sp='s__Catalinimonas alkaloidigena'),
+        'R2': StubGenome(ncbi_sp='s__Clavibacter nebraskensis', type_strain=True, score=3),
+        'L2': StubGenome(ncbi_sp='s__Clavibacter michiganensis', ledger_sp='s__Clavibacter insidiosus',
+                         untrustworthy_sp=True, score=2)})
+    cur_clusters = {'L1': {'L1'}, 'T1': {'T1', 'G1'}, 'R2': {'R2', 'L2'}}
+
+    untrustworthy_type_file = tmp_path / 'untrustworthy_type_material.tsv'
+    untrustworthy_type_file.write_text('Genome ID\n')
+
+    return NCBI_SpeciesManager(cur_genomes, cur_clusters, {}, str(untrustworthy_type_file), str(tmp_path))
+
+
+def test_classify_ledger_type_strain_with_untrustworthy_ncbi_species(tmp_path, caplog):
+    """Verify a type strains ledger genome anchors its ledger species even though its NCBI species is untrustworthy,
+    and does not anchor its NCBI species."""
+
+    mngr = untrustworthy_ncbi_sp_mngr(tmp_path)
+    with caplog.at_level(logging.ERROR, logger='rich'):
+        _all_species, unambiguous, ambiguous = mngr.classify_ncbi_species({}, {'L1', 'L2'})
+
+    assert unambiguous == {'s__Mooreia alkaloidigena': ('L1', NCBI_SpeciesManager.TYPE_STRAIN_GENOME),
+                           's__Catalinimonas alkaloidigena': ('T1', NCBI_SpeciesManager.TYPE_STRAIN_GENOME),
+                           's__Clavibacter nebraskensis': ('R2', NCBI_SpeciesManager.TYPE_STRAIN_GENOME)}
+    assert ambiguous == {'s__Clavibacter insidiosus'}
+    assert 'ERROR' not in caplog.text
+
+
+def test_type_strain_synonyms_untrustworthy_ncbi_species(tmp_path):
+    """Verify type strains ledger genomes with an untrustworthy NCBI species are type strain synonyms, and the
+    untrustworthy NCBI species of a representative does not prevent type strain genomes of that species being synonyms."""
+
+    mngr = untrustworthy_ncbi_sp_mngr(tmp_path)
+    mngr.cur_clusters = {'L1': {'L1', 'T1', 'G1'}, 'R2': {'R2', 'L2'}}
+
+    assert mngr.identify_type_strain_synonyms({'L1', 'L2'}) == {'L1': ['T1'], 'R2': ['L2']}
 
 
 def test_identify_type_strain_synonyms(ncbi_species_mngr):

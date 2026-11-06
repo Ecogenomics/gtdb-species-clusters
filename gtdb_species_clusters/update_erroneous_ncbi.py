@@ -69,7 +69,7 @@ class UpdateErroneousNCBI():
             for cid in cids:
                 if cur_genomes[cid].is_effective_type_strain():
                     type_species = cur_genomes[cid].type_species()
-                    for sp in {cur_genomes[cid].ref_taxa.species, cur_genomes[cid].ncbi_taxa.species} - {type_species}:
+                    for sp in cur_genomes[cid].trusted_species_names() - {type_species}:
                         other_type_strain_species.append((sp, rid, cid))
 
                     type_specific = specific_epithet(type_species)
@@ -85,7 +85,8 @@ class UpdateErroneousNCBI():
         # GTDB genus suffix (e.g., s__Synechococcus_D lacustris) and the SeqCode name of a type
         # genome may differ from its NCBI species (e.g., s__Methanobrevibacter arboriphilus is
         # s__Methanobinarius arboriphilus); genomes assigned to the NCBI species in other
-        # clusters remain misclassified
+        # clusters remain misclassified. An untrustworthy NCBI species is never anchored by the
+        # genome (see Genome.trusted_species_names)
         sp_with_type_strains = set(divergent_type_strains)
         for sp, rid, cid in other_type_strain_species:
             if (sp == 's__'
