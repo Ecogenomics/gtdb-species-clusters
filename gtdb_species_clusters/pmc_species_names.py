@@ -418,7 +418,7 @@ class PMC_SpeciesNames(object):
                 # genome assigned to the same genus, but has a different placeholder
                 # specific name which should not be allowed
 
-                final_sp = 's__{}_{}'.format(gtdb_generic, prev_gtdb_specific)
+                final_sp = 's__{} {}'.format(gtdb_generic, prev_gtdb_specific)
                 self.finalize_species_name(rid,
                                        final_sp,
                                        'RETAIN_PREVIOUS_PLACEHOLDER_NAME',
