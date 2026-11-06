@@ -385,20 +385,39 @@ class PMC_SpeciesNames(object):
                                         final_taxonomy,
                                         cur_gtdb_sp)
 
+    @staticmethod
+    def is_epithet_transfer_correction(rid, gtdb_species, prev_gtdb_specific, cur_gtdb_sp):
+        """Check if species name of representative was set when correcting its specific epithet to
+        account for a genus transfer and has the same suffix as the previous specific name.
+
+        Such names differ from the previous placeholder name only in the Latin part of the
+        specific name (e.g., s__Aequitasia blattaphilus_A -> s__Aequitasia blattaphila_A),
+        so they are not a different placeholder name.
+        """
+
+        suffix = taxon_suffix(specific_epithet(gtdb_species))
+        return (cur_gtdb_sp.get(gtdb_species) == (rid, 'SPECIFIC_EPITHET_GENUS_TRANSFER')
+                and suffix is not None
+                and suffix == taxon_suffix(prev_gtdb_specific))
+
     def resolve_placeholder_specific_epthets(self, 
                                              final_taxonomy, 
                                              prev_genomes, 
                                              new_to_prev_rid,
                                              manual_curation_rids,
                                              cur_gtdb_sp):
-        """Ensure placeholder specific epthets are consistent between releases."""
+        """Ensure placeholder specific epthets are consistent between releases.
+
+        A placeholder specific name that differs from the previous one only by a correction
+        made to account for a genus transfer is kept (see is_epithet_transfer_correction).
+        """
       
         for rid in final_taxonomy:
             if rid in manual_curation_rids:
                 continue
              
             (_gtdb_genus,
-             _gtdb_species,
+             gtdb_species,
              gtdb_generic,
              gtdb_specific) = self.key_taxon(rid, final_taxonomy)
             
@@ -414,7 +433,11 @@ class PMC_SpeciesNames(object):
                 and prev_gtdb_generic == gtdb_generic
                 and is_placeholder_sp_epithet(gtdb_specific)
                 and is_placeholder_sp_epithet(prev_gtdb_specific)
-                and gtdb_specific != prev_gtdb_specific):
+                and gtdb_specific != prev_gtdb_specific
+                and not self.is_epithet_transfer_correction(rid,
+                                                            gtdb_species,
+                                                            prev_gtdb_specific,
+                                                            cur_gtdb_sp)):
                 # genome assigned to the same genus, but has a different placeholder
                 # specific name which should not be allowed
 

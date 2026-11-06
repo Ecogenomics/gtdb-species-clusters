@@ -152,7 +152,8 @@ def test_resolve_duplicate_type_strain_species(pmc):
 
 
 def test_resolve_placeholder_specific_epthets(pmc, tmp_path):
-    """Verify a previous placeholder specific name is retained as a well-formed binomial."""
+    """Verify a previous placeholder specific name is retained as a well-formed binomial, unless the
+    name only corrects the Latin part of the previous name to account for a genus transfer."""
 
     cur_genomes = {
         # different placeholder epithet in the same genus reverts to the previous epithet
@@ -160,13 +161,20 @@ def test_resolve_placeholder_specific_epthets(pmc, tmp_path):
         # previous placeholder in a different genus is not retained
         'G2': StubGenome('s__Enorma sp000002'),
         # Latin epithet is not replaced by a previous placeholder
-        'G3': StubGenome('s__Rhodoferax lacus')}
+        'G3': StubGenome('s__Rhodoferax lacus'),
+        # correction made to account for a genus transfer, keeping the suffix, is kept
+        'G4': StubGenome('s__Aequitasia blattaphila_A'),
+        # correction made to account for a genus transfer that changes the suffix reverts
+        'G5': StubGenome('s__Hassallia radiosa_B')}
     prev_genomes = {'P1': StubGenome('s__Methanobinarius arboriphilus_A'),
                     'P2': StubGenome('s__Collinsella sp000002'),
-                    'P3': StubGenome('s__Rhodoferax sp000003')}
-    new_to_prev_rid = {'G1': 'P1', 'G2': 'P2', 'G3': 'P3'}
+                    'P3': StubGenome('s__Rhodoferax sp000003'),
+                    'P4': StubGenome('s__Aequitasia blattaphilus_A'),
+                    'P5': StubGenome('s__Hassallia radiosum_A')}
+    new_to_prev_rid = {'G1': 'P1', 'G2': 'P2', 'G3': 'P3', 'G4': 'P4', 'G5': 'P5'}
     final_taxonomy = taxonomy(cur_genomes)
-    cur_gtdb_sp = {}
+    cur_gtdb_sp = {'s__Aequitasia blattaphila_A': ('G4', 'SPECIFIC_EPITHET_GENUS_TRANSFER'),
+                   's__Hassallia radiosa_B': ('G5', 'SPECIFIC_EPITHET_GENUS_TRANSFER')}
     pmc.final_name_log = open(tmp_path / 'final_sp_name.log', 'w')
 
     pmc.resolve_placeholder_specific_epthets(final_taxonomy, prev_genomes, new_to_prev_rid, set(), cur_gtdb_sp)
@@ -175,7 +183,11 @@ def test_resolve_placeholder_specific_epthets(pmc, tmp_path):
     assert final_taxonomy['G1'][-1] == 's__Methanobinarius arboriphilus_A'
     assert final_taxonomy['G2'][-1] == 's__Enorma sp000002'
     assert final_taxonomy['G3'][-1] == 's__Rhodoferax lacus'
-    assert cur_gtdb_sp == {'s__Methanobinarius arboriphilus_A': ('G1', 'RETAIN_PREVIOUS_PLACEHOLDER_NAME')}
+    assert final_taxonomy['G4'][-1] == 's__Aequitasia blattaphila_A'
+    assert final_taxonomy['G5'][-1] == 's__Hassallia radiosum_A'
+    assert cur_gtdb_sp['s__Methanobinarius arboriphilus_A'] == ('G1', 'RETAIN_PREVIOUS_PLACEHOLDER_NAME')
+    assert cur_gtdb_sp['s__Aequitasia blattaphila_A'] == ('G4', 'SPECIFIC_EPITHET_GENUS_TRANSFER')
+    assert cur_gtdb_sp['s__Hassallia radiosum_A'] == ('G5', 'RETAIN_PREVIOUS_PLACEHOLDER_NAME')
 
 
 def test_write_gtdb_synonym_table(pmc, tmp_path):
