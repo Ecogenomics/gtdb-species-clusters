@@ -126,12 +126,13 @@ class RepActions():
             preset=Defaults.SKANI_PRESET,
             report_progress=False)
 
-        # determine highest ANI score
+        # determine highest ANI score; genomes are processed by decreasing genome ID so
+        # ties are broken in a deterministic fashion between runs (see select_highest_quality)
         max_score = -1e6
         max_rid = None
         max_ani = None
         max_af = None
-        for cid in sp_cids:
+        for cid in sorted(sp_cids, reverse=True):
             ani, af = Skani.symmetric_ani_af(
                 ani_af, f'{prev_rid}-P', f'{cid}-C')
 
@@ -165,12 +166,13 @@ class RepActions():
                                   preset=Defaults.SKANI_PRESET,
                                   report_progress=False)
 
-        # find genome with top ANI score
+        # find genome with top ANI score; genomes are processed by decreasing genome ID so
+        # ties are broken in a deterministic fashion between runs (see select_highest_quality)
         max_score = -1e6
         max_rid = None
         max_ani = None
         max_af = None
-        for cid in sp_cids:
+        for cid in sorted(sp_cids, reverse=True):
             ani, af = Skani.symmetric_ani_af(ani_af, prev_rid, cid)
 
             cur_score = cur_genomes[cid].score_ani(ani)
