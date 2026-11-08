@@ -3,8 +3,9 @@
 import logging
 from types import SimpleNamespace
 
-from gtdb_species_clusters.type_genome_utils import (ClusteredGenome, check_ecoli_shigella_type_strains,
-                                                      resolve_merged_prev_representatives)
+from gtdb_species_clusters.type_genome_utils import (ClusteredGenome, GenomeRadius, check_ecoli_shigella_type_strains,
+                                                      read_clusters, resolve_merged_prev_representatives,
+                                                      write_clusters)
 
 
 def stub_genomes(genome_info):
@@ -74,3 +75,22 @@ def test_resolve_merged_prev_representatives_highest_score():
 
     for prev_rids in (['P1', 'P2', 'P3'], ['P3', 'P2', 'P1'], {'P2', 'P1', 'P3'}):
         assert resolve_merged_prev_representatives('N1', prev_genomes, {}, prev_rids) == 'P3'
+
+
+def test_write_clusters_order(tmp_path):
+    """Verify clusters are written by decreasing size and then representative ID, regardless of input order."""
+
+    genome = SimpleNamespace(gtdb_taxa=SimpleNamespace(species='s__'), ncbi_taxa=SimpleNamespace(species='s__'),
+                             ref_taxa_columns=lambda: '\t\tNCBI')
+    clusters = {'G5': clustered('G6'), 'G9': [], 'G2': clustered('G3', 'G4'), 'G1': [], 'G7': clustered('G8')}
+    genomes = {gid: genome for gid in 'G1 G2 G3 G4 G5 G6 G7 G8 G9'.split()}
+    rep_radius = {rid: GenomeRadius(ani=95.0, af=None, neighbour_gid=None) for rid in clusters}
+
+    out_file = tmp_path / 'clusters.tsv'
+    write_clusters(clusters, rep_radius, genomes, str(out_file))
+
+    rows = [line.split('\t')[0] for line in out_file.read_text().splitlines()[1:]]
+    assert rows == ['G2', 'G5', 'G7', 'G1', 'G9']
+
+    read_back, _radius = read_clusters(str(out_file))
+    assert read_back['G2'] == {'G2', 'G3', 'G4'}
