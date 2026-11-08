@@ -1,3 +1,6 @@
+0.9.21
+- ties in ANI when determining the closest neighbour of a genome (ANI radius, assignment to a representative, de novo representative selection) in u_cluster_named_reps and u_cluster_de_novo are broken by AF and then genome ID so results do not change between runs
+
 0.9.20
 - a type strains ledger species that moves the genome's validly published, trusted reference epithet into another genus is a valid name when resolving species priority (e.g., s__Globicatella yangjingiae for s__Tuanshanicoccus yangjingiae)
 - ties in selecting a new representative by ANI score (u_rep_actions), and in resolving merged previous representatives, are broken by genome ID so results do not change between runs
