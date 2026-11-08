@@ -1,3 +1,7 @@
+0.9.22
+- u_species_init names clusters whose previous representative was replaced before new clusters, so they keep their previous name when the representative of a new cluster is classified to the same species (e.g. s__VXYK01 sp047516945)
+- clusters are named in genome ID order within each naming tier, and species cluster files list clusters of the same size by representative ID, so names and suffixes do not change between runs
+
 0.9.21
 - ties in ANI when determining the closest neighbour of a genome (ANI radius, assignment to a representative, de novo representative selection) in u_cluster_named_reps and u_cluster_de_novo are broken by AF and then genome ID so results do not change between runs
 

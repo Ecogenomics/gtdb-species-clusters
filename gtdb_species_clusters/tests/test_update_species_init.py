@@ -101,6 +101,47 @@ def test_sort_by_naming_priority(sp_init):
     assert rids == ['S1', 'T1', 'B1', 'P1']
 
 
+
+def test_sort_by_naming_priority_continuing_clusters(sp_init):
+    """Verify clusters containing a previous representative are named before new clusters, with ties by genome ID."""
+
+    cur_genomes = StubGenomes({gid: StubGenome('g__VXYK01;s__VXYK01 sp047516945', 'g__;s__')
+                               for gid in ('G9', 'G1', 'G7', 'G3', 'G5')})
+    clusters = {'G9': {'G9', 'P2'},     # previous representative P2 replaced by G9
+                'G1': {'G1', 'G0'},     # new cluster
+                'G7': {'G7', 'P8'},     # previous representative P8 replaced by G7
+                'G3': {'G3'},           # new cluster
+                'G5': {'G5'}}           # previous representative
+    prev_genomes = StubGenomes({}, sp_clusters={'G5', 'P2', 'P8'})
+
+    rids = sp_init._sort_by_naming_priority(clusters, prev_genomes, cur_genomes, {})
+    assert rids == ['G5', 'G7', 'G9', 'G1', 'G3']
+
+
+def test_continuing_cluster_keeps_previous_name(sp_init):
+    """Verify a cluster whose previous representative was replaced keeps its previous placeholder name
+    when the representative of a new cluster is classified to the same species."""
+
+    gtdbtk_sp = 'g__VXYK01;s__VXYK01 sp047516945'
+    cur_genomes = StubGenomes({
+        'G060099985': StubGenome(gtdbtk_sp, 'g__;s__'),     # representative of a new cluster
+        'G060103125': StubGenome(gtdbtk_sp, 'g__;s__'),
+        'G977925895': StubGenome(gtdbtk_sp, 'g__;s__'),     # replaced previous representative G047516945
+        'G047516945': StubGenome(gtdbtk_sp, 'g__;s__')})
+    clusters = {'G060099985': {'G060099985', 'G060103125'},
+                'G977925895': {'G977925895', 'G047516945'}}
+    prev_genomes = StubGenomes({}, sp_clusters={'G047516945'})
+
+    rids = sp_init._sort_by_naming_priority(clusters, prev_genomes, cur_genomes, {})
+    names = {}
+    sp_init.name_placeholder_clusters(rids, names, {}, clusters, prev_genomes, cur_genomes, {})
+    sp_init.sp_curation_log.close()
+
+    assert names == {'G977925895': 's__VXYK01 sp047516945',
+                     'G060099985': 's__VXYK01 sp060099985'}
+    assert cur_genomes['G060103125'].gtdb_taxa.species == 's__VXYK01 sp060099985'
+
+
 def test_name_type_species_clusters(sp_init, tmp_path, caplog):
     """Verify type species clusters are named from their SeqCode name and conflicts list the source."""
 

@@ -247,7 +247,9 @@ def write_clusters(clusters, rep_radius, genomes, out_file):
         '\tClosest GTDB species\tClosest representative\tANI radius\tAF closest')
     fout.write(
         '\tNo. clustered genomes\tMean ANI\tMin ANI\tMean AF\tMin AF\tClustered genomes' + Genome.REF_TAXA_HEADER + '\n')
-    for gid in sorted(clusters, key=lambda x: len(clusters[x]), reverse=True):
+    # clusters of the same size are ordered by representative ID so the
+    # file does not change between runs
+    for gid in sorted(clusters, key=lambda x: (-len(clusters[x]), x)):
         if clusters[gid]:
             mean_ani = '%.2f' % np_mean([d.ani for d in clusters[gid]])
             min_ani = '%.2f' % min([d.ani for d in clusters[gid]])

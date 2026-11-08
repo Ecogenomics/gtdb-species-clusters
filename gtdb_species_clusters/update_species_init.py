@@ -640,20 +640,28 @@ class UpdateSpeciesInit(object):
         assert len(clusters) == len(type_species) + \
             len(type_strains) + len(binomial) + len(placeholder)
 
-        # sort groups so previous GTDB representatives
-        # are processed first
+        # sort each group so clusters represented by a previous GTDB representative are
+        # processed first, followed by clusters containing a previous GTDB representative
+        # (i.e. the previous representative was replaced) and then new clusters. A cluster
+        # continuing a previous GTDB species cluster therefore keeps its previous name when
+        # the representative of a new cluster is classified to the same species. Clusters
+        # are sorted by genome ID within each tier so names do not depend on the order of
+        # the cluster file.
         rids_by_naming_priority = []
         for d in [type_species, type_strains, binomial, placeholder]:
             prev_reps = []
+            continuing_reps = []
             new_reps = []
             for rid in d:
                 if rid in prev_genomes.sp_clusters:
                     prev_reps.append(rid)
+                elif any(gid in prev_genomes.sp_clusters for gid in clusters[rid]):
+                    continuing_reps.append(rid)
                 else:
                     new_reps.append(rid)
 
-            rids_by_naming_priority.extend(prev_reps)
-            rids_by_naming_priority.extend(new_reps)
+            for tier in (prev_reps, continuing_reps, new_reps):
+                rids_by_naming_priority.extend(sorted(tier))
 
         assert len(rids_by_naming_priority) == len(clusters)
 
