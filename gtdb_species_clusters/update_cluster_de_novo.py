@@ -30,6 +30,7 @@ from gtdb_species_clusters.skani import Skani
 from gtdb_species_clusters.genomes import Genomes
 from gtdb_species_clusters.type_genome_utils import (ClusteredGenome,
                                                      GenomeRadius,
+                                                     is_closer_neighbour,
                                                      write_rep_radius,
                                                      write_clusters,
                                                      check_ecoli_shigella_type_strains)
@@ -109,7 +110,14 @@ class UpdateClusterDeNovo(object):
                 assert rep_gid in rep_gids
 
                 ani, af = Skani.symmetric_ani_af(ani_af, nonrep_gid, rep_gid)
-                if ani > nonrep_radius[nonrep_gid].ani and af >= self.af_sp:
+
+                # ties in ANI are broken by AF and then genome ID so the closest
+                # neighbour does not depend on the order of the ANI results; a tie
+                # never displaces the default radius
+                cur_radius = nonrep_radius[nonrep_gid]
+                best_af = cur_radius.af if cur_radius.neighbour_gid is not None else None
+                if af >= self.af_sp and is_closer_neighbour(ani, af, rep_gid,
+                                                            cur_radius.ani, best_af, cur_radius.neighbour_gid):
                     nonrep_radius[nonrep_gid] = GenomeRadius(ani=ani,
                                                              af=af,
                                                              neighbour_gid=rep_gid)
@@ -192,8 +200,12 @@ class UpdateClusterDeNovo(object):
 
                     ani, af = Skani.symmetric_ani_af(unclustered_ani_af, cur_gid, rep_gid)
 
+                    # A tie in ANI and AF is broken by genome ID only among de novo
+                    # representatives (closest_rep_gid is None until one is found),
+                    # so a tie with the closest named representative never assigns
+                    # the genome to a de novo representative.
                     if af >= self.af_sp:
-                        if ani > closest_rep_ani or (ani == closest_rep_ani and af > closest_rep_af):
+                        if is_closer_neighbour(ani, af, rep_gid, closest_rep_ani, closest_rep_af, closest_rep_gid):
                             closest_rep_gid = rep_gid
                             closest_rep_ani = ani
                             closest_rep_af = af
@@ -298,7 +310,7 @@ class UpdateClusterDeNovo(object):
 
                     af = max(af_r, af_q)
                     if af >= self.af_sp:
-                        if ani > closest_rep_ani or (ani == closest_rep_ani and af > closest_rep_af):
+                        if is_closer_neighbour(ani, af, rep_gid, closest_rep_ani, closest_rep_af, closest_rep_gid):
                             closest_rep_gid = rep_gid
                             closest_rep_ani = ani
                             closest_rep_af = af

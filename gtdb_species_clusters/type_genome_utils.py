@@ -45,6 +45,28 @@ ClusteredGenome = namedtuple('ClusteredGenome', 'ani af gid')
 GenomeRadius = namedtuple('GenomeRadius', 'ani af neighbour_gid')
 
 
+def is_closer_neighbour(ani, af, gid, best_ani, best_af, best_gid):
+    """Determine if a genome is a closer neighbour than the current closest neighbour.
+
+    Neighbours are ordered by ANI, then AF, then genome ID, with the highest value
+    winning, so ties do not depend on the order in which ANI results are read.
+    best_af and best_gid can be None when the current value is a default rather
+    than an actual neighbour. A tie in ANI then does not displace the default if
+    best_af is None, and a tie in ANI and AF does not if best_gid is None.
+    """
+
+    if ani != best_ani:
+        return ani > best_ani
+
+    if best_af is None:
+        return False
+
+    if af != best_af:
+        return af > best_af
+
+    return best_gid is not None and gid > best_gid
+
+
 def parse_gtdb_type_strain_ledger(gtdb_type_strains_ledger, cur_genomes):
     """Read and validate GTDB type strain ledger."""
 

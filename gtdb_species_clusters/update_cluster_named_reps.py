@@ -30,6 +30,7 @@ from gtdb_species_clusters.skani import Skani
 from gtdb_species_clusters.genomes import Genomes
 
 from gtdb_species_clusters.type_genome_utils import (GenomeRadius,
+                                                     is_closer_neighbour,
                                                      write_rep_radius,
                                                      write_clusters,
                                                      check_ecoli_shigella_type_strains)
@@ -106,7 +107,11 @@ class UpdateClusterNamedReps(object):
                         rep_gid1, rep_gid2,
                         ani, af))
 
-                if ani > rep_radius[rep_gid1].ani:
+                # ties in ANI are broken by AF and then genome ID so the closest
+                # neighbour does not depend on the order of the ANI file
+                cur_radius = rep_radius[rep_gid1]
+                if is_closer_neighbour(ani, af, rep_gid2,
+                                       cur_radius.ani, cur_radius.af, cur_radius.neighbour_gid):
                     if af < self.af_sp:
                         af_warning_count += 1
                         # self.log.warning('ANI for {} and {} is >{:.2f}, but AF <{:.2f} [pair skipped].'.format(
@@ -197,7 +202,7 @@ class UpdateClusterNamedReps(object):
                 ani, af = Skani.symmetric_ani_af(ani_af, non_rid, rid)
 
                 if af >= self.af_sp:
-                    if ani > closest_ani or (ani == closest_ani and af > closest_af):
+                    if is_closer_neighbour(ani, af, rid, closest_ani, closest_af, closest_rid):
                         closest_rid = rid
                         closest_ani = ani
                         closest_af = af
